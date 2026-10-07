@@ -45,14 +45,14 @@
   /* ---------- Responsive images ---------- */
   function picture(slug, n, o) {
     o = o || {};
-    var W = [400, 800, 1200];
+    var W = o.widths || [400, 800, 1200];
     var base = 'img/' + slug + '-' + n + '-';
     var ss = function (ext) { return W.map(function (w) { return base + w + '.' + ext + ' ' + w + 'w'; }).join(', '); };
     var sizes = o.sizes || '(min-width:1100px) 25vw, 50vw';
     return '<picture><source type="image/avif" srcset="' + ss('avif') + '" sizes="' + sizes + '">' +
       '<source type="image/webp" srcset="' + ss('webp') + '" sizes="' + sizes + '">' +
-      '<img src="' + base + '800.jpg" srcset="' + ss('jpg') + '" sizes="' + sizes + '" width="' + (o.w || 1200) + '" height="' + (o.h || 1500) + '" alt=""' + esc(o.alt || '') + '"' +
-      (o.eager ? ' fetchpriority="high"' : ' loading="lazy"') + ' decoding="async"></picture>';
+      '<img src="' + base + '800.jpg" width="' + (o.w || 1200) + '" height="' + (o.h || 1500) + '" alt=""' + esc(o.alt || '') + '"' +
+      (o.eager ? ' fetchpriority="high"' : ' loading="lazy"') + ' decoding="async" onload="this.classList.add(\'ld\')"></picture>';
   }
 
   /* ---------- Stores ---------- */
@@ -210,17 +210,17 @@
   /* ---------- Chrome ---------- */
   var NAV = [
     { label: 'New In', href: 'shop.html?sort=new' },
-    { label: 'Lehengas', href: 'shop.html?cat=lehengas' },
-    { label: 'Sarees', href: 'shop.html?cat=sarees' },
-    { label: 'Suits', href: 'shop.html?cat=suits' },
-    { label: 'Gowns', href: 'shop.html?cat=gowns', xl: true },
+    { label: 'Poshak', href: 'shop.html?cat=poshak' },
+    { label: 'Ghagra Choli', href: 'shop.html?cat=ghagra' },
+    { label: 'Bandhani', href: 'shop.html?cat=bandhani' },
+    { label: 'Odhni', href: 'shop.html?cat=odhni', xl: true },
     { label: 'Custom Stitching', href: 'shop.html?stitch=custom', xl: true }
   ];
   function buildChrome() {
     var page = document.body.getAttribute('data-page');
     var sprite = '';
     var header = '<a class="skip" href="#main">Skip to content</a>' +
-      '<p class="announce"><span>Free shipping over ₹15,000</span><span class="announce__sep" aria-hidden="true">·</span><span class="announce__opt">Custom stitching in 10–14 days</span></p>' +
+      '<p class="announce"><span>Free shipping over ₹15,000</span><span class="announce__sep" aria-hidden="true">·</span><span class="announce__opt">Rajasthani craft · custom stitching in 10–14 days</span></p>' +
       '<header class="header" id="site-header"><div class="header__bar container">' +
       '<a class="logo" href="index.html" aria-label="' + A.BRAND + ' home">' + A.BRAND + '</a>' +
       '<nav class="nav" aria-label="Primary"><ul class="nav__list">' +
@@ -228,7 +228,7 @@
       NAV.map(function (n) { return '<li class="nav__item' + (n.xl ? ' nav__item--xl' : '') + '"><a class="nav__link" href="' + n.href + '">' + n.label + '</a></li>'; }).join('') +
       '</ul></nav>' +
       '<div class="header__actions">' +
-      '<button type="button" class="searchpill" data-open="search" aria-label="Search" aria-expanded="false" aria-controls="search">' + icon('search') + '<span class="searchpill__t">Search lehengas, sarees…</span></button>' +
+      '<button type="button" class="searchpill" data-open="search" aria-label="Search" aria-expanded="false" aria-controls="search">' + icon('search') + '<span class="searchpill__t">Search poshak, ghagra, odhni…</span></button>' +
       '<button type="button" class="icon-btn header__account" data-open="account" aria-label="Account" aria-expanded="false" aria-controls="account">' + icon('user') + '</button>' +
       '<a class="icon-btn header__wish" href="shop.html?wishlist=1" aria-label="Wishlist"><span class="icon-btn__ico">' + icon('heart') + '<span class="count" data-wish-count hidden>0</span></span></a>' +
       '<button type="button" class="icon-btn header__cart" data-open="cart" aria-label="Open cart" aria-expanded="false" aria-controls="cart"><span class="icon-btn__ico">' + icon('bag') + '<span class="count" data-cart-count hidden>0</span></span></button>' +
@@ -238,10 +238,10 @@
       '<div><h2 class="mega__h">Shop by category</h2><ul>' + A.CATEGORIES.map(function (c) { return '<li><a href="shop.html?cat=' + c.id + '">' + c.label + '</a></li>'; }).join('') + '<li><a class="mega__all" href="shop.html">View all</a></li></ul></div>' +
       '<div><h2 class="mega__h">Occasion</h2><ul>' + A.OCCASIONS.map(function (c) { return '<li><a href="shop.html?occ=' + c.id + '">' + c.label + '</a></li>'; }).join('') + '</ul></div>' +
       '<div><h2 class="mega__h">Stitching</h2><ul>' + A.STITCH.map(function (c) { return '<li><a href="shop.html?stitch=' + c.id + '">' + c.label + '</a></li>'; }).join('') + '</ul></div>' +
-      '<a class="mega__feature" href="product.html?id=noor-lehenga">' + picture('noor-lehenga', 1, { sizes: '(min-width:1100px) 22vw, 0px', alt: '' }) + '<span class="mega__cap"><small>The bridal edit</small>Noor Embroidered Lehenga</span></a>' +
+      '<a class="mega__feature" href="product.html?id=maharani-poshak">' + picture('maharani-poshak', 1, { sizes: '(min-width:1100px) 22vw, 0px', alt: '' }) + '<span class="mega__cap"><small>The Vivah edit</small>Maharani Bridal Poshak</span></a>' +
       '</div></div></header>';
     var footer = '<footer class="footer"><div class="container footer__in">' +
-      '<div class="footer__brand"><a class="logo" href="index.html">' + A.BRAND + '</a><p>Handcrafted Indian occasionwear, made to your measure.</p>' +
+      '<div class="footer__brand"><a class="logo" href="index.html">' + A.BRAND + '</a><p>Authentic Rajputi dresses — poshak, ghagra choli and odhni — made to your measure.</p>' +
       '<form class="newsletter" action="#" data-newsletter novalidate><label for="nl-email" class="vh">Email address</label><input id="nl-email" type="email" name="email" inputmode="email" autocomplete="email" placeholder="Your email address" required><button class="btn" type="submit">Subscribe</button><p class="newsletter__msg" role="status" aria-live="polite"></p></form></div>' +
       '<details class="footer__col" open><summary>Shop</summary><ul>' + A.CATEGORIES.map(function (c) { return '<li><a href="shop.html?cat=' + c.id + '">' + c.label + '</a></li>'; }).join('') + '</ul></details>' +
       '<details class="footer__col" open><summary>Care</summary><ul><li><a href="shop.html?stitch=custom">Custom stitching</a></li><li><a href="#size-guide" data-size-guide>Size guide</a></li><li><a href="cart.html">Shipping &amp; returns</a></li><li><a href="cart.html">Track order</a></li></ul></details>' +
@@ -250,14 +250,14 @@
     var sheets =
       '<div class="sheet sheet--menu" id="menu" aria-hidden="true"><div class="sheet__backdrop" data-close></div><div class="sheet__panel" aria-label="Menu">' +
       '<div class="sheet__head"><a class="logo" href="index.html">' + A.BRAND + '</a><button type="button" class="icon-btn" data-close aria-label="Close menu">' + icon('close') + '</button></div>' +
-      '<div class="sheet__body"><button type="button" class="searchpill searchpill--wide" data-open="search" aria-label="Search">' + icon('search') + '<span>Search lehengas, sarees…</span></button>' +
+      '<div class="sheet__body"><button type="button" class="searchpill searchpill--wide" data-open="search" aria-label="Search">' + icon('search') + '<span>Search poshak, ghagra, odhni…</span></button>' +
       '<ul class="menu"><li><a href="shop.html">Shop all</a></li><li><a href="shop.html?sort=new">New in</a></li>' +
       A.CATEGORIES.map(function (c) { return '<li><a href="shop.html?cat=' + c.id + '">' + c.label + '</a></li>'; }).join('') + '</ul>' +
       '<h2 class="menu__h">Shop by occasion</h2><ul class="pills">' + A.OCCASIONS.map(function (c) { return '<li><a href="shop.html?occ=' + c.id + '">' + c.label + '</a></li>'; }).join('') + '</ul>' +
       '<ul class="menu menu--sub"><li><a href="shop.html?stitch=custom">Custom stitching</a></li><li><a href="shop.html?wishlist=1">Wishlist</a></li><li><a href="#account" data-open="account">Account</a></li></ul></div></div></div>' +
       '<div class="sheet sheet--search" id="search" aria-hidden="true"><div class="sheet__backdrop" data-close></div><div class="sheet__panel" aria-label="Search">' +
       '<form class="searchform" action="shop.html" role="search"><label class="vh" for="q">Search products</label>' + icon('search') +
-      '<input id="q" name="q" type="search" inputmode="search" enterkeyhint="search" autocomplete="off" placeholder="Search lehengas, sarees, suits…" data-autofocus>' +
+      '<input id="q" name="q" type="search" inputmode="search" enterkeyhint="search" autocomplete="off" placeholder="Search poshak, ghagra, bandhani…" data-autofocus>' +
       '<button type="button" class="icon-btn" data-close aria-label="Close search">' + icon('close') + '</button></form>' +
       '<div class="sheet__body" id="search-out" aria-live="polite"></div></div></div>' +
       '<div class="sheet sheet--cart" id="cart" aria-hidden="true"><div class="sheet__backdrop" data-close></div><div class="sheet__panel" aria-label="Shopping bag">' +
@@ -304,7 +304,7 @@
 
   function bindSearch() {
     var q = $('#q'), out = $('#search-out');
-    var popular = ['Bridal lehenga', 'Banarasi saree', 'Anarkali', 'Custom stitching'];
+    var popular = ['Bridal poshak', 'Bandhani', 'Leheriya', 'Gota patti'];
     function idle() {
       out.innerHTML = '<h2 class="menu__h">Popular searches</h2><ul class="pills">' + popular.map(function (s) { return '<li><a href="shop.html?q=' + encodeURIComponent(s) + '">' + s + '</a></li>'; }).join('') + '</ul>';
     }
@@ -313,13 +313,13 @@
       var r = A.search(v).slice(0, 6);
       out.innerHTML = r.length ? '<ul class="results">' + r.map(function (p) {
         return '<li><a class="result" href="product.html?id=' + p.id + '"><span class="result__img">' + picture(p.id, 1, { sizes: '72px', alt: '' }) + '</span><span class="result__t"><strong>' + esc(p.name) + '</strong><span>' + esc(p.fabric) + ' · ' + money(p.price) + '</span></span></a></li>';
-      }).join('') + '</ul><a class="btn btn--ghost result__all" href="shop.html?q=' + encodeURIComponent(v) + '">See all results</a>' : '<p class="empty__sub">No matches for “' + esc(q.value.trim()) + '”. Try “saree” or “lehenga”.</p>';
+      }).join('') + '</ul><a class="btn btn--ghost result__all" href="shop.html?q=' + encodeURIComponent(v) + '">See all results</a>' : '<p class="empty__sub">No matches for “' + esc(q.value.trim()) + '”. Try “poshak” or “bandhani”.</p>';
     }
     A.search = function (v) {
       var words = v.toLowerCase().split(/\s+/).filter(Boolean);
       return A.PRODUCTS.filter(function (p) {
         var hay = [p.name, p.fabric, p.cat, p.occ.join(' '), p.colors.map(function (c) { return c.name; }).join(' ')].join(' ').toLowerCase();
-        return words.every(function (w) { return hay.indexOf(w.replace(/s$/, '')) > -1; });
+        return words.every(function (w) { w = ({ lehenga: 'ghagra', lehnga: 'ghagra', choli: 'ghagra', dupatta: 'odhni', saree: 'poshak', kurta: 'suit', gotapatti: 'gota' })[w] || w; return hay.indexOf(w.replace(/s$/, '')) > -1; });
       });
     };
     q.addEventListener('input', run); idle();
@@ -328,11 +328,13 @@
     document.addEventListener('click', function (e) { var b = e.target.closest('.sheet--menu [data-open="search"]'); if (b) Sheet.close('menu'); }, true);
   }
 
+  var bumpPrev = Cart.count();
   function bindCartUI() {
     var body = $('#cart-body'), foot = $('#cart-foot');
     function render() {
       var n = Cart.count();
-      $$('[data-cart-count]').forEach(function (c) { c.textContent = n > 9 ? '9+' : n; c.hidden = !n; });
+      $$('[data-cart-count]').forEach(function (c) { c.textContent = n > 9 ? '9+' : n; c.hidden = !n; if (n > bumpPrev) { c.classList.remove('bump'); void c.offsetWidth; c.classList.add('bump'); } });
+      bumpPrev = n;
       $$('[data-wish-count]').forEach(function (c) { c.textContent = Cart.wish.length; c.hidden = !Cart.wish.length; });
       var ct = $('[data-cart-count-text]'); if (ct) ct.textContent = n ? '(' + n + ')' : '';
       var cb = $('.header__cart'); if (cb) cb.setAttribute('aria-label', 'Open cart, ' + n + ' item' + (n === 1 ? '' : 's'));
@@ -347,7 +349,7 @@
       if (li && (b = e.target.closest('[data-qty]'))) { var it = Cart.items.filter(function (i) { return i.key === li.getAttribute('data-key'); })[0]; if (it) Cart.setQty(it.key, it.qty + parseInt(b.getAttribute('data-qty'), 10)); }
       if (li && e.target.closest('[data-remove]')) { Cart.remove(li.getAttribute('data-key')); toast('Removed from your bag'); }
       var w = e.target.closest('[data-wish]');
-      if (w) { var id = w.getAttribute('data-wish'), on = Cart.toggleWish(id); $$('[data-wish="' + id + '"]').forEach(function (x) { x.setAttribute('aria-pressed', on); x.setAttribute('aria-label', (on ? 'Remove ' : 'Add ') + byId[id].name + (on ? ' from' : ' to') + ' wishlist'); }); toast(on ? 'Saved to wishlist' : 'Removed from wishlist', on ? { href: 'shop.html?wishlist=1', label: 'View' } : null); if (A.onWishChange) A.onWishChange(); }
+      if (w) { var id = w.getAttribute('data-wish'), on = Cart.toggleWish(id); $$('[data-wish="' + id + '"]').forEach(function (x) { x.classList.remove('pop'); void x.offsetWidth; if (on) x.classList.add('pop'); x.setAttribute('aria-pressed', on); x.setAttribute('aria-label', (on ? 'Remove ' : 'Add ') + byId[id].name + (on ? ' from' : ' to') + ' wishlist'); }); toast(on ? 'Saved to wishlist' : 'Removed from wishlist', on ? { href: 'shop.html?wishlist=1', label: 'View' } : null); if (A.onWishChange) A.onWishChange(); }
       var sg = e.target.closest('[data-size-guide]'); if (sg) { e.preventDefault(); Sheet.open('size-guide', sg); }
     });
   }
@@ -375,9 +377,10 @@
       if (!size) { err.hidden = false; form.querySelector('[name=qsize]').focus(); return; }
       var p = byId[form.getAttribute('data-id')];
       Cart.add(p.id, { size: size.value, stitch: form.querySelector('[name=qstitch]:checked').value, color: p.colors[0].name });
-      Sheet.close('quick'); afterAdd();
+      U_fly(form.querySelector('[type=submit]')); Sheet.close('quick'); afterAdd();
     });
   }
+  function U_fly(el) { A.U.fly(el); }
   function afterAdd() {
     if (mqSmall.matches) toast('Added to your bag', { href: 'cart.html', label: 'View bag' });
     else setTimeout(function () { Sheet.open('cart', $('.header__cart')); }, 60);
@@ -424,9 +427,40 @@
     });
   }
 
-  A.U = { $: $, $$: $$, money: money, esc: esc, picture: picture, icon: icon, stars: stars, priceHTML: priceHTML, card: card, sizeRadios: sizeRadios, stitchRadios: stitchRadios, line: line, totalsHTML: totalsHTML, shipMeter: shipMeter, emptyCart: emptyCart, byId: byId, stitchById: stitchById, Cart: Cart, Sheet: Sheet, toast: toast, afterAdd: afterAdd, bindRails: bindRails, store: store, mqDesktop: mqDesktop, mqSmall: mqSmall, reduceMotion: reduceMotion };
+  /* Scroll reveal: one shared IntersectionObserver; content stays visible without JS / with reduced motion. */
+  var io = null;
+  if ('IntersectionObserver' in window && !reduceMotion.matches) {
+    document.documentElement.classList.add('reveal-on');
+    io = new IntersectionObserver(function (en) { en.forEach(function (e) { if (e.isIntersecting) { e.target.classList.add('is-in'); io.unobserve(e.target); } }); }, { threshold: 0.08, rootMargin: '0px 0px -4% 0px' });
+  }
+  function reveal(root) {
+    if (!io) return;
+    $$('.card,.tile,.section__head,.review,.step,.story__head,.footer__col,.trust__list li,.summary-card,.pdp__info>*,.reviews__sum,[data-reveal]', root || document).forEach(function (el, i) {
+      if (el._rv || el.closest('.sheet')) return; el._rv = 1;
+      el.classList.add('rv'); el.style.transitionDelay = (i % 6) * 60 + 'ms'; io.observe(el);
+    });
+  }
+  /* Add-to-bag: a small gold dot flies to the cart icon (Web Animations API, skipped for reduced motion). */
+  function fly(from) {
+    if (reduceMotion.matches || !from || !from.getBoundingClientRect || !from.animate) return;
+    var hdr = $('#site-header'); if (hdr) hdr.classList.remove('is-hidden');
+    var to = $('.header__cart'); if (!to) return;
+    var a = from.getBoundingClientRect(), b = to.getBoundingClientRect(), d = document.createElement('span');
+    d.className = 'fly'; d.style.left = a.left + a.width / 2 - 9 + 'px'; d.style.top = a.top + a.height / 2 - 9 + 'px'; document.body.appendChild(d);
+    var an = d.animate([{ transform: 'translate(0,0) scale(1)', opacity: 1 }, { transform: 'translate(' + (b.left + b.width / 2 - a.left - a.width / 2) + 'px,' + (b.top + b.height / 2 - a.top - a.height / 2) + 'px) scale(.35)', opacity: .5 }], { duration: 650, easing: 'cubic-bezier(.45,-.15,.6,.5)' });
+    an.onfinish = function () { d.remove(); };
+  }
+  /* Warm the next page on intent (hover / touch) — cheap and makes navigation feel instant. */
+  var warmed = {};
+  function warm(e) {
+    var a = e.target.closest && e.target.closest('a[href]'); if (!a || a.origin !== location.origin || warmed[a.href] || !/\.html/.test(a.pathname)) return;
+    warmed[a.href] = 1; var l = document.createElement('link'); l.rel = 'prefetch'; l.href = a.href; document.head.appendChild(l);
+  }
+  document.addEventListener('pointerover', warm, { passive: true }); document.addEventListener('touchstart', warm, { passive: true });
+  A.U = { reveal: reveal, fly: fly, $: $, $$: $$, money: money, esc: esc, picture: picture, icon: icon, stars: stars, priceHTML: priceHTML, card: card, sizeRadios: sizeRadios, stitchRadios: stitchRadios, line: line, totalsHTML: totalsHTML, shipMeter: shipMeter, emptyCart: emptyCart, byId: byId, stitchById: stitchById, Cart: Cart, Sheet: Sheet, toast: toast, afterAdd: afterAdd, bindRails: bindRails, store: store, mqDesktop: mqDesktop, mqSmall: mqSmall, reduceMotion: reduceMotion };
 
-  buildChrome(); bindMega(); bindSearch(); bindCartUI(); bindQuick(); bindNewsletter(); bindHeader(); bindRails(document);
+  $$('img').forEach(function (i) { if (i.complete && i.naturalWidth) i.classList.add('ld'); });
+  buildChrome(); bindMega(); bindSearch(); bindCartUI(); bindQuick(); bindNewsletter(); bindHeader(); bindRails(document); reveal(document);
   document.documentElement.classList.add('js');
   document.dispatchEvent(new Event('asingh:ready'));
 })(window.ASINGH);

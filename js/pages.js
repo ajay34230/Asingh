@@ -10,18 +10,12 @@
     var list = A.PRODUCTS.slice().sort(function (a, b) { return (b.isNew - a.isNew); }).slice(0, 8);
     $('#new-grid').innerHTML = list.map(function (p) { return U.card(p); }).join('');
     $('#best-track').innerHTML = A.PRODUCTS.filter(function (p) { return p.best; }).map(function (p) { return '<div class="rail__item">' + U.card(p, { sizes: '(min-width:1100px) 22vw, (min-width:700px) 31vw, 60vw' }) + '</div>'; }).join('');
-    var cols = [['Bridal lehengas', 'lehengas'], ['Festive anarkalis', 'anarkalis'], ['Heritage sarees', 'sarees'], ['Everyday suits', 'suits']];
+    var cols = [['Rajputi Poshak', 'poshak'], ['Ghagra Choli', 'ghagra'], ['Bandhani & Leheriya', 'bandhani'], ['Rajputi Suits', 'suits']];
     $('#collections-track').innerHTML = cols.map(function (c, i) {
-      return '<li class="rail__item"><a class="tile" href="shop.html?cat=' + c[1] + '">' + U.picture('collection', i + 1, { w: 1200, h: 1200, sizes: '(min-width:1100px) 24vw, (min-width:700px) 46vw, 72vw', alt: '' }) + '<span class="tile__cap"><span class="tile__n">0' + (i + 1) + '</span>' + c[0] + U.icon('right', 'ico--sm') + '</span></a></li>';
+      return '<li class="rail__item"><a class="tile" href="shop.html?cat=' + c[1] + '">' + U.picture('collection', i + 1, { w: 800, h: 800, widths: [400, 800], sizes: '(min-width:1100px) 24vw, (min-width:700px) 46vw, 72vw', alt: '' }) + '<span class="tile__cap"><span class="tile__n">0' + (i + 1) + '</span>' + c[0] + U.icon('right', 'ico--sm') + '</span></a></li>';
     }).join('');
     U.bindRails(document);
-    // Scroll-reveal for the made-to-measure story; content is visible by default without JS or with reduced motion.
-    var els = $$('[data-reveal]');
-    if ('IntersectionObserver' in window && !U.reduceMotion.matches) {
-      document.documentElement.classList.add('reveal-on');
-      var io = new IntersectionObserver(function (en) { en.forEach(function (e) { if (e.isIntersecting) { e.target.classList.add('is-in'); io.unobserve(e.target); } }); }, { threshold: 0.15 });
-      els.forEach(function (e) { io.observe(e); });
-    }
+    U.reveal(document);
   }
 
   /* ================= SHOP ================= */
@@ -88,6 +82,7 @@
       chipsEl.hidden = !chips.length;
       var n = chips.length - (state.q ? 1 : 0); var fb = $('#filter-open'); fb.querySelector('.count').textContent = n; fb.querySelector('.count').hidden = !n;
       applyBtn.textContent = 'Show ' + res.length + ' piece' + (res.length === 1 ? '' : 's');
+      U.reveal(grid);
     }
     function commit(s) {
       state = s;
@@ -154,7 +149,7 @@
     $('#reviews').innerHTML = rev;
     var rel = A.PRODUCTS.filter(function (x) { return x.id !== p.id; }).sort(function (a, b) { return (b.cat === p.cat) - (a.cat === p.cat) || b.rating - a.rating; }).slice(0, 8);
     $('#related-track').innerHTML = rel.map(function (x) { return '<div class="rail__item">' + U.card(x, { sizes: '(min-width:1100px) 22vw, (min-width:700px) 31vw, 60vw' }) + '</div>'; }).join('');
-    U.bindRails(document);
+    U.bindRails(document); U.reveal(document);
 
     var buy = $('#buy'), priceEl = $('#pdp-price'), sticky = $('#sticky-buy');
     function curStitch() { return sById[buy.querySelector('[name=stitch]:checked').value]; }
@@ -180,7 +175,7 @@
       e.preventDefault();
       var size = buy.querySelector('[name=size]:checked'); if (!size) { needSize(); return; }
       Cart.add(p.id, { size: size.value, stitch: curStitch().id, color: buy.querySelector('[name=color]:checked').value, note: $('#note').value.trim() });
-      U.afterAdd();
+      U.fly($('#add-btn').getBoundingClientRect().top > 0 && $('#add-btn').getBoundingClientRect().top < innerHeight ? $('#add-btn') : $('#sticky-add')); U.afterAdd();
     });
     $('#sticky-add').addEventListener('click', function () { buy.requestSubmit ? buy.requestSubmit() : buy.dispatchEvent(new Event('submit', { cancelable: true })); });
     // Sticky purchase bar: shown while the main Add button is out of view (small screens only via CSS).
@@ -208,7 +203,7 @@
       side.innerHTML = '<h2 class="h3">Order summary</h2>' + U.shipMeter() + U.totalsHTML() + '<a class="btn btn--block btn--lg" href="checkout.html">Checkout</a><p class="secure">' + U.icon('lock', 'ico--xs') + ' Secure checkout · Easy returns on unstitched pieces</p>';
       bar.innerHTML = '<div><span class="muted">Total</span><strong>' + money(Cart.total()) + '</strong></div><a class="btn btn--lg" href="checkout.html">Checkout</a>';
     }
-    Cart.subscribe(render);
+    Cart.subscribe(render); U.reveal(document);
   }
 
   /* ================= CHECKOUT ================= */

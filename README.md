@@ -1,6 +1,6 @@
-# ASINGH — responsive fashion storefront
+# ASINGH — Rajputi dresses storefront
 
-A dependency-free, device-adaptive ecommerce front end (static HTML/CSS/JS) for handcrafted Indian occasionwear:
+A dependency-free, device-adaptive ecommerce front end (static HTML/CSS/JS) for **Rajputi dresses only** — poshak, ghagra choli, bandhani & leheriya, odhni and Rajputi suits (gota patti, zardozi, shisha work):
 home, shop (filters), product, cart/bag drawer, and a 3-step checkout.
 
 Run it: `npx http-server -p 4173` (or any static server) → http://localhost:4173
@@ -20,10 +20,15 @@ Also: `clamp()` fluid type/spacing, `srcset`/`sizes` with AVIF → WebP → JPEG
 ## Files
 - `index.html shop.html product.html cart.html checkout.html`
 - `css/styles.css`, `js/data.js` (catalogue), `js/app.js` (shared chrome, cart, sheets), `js/pages.js` (page logic)
-- `img/` generated placeholder fabric imagery — **replace with real photography** (keep the `name-{n}-{400|800|1200}.{avif,webp,jpg}` naming or regenerate via `python3 tools/gen_images.py`)
+- `img/` demo garment illustrations (poshak, ghagra, suit, odhni — drawn by `tools/gen_images.py`) — **replace with real photography** (keep the `name-{n}-{400|800|1200}.{avif,webp,jpg}` naming or regenerate via `python3 tools/gen_images.py`)
+
+## Motion & performance
+- Animation is transform/opacity only, CSS-first: staged hero entrance, scroll reveals (one shared `IntersectionObserver`), self-drawing diamond rule under headings, image fade-ins, card hover zoom, button light-sweep, heart pop, cart-count bump, add-to-bag "fly to cart", staggered menu/mega-menu, cross-page fade (View Transitions) and scroll-linked parallax where supported. Everything switches off under `prefers-reduced-motion`.
+- Weight: ~38 KB gzipped of HTML/CSS/JS per page; a phone downloads roughly 70–260 KB of images (AVIF → WebP → JPEG, only the size needed). No fonts, no libraries. `content-visibility:auto` skips off-screen sections, backdrop blur is desktop-only, pages are prefetched on hover/touch. `node tools/weight.mjs` reports it.
 
 ## QA tooling
 `node tools/qa.mjs` — loads every page at 19 widths (280→3840) plus landscape phone/tablet sizes and checks horizontal overflow, header collisions, touch-target size, tiny text and broken images.
+`node tools/weight.mjs` — page weight at phone / desktop / 4K.
 `node tools/flows.mjs` — drives menu, search, filters, quick add, PDP validation, cart and the full checkout on phone/tablet/desktop.
 (Both expect a server on :4173 and Playwright's Chromium.)
 
