@@ -1,0 +1,40 @@
+<!doctype html>
+<html lang="en-IN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Shop — ASINGH</title>
+<meta name="description" content="Browse lehengas, anarkalis, sarees, suits and gowns. Filter by stitching, occasion, colour and price.">
+<meta name="theme-color" content="#faf6ef" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#16100f" media="(prefers-color-scheme: dark)">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='6' fill='%235b1530'/%3E%3Ctext x='16' y='22' font-family='serif' font-size='18' text-anchor='middle' fill='%23e9c46a'%3EA%3C/text%3E%3C/svg%3E">
+<link rel="stylesheet" href="css/styles.css">
+<script src="js/data.js" defer></script>
+<script src="js/app.js" defer></script>
+<script src="js/pages.js" defer></script>
+</head>
+<body data-page="shop">
+<div id="page">
+<main id="main"><div class="container shop">
+  <nav class="crumbs" aria-label="Breadcrumb"><ol><li><a href="index.html">Home</a></li><li aria-current="page">Shop</li></ol></nav>
+  <header class="shop__head"><h1 id="shop-title" class="h1">All collections</h1><p class="muted" id="count" aria-live="polite"></p></header>
+  <div class="shop__layout">
+    <div class="sheet sheet--filters" id="filters" aria-hidden="true"><div class="sheet__backdrop" data-close></div>
+      <aside class="sheet__panel" aria-label="Filters">
+        <div class="sheet__head"><h2 class="sheet__title">Filters</h2><button type="button" class="icon-btn" data-close aria-label="Close filters"><svg class="ico" viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg></button></div>
+        <form class="sheet__body" id="filter-form" onsubmit="return false"></form>
+        <div class="sheet__foot sheet__foot--filters"><button type="button" class="btn btn--ghost" id="filter-clear-sheet">Clear all</button><button type="button" class="btn btn--grow" id="apply">Show results</button></div>
+      </aside></div>
+    <section class="shop__results" aria-label="Products">
+      <div class="toolbar">
+        <button type="button" class="btn btn--ghost toolbar__filter" id="filter-open" data-open="filters" aria-expanded="false" aria-controls="filters"><svg class="ico" viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" aria-hidden="true"><path d="M4 6h16M7 12h10M10 18h4"/></svg> Filter <span class="count count--inline" hidden>0</span></button>
+        <div class="toolbar__sort"><label for="sort">Sort by</label><select id="sort" class="input input--select"><option value="featured">Featured</option><option value="new">Newest</option><option value="price-asc">Price: low to high</option><option value="price-desc">Price: high to low</option><option value="rating">Top rated</option></select></div>
+      </div>
+      <ul class="applied" id="applied" aria-label="Applied filters" hidden></ul>
+      <div class="grid grid--shop" id="grid"></div>
+    </section>
+  </div></div></main>
+</div>
+<noscript><p class="noscript">This store needs JavaScript to browse and check out. Please enable it and reload.</p></noscript>
+</body>
+</html>
