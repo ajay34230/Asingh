@@ -78,12 +78,16 @@
       return f ? l.sort(f) : l;
     }
     var state = readURL();
+    var PAGE = 24, shown = PAGE, lastKey = '';
     function render() {
       var res = sorted(A.PRODUCTS.filter(function (p) { return match(p, state); }), state.sort);
       var title = state.wishlist ? 'Your wishlist' : state.q ? 'Results for “' + state.q + '”' : (state.cat.length === 1 ? LABELS.cat[state.cat[0]] : 'All collections');
       $('#shop-title').textContent = title; document.title = title + ' — ' + A.BRAND;
       count.textContent = res.length + (res.length === 1 ? ' piece' : ' pieces');
-      grid.innerHTML = res.length ? res.map(function (p) { return U.card(p); }).join('') :
+      var key = JSON.stringify([state.q, state.sort, state.wishlist, KEYS.map(function (k) { return state[k]; })]); if (key !== lastKey) { shown = PAGE; lastKey = key; }
+      var more = $('#more'); if (!more) { more = document.createElement('div'); more.id = 'more'; more.className = 'more'; grid.parentNode.insertBefore(more, grid.nextSibling); more.addEventListener('click', function (e) { if (e.target.closest('[data-more]')) { shown += PAGE; render(); } }); }
+      more.innerHTML = res.length > shown ? '<p class="muted" role="status">Showing ' + shown + ' of ' + res.length + '</p><button type="button" class="btn btn--ghost" data-more>Show more</button>' : '';
+      grid.innerHTML = res.length ? res.slice(0, shown).map(function (p) { return U.card(p); }).join('') :
         '<div class="empty empty--grid"><p class="empty__title">' + (state.wishlist ? 'Nothing saved yet' : 'No pieces match your filters') + '</p><p>' + (state.wishlist ? 'Tap the heart on any piece to save it here.' : 'Try removing a filter or two.') + '</p>' + (state.wishlist ? '<a class="btn" href="shop.html">Browse the collection</a>' : '<button type="button" class="btn" data-clear>Clear all filters</button>') + '</div>';
       var chips = []; KEYS.forEach(function (k) { state[k].forEach(function (v) { chips.push('<li><button type="button" class="pill pill--x" data-rm="' + k + '|' + esc(v) + '" aria-label="Remove filter ' + esc(LABELS[k][v] || v) + '">' + esc(LABELS[k][v] || v) + U.icon('close', 'ico--xs') + '</button></li>'); }); });
       if (state.q) chips.push('<li><button type="button" class="pill pill--x" data-rm="q|" aria-label="Remove search ' + esc(state.q) + '">“' + esc(state.q) + '”' + U.icon('close', 'ico--xs') + '</button></li>');
@@ -345,5 +349,21 @@
     });
   }
 
+  /* ================= RECENTLY VIEWED (kept on this device only) ================= */
+  var RKEY = 'asingh.recent.v1';
+  function recentIds() { return (U.store.get(RKEY, []) || []).filter(function (id) { return byId[id]; }); }
+  function recentStrip(excludeId) {
+    var ids = recentIds().filter(function (id) { return id !== excludeId; }).slice(0, 10), main = $('#main'); if (!main) return;
+    var old = $('#recent'); if (old) old.remove(); if (ids.length < 1) return;
+    var sec = document.createElement('section'); sec.id = 'recent'; sec.className = 'section container'; sec.setAttribute('aria-labelledby', 'recent-h');
+    sec.innerHTML = '<div class="section__head"><h2 id="recent-h" class="h2">Recently viewed</h2><button type="button" class="link" data-clear-recent>Clear</button></div><div class="rail" data-rail><div class="rail__track" tabindex="0" role="region" aria-label="Recently viewed — scroll horizontally">' + ids.map(function (id) { return '<div class="rail__item">' + U.card(byId[id], { sizes: '(min-width:1100px) 22vw, (min-width:700px) 31vw, 60vw' }) + '</div>'; }).join('') + '</div></div>';
+    main.appendChild(sec); U.bindRails(sec); U.reveal(sec);
+    $('[data-clear-recent]', sec).addEventListener('click', function () { U.store.set(RKEY, []); sec.remove(); });
+  }
+  function noteViewed(id) { var l = (U.store.get(RKEY, []) || []).filter(function (x) { return x !== id; }); l.unshift(id); U.store.set(RKEY, l.slice(0, 12)); }
+
   ({ home: home, shop: shop, product: product, cart: cartPage, checkout: checkout }[page] || function () {})();
+  if (page === 'product') { var vid = new URLSearchParams(location.search).get('id'); if (byId[vid]) { recentStrip(vid); noteViewed(vid); } }
+  else if (page === 'home' || page === 'cart') recentStrip(null);
+
 })();

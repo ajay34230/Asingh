@@ -10,13 +10,14 @@ function inline(t) {
 }
 /* Markdown-lite: # / ## / ### headings, paragraphs, - lists, 1. lists, > quotes, ---, **bold**, *italic*, [links](url) */
 function render(md, vars) {
+  const lv = (String(md).match(/^#{1,3}(?=\s)/gm) || []).map(x => x.length), minL = lv.length ? Math.min.apply(null, lv) : 1;   // top heading level becomes <h2> (the page title is the <h1>)
   md = String(md || '').replace(/\{\{(\w+)\}\}/g, (m, k) => (vars && vars[k] != null && vars[k] !== '' ? vars[k] : m));
   const out = [], lines = md.replace(/\r/g, '').split('\n'); let i = 0;
   while (i < lines.length) {
     const l = lines[i];
     if (!l.trim()) { i++; continue; }
     let m;
-    if ((m = /^(#{1,3})\s+(.*)$/.exec(l))) { const n = m[1].length + 1; out.push(`<h${n}>${inline(m[2])}</h${n}>`); i++; continue; }
+    if ((m = /^(#{1,3})\s+(.*)$/.exec(l))) { const n = m[1].length - minL + 2; out.push(`<h${n}>${inline(m[2])}</h${n}>`); i++; continue; }
     if (/^---+\s*$/.test(l)) { out.push('<hr>'); i++; continue; }
     if (/^\s*[-*]\s+/.test(l)) { const it = []; while (i < lines.length && /^\s*[-*]\s+/.test(lines[i])) it.push(`<li>${inline(lines[i++].replace(/^\s*[-*]\s+/, ''))}</li>`); out.push(`<ul>${it.join('')}</ul>`); continue; }
     if (/^\s*\d+[.)]\s+/.test(l)) { const it = []; while (i < lines.length && /^\s*\d+[.)]\s+/.test(lines[i])) it.push(`<li>${inline(lines[i++].replace(/^\s*\d+[.)]\s+/, ''))}</li>`); out.push(`<ol>${it.join('')}</ol>`); continue; }

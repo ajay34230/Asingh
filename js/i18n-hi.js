@@ -635,6 +635,10 @@
 "Courier": "कूरियर",
 "Tracking ID": "ट्रैकिंग आईडी",
 "Track shipment": "शिपमेंट ट्रैक करें",
+"Show more": "और दिखाएँ",
+"Recently viewed": "हाल ही में देखे गए",
+"Clear": "हटाएँ",
+"Showing": "दिखा रहे हैं",
 "Powered by": "द्वारा संचालित",
 "for faster checkout — or just continue as a guest, no details needed.": "तेज़ चेकआउट के लिए — या बस गेस्ट के रूप में जारी रखें, कोई विवरण ज़रूरी नहीं।",
 "Red": "लाल"

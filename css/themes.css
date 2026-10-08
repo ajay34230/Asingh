@@ -24,7 +24,7 @@
    ===================================================================== */
 html[data-theme="bloom"] {
   --bg: #fbf8ff; --bg-2: #f1ecfc; --surface: #ffffff; --ink: #231a3a; --ink-2: #5c5277; --line: #e3dbf6;
-  --wine: #6d3df2; --wine-2: #8b5cf6; --gold: #ff7a59; --gold-l: #ffd2c4; --sale: #e11d48; --ok: #12805c;
+  --wine: #6d3df2; --wine-2: #8b5cf6; --gold: #ff7a59; --gold-ink: #b83a10; --gold-l: #ffd2c4; --sale: #c2123c; --ok: #12805c;
   --focus: #6d3df2; --r: 22px;
   --serif: ui-rounded, "SF Pro Rounded", "Nunito", "Quicksand", "Segoe UI", system-ui, -apple-system, sans-serif;
   --spring: cubic-bezier(.34, 1.56, .64, 1);
@@ -69,7 +69,7 @@ html[data-theme="bloom"] .hero::after { background: linear-gradient(90deg, rgba(
 html[data-theme="bloom"] .hero__title { font-weight: 800; letter-spacing: -.02em; color: var(--ink); }
 html[data-theme="bloom"] .hero__title em, html[data-theme="bloom"] .hero__title i { font-style: normal; background: linear-gradient(90deg, #6d3df2, #ff7a59); -webkit-background-clip: text; background-clip: text; color: transparent; }
 html[data-theme="bloom"] .hero__lead { opacity: 1; color: var(--ink-2); }
-html[data-theme="bloom"] .hero__eyebrow, html[data-theme="bloom"] .eyebrow { color: var(--gold); font-weight: 700; }
+html[data-theme="bloom"] .hero__eyebrow, html[data-theme="bloom"] .eyebrow { color: var(--gold-ink); font-weight: 700; }
 @media (max-width: 899.98px) {
   html[data-theme="bloom"] .hero__img { inset: auto 6% 22px 6%; height: 260px; }
   html[data-theme="bloom"] .hero { align-items: start; min-height: 0; } html[data-theme="bloom"] .hero__in { padding-bottom: 310px; }
@@ -144,6 +144,10 @@ html[lang="hi"] .hero__title, html[lang="hi"] .h1, html[lang="hi"] .h2 { line-he
 html[lang="hi"] .logo, html[lang="hi"] .btn, html[lang="hi"] .nav__link { letter-spacing: 0; }
 html[lang="hi"] .eyebrow, html[lang="hi"] .hero__eyebrow, html[lang="hi"] .badge, html[lang="hi"] .announce { letter-spacing: 0; text-transform: none; }
 .announce { flex-wrap: wrap; row-gap: 4px; }
-html[data-theme="bloom"] .logo__s { color: var(--gold); }
+html[data-theme="bloom"] .logo__s { color: var(--gold-ink); }
 html[data-theme="bloom"] .logo__mark { box-shadow: 0 0 0 2px #fff, 0 8px 18px -6px rgba(109,61,242,.55); }
 html[data-theme="bloom"] .logo__mark { box-shadow: none; border-radius: 0; }
+/* comfortable tap size for the theme / language buttons in the top bar */
+.announce { padding-block: 4px; }
+.themebtn { min-height: 40px; padding: 4px 14px 4px 10px; }
+.langbtn { min-width: 52px; justify-content: center; padding-inline: 14px; }

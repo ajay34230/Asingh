@@ -61,6 +61,17 @@ console.log('\nLanguage (English / हिन्दी)');
   await l.click('[data-lang-toggle]'); await l.goto(BASE + '/shop.html'); await l.waitForSelector('#grid .card'); await l.waitForTimeout(1000); ok(/ज़ोया ख़ास कुर्ता/.test(await l.locator('#grid').innerText()), 'owner’s own Hindi name for a new product shows');
   const m = await page(390, 844); await m.goto(BASE + '/'); await m.click('.header__menu'); await m.waitForTimeout(500); await m.click('[data-lang-set=hi]'); await m.waitForTimeout(1000); ok(await m.getAttribute('html', 'lang') === 'hi', 'phone menu language picker works'); }
 
+console.log('\nShop paging and recently viewed');
+{ for (let i = 0; i < 9; i++) await call(ad, 'POST', '/api/admin/products', { name: 'Paging Test Suit ' + i, cat: 'straight', price: 2000 + i, colors: [{ name: 'Red', hex: '#ff0000' }], stitch: ['unstitched'] });
+  const q = await page(1280, 900); await q.goto(BASE + '/shop.html'); await q.waitForSelector('#grid .card'); await q.waitForTimeout(600);
+  ok(await q.locator('#grid .card').count() === 24 && await q.locator('[data-more]').count() === 1, 'shop shows 24 and a “Show more” button (total pieces: ' + (await q.textContent('#count')).trim() + ')');
+  await q.click('[data-more]'); await q.waitForTimeout(500); ok(await q.locator('#grid .card').count() > 24 && await q.locator('[data-more]').count() === 0, 'Show more reveals the rest');
+  await q.goto(BASE + '/shop.html?cat=rajputi-poshak'); await q.waitForSelector('#grid .card'); ok(await q.locator('[data-more]').count() === 0, 'no button when everything fits');
+  await q.goto(BASE + '/product.html?id=rani-sa-anarkali'); await q.waitForSelector('#add-btn'); ok(await q.locator('#recent').count() === 0, 'nothing recent on the very first view');
+  await q.goto(BASE + '/product.html?id=jaipur-bandhani'); await q.waitForSelector('#recent .card'); ok(await q.locator('#recent .card').count() === 1, 'second product page shows the first as recently viewed');
+  await q.goto(BASE + '/'); await q.waitForSelector('#recent .card'); ok(await q.locator('#recent .card').count() === 2, 'home page shows both');
+  await q.click('[data-clear-recent]'); await q.waitForTimeout(300); ok(await q.locator('#recent').count() === 0, 'Clear removes the strip'); }
+
 console.log('\nCookie notice only when Analytics is on');
 await call(ad, 'PUT', '/api/admin/site', { ga4Id: 'G-TEST123456' });
 const v = await page(); await v.goto(BASE + '/'); await v.waitForSelector('.consent', { timeout: 5000 }); ok(true, 'cookie notice appears');

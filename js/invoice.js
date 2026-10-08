@@ -28,7 +28,22 @@
     L.push('', 'Track this order: ' + location.origin + '/track.html?n=' + o.number.replace(/^(?:AS|CV)-?/i, ''), '(you will need your mobile number)', '', 'Prices include applicable taxes.' + (inv.returns ? ' ' + inv.returns : ''), 'Thank you for shopping with ' + (inv.name || 'चंद्रवंशी') + '.');
     return L.filter(function (x) { return x !== null; }).join('\n');
   }
+  /* packing slip: no prices, big delivery address, photos + sizes to pick and pack */
+  function renderSlip(o, inv) {
+    var c = o.customer; document.title = 'Packing slip ' + o.number + ' — ' + (inv.name || 'चंद्रवंशी');
+    doc.innerHTML = '<header class="inv__head"><div><img class="inv__logo" src="img/brand/logo-128.webp" width="72" height="72" alt=""><div class="inv__brand">' + esc(inv.name || 'चंद्रवंशी') + '</div></div><div class="inv__meta"><h1>Packing slip</h1><div class="inv__no">' + esc(o.number) + '</div><p>' + d0(o.createdAt) + '</p></div></header>' +
+      '<section class="inv__box slip__to"><h2>Ship to</h2><address><strong>' + esc(c.name) + '</strong><br>' + esc(c.line1) + (c.line2 ? ', ' + esc(c.line2) : '') + '<br>' + esc(c.city) + ', ' + esc(c.state) + ' — <strong>' + esc(c.pin) + '</strong><br>Phone: <strong>' + esc(c.phone) + '</strong></address></section>' +
+      '<table><thead><tr><th class="ph"></th><th>Item to pack</th><th class="r">Qty</th><th class="r">Packed</th></tr></thead><tbody>' + o.items.map(function (i) {
+        return '<tr><td class="ph"><img src="img/' + esc(i.id) + '-1-400.webp" alt="' + esc(i.name) + '" width="56" height="70"></td><td class="nm"><strong>' + esc(i.name) + '</strong><small>' + esc(i.color) + ' · Size ' + esc(i.size) + ' · ' + esc(i.stitchLabel) + '</small>' + (i.note ? '<small>Customer note: “' + esc(i.note) + '”</small>' : '') + '</td><td class="r"><strong>' + i.qty + '</strong></td><td class="r"><span class="slip__box" aria-hidden="true"></span></td></tr>';
+      }).join('') + '</tbody></table>' +
+      (o.tracking ? '<div class="inv__box"><h2>Courier</h2><p><strong>' + esc(o.tracking.courier || '') + '</strong> ' + esc(o.tracking.id || '') + '</p></div>' : '') +
+      '<footer class="inv__foot"><p>Check size and stitching against the notes, fold with tissue, include the bill. Order status: ' + esc(o.statusLabel) + '.</p></footer>';
+    var imgs = [].slice.call(doc.querySelectorAll('img')), ready = Promise.all(imgs.map(function (i) { return i.complete ? 0 : new Promise(function (r) { i.onload = i.onerror = r; }); }));
+    ready.then(function () { $('#pdf').disabled = false; $('#txt').hidden = true; if (/[?&]print=1/.test(location.search)) setTimeout(function () { window.print(); }, 250); });
+    $('#pdf').onclick = function () { window.print(); };
+  }
   function render(o, inv) {
+    if (/[?&]slip=1/.test(location.search)) return renderSlip(o, inv);
     var c = o.customer, tone = TONE[o.status], paid = isPaid(o.status);
     document.title = 'Bill ' + o.number + ' — ' + (inv.name || 'चंद्रवंशी');
     doc.innerHTML = '<header class="inv__head"><div><img class="inv__logo" src="img/brand/logo-128.webp" width="72" height="72" alt=""><div class="inv__brand">' + esc(inv.name || 'चंद्रवंशी') + '</div><div class="inv__seller">' + esc([inv.address, inv.gstin ? 'GSTIN: ' + inv.gstin : '', inv.contact].filter(Boolean).join('\n')) + '</div></div>' +

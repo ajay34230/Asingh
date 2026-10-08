@@ -20,6 +20,7 @@ for (const [w, h] of vps) {
   for (const pg of pages) {
     if (only && !pg.includes(only)) continue;
     if (process.env.THEME) await ctx.addInitScript(t => localStorage.setItem('asingh.theme', t), process.env.THEME);
+    if (process.env.LANG_) await ctx.addInitScript(t => localStorage.setItem('asingh.lang', t), process.env.LANG_);
     const page = await ctx.newPage();
     const errs = []; page.on('pageerror', e => errs.push(String(e))); page.on('console', m => { if (m.type() === 'error') errs.push(m.text()); });
     await page.goto(`${BASE}/${pg}`, { waitUntil: 'load' });

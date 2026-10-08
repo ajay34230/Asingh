@@ -1,7 +1,7 @@
 /* Chandravanshi — fluid, device-adaptive storefront. No framework. */
 :root {
   --bg: #faf6ef; --bg-2: #f2ebdf; --surface: #fff; --ink: #1c1417; --ink-2: #51454a; --line: #e2d8c8;
-  --wine: #5b1530; --wine-2: #7a1f3d; --gold: #b08a3e; --gold-l: #e9c46a; --sale: #a3281f; --ok: #1f6b45;
+  --wine: #5b1530; --wine-2: #7a1f3d; --gold: #b08a3e; --gold-ink: #7a5c1c; --gold-l: #e9c46a; --sale: #a3281f; --ok: #1f6b45;
   --focus: #1a5fd0;
   --max: 1560px;                                 /* content cap — ultrawide stays calm */
   --gut: clamp(16px, 2.2vw + 8px, 56px);         /* page gutter */
@@ -46,7 +46,7 @@ button { cursor: pointer; }
 .h1 { font-family: var(--serif); font-weight: 500; font-size: clamp(1.75rem, 1.1rem + 2.6vw, 3.5rem); line-height: 1.1; letter-spacing: -.01em; text-wrap: balance; overflow-wrap: anywhere; }
 .h2 { font-family: var(--serif); font-weight: 500; font-size: clamp(1.4rem, 1rem + 1.6vw, 2.5rem); line-height: 1.15; text-wrap: balance; }
 .h3 { font-family: var(--serif); font-weight: 500; font-size: clamp(1.2rem, 1rem + .8vw, 1.6rem); line-height: 1.2; margin-bottom: 12px; }
-.eyebrow { font-size: .78rem; letter-spacing: .16em; text-transform: uppercase; color: var(--gold); font-weight: 600; margin-bottom: 8px; }
+.eyebrow { font-size: .78rem; letter-spacing: .16em; text-transform: uppercase; color: var(--gold-ink); font-weight: 600; margin-bottom: 8px; }
 .eyebrow a { text-decoration: none; }
 .eyebrow--light { color: var(--gold-l); }
 .link { display: inline-flex; align-items: center; background: none; border: 0; padding: 0 4px; color: var(--wine); text-decoration: underline; cursor: pointer; font-size: .92em; min-height: 44px; }
@@ -121,7 +121,7 @@ textarea.input { min-height: 96px; resize: vertical; }
 .header__account { display: none; }
 .mega { position: absolute; left: 0; right: 0; top: 100%; background: var(--bg); border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); box-shadow: 0 24px 40px -24px rgba(0,0,0,.25); }
 .mega__in { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)) minmax(0, 1.3fr); gap: var(--gap); padding-block: 32px 40px; }
-.mega__h { font-size: .78rem; letter-spacing: .16em; text-transform: uppercase; color: var(--gold); margin-bottom: 10px; }
+.mega__h { font-size: .78rem; letter-spacing: .16em; text-transform: uppercase; color: var(--gold-ink); margin-bottom: 10px; }
 .mega li a { display: block; padding: 7px 0; text-decoration: none; font-size: 1.02rem; }
 .mega li a:hover { color: var(--wine); text-decoration: underline; }
 .mega__all { font-weight: 600; margin-top: 4px; }
@@ -174,7 +174,7 @@ textarea.input { min-height: 96px; resize: vertical; }
 .sheet--menu .sheet__body { padding-top: 12px; }
 .menu li a { display: flex; align-items: center; min-height: 56px; font-family: var(--serif); font-size: clamp(1.5rem, 1.1rem + 2vw, 2rem); text-decoration: none; border-bottom: 1px solid var(--line); }
 .menu--sub { margin-top: 24px; } .menu--sub li a { font-family: var(--sans); font-size: 1rem; min-height: 48px; border: 0; }
-.menu__h { font-size: .78rem; letter-spacing: .16em; text-transform: uppercase; color: var(--gold); margin: 24px 0 10px; }
+.menu__h { font-size: .78rem; letter-spacing: .16em; text-transform: uppercase; color: var(--gold-ink); margin: 24px 0 10px; }
 /* Search: full-screen on phones, dropped panel on larger screens */
 .searchform { display: flex; align-items: center; gap: 8px; padding: 8px 8px 8px 20px; min-height: 68px; border-bottom: 1px solid var(--line); }
 .searchform input { flex: 1; min-width: 0; border: 0; background: none; font-size: 1.15rem; min-height: 52px; outline: none; }
@@ -941,9 +941,9 @@ text, p, li { text-wrap: pretty; }
 .logo:hover .logo__mark { transform: rotate(18deg) scale(1.06); }
 .logo__t { display: grid; gap: 1px; }
 .logo__n { font-family: "Noto Serif Devanagari", "Kohinoor Devanagari", "Nirmala UI", "Mangal", var(--serif); font-size: clamp(1.25rem, 1rem + 1vw, 1.65rem); letter-spacing: 0; }
-.logo__s { font-family: "Palatino Linotype", Palatino, Georgia, serif; font-style: italic; font-weight: 500; font-size: .78rem; letter-spacing: .04em; color: var(--gold); }
+.logo__s { font-family: "Palatino Linotype", Palatino, Georgia, serif; font-style: italic; font-weight: 500; font-size: .78rem; letter-spacing: .04em; color: var(--gold-ink); }
 .footer__logo { width: 132px; height: 132px; border-radius: 22px; box-shadow: 0 14px 30px -18px rgba(91,21,48,.55); }
-@media (max-width: 479.98px) { .logo__mark { width: 38px; height: 38px; } .logo__s { font-size: .68rem; } }
+@media (max-width: 479.98px) { .logo__mark { width: 38px; height: 38px; } .logo__s { font-size: .75rem; } }
 @media (max-width: 359.98px) { .logo__s { display: none; } .logo { gap: 6px; } .logo__mark { width: 32px; height: 32px; } }
 .logo__s { white-space: nowrap; }
 @media (min-width: 700px) { .footer__col--cats ul { columns: 2; column-gap: 28px; } .footer__col--cats li { break-inside: avoid; } }
@@ -957,3 +957,5 @@ text, p, li { text-wrap: pretty; }
 .footer__logo { border-radius: 0; box-shadow: 0 10px 24px -16px rgba(91,21,48,.5); width: 150px; height: 150px; }
 @media (max-width: 479.98px) { .logo__mark { width: 46px; height: 46px; } }
 @media (max-width: 359.98px) { .logo__mark { width: 40px; height: 40px; } }
+.logo__s { font-size: max(.75rem, 12px); }
+.more { display: grid; justify-items: center; gap: 12px; padding-block: 28px 8px; }
