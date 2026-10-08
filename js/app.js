@@ -310,6 +310,12 @@
   /* ---------- Chrome ---------- */
   var shortLabel = function (l) { return l.length > 13 ? l.split(/[\s&]+/)[0] : l; };
   var NAV = [{ label: 'New In', href: 'shop.html?sort=new' }].concat(A.CATEGORIES.slice(0, 4).map(function (c, i) { return { label: shortLabel(c.label), href: 'shop.html?cat=' + c.id, xl: i > 1 }; }), [{ label: 'Custom Stitching', href: 'shop.html?stitch=custom', xl: true }]);
+  function waButton() {
+    var n = A.SITE && A.SITE.whatsapp; if (!n) return '';
+    var pr = document.body.getAttribute('data-page') === 'product' && byId[new URLSearchParams(location.search).get('id')];
+    var msg = 'Hello ' + A.BRAND + (pr ? ', I have a question about “' + pr.name + '” ' + location.href : ', I need some help.');
+    return '<a class="wa" href="https://wa.me/' + n + '?text=' + encodeURIComponent(msg) + '" target="_blank" rel="noopener" aria-label="Chat on WhatsApp"><svg viewBox="0 0 32 32" width="28" height="28" fill="currentColor" aria-hidden="true"><path d="M16 3C9.4 3 4 8.3 4 14.9c0 2.6.9 5.1 2.4 7.1L4.7 28l6.2-1.6c1.9 1 4 1.5 6.1 1.5 6.6 0 12-5.3 12-11.9S22.600 3 16 3zm0 21.400c-1.900 0-3.800-.5-5.400-1.500l-.4-.2-3.700 1 1-3.600-.2-.4c-1.100-1.600-1.600-3.400-1.600-5.300C5.700 9.600 10.300 5 16 5s10.300 4.600 10.300 10.300S21.700 24.400 16 24.400zm5.600-7.700c-.3-.2-1.800-.9-2.100-1-.3-.1-.5-.2-.7.200-.2.300-.8 1-.9 1.200-.2.200-.3.200-.6.100-.3-.2-1.300-.5-2.500-1.500-.9-.8-1.500-1.800-1.700-2.100-.2-.3 0-.5.100-.6l.5-.5c.1-.2.200-.3.300-.5.100-.2.100-.4 0-.5-.1-.2-.7-1.700-1-2.300-.3-.6-.5-.5-.7-.5h-.6c-.2 0-.5.100-.8.400-.3.300-1.100 1.100-1.100 2.600s1.100 3 1.300 3.200c.2.200 2.200 3.400 5.300 4.700 3.100 1.300 3.100.9 3.600.8.600-.1 1.800-.7 2.100-1.400.3-.7.300-1.300.2-1.400-.1-.1-.3-.2-.6-.4z"/></svg></a>';
+  }
   function brandLink() {
     var tag = (A.SITE && A.SITE.tagline !== undefined ? A.SITE.tagline : A.TAGLINE) || '';
     return '<a class="logo" href="index.html" aria-label="' + esc(A.BRAND) + ' home"><img class="logo__mark" src="img/brand/logo-128.webp" width="56" height="56" alt="" decoding="async"><span class="logo__t"><span class="logo__n">' + esc(A.BRAND) + '</span>' + (tag ? '<small class="logo__s" data-no-i18n>' + esc(tag) + '</small>' : '') + '</span></a>';
@@ -390,7 +396,7 @@
  '<div class="sheet sheet--quick sheet--auth" id="auth" aria-hidden="true"><div class="sheet__backdrop" data-close></div><div class="sheet__panel" aria-label="Sign in">' +
       '<div class="sheet__head"><h2 class="sheet__title">Welcome to ' + A.BRAND + '</h2><button type="button" class="icon-btn" data-close aria-label="Close">' + icon('close') + '</button></div>' +
       '<div class="sheet__body" id="auth-mount"></div></div></div>' +
-      '<button type="button" class="totop" id="totop" aria-label="Back to top">' + icon('chev') + '</button><div class="toast" id="toast" role="status" aria-live="polite"></div>';
+      waButton() + '<button type="button" class="totop" id="totop" aria-label="Back to top">' + icon('chev') + '</button><div class="toast" id="toast" role="status" aria-live="polite"></div>';
     var pg = $('#page');
     pg.insertAdjacentHTML('afterbegin', header);
     var sk = $('.skip'); if (sk) sk.addEventListener('click', function (ev) { ev.preventDefault(); var m = $('#main'); if (m) { m.setAttribute('tabindex', '-1'); m.focus(); m.scrollIntoView(); } });

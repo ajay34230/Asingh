@@ -295,6 +295,11 @@ console.log('\nPolicies');
   await ADM.req('PUT', '/api/admin/site', { returnDays: 10, shipFlat: 300 }); const sr2 = await pg('shipping-returns'); ok(/10 days of delivery/.test(sr2) && /₹300/.test(sr2), 'policy numbers follow the store settings');
   ok(/रिफ़ंड/.test(await pg('shipping-returns', 'as_lang=hi')), 'Hindi policy served with the Hindi cookie'); await ADM.req('PUT', '/api/admin/site', { returnDays: 7, shipFlat: 250 }); }
 
+console.log('\nWhatsApp');
+{ ok((await ADM.req('PUT', '/api/admin/site', { whatsapp: 'abc12' })).status === 400, 'invalid WhatsApp number rejected');
+  ok((await ADM.req('PUT', '/api/admin/site', { whatsapp: '98765 43210' })).status === 200, 'admin saves a WhatsApp number');
+  ok(/"whatsapp":"919876543210"/.test((await new Client().req('GET', '/js/data.js')).text), '10-digit number gets the India code and reaches the storefront'); await ADM.req('PUT', '/api/admin/site', { whatsapp: '' }); }
+
 console.log('\nAdmin analytics');
 { const an = await ADM.req('GET', '/api/admin/analytics?days=30'); ok(an.status === 200 && an.json.series.length === 30 && an.json.orders >= 2, 'analytics returns a 30-day series and order totals');
   ok(an.json.paidOrders >= 1 && an.json.revenue > 0 && an.json.aov > 0 && an.json.top.length >= 1, 'revenue, average order and top products computed from paid orders');

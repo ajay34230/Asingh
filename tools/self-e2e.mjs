@@ -79,6 +79,12 @@ console.log('\nPacking slip');
   ok(/packing slip/i.test(txt) && /Slip Tester/.test(txt) && /height 5ft4/.test(txt) && !/Subtotal|₹/i.test(txt), 'slip shows address, items and notes but no prices');
   ok(await u.locator('.slip__box').count() === 1, 'tick box per item'); }
 
+console.log('\nWhatsApp button');
+{ await call(ad, 'PUT', '/api/admin/site', { whatsapp: '9876543210' }); const w = await page(390, 844); await w.goto(BASE + '/product.html?id=rani-sa-anarkali'); await w.waitForSelector('#add-btn'); await w.waitForTimeout(500);
+  const href = await w.getAttribute('a.wa', 'href'); ok(/^https:\/\/wa\.me\/919876543210\?text=/.test(href) && /Anarkali/.test(decodeURIComponent(href)), 'chat button opens WhatsApp with the product in the message');
+  const bb = await w.locator('a.wa').boundingBox(), sb = await w.locator('#sticky-add').boundingBox().catch(() => null); ok(!sb || bb.y + bb.height <= sb.y + 1 || bb.y >= sb.y + sb.height, 'chat button does not cover the sticky Add to bag bar');
+  ok(await w.locator('.pdp__share a').count() === 1, 'share-on-WhatsApp link on product page'); await call(ad, 'PUT', '/api/admin/site', { whatsapp: '' }); }
+
 console.log('\nCookie notice only when Analytics is on');
 await call(ad, 'PUT', '/api/admin/site', { ga4Id: 'G-TEST123456' });
 const v = await page(); await v.goto(BASE + '/'); await v.waitForSelector('.consent', { timeout: 5000 }); ok(true, 'cookie notice appears');

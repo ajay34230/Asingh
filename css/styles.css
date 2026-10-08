@@ -963,3 +963,12 @@ text, p, li { text-wrap: pretty; }
 .crumbs a { display: inline-flex; align-items: center; min-height: 44px; min-width: 44px; }
 button.link { min-height: 44px; min-width: 44px; }
 .nav__link { min-width: 44px; justify-content: center; }
+
+/* WhatsApp chat button (shown when the owner adds a number) */
+.wa { position: fixed; right: max(16px, var(--safe-r)); bottom: calc(18px + var(--safe-b)); z-index: 71; width: 54px; height: 54px; border-radius: 50%; display: grid; place-items: center; background: #1f8f4e; color: #fff; box-shadow: 0 14px 28px -10px rgba(18,110,60,.7); transition: transform .35s cubic-bezier(.34,1.56,.64,1); animation: pop .6s .8s both; }
+.wa:hover { transform: scale(1.08) rotate(-6deg); }
+.wa ~ .totop, .totop { bottom: calc(86px + var(--safe-b)); }
+body[data-page="product"] .wa { bottom: calc(96px + var(--safe-b)); } body[data-page="product"] .totop { bottom: calc(164px + var(--safe-b)); }
+@media (min-width: 900px) { body[data-page="product"] .wa { bottom: calc(18px + var(--safe-b)); } body[data-page="product"] .totop { bottom: calc(86px + var(--safe-b)); } }
+@media (prefers-reduced-motion: reduce) { .wa { animation: none; } }
+.pdp__share { margin: 10px 0 0; font-size: .92rem; } .pdp__share a { display: inline-flex; align-items: center; min-height: 44px; }

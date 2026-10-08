@@ -29,7 +29,7 @@ const defaultSite = () => ({
   stitch: A.STITCH.map(x => ({ id: x.id, label: x.label, note: x.note, eta: x.eta, add: { unstitched: 0, semi: 600, custom: 1800 }[x.id], enabled: true })),
   sizeChart: [['XS', 32, 26, 35], ['S', 34, 28, 37], ['M', 36, 30, 39], ['L', 38, 32, 41], ['XL', 40, 34, 43], ['XXL', 42, 36, 45]].map(r => ({ size: r[0], bust: r[1], waist: r[2], hip: r[3] })),
   contactEmail: '', contactPhone: '', contactAddress: '', contactHours: '',
-  googleSiteVerification: '', ga4Id: '', translations: {}, returnDays: 7, handlingMin: 1, handlingMax: 3, deliveryMin: 3, deliveryMax: 7,
+  googleSiteVerification: '', ga4Id: '', translations: {}, whatsapp: '', returnDays: 7, handlingMin: 1, handlingMax: 3, deliveryMin: 3, deliveryMax: 7,
   shipFreeFrom: A.FREE_SHIP_FROM, shipFlat: A.SHIP_FLAT, testimonials: []
 });
 const merge = (d, v) => { const o = { ...d }; Object.keys(v || {}).forEach(k => { o[k] = d[k] && typeof d[k] === 'object' && !Array.isArray(d[k]) && v[k] && typeof v[k] === 'object' && !Array.isArray(v[k]) ? { ...d[k], ...v[k] } : v[k]; }); return o; };
@@ -176,6 +176,7 @@ class Catalog {
       Object.keys(src).forEach(k => { const key = s(k, 300).replace(/\s+/g, ' ').trim(), v = s(src[k], 600); if (key && v && n < 1500) { out[key] = v; n++; } });
       t.translations = out;
     }
+    if (b.whatsapp !== undefined) { const d = String(b.whatsapp).replace(/[^\d]/g, ''); if (d && !/^(\d{10}|91\d{10}|\d{11,13})$/.test(d)) throw bad('WhatsApp number should be a 10-digit mobile number (or with country code).'); t.whatsapp = d.length === 10 ? '91' + d : d; }
     if (b.googleSiteVerification !== undefined) { const v = s(b.googleSiteVerification, 100); if (v && !/^[\w-]{8,100}$/.test(v)) throw bad('Search Console code should be the long code from Google (letters, numbers, - and _ only).'); t.googleSiteVerification = v; }
     if (b.ga4Id !== undefined) { const v = s(b.ga4Id, 20).toUpperCase(); if (v && !/^G-[A-Z0-9]{6,14}$/.test(v)) throw bad('Google Analytics ID looks like G-XXXXXXXXXX.'); t.ga4Id = v; }
     if (b.sections && typeof b.sections === 'object') Object.keys(t.sections).forEach(k => { if (b.sections[k] !== undefined) t.sections[k] = !!b.sections[k]; });

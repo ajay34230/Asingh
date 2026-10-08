@@ -639,6 +639,8 @@
 "Recently viewed": "हाल ही में देखे गए",
 "Clear": "हटाएँ",
 "Showing": "दिखा रहे हैं",
+"Chat on WhatsApp": "WhatsApp पर चैट करें",
+"Share on WhatsApp": "WhatsApp पर शेयर करें",
 "Powered by": "द्वारा संचालित",
 "for faster checkout — or just continue as a guest, no details needed.": "तेज़ चेकआउट के लिए — या बस गेस्ट के रूप में जारी रखें, कोई विवरण ज़रूरी नहीं।",
 "Red": "लाल"
