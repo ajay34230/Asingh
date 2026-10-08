@@ -125,6 +125,14 @@ console.log('\nColour stock + colour photos (browser)');
   ok(await h.locator('input[name=color][value=Blue]').isDisabled(), 'sold-out colour swatch is disabled'); ok(await h.locator('input[name=color][value=Red]').isChecked(), 'first available colour is preselected');
   await h.locator('label.sw:has(input[value=Green])').click(); await h.waitForTimeout(900); ok(await h.evaluate(() => document.querySelector('#gal').scrollLeft) > 100, 'choosing Green slides the gallery to the green photo'); }
 
+console.log('\nNotify me on a sold-out piece (browser)');
+{ const mk = await call(ad, 'POST', '/api/admin/products', { name: 'Gone Suit', cat: 'straight', price: 2900, colors: [{ name: 'Red', hex: '#cc0000' }], stitch: ['unstitched'], soldOut: true });
+  const w = await page(1000, 900); await w.goto(BASE + '/product.html?id=' + mk.json.product.id); await w.waitForSelector('#nf');
+  ok(await w.locator('#add-btn').isDisabled(), 'sold-out piece cannot be added'); await w.fill('#nf-e', 'notifyme@example.com'); await w.click('#nf button[type=submit]'); await w.waitForTimeout(700);
+  ok(/on the list/i.test(await w.locator('#notify').innerText()), 'customer is told they are on the list');
+  ok((await call(ad, 'GET', '/api/admin/waitlist')).json.entries.some(e => e.email === 'notifyme@example.com'), 'entry reaches the admin waitlist');
+  await ad.goto(BASE + '/admin.html#/waitlist'); await ad.waitForTimeout(900); ok(/notifyme@example.com/.test(await ad.locator('#view').innerText()), 'admin Waitlist page shows it'); await ad.goto(BASE + '/admin.html#/abandoned'); await ad.waitForTimeout(700); ok(/abandoned|No abandoned/i.test(await ad.locator('#view').innerText()), 'admin Abandoned bags page renders'); }
+
 console.log('\nCookie notice only when Analytics is on');
 await call(ad, 'PUT', '/api/admin/site', { ga4Id: 'G-TEST123456' });
 const v = await page(); await v.goto(BASE + '/'); await v.waitForSelector('.consent', { timeout: 5000 }); ok(true, 'cookie notice appears');

@@ -671,6 +671,12 @@
 "Sorry — we can’t deliver to": "क्षमा करें — हम यहाँ डिलीवर नहीं कर सकते",
 "Checking…": "जाँच रहे हैं…",
 "Cash on delivery available.": "कैश ऑन डिलीवरी उपलब्ध है।",
+"Notify me when it’s back": "वापस आने पर मुझे बताएँ",
+"Waiting for a sold-out size or colour?": "किसी खत्म साइज़ या रंग का इंतज़ार है?",
+"Notify me": "मुझे बताएँ",
+"You’re on the list ✓": "आप सूची में हैं ✓",
+"We’ll email you the moment it’s available.": "उपलब्ध होते ही हम आपको ईमेल करेंगे।",
+"Mobile (optional)": "मोबाइल (वैकल्पिक)",
 "Powered by": "द्वारा संचालित",
 "for faster checkout — or just continue as a guest, no details needed.": "तेज़ चेकआउट के लिए — या बस गेस्ट के रूप में जारी रखें, कोई विवरण ज़रूरी नहीं।",
 "Red": "लाल"

@@ -233,7 +233,7 @@
     });
   }
   var Auth = { user: null, waiting: null };
-  Auth.refresh = function () { return api('GET', '/api/me').then(function (r) { Auth.user = r.user; Auth.paint(); return r.user; }, function () { Auth.user = null; Auth.paint(); return null; }); };
+  Auth.refresh = function () { return api('GET', '/api/me').then(function (r) { Auth.user = r.user; Auth.paint(); if (r.user && !r.user.isGuest) document.dispatchEvent(new Event('authchange')); return r.user; }, function () { Auth.user = null; Auth.paint(); return null; }); };
   Auth.paint = function () {
     var u = Auth.user, a = $('.header__account'); if (!a) return;
     var av = $('.avatar', a); if (av) { av.hidden = !u; av.textContent = u ? ((u.isGuest ? 'G' : (u.name || u.email || '?').trim().charAt(0).toUpperCase()) || '?') : ''; }
@@ -614,6 +614,17 @@
     function paintLang() { var L = window.ASINGH.Lang; if (!L) return; var l = L.get(); $$('.langbtn__t').forEach(function (e) { e.textContent = l === 'hi' ? 'English' : 'हिन्दी'; }); $$('[data-lang-set]').forEach(function (b) { b.setAttribute('aria-pressed', b.getAttribute('data-lang-set') === l); }); }
     document.addEventListener('asingh:lang', paintLang); document.addEventListener('asingh:ready', paintLang); setTimeout(paintLang, 50);
     document.addEventListener('asingh:theme', paint); document.addEventListener('asingh:ready', paint); paint(); setTimeout(paint, 0);
+  })();
+
+
+  /* ---------- signed-in bag follows the customer (reminders + other devices) ---------- */
+  (function () {
+    var t, payload = function () { return Cart.items.map(function (i) { return { id: i.id, size: i.size, stitch: i.stitch, color: i.color, note: i.note, qty: i.qty }; }); };
+    function sync() { var u = Auth.user; if (!u || u.isGuest || !u.email) return; clearTimeout(t); t = setTimeout(function () { api('POST', '/api/cart-sync', { items: payload() }).catch(function () {}); }, 4000); }
+    function hydrate(u) { if (u && !u.isGuest && u.cart && u.cart.items && u.cart.items.length && !Cart.items.length) { u.cart.items.forEach(function (i) { if (byId[i.id] && !byId[i.id].soldOut && stitchById[i.stitch]) Cart.add(i.id, { size: i.size, stitch: i.stitch, color: i.color, note: i.note, qty: i.qty }); }); } }
+    var first = true; Cart.subscribe(function () { if (first) { first = false; return; } sync(); });
+    document.addEventListener('authchange', function () { hydrate(Auth.user); });
+    document.addEventListener('asingh:ready', function () { setTimeout(function () { hydrate(Auth.user); }, 600); });
   })();
 
   A.U = { api: api, upload: upload, Auth: Auth, reveal: reveal, fly: fly, $: $, $$: $$, money: money, esc: esc, picture: picture, icon: icon, stars: stars, priceHTML: priceHTML, card: card, sizeRadios: sizeRadios, stitchRadios: stitchRadios, line: line, totalsHTML: totalsHTML, shipMeter: shipMeter, emptyCart: emptyCart, byId: byId, stitchById: stitchById, Cart: Cart, Sheet: Sheet, toast: toast, afterAdd: afterAdd, bindRails: bindRails, store: store, mqDesktop: mqDesktop, mqSmall: mqSmall, reduceMotion: reduceMotion };

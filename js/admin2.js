@@ -367,4 +367,22 @@
       });
     });
   };
+
+  /* ---- Waitlist ("notify me") and abandoned carts ---- */
+  function wa(phone, text) { var d = String(phone || '').replace(/\D/g, ''); if (d.length === 10) d = '91' + d; return d.length >= 11 ? 'https://wa.me/' + d + '?text=' + encodeURIComponent(text) : ''; }
+  V.waitlist = function () {
+    var live = ADM.guard();
+    api('GET', '/api/admin/waitlist').then(function (r) {
+      if (!live()) return; var e = r.entries;
+      var v = view('<p class="muted">Customers who asked to be told when a sold-out piece is back. When stock returns they are emailed automatically if email is set up; otherwise they show as <b>ready</b> here so you can message them yourself.</p>' + (e.length ? '<div class="adm__list">' + e.map(function (x) { var link = wa(x.phone, 'Hello! ' + x.product + (x.size ? ' (size ' + x.size + ')' : '') + (x.color ? ' in ' + x.color : '') + ' is available again. Shop it here: ' + location.origin + '/product.html?id=' + x.pid); return '<div class="orow orow--static orow--wrap"><span class="orow__t"><strong>' + esc(x.product) + (x.size ? ' · ' + esc(x.size) : '') + (x.color ? ' · ' + esc(x.color) : '') + '</strong><small>' + esc(x.email) + (x.phone ? ' · ' + esc(x.phone) : '') + ' · ' + new Date(x.at).toLocaleDateString('en-IN') + ' · <b>' + x.status + '</b></small></span>' + (link && x.status !== 'waiting' ? '<a class="btn btn--sm" href="' + esc(link) + '" target="_blank" rel="noopener">WhatsApp</a>' : '') + '<button class="btn btn--ghost btn--sm" data-wd="' + x.id + '">Remove</button></div>'; }).join('') + '</div>' : '<p class="muted pad">Nobody is waiting yet.</p>'));
+      $$('[data-wd]', v).forEach(function (b) { b.addEventListener('click', function () { api('DELETE', '/api/admin/waitlist/' + b.getAttribute('data-wd')).then(function () { V.waitlist(); }); }); });
+    });
+  };
+  V.abandoned = function () {
+    var live = ADM.guard();
+    api('GET', '/api/admin/abandoned').then(function (r) {
+      if (!live()) return; var c = r.carts;
+      view('<p class="muted">Signed-in customers who filled their bag but did not order. After 2 hours they get one reminder email (if email is set up). You can also nudge them on WhatsApp.</p>' + (c.length ? '<div class="adm__list">' + c.map(function (x) { var link = wa(x.phone, 'Hello ' + (x.name || '') + '! You left ' + x.items.map(function (i) { return i.name; }).slice(0, 2).join(', ') + ' in your bag at ' + location.host + '. Need any help with size or stitching? Complete your order here: ' + location.origin + '/cart.html'); return '<div class="orow orow--static orow--wrap"><span class="orow__t"><strong>' + esc(x.name || x.email) + ' · ' + money(x.value) + '</strong><small>' + x.items.map(function (i) { return esc(i.name) + ' ×' + i.qty + (i.size ? ' (' + esc(i.size) + ')' : ''); }).join(', ') + '</small><small>' + esc(x.email) + ' · ' + new Date(x.at).toLocaleString('en-IN') + ' · ' + (x.emailed ? 'reminder emailed' : x.reminded ? 'reminder due (email not set up)' : 'not reminded yet') + '</small></span>' + (link ? '<a class="btn btn--sm" href="' + esc(link) + '" target="_blank" rel="noopener">WhatsApp</a>' : '') + '</div>'; }).join('') + '</div>' : '<p class="muted pad">No abandoned bags right now.</p>'));
+    });
+  };
 })();

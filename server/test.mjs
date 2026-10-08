@@ -403,6 +403,27 @@ console.log('\nStock by colour + photos per colour');
   ok(/"imgColors":\["Red","Green"\]/.test((await new Client().req('GET', '/js/data.js')).text), 'storefront knows which photo shows which colour');
   await ADM.req('DELETE', '/api/admin/products/' + sp.id); }
 
+console.log('\nWaitlist + abandoned carts');
+{ const sp = (await ADM.req('POST', '/api/admin/products', { name: 'Waitlist Suit', cat: 'straight', price: 2500, colors: [{ name: 'Red', hex: '#ff0000' }], stitch: ['unstitched'], soldOut: true })).json.product;
+  const W = new Client(); ok((await W.req('POST', '/api/notify', { pid: sp.id, email: 'bad' })).status === 400, 'waitlist needs a valid email');
+  ok((await W.req('POST', '/api/notify', { pid: sp.id, email: 'wait@example.com', phone: '9876543210' })).status === 200, 'customer joins the waitlist');
+  await W.req('POST', '/api/notify', { pid: sp.id, email: 'wait@example.com' }); let wl = (await ADM.req('GET', '/api/admin/waitlist')).json.entries.filter(e => e.pid === sp.id); ok(wl.length === 1 && wl[0].status === 'waiting', 'joining twice is one entry');
+  ok((await B.req('GET', '/api/admin/waitlist')).status === 404, 'customers cannot read the waitlist');
+  ok(app.restockSweep() === 0, 'nothing to tell while it is still sold out');
+  await ADM.req('PUT', '/api/admin/products/' + sp.id, { soldOut: false }); wl = (await ADM.req('GET', '/api/admin/waitlist')).json.entries.filter(e => e.pid === sp.id); ok(wl[0].status === 'ready', 'restocking flags the entry as ready to tell (email service not configured)');
+  // abandoned carts
+  const R = new Client(); await R.req('POST', '/api/auth/register', { name: 'Cart Person', email: 'cartp@example.com', password: 'cart-pass-123' });
+  ok((await R.req('POST', '/api/cart-sync', { items: [{ id: 'kota-doria-suit', size: 'M', stitch: 'semi', color: 'Sand', qty: 1 }, { id: 'nope', size: 'M', stitch: 'semi', qty: 1 }] })).status === 200, 'signed-in bag is saved');
+  ok((await R.req('GET', '/api/me')).json.user.cart.items.length === 1, 'unknown products are dropped; the bag follows the customer');
+  ok(app.abandonedSweep() === 0, 'no reminder while the bag is fresh');
+  ok(app.abandonedSweep(Date.now() + 3 * 36e5) === 1, 'a reminder is due after 2 hours');
+  ok(app.abandonedSweep(Date.now() + 4 * 36e5) === 0, 'and only one reminder per bag');
+  const ab = (await ADM.req('GET', '/api/admin/abandoned', undefined)).json.carts; ok(Array.isArray(ab), 'admin list of abandoned bags is available');
+  ok((await new Client().req('POST', '/api/cart-sync', { items: [] })).json.ok === false, 'guests’ bags are not stored');
+  const R2 = new Client(); await R2.req('POST', '/api/auth/register', { name: 'Buyer Person', email: 'buyerp@example.com', password: 'buyer-pass-123' }); await R2.req('POST', '/api/cart-sync', { items: [{ id: 'kota-doria-suit', size: 'M', stitch: 'semi', color: 'Sand', qty: 1 }] });
+  await R2.req('POST', '/api/orders', { items: cart, customer: cust, method: 'upi_qr' }); ok(app.abandonedSweep(Date.now() + 3 * 36e5) === 0, 'no reminder to someone who ordered after filling the bag');
+  await ADM.req('DELETE', '/api/admin/products/' + sp.id); }
+
 console.log('\nAdmin analytics');
 { const an = await ADM.req('GET', '/api/admin/analytics?days=30'); ok(an.status === 200 && an.json.series.length === 30 && an.json.orders >= 2, 'analytics returns a 30-day series and order totals');
   ok(an.json.paidOrders >= 1 && an.json.revenue > 0 && an.json.aov > 0 && an.json.top.length >= 1, 'revenue, average order and top products computed from paid orders');

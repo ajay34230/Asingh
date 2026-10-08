@@ -72,7 +72,7 @@ function createApp(opts = {}) {
   const brand = () => catalog.site.name || 'चंद्रवंशी';
   const waNote = (o, kind) => { if (!WA.enabled() || !o.customer.phone) return; if (kind === 'status' && o.status === 'processing' && o.method === 'cod' && o.timeline.length <= 2) return; const msg = WA.text(o, kind); WA.send(o.customer.phone, o.customer.name.split(' ')[0], o.number, msg).then(ok => { o.wa = (o.wa || []).concat([{ at: Date.now(), status: o.status, ok }]).slice(-20); db.save(); }); };
   Orders.hooks.created = o => { waNote(o, 'created'); if (o.customer.email) { const m = Mail.orderEmail(brand(), o, lastOrigin, 'created'); Mail.send(o.customer.email, m.subject, m.html); } };
-  Orders.hooks.status = o => { if (['paid', 'processing', 'shipped', 'delivered', 'cancelled', 'payment_rejected', 'payment_review'].indexOf(o.status) > -1) waNote(o, 'status'); if (o.customer.email && ['paid', 'processing', 'shipped', 'delivered', 'cancelled', 'payment_rejected'].indexOf(o.status) > -1) { const m = Mail.orderEmail(brand(), o, lastOrigin, 'status'); Mail.send(o.customer.email, m.subject, m.html); } };
+  Orders.hooks.status = o => { if (o.status === 'cancelled') setTimeout(() => { try { restockSweep(); } catch (e) {} }, 0); if (['paid', 'processing', 'shipped', 'delivered', 'cancelled', 'payment_rejected', 'payment_review'].indexOf(o.status) > -1) waNote(o, 'status'); if (o.customer.email && ['paid', 'processing', 'shipped', 'delivered', 'cancelled', 'payment_rejected'].indexOf(o.status) > -1) { const m = Mail.orderEmail(brand(), o, lastOrigin, 'status'); Mail.send(o.customer.email, m.subject, m.html); } };
   const mkReset = u => { const tok = crypto.randomBytes(24).toString('base64url'); D.resets = D.resets.filter(r => r.exp > Date.now() && r.uid !== u.id); D.resets.push({ h: crypto.createHash('sha256').update(tok).digest('hex'), uid: u.id, exp: Date.now() + 36e5 }); db.save(); return lastOrigin + '/account.html?reset=' + tok; };
   route('POST', /^\/api\/auth\/forgot$/, async (req, res) => {
     if (!authLimit(ip(req))) throw fail(429, 'Too many attempts. Try again in a few minutes.');
@@ -144,6 +144,57 @@ function createApp(opts = {}) {
   route('GET', /^\/api\/admin\/reviews$/, async (req, res) => { need(req, 'admin'); send(res, 200, { reviews: D.reviews.slice(0, 300).map(r => ({ ...r, product: (catalog.find(r.pid) || {}).name || r.pid, uid: undefined })) }); });
   route('PATCH', /^\/api\/admin\/reviews\/([\w-]+)$/, async (req, res, m) => { need(req, 'admin'); const r = D.reviews.find(x => x.id === m[1]); if (!r) throw fail(404, 'Not found'); const st = (await jsonBody(req)).state; if (['approved', 'hidden', 'pending'].indexOf(st) < 0) throw fail(400, 'Bad state'); r.state = st; db.save(); rate(r.pid); send(res, 200, { ok: true }); });
   route('DELETE', /^\/api\/admin\/reviews\/([\w-]+)$/, async (req, res, m) => { need(req, 'admin'); const r = D.reviews.find(x => x.id === m[1]); D.reviews = D.reviews.filter(x => x !== r); db.save(); if (r) rate(r.pid); send(res, 200, { ok: true }); });
+
+  /* ---- "notify me when it's back": waitlist entries + a sweep that emails them (or flags them for the admin) when stock returns ---- */
+  const colourOk = (p, color) => { const c = p.colors.find(x => x.name === color); return !c || c.stock !== 0; };
+  const isAvailable = e => { const p = catalog.find(e.pid); return !!p && p.published && !p.soldOut && p.stock !== 0 && (!e.size || !p.sizeStock || p.sizeStock[e.size] !== 0) && (!e.color || colourOk(p, e.color)); };
+  const notifyLimit = limiter(10, 10 * 60e3);
+  route('POST', /^\/api\/notify$/, async (req, res) => {
+    if (!notifyLimit(ip(req))) throw fail(429, 'Too many requests. Please try again later.');
+    const b = await jsonBody(req), email = String(b.email || '').trim().toLowerCase().slice(0, 120), phone = String(b.phone || '').replace(/[^\d+]/g, '').slice(0, 15), pid = String(b.pid || ''), p = catalog.find(pid);
+    if (String(b.website || '')) return send(res, 200, { ok: true });   // honeypot
+    if (!p || !p.published) throw fail(404, 'Piece not found'); if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(email)) throw fail(400, 'Enter a valid email address.'); if (phone && !/^(\+91)?[6-9]\d{9}$/.test(phone)) throw fail(400, 'Enter a valid 10-digit mobile number (or leave it blank).');
+    const size = catalog.sizes.indexOf(b.size) > -1 ? b.size : '', color = p.colors.some(c => c.name === b.color) ? b.color : '';
+    if (D.notify.filter(x => x.email === email && x.status === 'waiting').length >= 20) throw fail(400, 'You are already waiting on 20 pieces.');
+    if (!D.notify.some(x => x.email === email && x.pid === pid && x.size === size && x.color === color && x.status === 'waiting')) { D.notify.unshift({ id: id(6), pid, size, color, email, phone, at: Date.now(), status: 'waiting' }); D.notify.length = Math.min(D.notify.length, 3000); db.save(); notifier.push('waitlist', null, 'Waitlist: ' + p.name, email + (size ? ' · size ' + size : '') + (color ? ' · ' + color : '')); }
+    send(res, 200, { ok: true });
+  });
+  const restockSweep = () => {
+    const base = lastOrigin || process.env.SITE_URL || ''; let n = 0;
+    D.notify.filter(e => e.status === 'waiting' && isAvailable(e)).forEach(e => {
+      const p = catalog.find(e.pid); e.status = Mail.enabled() ? 'sent' : 'ready'; e.notifiedAt = Date.now(); n++;
+      if (Mail.enabled()) Mail.send(e.email, brand() + ' — ' + p.name + ' is back', `<div style="font-family:Arial,sans-serif;max-width:520px;margin:auto"><h3>It's back in stock</h3><p><b>${p.name.replace(/[<>&]/g, '')}</b>${e.size ? ' (size ' + e.size + ')' : ''}${e.color ? ' in ' + e.color.replace(/[<>&]/g, '') : ''} is available again. Pieces sell out fast.</p><p><a href="${base}/product.html?id=${p.id}" style="display:inline-block;background:#5a1030;color:#fff;padding:12px 20px;border-radius:8px;text-decoration:none">Shop it now</a></p></div>`);
+    });
+    if (n) { db.save(); notifier.push('restock', null, n + ' waitlist customer' + (n > 1 ? 's' : '') + ' can now be told', Mail.enabled() ? 'Emails sent automatically' : 'Open Waitlist to message them'); } return n;
+  };
+  route('GET', /^\/api\/admin\/waitlist$/, async (req, res) => { need(req, 'admin'); send(res, 200, { entries: D.notify.slice(0, 500).map(e => ({ ...e, product: (catalog.find(e.pid) || {}).name || e.pid })) }); });
+  route('DELETE', /^\/api\/admin\/waitlist\/([\w-]+)$/, async (req, res, m) => { need(req, 'admin'); D.notify = D.notify.filter(x => x.id !== m[1]); db.save(); send(res, 200, { ok: true }); });
+
+  /* ---- abandoned carts: signed-in customers' bags are saved so they can be reminded (and pick up on another device) ---- */
+  const cartLimit = limiter(120, 10 * 60e3);
+  route('POST', /^\/api\/cart-sync$/, async (req, res) => {
+    const u = auth.user(req); if (!u || u.isGuest || !u.email) return send(res, 200, { ok: false }); if (!cartLimit(u.id)) throw fail(429, 'Slow down.');
+    const b = await jsonBody(req), items = (Array.isArray(b.items) ? b.items : []).slice(0, 30).map(i => ({ id: String(i.id || '').slice(0, 60), size: String(i.size || '').slice(0, 4), stitch: String(i.stitch || '').slice(0, 12), color: String(i.color || '').slice(0, 24), note: String(i.note || '').slice(0, 240), qty: Math.max(1, Math.min(9, parseInt(i.qty, 10) || 1)) })).filter(i => catalog.find(i.id));
+    const same = u.cart && JSON.stringify(u.cart.items) === JSON.stringify(items); if (!items.length) { if (u.cart) { delete u.cart; db.save(); } return send(res, 200, { ok: true }); }
+    if (!same) { u.cart = { items, at: Date.now() }; db.save(); } send(res, 200, { ok: true });
+  });
+  const cartValue = c => c.items.reduce((a, i) => { const p = catalog.find(i.id); return a + (p ? (p.price + catalog.stitchAdd(i.stitch)) * i.qty : 0); }, 0);
+  const abandonedSweep = (now = Date.now()) => {
+    const base = lastOrigin || process.env.SITE_URL || ''; let n = 0;
+    D.users.forEach(u => {
+      const c = u.cart; if (!c || !c.items.length || c.remindedAt || now - c.at < 2 * 36e5 || now - c.at > 5 * 864e5) return;
+      if (D.orders.some(o => o.userId === u.id && o.createdAt > c.at)) { delete u.cart; return; }   // they bought — nothing to remind
+      const live = c.items.filter(i => { const p = catalog.find(i.id); return p && p.published && !p.soldOut; }); if (!live.length) return;
+      c.remindedAt = now; n++;
+      if (Mail.enabled() && u.email) { const names = live.slice(0, 3).map(i => catalog.find(i.id).name.replace(/[<>&]/g, '')).join(', '); Mail.send(u.email, brand() + ' — you left something in your bag', `<div style="font-family:Arial,sans-serif;max-width:520px;margin:auto"><h3>Still thinking it over?</h3><p>${names}${live.length > 3 ? ' and more' : ''} ${live.length > 1 ? 'are' : 'is'} waiting in your bag.</p><p><a href="${base}/cart.html" style="display:inline-block;background:#5a1030;color:#fff;padding:12px 20px;border-radius:8px;text-decoration:none">Complete your order</a></p></div>`); c.emailed = true; }
+    });
+    if (n) db.save(); return n;
+  };
+  route('GET', /^\/api\/admin\/abandoned$/, async (req, res) => {
+    need(req, 'admin'); const now = Date.now();
+    send(res, 200, { carts: D.users.filter(u => u.cart && u.cart.items.length && now - u.cart.at > 36e5).sort((a, b) => b.cart.at - a.cart.at).slice(0, 200).map(u => ({ id: u.id, name: u.name, email: u.email, phone: (u.profile || {}).phone || '', at: u.cart.at, reminded: !!u.cart.remindedAt, emailed: !!u.cart.emailed, value: cartValue(u.cart), items: u.cart.items.map(i => ({ name: (catalog.find(i.id) || {}).name || i.id, qty: i.qty, size: i.size })) })) });
+  });
+  const sweepTimer = setInterval(() => { try { abandonedSweep(); restockSweep(); } catch (e) { console.warn('sweep failed:', e.message); } }, 20 * 60e3); sweepTimer.unref();
 
   /* ---- customer self-service: password, sign out everywhere, data export, delete account ---- */
   const IN_PROGRESS = ['payment_review', 'paid', 'processing', 'shipped'];
@@ -485,7 +536,7 @@ function createApp(opts = {}) {
   const adminProduct = p => ({ ...p, imageUrls: p.images.map(r => ({ rev: r, url: catalog.imgUrl(p, r, p.imageStore[r].ws.indexOf(400) > -1 ? 400 : p.imageStore[r].ws[0]) })), thumb: catalog.thumb(p), imageStore: undefined });
   route('GET', /^\/api\/admin\/catalog$/, async (req, res) => { need(req, 'admin'); send(res, 200, { sizes: catalog.sizes, products: catalog.products.map(adminProduct), categories: catalog.categories, site: catalog.site, stitch: A.STITCH.map(x => ({ id: x.id, label: x.label })), occasions: A.OCCASIONS, demoCount: catalog.products.filter(p => p.demo).length }); });
   route('POST', /^\/api\/admin\/products$/, async (req, res) => { need(req, 'admin'); const p = catalog.create(await jsonBody(req)); send(res, 201, { product: adminProduct(p) }); });
-  route('PUT', /^\/api\/admin\/products\/([a-z0-9-]+)$/, async (req, res, m) => { need(req, 'admin'); send(res, 200, { product: adminProduct(catalog.update(m[1], await jsonBody(req))) }); });
+  route('PUT', /^\/api\/admin\/products\/([a-z0-9-]+)$/, async (req, res, m) => { need(req, 'admin'); const pr = adminProduct(catalog.update(m[1], await jsonBody(req))); restockSweep(); send(res, 200, { product: pr }); });
   route('DELETE', /^\/api\/admin\/products\/([a-z0-9-]+)$/, async (req, res, m) => { need(req, 'admin'); catalog.remove(m[1]); send(res, 200, { ok: true }); });
   route('POST', /^\/api\/admin\/products\/([a-z0-9-]+)\/image$/, async (req, res, m) => {
     need(req, 'admin'); const p = catalog.find(m[1]); if (!p) throw fail(404, 'Product not found');
@@ -677,7 +728,7 @@ function createApp(opts = {}) {
       send(res, status, { error: status === 500 ? 'Something went wrong. Please try again.' : e.message });
     }
   });
-  return { server, db, notifier, resetTrackLocks: () => trackFails.clear() };
+  return { server, db, notifier, resetTrackLocks: () => trackFails.clear(), abandonedSweep, restockSweep };
 }
 
 if (require.main === module) {
