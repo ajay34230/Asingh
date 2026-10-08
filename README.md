@@ -21,6 +21,26 @@ Storefront: `/` · Track an order: `/track.html` · Account & orders: `/account.
 | `ADMIN_WEBHOOK_URL` | HTTPS webhook (Slack/Discord-style `{text}`) for admin alerts |
 | `WEBHOOK_SECRET_<PROVIDER>` | enables payment webhooks for that provider (see below) |
 
+## The admin controls everything (Admin console → `/admin.html`)
+| Tab | What the admin can do |
+|---|---|
+| **Products** | Add, edit, **hide/show**, mark **sold out**, delete. Name, category, price, “was” price, fabric, description, colours, stitching offered, occasions, what’s included, details, badge, photos (up to 6, cropped & resized in the browser so the shop stays light), new/bestseller flags. One click removes all demo products. |
+| **Home page** | Show/hide every section (craft words, promise badges, collections, occasions, new arrivals, “made to measure”, bestsellers, reviews); edit hero text, button and **banner photo**; craft words; badges; occasion tiles; the 3-step story; customer reviews (add/remove real ones). |
+| **Store settings** | Store name & top-bar message, contact details, shipping rule and fee, **stitching options** (names, prices, on/off), **sizes & size chart**, return/shipping policy text, **categories** (add/rename/remove), and “Going live” tools (remove demo content, delete all test orders). |
+| **Orders** | Verify/reject payments, change status (+ courier & tracking link), open the bill, **delete** an order. |
+| **Payment & QR** | Upload/replace the QR, UPI ID, payee name, buyer instructions, bill details. |
+| **Alerts** | Live toast/chime, browser notifications, Slack/Discord webhook, history. |
+| **Admins & login** | See below. |
+
+Everything the admin edits is stored in `DATA_DIR` and appears on the storefront immediately. The home page is rendered by the server from these settings, so there is no flash of old content, and photos are served with long-lived caching.
+
+### Admin username & password
+- **First setup:** the first admin is created automatically when the server first starts. Its username is `ADMIN_EMAIL` and its password is `ADMIN_PASSWORD` (environment variables on your host — e.g. Render → Environment, or `/etc/asingh.env` on a VPS). If you set no password, a random one is printed once in the server log. There is no default password and no public “create admin” page, so nobody can claim the admin account by visiting the site first.
+- **Changing it:** Admin → **Admins & login** → set your name, **username (email)** and a new password (10+ characters). The current password is required, and other devices are signed out.
+- **More admins:** the same page lets an admin **add or remove staff admins**. You can’t remove yourself or the last admin.
+- **Admin-only:** every one of these endpoints returns “not found” to customers and 401 to visitors who aren’t signed in. Customers can never become admins — roles are never accepted from the browser.
+- Note: `ADMIN_PASSWORD` only matters while no admin exists. If your host wipes its disk on restart (e.g. Render’s free tier) the admin is re-created from the environment variables.
+
 ## Order numbers, guest tracking & bills
 - **Short order numbers** like `AS-48213` (random, so they don't reveal your order volume). Shown big on the payment and confirmation screens with **Copy / Share / Track** buttons.
 - **Guests can track without signing in** at `/track.html` with the **order number + the mobile number used at checkout**. The page shows status, progress, admin messages and courier/tracking ID — never the address, email or payment screenshot. Wrong guesses get one generic message, are rate-limited per IP, and lock that order for 15 minutes after 8 misses. A guest who has verified can tap **“Open full order on this device”** to pay/upload or download the bill.
@@ -80,6 +100,7 @@ Hero with drifting gold ornaments, shimmering key phrase and pointer parallax (a
 ## QA tooling
 `node tools/qa.mjs` — loads every page at 19 widths (280→3840) plus landscape phone/tablet sizes and checks horizontal overflow, header collisions, touch-target size, tiny text and broken images.
 `node tools/weight.mjs` — page weight at phone / desktop / 4K.
+`node tools/admin-e2e.mjs` — admin console: add a product with a photo, hide/sold-out, home page edits, settings, clear demo, change login, add admin (fresh server).
 `node tools/e2e.mjs` — guest checkout → QR upload → live admin alert → verification → privacy (needs a fresh server: `DATA_DIR=/tmp/x ADMIN_PASSWORD='Admin#Pass12345' PORT=4173 node server/index.js`).
 `node tools/flows.mjs` — drives menu, search, filters, quick add, PDP validation, cart and the full checkout on phone/tablet/desktop.
 (These expect the server on :4173 and Playwright's Chromium.)

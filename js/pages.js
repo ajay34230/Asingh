@@ -7,17 +7,23 @@
 
   /* ================= HOME ================= */
   function home() {
+    var empty = '<div class="empty empty--grid"><p class="empty__title">New pieces are on the way</p><p>Please check back soon.</p></div>';
     var list = A.PRODUCTS.slice().sort(function (a, b) { return (b.isNew - a.isNew); }).slice(0, 8);
-    $('#new-grid').innerHTML = list.map(function (p) { return U.card(p); }).join('');
-    $('#best-track').innerHTML = A.PRODUCTS.filter(function (p) { return p.best; }).map(function (p) { return '<div class="rail__item">' + U.card(p, { sizes: '(min-width:1100px) 22vw, (min-width:700px) 31vw, 60vw' }) + '</div>'; }).join('');
-    var cols = [['Rajputi Poshak', 'poshak'], ['Ghagra Choli', 'ghagra'], ['Bandhani & Leheriya', 'bandhani'], ['Rajputi Suits', 'suits']];
-    $('#collections-track').innerHTML = cols.map(function (c, i) {
-      return '<li class="rail__item"><a class="tile" href="shop.html?cat=' + c[1] + '">' + U.picture('collection', i + 1, { w: 800, h: 800, widths: [400, 800], sizes: '(min-width:1100px) 24vw, (min-width:700px) 46vw, 72vw', alt: '' }) + '<span class="tile__cap"><span class="tile__n">0' + (i + 1) + '</span>' + c[0] + U.icon('right', 'ico--sm') + '</span></a></li>';
+    $('#new-grid').innerHTML = list.length ? list.map(function (p) { return U.card(p); }).join('') : empty;
+    var best = A.PRODUCTS.filter(function (p) { return p.best; }); if (!best.length) best = A.PRODUCTS.slice(0, 6);
+    $('#best-track').closest('section').hidden = !best.length;
+    $('#best-track').innerHTML = best.map(function (p) { return '<div class="rail__item">' + U.card(p, { sizes: '(min-width:1100px) 22vw, (min-width:700px) 31vw, 60vw' }) + '</div>'; }).join('');
+    // collection tiles: one per category that has products, using that category's first product photo
+    var cols = A.CATEGORIES.map(function (c) { return { c: c, p: A.PRODUCTS.filter(function (x) { return x.cat === c.id; })[0] }; }).filter(function (x) { return x.p; }).slice(0, 4);
+    $('#collections-track').closest('section').hidden = !cols.length;
+    $('#collections-track').innerHTML = cols.map(function (x, i) {
+      return '<li class="rail__item"><a class="tile" href="shop.html?cat=' + x.c.id + '">' + U.picture(x.p.id, 1, { sizes: '(min-width:1100px) 24vw, (min-width:700px) 46vw, 72vw', alt: '' }) + '<span class="tile__cap"><span class="tile__n">0' + (i + 1) + '</span>' + esc(x.c.label) + U.icon('right', 'ico--sm') + '</span></a></li>';
     }).join('');
-    U.bindRails(document);
-    $('#quotes-track').innerHTML = A.REVIEWS.concat(A.REVIEWS.slice(0, 1)).map(function (r, i) {
-      return '<li class="rail__item rail__item--quote"><figure class="quote"><span class="quote__mark" aria-hidden="true">“</span><p class="stars-row">' + U.stars(r.stars) + '</p><blockquote>' + esc(r.body) + '</blockquote><figcaption><strong>' + esc(r.who) + '</strong> · ' + esc(r.city) + '</figcaption></figure></li>';
+    var quotes = A.REVIEWS || []; $('#quotes-track').closest('section').hidden = !quotes.length;
+    $('#quotes-track').innerHTML = quotes.map(function (r) {
+      return '<li class="rail__item rail__item--quote"><figure class="quote"><span class="quote__mark" aria-hidden="true">“</span><p class="stars-row">' + U.stars(r.stars) + '</p><blockquote>' + esc(r.body) + '</blockquote><figcaption><strong>' + esc(r.who) + '</strong>' + (r.city ? ' · ' + esc(r.city) : '') + '</figcaption></figure></li>';
     }).join('');
+    $$('.section__head .muted').forEach(function (m) { if (/Sample reviews/.test(m.textContent) && !A.PRODUCTS.some(function (p) { return p.demo; })) m.hidden = true; });
     U.bindRails(document); U.reveal(document);
   }
 
@@ -120,21 +126,24 @@
 
   /* ================= PRODUCT ================= */
   function product() {
-    var id = new URLSearchParams(location.search).get('id'), p = byId[id] || A.PRODUCTS[0];
+    var id = new URLSearchParams(location.search).get('id'), p = byId[id];
+    if (!p) { $('#pdp').innerHTML = '<div class="empty" style="grid-column:1/-1"><p class="empty__title">This piece isn’t available</p><p>It may have been removed or is not on sale right now.</p><a class="btn" href="shop.html">Browse the collection</a></div>'; $('#reviews').hidden = true; var rl = $('#rel-h'); if (rl) rl.closest('section').hidden = true; return; }
     document.title = p.name + ' — ' + A.BRAND;
+    var N = p.nimg || 1, demoAlt = ['full view', 'fabric detail', 'flat lay'];
     var cat = A.CATEGORIES.filter(function (c) { return c.id === p.cat; })[0];
-    var slides = [1, 2, 3].map(function (n) {
-      return '<li class="gal__slide" id="slide-' + n + '"><button type="button" class="gal__zoom" data-zoom="' + n + '" aria-label="Zoom image ' + n + ' of 3">' +
-        U.picture(p.id, n, { sizes: '(min-width:1100px) 46vw, (min-width:700px) 60vw, 100vw', alt: p.name + ' — ' + ['full view', 'fabric detail', 'flat lay'][n - 1], eager: n === 1 }) + '<span class="gal__hint" aria-hidden="true">' + U.icon('zoom') + '</span></button></li>';
+    var seq = []; for (var q = 1; q <= N; q++) seq.push(q);
+    var slides = seq.map(function (n) {
+      return '<li class="gal__slide" id="slide-' + n + '"><button type="button" class="gal__zoom" data-zoom="' + n + '" aria-label="Zoom image ' + n + ' of ' + N + '">' +
+        U.picture(p.id, n, { sizes: '(min-width:1100px) 46vw, (min-width:700px) 60vw, 100vw', alt: p.name + (p.demo !== false && N === 3 ? ' — ' + demoAlt[n - 1] : N > 1 ? ' — photo ' + n : ''), eager: n === 1 }) + '<span class="gal__hint" aria-hidden="true">' + U.icon('zoom') + '</span></button></li>';
     }).join('');
     var wish = Cart.isWish(p.id);
     $('#pdp').innerHTML =
       '<div class="pdp__gallery"><ul class="gal" id="gal" tabindex="0" aria-label="Product images — swipe or scroll">' + slides + '</ul>' +
-      '<div class="gal__dots" role="group" aria-label="Choose image">' + [1, 2, 3].map(function (n) { return '<button type="button" class="gal__dot" data-slide="' + n + '" aria-label="Show image ' + n + '"' + (n === 1 ? ' aria-current="true"' : '') + '></button>'; }).join('') + '</div></div>' +
+      (N > 1 ? '<div class="gal__dots" role="group" aria-label="Choose image">' : '<div hidden>') + seq.map(function (n) { return '<button type="button" class="gal__dot" data-slide="' + n + '" aria-label="Show image ' + n + '"' + (n === 1 ? ' aria-current="true"' : '') + '></button>'; }).join('') + '</div></div>' +
       '<div class="pdp__info"><p class="eyebrow"><a href="shop.html?cat=' + p.cat + '">' + cat.label + '</a></p>' +
       '<h1 class="pdp__title">' + esc(p.name) + '</h1>' +
       '<div class="pdp__price" id="pdp-price"></div>' +
-      '<p class="pdp__rating"><a href="#reviews">' + U.stars(p.rating) + ' <span>' + p.rating.toFixed(1) + ' · ' + p.reviews + ' reviews</span></a></p>' +
+      (p.rating ? '<p class="pdp__rating"><a href="#reviews">' + U.stars(p.rating) + ' <span>' + p.rating.toFixed(1) + (p.reviews ? ' · ' + p.reviews + ' reviews' : '') + '</span></a></p>' : '') +
       '<p class="pdp__blurb">' + esc(p.blurb) + '</p>' +
       '<form id="buy" novalidate>' +
       '<fieldset class="field"><legend class="field__l">Colour: <strong id="color-name">' + esc(p.colors[0].name) + '</strong></legend><div class="swatches">' + p.colors.map(function (c, i) {
@@ -144,14 +153,16 @@
       '<fieldset class="field" id="size-field"><legend class="field__l">Size <button type="button" class="link" data-size-guide>Size guide</button></legend>' + U.sizeRadios('size') + '<p class="field__err" id="size-err" role="alert" hidden>Please choose a size to continue.</p></fieldset>' +
       '<div class="field"><label class="field__l" for="note">Customisation <span class="muted">(optional)</span></label><textarea class="input" id="note" name="note" rows="3" maxlength="240" placeholder="Height, sleeve length, blouse back style, monogram…" autocomplete="off"></textarea></div>' +
       '<section class="field ship" aria-labelledby="ship-h"><h2 class="field__l" id="ship-h">Shipping</h2><div class="ship__row"><label class="vh" for="pin">PIN code</label><input class="input" id="pin" name="pin" inputmode="numeric" autocomplete="postal-code" maxlength="6" pattern="[1-9][0-9]{5}" placeholder="Enter PIN code"><button class="btn btn--ghost" type="button" id="pin-check">Check</button></div><p class="ship__msg" id="ship-msg" role="status" aria-live="polite">' + U.icon('truck', 'ico--xs') + ' Free shipping over ' + money(A.FREE_SHIP_FROM) + '. Easy 7-day returns on unstitched pieces.</p></section>' +
-      '<div class="pdp__cta"><button class="btn btn--lg btn--grow" type="submit" id="add-btn">Add to bag</button><button type="button" class="icon-btn icon-btn--bordered" data-wish="' + p.id + '" aria-pressed="' + wish + '" aria-label="' + (wish ? 'Remove from' : 'Add to') + ' wishlist">' + U.icon('heart') + '</button></div></form>' +
+      '<div class="pdp__cta"><button class="btn btn--lg btn--grow" type="submit" id="add-btn"' + (p.soldOut ? ' disabled' : '') + '>' + (p.soldOut ? 'Sold out' : 'Add to bag') + '</button><button type="button" class="icon-btn icon-btn--bordered" data-wish="' + p.id + '" aria-pressed="' + wish + '" aria-label="' + (wish ? 'Remove from' : 'Add to') + ' wishlist">' + U.icon('heart') + '</button></div></form>' +
       '<ul class="pdp__trust">' + [['scissors', 'Handcrafted in Rajasthan'], ['truck', 'Free shipping over ' + money(A.FREE_SHIP_FROM)], ['ret', '7-day returns*']].map(function (t) { return '<li>' + U.icon(t[0]) + '<span>' + t[1] + '</span></li>'; }).join('') + '</ul><div class="pdp__acc"><details open><summary>Details &amp; care</summary><ul class="bullets">' + p.details.map(function (d) { return '<li>' + esc(d) + '</li>'; }).join('') + '</ul></details>' +
-      '<details><summary>Shipping &amp; returns</summary><p>Unstitched and semi-stitched pieces can be returned within 7 days. Custom-stitched pieces are made to order and are not returnable, but we offer one complimentary alteration.</p></details></div></div>';
+      '' + (((A.SITE || {}).policies || {}).returns || ((A.SITE || {}).policies || {}).shipping ? '<details><summary>Shipping &amp; returns</summary>' + ((A.SITE.policies.shipping) ? '<p>' + esc(A.SITE.policies.shipping) + '</p>' : '') + ((A.SITE.policies.returns) ? '<p>' + esc(A.SITE.policies.returns) + '</p>' : '') + '</details>' : '') + '</div></div>';
 
-    var rev = '<h2 class="h2" id="reviews-h">Reviews</h2><div class="reviews__sum"><p class="reviews__score">' + p.rating.toFixed(1) + '</p><div>' + U.stars(p.rating) + '<p class="muted">Based on ' + p.reviews + ' reviews</p></div></div><ul class="reviews__list">' +
-      A.REVIEWS.map(function (r) { return '<li class="review"><p>' + U.stars(r.stars) + '</p><h3>' + esc(r.title) + '</h3><p>' + esc(r.body) + '</p><p class="muted">' + esc(r.who) + ', ' + esc(r.city) + '</p></li>'; }).join('') + '</ul><p class="muted">Sample reviews shown for demonstration.</p>';
-    $('#reviews').innerHTML = rev;
+    var revs = A.REVIEWS || [];
+    if (!revs.length && !p.rating) $('#reviews').hidden = true;
+    else $('#reviews').innerHTML = '<h2 class="h2" id="reviews-h">' + (p.rating ? 'Reviews' : 'What customers say') + '</h2>' + (p.rating ? '<div class="reviews__sum"><p class="reviews__score">' + p.rating.toFixed(1) + '</p><div>' + U.stars(p.rating) + (p.reviews ? '<p class="muted">Based on ' + p.reviews + ' reviews</p>' : '') + '</div></div>' : '') +
+      (revs.length ? '<ul class="reviews__list">' + revs.map(function (r) { return '<li class="review"><p>' + U.stars(r.stars) + '</p>' + (r.title ? '<h3>' + esc(r.title) + '</h3>' : '') + '<p>' + esc(r.body) + '</p><p class="muted">' + esc(r.who) + (r.city ? ', ' + esc(r.city) : '') + '</p></li>'; }).join('') + '</ul>' : '') + (A.PRODUCTS.some(function (x) { return x.nimg === 3 && x.rating && /demo/.test(location.search + '') }) ? '' : '');
     var rel = A.PRODUCTS.filter(function (x) { return x.id !== p.id; }).sort(function (a, b) { return (b.cat === p.cat) - (a.cat === p.cat) || b.rating - a.rating; }).slice(0, 8);
+    var relSec = $('#rel-h').closest('section'); relSec.hidden = !rel.length;
     $('#related-track').innerHTML = rel.map(function (x) { return '<div class="rail__item">' + U.card(x, { sizes: '(min-width:1100px) 22vw, (min-width:700px) 31vw, 60vw' }) + '</div>'; }).join('');
     U.bindRails(document); U.reveal(document);
 
@@ -181,6 +192,7 @@
       Cart.add(p.id, { size: size.value, stitch: curStitch().id, color: buy.querySelector('[name=color]:checked').value, note: $('#note').value.trim() });
       U.fly($('#add-btn').getBoundingClientRect().top > 0 && $('#add-btn').getBoundingClientRect().top < innerHeight ? $('#add-btn') : $('#sticky-add')); U.afterAdd();
     });
+    if (p.soldOut) sticky.hidden = true;
     $('#sticky-add').addEventListener('click', function () { buy.requestSubmit ? buy.requestSubmit() : buy.dispatchEvent(new Event('submit', { cancelable: true })); });
     // Sticky purchase bar: shown while the main Add button is out of view (small screens only via CSS).
     if ('IntersectionObserver' in window) {
@@ -192,8 +204,9 @@
     dots.forEach(function (d) { d.addEventListener('click', function () { var n = +d.getAttribute('data-slide') - 1; gal.scrollTo({ left: n * gal.clientWidth, behavior: U.reduceMotion.matches ? 'auto' : 'smooth' }); }); });
     // Zoom lightbox (tap/click/keyboard — hover is never the only way to inspect an image)
     var lb = $('#lightbox'), lbImg = $('#lb-img'), cur = 1;
-    function showLb(n) { cur = (n + 2) % 3 + 1; lbImg.innerHTML = U.picture(p.id, cur, { sizes: '(min-width:1100px) 120vw, 200vw', alt: p.name + ' — image ' + cur + ' of 3', eager: true }); $('#lb-count').textContent = cur + ' / 3'; $('.lightbox__scroll', lb).scrollTo(0, 0); }
+    function showLb(n) { cur = ((n - 1 + N) % N) + 1; lbImg.innerHTML = U.picture(p.id, cur, { sizes: '(min-width:1100px) 120vw, 200vw', alt: p.name + ' — image ' + cur + ' of ' + N, eager: true }); $('#lb-count').textContent = cur + ' / ' + N; $('.lightbox__scroll', lb).scrollTo(0, 0); }
     document.addEventListener('click', function (e) { var z = e.target.closest('[data-zoom]'); if (z) { showLb(+z.getAttribute('data-zoom')); Sheet.open('lightbox', z); } });
+    $('#lb-prev').hidden = $('#lb-next').hidden = N < 2;
     $('#lb-prev').addEventListener('click', function () { showLb(cur - 1); }); $('#lb-next').addEventListener('click', function () { showLb(cur + 1); });
   }
 

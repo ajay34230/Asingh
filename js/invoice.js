@@ -25,7 +25,7 @@
       'Payment: UPI / QR' + (o.proof && o.proof.utr ? ' · UTR ' + o.proof.utr : ''));
     if (o.tracking) L.push('Shipment: ' + [o.tracking.courier, o.tracking.id].filter(Boolean).join(' · ') + (o.tracking.url ? '\n          ' + o.tracking.url : ''));
     L.push('', 'PROGRESS'); o.timeline.forEach(function (t) { L.push('  ' + dt(t.at) + '  ' + t.label + (t.note ? ' — ' + t.note : '')); });
-    L.push('', 'Track this order: ' + location.origin + '/track.html?n=' + o.number.replace(/^AS-?/i, ''), '(you will need your mobile number)', '', 'Prices include applicable taxes. Unstitched and semi-stitched pieces: 7-day returns.', 'Custom-stitched pieces are made to order. Thank you for shopping with ' + (inv.name || 'ASINGH') + '.');
+    L.push('', 'Track this order: ' + location.origin + '/track.html?n=' + o.number.replace(/^AS-?/i, ''), '(you will need your mobile number)', '', 'Prices include applicable taxes.' + (inv.returns ? ' ' + inv.returns : ''), 'Thank you for shopping with ' + (inv.name || 'ASINGH') + '.');
     return L.join('\n');
   }
   function render(o, inv) {
@@ -41,7 +41,7 @@
       '<div class="tot"><div><span>Subtotal</span><span>' + rs(o.totals.subtotal) + '</span></div><div><span>Shipping</span><span>' + (o.totals.shipping ? rs(o.totals.shipping) : 'Free') + '</span></div><div class="g"><span>Total</span><span>' + rs(o.totals.total) + '</span></div><div class="' + (paid ? 'paid' : 'due') + '"><span>' + (paid ? 'Paid' : 'Amount due') + '</span><span>' + rs(o.totals.total) + '</span></div></div>' +
       (o.tracking ? '<div class="inv__box"><h2>Shipment</h2><p><strong>' + esc(o.tracking.courier || 'Courier') + '</strong>' + (o.tracking.id ? ' · Tracking ID <strong>' + esc(o.tracking.id) + '</strong>' : '') + (o.tracking.url ? '<br><a href="' + esc(o.tracking.url) + '">' + esc(o.tracking.url) + '</a>' : '') + '</p></div>' : '') +
       '<div class="inv__box"><h2>Progress</h2><ul class="log">' + o.timeline.map(function (t) { return '<li><time>' + dt(t.at) + '</time><span><strong>' + esc(t.label) + '</strong>' + (t.note ? ' — ' + esc(t.note) : '') + '</span></li>'; }).join('') + '</ul></div>' +
-      '<footer class="inv__foot"><p><strong>Track this order any time:</strong> ' + esc(location.origin) + '/track.html — order number <strong>' + esc(o.number) + '</strong> + the mobile number above.</p><p>Prices include applicable taxes. Unstitched and semi-stitched pieces: 7-day returns. Custom-stitched pieces are made to order. This is a computer-generated bill.</p></footer>';
+      '<footer class="inv__foot"><p><strong>Track this order any time:</strong> ' + esc(location.origin) + '/track.html — order number <strong>' + esc(o.number) + '</strong> + the mobile number above.</p><p>Prices include applicable taxes.' + (inv.returns ? ' ' + esc(inv.returns) : '') + ' This is a computer-generated bill.</p></footer>';
     var imgs = [].slice.call(doc.querySelectorAll('img')), ready = Promise.all(imgs.map(function (i) { return i.complete ? 0 : new Promise(function (r) { i.onload = i.onerror = r; }); }));
     ready.then(function () { $('#pdf').disabled = false; $('#txt').disabled = false; if (/[?&]print=1/.test(location.search)) setTimeout(function () { window.print(); }, 250); });
     $('#pdf').onclick = function () { window.print(); };
@@ -49,5 +49,5 @@
   }
   function fail(m, link) { doc.innerHTML = '<div class="err"><p><strong>' + esc(m) + '</strong></p><p>Bills are private — only the person who placed the order (and the store) can open them.</p><p><a href="' + (link || 'account.html') + '">' + (link ? 'Go to sign in' : 'My orders') + '</a></p></div>'; $('#pdf').hidden = $('#txt').hidden = true; $('#hint').hidden = true; }
   if (!id) return fail('No order selected.');
-  Promise.all([api('/api/orders/' + encodeURIComponent(id)), api('/api/config')]).then(function (r) { data = r; render(r[0].order, r[1].invoice || {}); }, function (e) { fail(e.status === 401 ? 'Please sign in to view this bill.' : 'We couldn’t find that order.', e.status === 401 ? 'account.html' : ''); });
+  Promise.all([api('/api/orders/' + encodeURIComponent(id)), api('/api/config')]).then(function (r) { data = r; render(r[0].order, Object.assign({}, r[1].invoice || {}, { returns: ((r[1].site || {}).policies || {}).returns || '' })); }, function (e) { fail(e.status === 401 ? 'Please sign in to view this bill.' : 'We couldn’t find that order.', e.status === 401 ? 'account.html' : ''); });
 })();

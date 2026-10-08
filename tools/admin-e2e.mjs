@@ -1,0 +1,56 @@
+import { chromium } from '/opt/node22/lib/node_modules/playwright/index.mjs';
+// Admin console E2E: products (photo upload, hide, sold out), home page, store settings, demo clearing, admin login changes.
+// Needs a fresh server: DATA_DIR=/tmp/x ADMIN_PASSWORD='Admin#Pass12345' PORT=4173 TRUST_PROXY=1 node server/index.js
+import fs from 'node:fs';
+const B='http://localhost:4173';
+const br = await chromium.launch({ executablePath: '/opt/pw-browsers/chromium-1194/chrome-linux/chrome' });
+let fails=0; const ok=(c,m)=>{console.log((c?'  ✓ ':'  ✗ ')+m); if(!c) fails++;}; const errs=[];
+const mk0 = await br.newPage(); const jpgB64 = await mk0.evaluate(()=>{const c=document.createElement('canvas');c.width=1600;c.height=1200;const x=c.getContext('2d');x.fillStyle='#b0243a';x.fillRect(0,0,1600,1200);x.fillStyle='#f5e3b3';for(let i=0;i<1600;i+=80){x.beginPath();x.arc(i+30,330,30,0,7);x.fill();}x.fillStyle='#7a1f3d';x.fillRect(0,700,1600,500);return c.toDataURL('image/jpeg',.9).split(',')[1];}); await mk0.close(); const IMG = Buffer.from(jpgB64,'base64');
+const ac = await br.newContext({viewport:{width:1440,height:900}}); const ap = await ac.newPage(); ap.on('pageerror',e=>errs.push(String(e))); ap.on('console',m=>{ if(m.type()==='error'&&!/Failed to load resource/.test(m.text())) errs.push(m.text()); });
+await ap.goto(B+'/admin.html'); await ap.fill('#e','admin@asingh.local'); await ap.fill('#p','Admin#Pass12345'); await ap.click('#lf button'); await ap.waitForSelector('.adm__shell');
+console.log('\nProducts');
+await ap.goto(B+'/admin.html#/products'); await ap.waitForSelector('.prow'); ok(await ap.locator('.prow').count()>=12,'admin sees all products incl. demo ones');
+await ap.click('#addp'); await ap.waitForSelector('#pf2');
+await ap.fill('#e-name','Test Rani Poshak'); await ap.fill('#e-price','18500'); await ap.fill('#e-was','21000'); await ap.fill('#e-fab','Chanderi silk'); await ap.fill('#e-blurb','A real test dress.');
+await ap.fill('#e-colors [data-k=name]','Rani Pink'); await ap.check('[name=e-st][value=unstitched]',{force:true}); await ap.check('[name=e-st][value=custom]',{force:true}); await ap.check('[name=e-oc][value=wedding]',{force:true});
+await ap.fill('#e-inc','Ghagra\nKanchli\nOdhni');
+await ap.setInputFiles('#e-files',{name:'dress.jpg',mimeType:'image/jpeg',buffer:IMG}); await ap.waitForSelector('.ptile');
+ok(await ap.locator('.ptile').count()===1,'photo added and previewed (resized in the browser)');
+await ap.click('#e-save'); await ap.waitForFunction(()=>!document.querySelector('#drawer.open')); ok(true,'product saved with photo');
+await ap.waitForSelector('.prow:has-text("Test Rani Poshak")'); ok(true,'appears in the admin list');
+// storefront
+const cu = await br.newContext({viewport:{width:390,height:844},isMobile:true,hasTouch:true}); const cp = await cu.newPage(); cp.on('pageerror',e=>errs.push(String(e)));
+await cp.goto(B+'/shop.html'); await cp.waitForSelector('#grid .card'); ok(await cp.locator('.card:has-text("Test Rani Poshak")').count()===1,'customer sees the new product in the shop');
+ok(await cp.evaluate(()=>{const i=[...document.querySelectorAll('.card')].find(c=>/Test Rani/.test(c.textContent)).querySelector('img'); return /\/media\/p\//.test(i.currentSrc||i.src);}),'it uses the uploaded photo');
+await cp.goto(B+'/product.html?id=test-rani-poshak'); await cp.waitForSelector('#buy'); ok(/Test Rani Poshak/.test(await cp.textContent('h1')) && await cp.locator('.pdp__rating').count()===0,'product page works; no fake star rating shown');
+console.log('\nHide / sold out');
+await ap.click('[data-vis="test-rani-poshak"]'); await ap.waitForFunction(()=>/Show/.test(document.querySelector('[data-vis="test-rani-poshak"]')?.textContent||'')); await cp.goto(B+'/shop.html'); await cp.waitForSelector('#grid .card');
+ok(await cp.locator('.card:has-text("Test Rani Poshak")').count()===0,'hidden product disappears from the shop at once');
+await ap.click('[data-vis="test-rani-poshak"]'); await ap.waitForFunction(()=>/Hide/.test(document.querySelector('[data-vis="test-rani-poshak"]')?.textContent||''));
+await ap.click('[data-edit="test-rani-poshak"]'); await ap.waitForSelector('#pf2'); await ap.check('#e-sold',{force:true}); await ap.click('#e-save'); await ap.waitForFunction(()=>!document.querySelector('#drawer.open'));
+await cp.goto(B+'/product.html?id=test-rani-poshak'); await cp.waitForSelector('#add-btn'); ok(await cp.locator('#add-btn[disabled]').count()===1 && /Sold out/.test(await cp.textContent('#add-btn')),'sold-out product shows a disabled “Sold out” button');
+console.log('\nHome page');
+await ap.goto(B+'/admin.html#/home'); await ap.waitForSelector('#hf');
+await ap.fill('#h-title','Welcome to *Test Boutique*'); await ap.uncheck('#s-marquee',{force:true}); await ap.uncheck('#s-testimonials',{force:true}); await ap.fill('#h-cta','Shop the boutique');
+await ap.setInputFiles('#hfile',{name:'hero.jpg',mimeType:'image/jpeg',buffer:IMG}); await ap.waitForFunction(()=>/\/media\/s\//.test(document.querySelector('#hprev')?.src||''),{timeout:20000}); ok(true,'banner photo uploaded & applied');
+await ap.click('#hsave'); await ap.waitForSelector('.adm__toast');
+await cp.goto(B+'/index.html'); await cp.waitForSelector('.hero__title'); await cp.waitForTimeout(600);
+ok(/Welcome to Test Boutique/.test(await cp.textContent('.hero__title')) && await cp.locator('.hero__title em.shine').count()===1,'new hero title (with shimmer word) is in the HTML on first load');
+ok(await cp.locator('.marquee').count()===0,'hidden section (marquee) removed'); ok(/Shop the boutique/.test(await cp.textContent('.hero__cta')),'button label changed');
+ok(await cp.evaluate(()=>/\/media\/s\//.test(document.querySelector('.hero__img img').currentSrc)),'hero uses the uploaded banner photo');
+ok(await cp.locator('[data-sec=testimonials]').evaluate(e=>getComputedStyle(e).display==='none'),'reviews section hidden');
+console.log('\nStore settings');
+await ap.goto(B+'/admin.html#/store'); await ap.waitForSelector('#sf'); await ap.fill('#t-name','Test Boutique'); await ap.fill('#t-mail','hello@test.example'); await ap.fill('#t-tel','+91 90000 12345'); await ap.fill('#t-free','1000'); await ap.fill('#t-flat','75');
+await ap.click('#ssave'); await ap.waitForSelector('.adm__toast');
+await cp.goto(B+'/index.html'); await cp.waitForSelector('.footer'); ok(await cp.locator('.footer a[href="mailto:hello@test.example"]').count()===1 && /Test Boutique/.test(await cp.textContent('.logo')),'store name + contact details updated in the footer/logo');
+console.log('\nClear demo + login change');
+await ap.once?.('dialog',()=>{}); ap.on('dialog',d=>d.accept('DELETE')); await ap.click('#cd2'); await ap.waitForFunction(()=>document.querySelector('#cd2')?.disabled===true || /Remove 0/.test(document.querySelector('#cd2')?.textContent||''),{timeout:8000}).catch(()=>{});
+await cp.goto(B+'/shop.html'); await cp.waitForSelector('#grid .card'); ok(await cp.locator('#grid .card').count()===1,'after clearing demo, the shop shows only the owner’s product');
+await ap.goto(B+'/admin.html#/security'); await ap.waitForSelector('#af'); await ap.fill('#a-email','owner@test.example'); await ap.fill('#a-new','a-new-long-passphrase'); await ap.fill('#a-cur','Admin#Pass12345'); await ap.click('#af button'); await ap.waitForSelector('.adm__toast:has-text("Login updated")'); ok(true,'admin changed their own username + password');
+await ap.fill('#n-name','Staff One'); await ap.fill('#n-email','staff@test.example'); await ap.fill('#n-pw','staff-pass-12345'); await ap.click('#nf button'); await ap.waitForSelector('.alist li:nth-child(2)'); ok(true,'second admin added');
+const oc = await br.newContext(); const op = await oc.newPage(); await op.goto(B+'/admin.html'); await op.fill('#e','admin@asingh.local'); await op.fill('#p','Admin#Pass12345'); await op.click('#lf button'); await op.waitForFunction(()=>document.querySelector('#le')?.textContent.length>0); ok(true,'old username/password no longer work');
+await op.fill('#e','owner@test.example'); await op.fill('#p','a-new-long-passphrase'); await op.click('#lf button'); await op.waitForSelector('.adm__shell'); ok(true,'new login works');
+await ap.screenshot({path:'/tmp/shots/adm-security.png'});
+for (const [n,u] of [['products','#/products'],['home','#/home'],['store','#/store']]) { await ap.goto(B+'/admin.html'+u); await ap.waitForTimeout(900); await ap.screenshot({path:`/tmp/shots/adm-${n}.png`}); }
+ok(errs.length===0,'no JS errors: '+errs.slice(0,3).join(' | '));
+await br.close(); console.log(fails?`\n${fails} FAILED`:'\nADMIN E2E PASS'); process.exit(fails?1:0);

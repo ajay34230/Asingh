@@ -27,22 +27,21 @@ function newNumber(db) {
 
 const bad = m => Object.assign(new Error(m), { status: 400 });
 const str = (v, max) => String(v == null ? '' : v).trim().slice(0, max);
-const byId = Object.fromEntries(A.PRODUCTS.map(p => [p.id, p]));
-const stitchBy = Object.fromEntries(A.STITCH.map(s => [s.id, s]));
 
-function price(rawItems) {
+function price(rawItems, cat) {
   if (!Array.isArray(rawItems) || !rawItems.length || rawItems.length > 30) throw bad('Your bag is empty or too large.');
   const items = rawItems.map(r => {
-    const p = byId[r && r.id]; if (!p) throw bad('Unknown product.');
-    const size = str(r.size, 4); if (A.SIZES.indexOf(size) < 0) throw bad('Choose a valid size for ' + p.name + '.');
-    const stitch = str(r.stitch, 12); if (p.stitch.indexOf(stitch) < 0) throw bad('Stitching option not available for ' + p.name + '.');
+    const p = cat.find(r && r.id); if (!p || !p.published) throw bad('Sorry — one of the items is no longer available.');
+    if (p.soldOut) throw bad(p.name + ' is sold out right now.');
+    const size = str(r.size, 4); if (cat.sizes.indexOf(size) < 0) throw bad('Choose a valid size for ' + p.name + '.');
+    const stitch = str(r.stitch, 12); const so = cat.stitchOpt(stitch); if (!so || p.stitch.indexOf(stitch) < 0) throw bad('Stitching option not available for ' + p.name + '.');
     const color = (p.colors.find(c => c.name === r.color) || p.colors[0]).name;
     const qty = Math.max(1, Math.min(9, parseInt(r.qty, 10) || 1));
-    const unit = p.price + stitchBy[stitch].add;
-    return { id: p.id, name: p.name, size, stitch, stitchLabel: stitchBy[stitch].label, color, note: str(r.note, 240), qty, unit };
+    const unit = p.price + cat.stitchAdd(stitch);
+    return { id: p.id, img: cat.thumb(p), name: p.name, size, stitch, stitchLabel: so.label, color, note: str(r.note, 240), qty, unit };
   });
   const subtotal = items.reduce((a, i) => a + i.unit * i.qty, 0);
-  const shipping = subtotal >= A.FREE_SHIP_FROM ? 0 : A.SHIP_FLAT;
+  const shipping = subtotal >= cat.site.shipFreeFrom ? 0 : cat.site.shipFlat;
   return { items, totals: { subtotal, shipping, total: subtotal + shipping } };
 }
 
@@ -58,8 +57,8 @@ function customer(c) {
   return out;
 }
 
-function create(db, user, body, methodId) {
-  const { items, totals } = price(body.items);
+function create(db, user, body, methodId, cat) {
+  const { items, totals } = price(body.items, cat);
   const now = Date.now(), d = new Date(now);
   const number = newNumber(db);
   const order = { id: id(10), number, userId: user.id, items, totals, customer: customer(body.customer), method: methodId, status: 'awaiting_payment', proof: null, createdAt: now, updatedAt: now, timeline: [{ at: now, status: 'awaiting_payment', note: 'Order placed', by: 'customer' }] };

@@ -45,21 +45,26 @@
   /* ---------- Responsive images ---------- */
   function picture(slug, n, o) {
     o = o || {};
-    var W = o.widths || [400, 800, 1200];
-    var base = 'img/' + slug + '-' + n + '-';
+    var sizes = o.sizes || '(min-width:1100px) 25vw, 50vw', alt = esc(o.alt || ''), pr = byId[slug];
+    var pri = o.eager ? ' fetchpriority="high"' : ' loading="lazy"';
+    if (pr && pr.nimg === 0) return '<picture><img src="img/placeholder.svg" width="1200" height="1500" alt="' + alt + '"' + pri + ' decoding="async"></picture>';
+    var c = A.IMGS && (A.IMGS[slug + '-' + n] || A.IMGS[slug + '-1']);
+    if (c) {   // photos uploaded by the store owner (one format, up to three widths)
+      var ws = Object.keys(c).map(Number).sort(function (a, b) { return a - b; }), pick = c[800] ? 800 : c[ws[ws.length - 1]];
+      return '<picture><img src="' + esc(pick) + '" srcset="' + ws.map(function (w) { return esc(c[w]) + ' ' + w + 'w'; }).join(', ') + '" sizes="' + sizes + '" width="1200" height="1500" alt="' + alt + '"' + pri + ' decoding="async"></picture>';
+    }
+    var W = o.widths || [400, 800, 1200], base = 'img/' + slug + '-' + n + '-';
     var ss = function (ext) { return W.map(function (w) { return base + w + '.' + ext + ' ' + w + 'w'; }).join(', '); };
-    var sizes = o.sizes || '(min-width:1100px) 25vw, 50vw';
     return '<picture><source type="image/avif" srcset="' + ss('avif') + '" sizes="' + sizes + '">' +
       '<source type="image/webp" srcset="' + ss('webp') + '" sizes="' + sizes + '">' +
-      '<img src="' + base + '800.jpg" width="' + (o.w || 1200) + '" height="' + (o.h || 1500) + '" alt=""' + esc(o.alt || '') + '"' +
-      (o.eager ? ' fetchpriority="high"' : ' loading="lazy"') + ' decoding="async"></picture>';
+      '<img src="' + base + '800.jpg" width="' + (o.w || 1200) + '" height="' + (o.h || 1500) + '" alt="' + alt + '"' + pri + ' decoding="async"></picture>';
   }
 
   /* ---------- Stores ---------- */
   var subs = [];
   var Cart = {
-    items: store.get('asingh.cart.v1', []),
-    wish: store.get('asingh.wish.v1', []),
+    items: store.get('asingh.cart.v1', []).filter(function (i) { return byId[i.id]; }),
+    wish: store.get('asingh.wish.v1', []).filter(function (id) { return byId[id]; }),
     save: function () { store.set('asingh.cart.v1', Cart.items); store.set('asingh.wish.v1', Cart.wish); subs.forEach(function (f) { f(); }); },
     subscribe: function (f) { subs.push(f); f(); },
     unit: function (it) { var p = byId[it.id]; return p.price + (stitchById[it.stitch] ? stitchById[it.stitch].add : 0); },
@@ -157,13 +162,13 @@
     return '<article class="card" data-id="' + p.id + '">' +
       '<div class="card__media"><a class="card__link" href="product.html?id=' + p.id + '" tabindex="-1" aria-hidden="true">' +
       picture(p.id, 1, { sizes: o.sizes || '(min-width:1100px) 22vw, (min-width:700px) 31vw, 48vw', alt: '' }) +
-      '<span class="card__alt">' + picture(p.id, 2, { sizes: o.sizes || '(min-width:1100px) 22vw, 31vw', alt: '' }) + '</span></a>' +
-      (p.badge ? '<span class="badge badge--' + p.badge.toLowerCase() + '">' + esc(p.badge) + '</span>' : '') +
+      (p.nimg > 1 ? '<span class="card__alt">' + picture(p.id, 2, { sizes: o.sizes || '(min-width:1100px) 22vw, 31vw', alt: '' }) + '</span>' : '') + '</a>' +
+      (p.soldOut ? '<span class="badge badge--soldout">Sold out</span>' : p.badge ? '<span class="badge badge--' + p.badge.toLowerCase().replace(/[^a-z]/g, '') + '">' + esc(p.badge) + '</span>' : '') +
       '<button type="button" class="card__wish icon-btn" data-wish="' + p.id + '" aria-pressed="' + wish + '" aria-label="' + (wish ? 'Remove ' : 'Add ') + esc(p.name) + (wish ? ' from' : ' to') + ' wishlist">' + icon('heart') + '</button>' +
-      '<button type="button" class="card__quick btn btn--light" data-quick="' + p.id + '" aria-label="Quick add ' + esc(p.name) + '">' + icon('plus') + '<span>Quick add</span></button></div>' +
+      (p.soldOut ? '' : '<button type="button" class="card__quick btn btn--light" data-quick="' + p.id + '" aria-label="Quick add ' + esc(p.name) + '">' + icon('plus') + '<span>Quick add</span></button>') + '</div>' +
       '<div class="card__body"><h3 class="card__title"><a href="product.html?id=' + p.id + '">' + esc(p.name) + '</a></h3>' +
       '<p class="card__meta">' + esc(p.fabric) + '</p>' + priceHTML(p) + '<p class="card__sw" aria-hidden="true">' + p.colors.map(function (c) { return '<span style="background:' + c.hex + '"></span>'; }).join('') + '</p><span class="vh">Colours: ' + esc(p.colors.map(function (c) { return c.name; }).join(', ')) + '</span>' +
-      '<p class="card__rating">' + stars(p.rating) + ' <span class="card__count">' + p.rating.toFixed(1) + ' (' + p.reviews + ')</span></p></div></article>';
+      (p.rating ? '<p class="card__rating">' + stars(p.rating) + ' <span class="card__count">' + p.rating.toFixed(1) + (p.reviews ? ' (' + p.reviews + ')' : '') + '</span></p>' : '') + '</div></article>';
   }
   function sizeRadios(name) {
     return '<div class="chips" role="radiogroup" aria-label="Size">' + A.SIZES.map(function (s) {
@@ -275,19 +280,21 @@
   document.addEventListener('click', function (e) { var a = e.target.closest('[data-account]'); if (a && !Auth.user) { e.preventDefault(); Sheet.close('menu'); setTimeout(function () { Sheet.open('auth', a); }, 60); } });
 
   /* ---------- Chrome ---------- */
-  var NAV = [
-    { label: 'New In', href: 'shop.html?sort=new' },
-    { label: 'Poshak', href: 'shop.html?cat=poshak' },
-    { label: 'Ghagra Choli', href: 'shop.html?cat=ghagra' },
-    { label: 'Bandhani', href: 'shop.html?cat=bandhani' },
-    { label: 'Odhni', href: 'shop.html?cat=odhni', xl: true },
-    { label: 'Custom Stitching', href: 'shop.html?stitch=custom', xl: true }
-  ];
+  var shortLabel = function (l) { return l.length > 13 ? l.split(/[\s&]+/)[0] : l; };
+  var NAV = [{ label: 'New In', href: 'shop.html?sort=new' }].concat(A.CATEGORIES.slice(0, 4).map(function (c, i) { return { label: shortLabel(c.label), href: 'shop.html?cat=' + c.id, xl: i > 2 }; }), [{ label: 'Custom Stitching', href: 'shop.html?stitch=custom', xl: true }]);
+  function contactItems() {
+    var t = A.SITE || {}, out = '';
+    if (t.contactEmail) out += '<li><a href="mailto:' + esc(t.contactEmail) + '">' + esc(t.contactEmail) + '</a></li>';
+    if (t.contactPhone) out += '<li><a href="tel:' + esc(String(t.contactPhone).replace(/[^\d+]/g, '')) + '">' + esc(t.contactPhone) + '</a></li>';
+    if (t.contactHours) out += '<li>' + esc(t.contactHours) + '</li>';
+    if (t.contactAddress) out += '<li>' + esc(t.contactAddress) + '</li>';
+    return out || '<li><a href="track.html">Track your order</a></li>';
+  }
   function buildChrome() {
     var page = document.body.getAttribute('data-page');
     var sprite = '';
     var header = '<a class="skip" href="#main">Skip to content</a>' +
-      '<p class="announce"><span>Free shipping over ₹15,000</span><span class="announce__sep" aria-hidden="true">·</span><span class="announce__opt">Rajasthani craft · custom stitching in 10–14 days</span><span class="announce__sep" aria-hidden="true">·</span><a class="announce__track" href="track.html">Track your order</a></p>' +
+      '<p class="announce"><span>' + (A.FREE_SHIP_FROM ? 'Free shipping over ' + money(A.FREE_SHIP_FROM) : 'Free shipping on all orders') + '</span>' + ((A.SITE && A.SITE.announcement) ? '<span class="announce__sep" aria-hidden="true">·</span><span class="announce__opt">' + esc(A.SITE.announcement) + '</span>' : '') + '<span class="announce__sep" aria-hidden="true">·</span><a class="announce__track" href="track.html">Track your order</a></p>' +
       '<header class="header" id="site-header"><div class="header__bar container">' +
       '<a class="logo" href="index.html" aria-label="' + A.BRAND + ' home">' + A.BRAND + '</a>' +
       '<nav class="nav" aria-label="Primary"><ul class="nav__list">' +
@@ -312,7 +319,7 @@
       '<form class="newsletter" action="#" data-newsletter novalidate><label for="nl-email" class="vh">Email address</label><input id="nl-email" type="email" name="email" inputmode="email" autocomplete="email" placeholder="Your email address" required><button class="btn" type="submit">Subscribe</button><p class="newsletter__msg" role="status" aria-live="polite"></p></form></div>' +
       '<details class="footer__col" open><summary>Shop</summary><ul>' + A.CATEGORIES.map(function (c) { return '<li><a href="shop.html?cat=' + c.id + '">' + c.label + '</a></li>'; }).join('') + '</ul></details>' +
       '<details class="footer__col" open><summary>Care</summary><ul><li><a href="shop.html?stitch=custom">Custom stitching</a></li><li><a href="#size-guide" data-size-guide>Size guide</a></li><li><a href="cart.html">Shipping &amp; returns</a></li><li><a href="track.html">Track order</a></li></ul></details>' +
-      '<details class="footer__col" open><summary>Contact</summary><ul><li><a href="mailto:care@asingh.example">care@asingh.example</a></li><li><a href="tel:+910000000000">+91 00000 00000</a></li><li>Mon–Sat, 10am–7pm IST</li></ul></details>' +
+      '<details class="footer__col" open><summary>Contact</summary><ul>' + contactItems() + '</ul></details>' +
       '</div><p class="footer__legal container">© ' + new Date().getFullYear() + ' ' + A.BRAND + '. All rights reserved.</p></footer>';
     var sheets =
       '<div class="sheet sheet--menu" id="menu" aria-hidden="true"><div class="sheet__backdrop" data-close></div><div class="sheet__panel" aria-label="Menu">' +
@@ -337,7 +344,7 @@
       '<div class="sheet__head"><h2 class="sheet__title">Size guide</h2><button type="button" class="icon-btn" data-close aria-label="Close">' + icon('close') + '</button></div>' +
       '<div class="sheet__body"><p>Measurements are in inches, taken on the body. Between sizes? Choose custom stitching and we’ll make it to your measurements.</p>' +
       '<div class="tablewrap" tabindex="0" role="region" aria-label="Size chart"><table class="sizes"><thead><tr><th scope="col">Size</th><th scope="col">Bust</th><th scope="col">Waist</th><th scope="col">Hip</th></tr></thead><tbody>' +
-      [['XS', 32, 26, 35], ['S', 34, 28, 37], ['M', 36, 30, 39], ['L', 38, 32, 41], ['XL', 40, 34, 43], ['XXL', 42, 36, 45]].map(function (r) { return '<tr><th scope="row">' + r[0] + '</th><td>' + r[1] + '</td><td>' + r[2] + '</td><td>' + r[3] + '</td></tr>'; }).join('') +
+      (A.SIZECHART || []).map(function (r) { return '<tr><th scope="row">' + esc(r.size) + '</th><td>' + esc(r.bust) + '</td><td>' + esc(r.waist) + '</td><td>' + esc(r.hip) + '</td></tr>'; }).join('') +
       '</tbody></table></div></div></div></div>' +
  '<div class="sheet sheet--quick sheet--auth" id="auth" aria-hidden="true"><div class="sheet__backdrop" data-close></div><div class="sheet__panel" aria-label="Sign in">' +
       '<div class="sheet__head"><h2 class="sheet__title">Welcome to ' + A.BRAND + '</h2><button type="button" class="icon-btn" data-close aria-label="Close">' + icon('close') + '</button></div>' +

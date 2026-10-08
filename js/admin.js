@@ -10,7 +10,7 @@
   var TONE = { awaiting_payment: 'warn', payment_review: 'info', payment_rejected: 'bad', paid: 'good', processing: 'good', shipped: 'good', delivered: 'good', cancelled: 'mute' };
   var FULL = { awaiting_payment: 'Awaiting payment', payment_review: 'Payment under review', payment_rejected: 'Payment rejected', paid: 'Payment verified', processing: 'Being crafted', shipped: 'Shipped', delivered: 'Delivered', cancelled: 'Cancelled' };
   var chip = function (s) { return '<span class="chip-s chip-s--' + TONE[s] + '">' + (LABEL[s] || s) + '</span>'; };
-  var ICON = { home: '<path d="M4 11 12 4l8 7v9H4z"/>', box: '<path d="M4 8l8-4 8 4v8l-8 4-8-4zM4 8l8 4 8-4M12 12v8"/>', qr: '<path d="M4 4h6v6H4zM14 4h6v6h-6zM4 14h6v6H4zM14 14h3v3h-3zM18 18h2v2h-2z"/>', bell: '<path d="M6 17V11a6 6 0 0 1 12 0v6l1.5 2h-15zM10 21h4"/>', lock: '<rect x="5" y="10.5" width="14" height="9.5" rx="2"/><path d="M8 10.5V8a4 4 0 0 1 8 0v2.5"/>', out: '<path d="M10 4H5v16h5M15 8l4 4-4 4M19 12H9"/>', close: '<path d="M6 6l12 12M18 6 6 18"/>', check: '<path d="m5 12.5 4.5 4.5L19 7.5"/>' };
+  var ICON = { home: '<path d="M4 11 12 4l8 7v9H4z"/>', box: '<path d="M4 8l8-4 8 4v8l-8 4-8-4zM4 8l8 4 8-4M12 12v8"/>', qr: '<path d="M4 4h6v6H4zM14 4h6v6h-6zM4 14h6v6H4zM14 14h3v3h-3zM18 18h2v2h-2z"/>', bell: '<path d="M6 17V11a6 6 0 0 1 12 0v6l1.5 2h-15zM10 21h4"/>', lock: '<rect x="5" y="10.5" width="14" height="9.5" rx="2"/><path d="M8 10.5V8a4 4 0 0 1 8 0v2.5"/>', out: '<path d="M10 4H5v16h5M15 8l4 4-4 4M19 12H9"/>', close: '<path d="M6 6l12 12M18 6 6 18"/>', check: '<path d="m5 12.5 4.5 4.5L19 7.5"/>', tag: '<path d="M3 12V4h8l9 9-8 8z"/><circle cx="7.5" cy="8.5" r="1.3"/>', layout: '<rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 10h18M9 10v10"/>', gear: '<circle cx="12" cy="12" r="3"/><path d="M12 3v3M12 18v3M3 12h3M18 12h3M5.6 5.6l2.1 2.1M16.3 16.3l2.1 2.1M18.4 5.6l-2.1 2.1M7.7 16.3l-2.1 2.1"/>' };
   var ico = function (n) { return '<svg class="ico" viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' + ICON[n] + '</svg>'; };
   function api(method, url, body, form) {
     var o = { method: method, credentials: 'same-origin', headers: { 'X-Requested-With': 'asingh' } };
@@ -37,7 +37,7 @@
   }
 
   /* ------------ shell ------------ */
-  var NAV = [['overview', 'Overview', 'home'], ['orders', 'Orders', 'box'], ['payment', 'Payment & QR', 'qr'], ['alerts', 'Alerts', 'bell'], ['security', 'Security', 'lock']];
+  var NAV = [['overview', 'Overview', 'home'], ['orders', 'Orders', 'box'], ['products', 'Products', 'tag'], ['home', 'Home page', 'layout'], ['store', 'Store settings', 'gear'], ['payment', 'Payment & QR', 'qr'], ['alerts', 'Alerts', 'bell'], ['security', 'Admins & login', 'lock']];
   function consoleView() {
     app.innerHTML = '<div class="adm__shell"><aside class="adm__nav"><a class="adm__brand" href="index.html" title="View storefront">ASINGH <small>Admin</small></a><nav aria-label="Admin">' + NAV.map(function (n) { return '<a href="#/' + n[0] + '" data-v="' + n[0] + '">' + ico(n[2]) + '<span>' + n[1] + '</span><b class="adm__badge" data-b="' + n[0] + '" hidden></b></a>'; }).join('') + '</nav><button class="adm__out" id="so">' + ico('out') + '<span>Sign out</span></button></aside>' +
       '<div class="adm__main"><header class="adm__top"><h1 id="vt">Overview</h1><div class="adm__tools"><span class="live" id="live" title="Live alerts"><i></i><em>Connecting…</em></span><button class="adm__icon" id="snd" aria-pressed="' + sound + '" aria-label="Alert sound">' + (sound ? '🔔' : '🔕') + '</button><button class="adm__icon adm__bell" id="bell" aria-label="Notifications" aria-expanded="false">' + ico('bell') + '<b class="adm__badge" id="bb" hidden>0</b></button></div></header><main id="view" tabindex="-1"></main></div>' +
@@ -53,7 +53,7 @@
   function route() {
     var v = (location.hash.match(/^#\/(\w+)/) || [])[1]; if (!NAV.some(function (n) { return n[0] === v; })) v = 'overview'; state.view = v;
     $$('[data-v]').forEach(function (a) { a.classList.toggle('on', a.getAttribute('data-v') === v); if (a.getAttribute('data-v') === v) a.setAttribute('aria-current', 'page'); else a.removeAttribute('aria-current'); });
-    $('#vt').textContent = NAV.filter(function (n) { return n[0] === v; })[0][1]; ({ overview: overview, orders: ordersView, payment: paymentView, alerts: alertsView, security: securityView })[v]();
+    $('#vt').textContent = NAV.filter(function (n) { return n[0] === v; })[0][1]; ({ overview: overview, orders: ordersView, payment: paymentView, alerts: alertsView, security: securityView }[v] || ADM.views[v])();
   }
   function refreshBadges() { return api('GET', '/api/admin/summary').then(function (s) { unread = s.unread; var bb = $('#bb'); if (bb) { bb.hidden = !unread; bb.textContent = unread > 9 ? '9+' : unread; } var ob = $$('[data-b="orders"]'); ob.forEach(function (b) { var n = s.counts.payment_review; b.hidden = !n; b.textContent = n; }); document.title = (s.counts.payment_review ? '(' + s.counts.payment_review + ') ' : '') + titleBase; return s; }); }
 
@@ -78,11 +78,14 @@
   var nItem = function (n) { return '<li class="' + (n.read ? '' : 'unread') + '"><button type="button" ' + (n.orderId ? 'data-o="' + n.orderId + '"' : '') + '><strong>' + esc(n.title) + '</strong><span>' + esc(n.body || '') + '</span><time>' + ago(n.at) + '</time></button></li>'; };
 
   /* ------------ views ------------ */
+  var tokN = 0; function guard() { var t = ++tokN; return function () { return t === tokN; }; }
   function view(html) { var v = $('#view'); v.innerHTML = html; return v; }
   function overview(quiet) {
+    var live = guard();
     api('GET', '/api/admin/summary').then(function (s) {
-      var c = s.counts, todo = [!s.upiSet && ['Add your UPI ID', 'payment'], s.qrIsDemo && ['Upload your payment QR', 'payment']].filter(Boolean);
-      var v = view((todo.length ? '<div class="adm__setup"><strong>Finish setup</strong><ul>' + todo.map(function (t) { return '<li><a href="#/' + t[1] + '">' + t[0] + ' →</a></li>'; }).join('') + '</ul><p>Until then customers see a demo QR.</p></div>' : '') +
+      if (!live()) return;
+      var c = s.counts, todo = [!s.upiSet && ['Add your UPI ID', 'payment'], s.qrIsDemo && ['Upload your payment QR', 'payment'], s.demoProducts > 0 && ['Replace the ' + s.demoProducts + ' demo products with yours', 'products'], !s.products && ['Add your first product', 'products']].filter(Boolean);
+      var v = view((todo.length ? '<div class="adm__setup"><strong>Finish setup</strong><ul>' + todo.map(function (t) { return '<li><a href="#/' + t[1] + '">' + t[0] + ' →</a></li>'; }).join('') + '</ul><p>Customers see demo content until these are done.</p></div>' : '') +
         '<div class="adm__stats"><a class="stat stat--hot" href="#/orders" data-f="payment_review"><span>Needs review</span><strong>' + c.payment_review + '</strong><small>screenshots to verify</small></a><a class="stat" href="#/orders" data-f="awaiting_payment"><span>Awaiting payment</span><strong>' + c.awaiting_payment + '</strong><small>not paid yet</small></a><a class="stat" href="#/orders" data-f="processing"><span>In progress</span><strong>' + (c.paid + c.processing + c.shipped) + '</strong><small>paid → shipping</small></a><div class="stat"><span>Verified revenue</span><strong>' + money(s.revenue) + '</strong><small>' + s.orders + ' orders · ' + s.customers + ' accounts · ' + s.guests + ' guests</small></div></div>' +
         '<h2 class="adm__h">Recent orders</h2><div id="recent" class="adm__list"></div>');
       $$('[data-f]', v).forEach(function (a) { a.addEventListener('click', function () { state.filter = a.getAttribute('data-f'); }); });
@@ -94,6 +97,7 @@
   }
   function bindRows(el) { $$('[data-o]', el).forEach(function (b) { b.addEventListener('click', function () { openOrder(b.getAttribute('data-o')); }); }); }
   function ordersView() {
+    guard();
     var chips = [['', 'All']].concat(Object.keys(LABEL).map(function (k) { return [k, LABEL[k]]; }));
     view('<div class="adm__bar"><label class="vh" for="sq">Search orders</label><input class="input" id="sq" type="search" placeholder="Search number, name, phone, UTR…" value="' + esc(state.q) + '"></div><div class="fchips" role="group" aria-label="Filter by status">' + chips.map(function (c) { return '<button type="button" data-s="' + c[0] + '" aria-pressed="' + (state.filter === c[0]) + '">' + c[1] + '</button>'; }).join('') + '</div><div id="ol" class="adm__list" aria-live="polite"></div>');
     var t; $('#sq').addEventListener('input', function () { state.q = this.value; clearTimeout(t); t = setTimeout(loadOrders, 220); });
@@ -103,6 +107,7 @@
   function loadOrders() { api('GET', '/api/admin/orders?status=' + encodeURIComponent(state.filter) + '&q=' + encodeURIComponent(state.q)).then(function (r) { var l = $('#ol'); if (!l) return; l.innerHTML = orderRows(r.orders); bindRows(l); }); }
 
   /* ------------ order drawer ------------ */
+  function showDrawer(html) { $('#dp').innerHTML = html; var d = $('#drawer'); d.classList.add('open'); d.setAttribute('aria-hidden', 'false'); document.documentElement.classList.add('scroll-lock'); setTimeout(function () { var c = $('#dp [data-x]'); if (c) c.focus(); }, 60); }
   function openOrder(id) {
     api('GET', '/api/orders/' + id).then(function (r) { drawOrder(r.order); var d = $('#drawer'); d.classList.add('open'); d.setAttribute('aria-hidden', 'false'); document.documentElement.classList.add('scroll-lock'); setTimeout(function () { var c = $('#dp [data-x]'); if (c) c.focus(); }, 60); }, function (e) { toast(e.message, 'bad'); });
   }
@@ -117,6 +122,7 @@
       '<div class="field"><label class="field__l" for="sn">Message to customer <span class="muted">(optional, shown in their progress)</span></label><input class="input" id="sn" maxlength="200" placeholder="e.g. Handed to courier today"></div>' +
       '<details class="adm__trk"' + (o.tracking || o.status === 'shipped' ? ' open' : '') + '><summary>Courier &amp; tracking details</summary><div class="adm__two3"><div class="field"><label class="field__l" for="tc">Courier</label><input class="input" id="tc" maxlength="40" value="' + esc(t.courier || '') + '" placeholder="India Post, DTDC…"></div><div class="field"><label class="field__l" for="ti">Tracking ID</label><input class="input" id="ti" maxlength="60" value="' + esc(t.id || '') + '"></div></div><div class="field"><label class="field__l" for="tu">Tracking link <span class="muted">(https://)</span></label><input class="input" id="tu" type="url" maxlength="300" value="' + esc(t.url || '') + '" placeholder="https://…"></div></details>' +
       '<div class="adm__row"><button class="btn btn--lg btn--grow" id="ss">Save status</button></div></section>';
+    var danger = '<section><h3>Danger zone</h3><button class="btn btn--ghost adm__del" id="delo">Delete this order…</button></section>';
     $('#dp').innerHTML = '<header class="adm__dh"><div><h2>' + esc(o.number) + '</h2><p class="muted">' + when(o.createdAt) + '</p></div>' + chip(o.status) + '<button class="adm__icon" data-x aria-label="Close">' + ico('close') + '</button></header><div class="adm__db">' +
       (act ? '<div class="adm__act"><div class="field"><label class="field__l" for="nt">Note to customer <span class="muted">(shown on their order)</span></label><input class="input" id="nt" maxlength="200" placeholder="Optional"></div><div class="adm__row">' + act + '</div></div>' : '') +
       '<section><h3>Payment</h3><p class="amt">' + money(o.totals.total) + '<small> · UPI / QR</small></p>' + (p ? '<a class="proof" href="/api/orders/' + o.id + '/proof" target="_blank" rel="noopener"><img src="/api/orders/' + o.id + '/proof?t=' + p.at + '" alt="Customer payment screenshot"><span>Open full size</span></a><p class="muted">Uploaded ' + when(p.at) + (p.utr ? ' · UTR <code>' + esc(p.utr) + '</code>' : '') + '</p>' : '<p class="muted">No screenshot uploaded yet.</p>') + '</section>' +
@@ -124,9 +130,10 @@
       '<section><h3>Items</h3><ul class="oitems">' + o.items.map(function (i) { return '<li><span class="oitems__img"><img src="img/' + i.id + '-1-400.webp" alt="" width="48" height="60"></span><span class="oitems__t"><strong>' + esc(i.name) + '</strong><small>' + esc(i.color) + ' · Size ' + esc(i.size) + ' · ' + esc(i.stitchLabel) + ' · ×' + i.qty + '</small>' + (i.note ? '<small>“' + esc(i.note) + '”</small>' : '') + '</span><span>' + money(i.unit * i.qty) + '</span></li>'; }).join('') + '</ul></section>' +
       statusBox +
       '<section><h3>Bill</h3><div class="adm__row"><a class="btn btn--ghost" href="invoice.html?id=' + o.id + '" target="_blank" rel="noopener">Open bill · Save PDF</a><a class="btn btn--ghost" href="invoice.html?id=' + o.id + '&print=1" target="_blank" rel="noopener">Print</a></div></section>' +
-      '<section><h3>Activity</h3><ol class="log">' + o.timeline.slice().reverse().map(function (t) { return '<li><time>' + when(t.at) + '</time><strong>' + esc(t.label) + '</strong>' + (t.note ? '<span>' + esc(t.note) + '</span>' : '') + '<small>' + esc(t.by) + '</small></li>'; }).join('') + '</ol></section></div>';
+      '<section><h3>Activity</h3><ol class="log">' + o.timeline.slice().reverse().map(function (t) { return '<li><time>' + when(t.at) + '</time><strong>' + esc(t.label) + '</strong>' + (t.note ? '<span>' + esc(t.note) + '</span>' : '') + '<small>' + esc(t.by) + '</small></li>'; }).join('') + '</ol></section>' + danger + '</div>';
     function go(body, btn) { btn.disabled = true; api('PATCH', '/api/admin/orders/' + o.id, body).then(function (r) { toast('Order updated'); drawOrder(r.order); refreshBadges(); if (state.view === 'orders') loadOrders(); else if (state.view === 'overview') overview(true); }, function (e) { btn.disabled = false; toast(e.message, 'bad'); }); }
     $$('[data-a]', $('#dp')).forEach(function (b) { b.addEventListener('click', function () { var nt = $('#nt') ? $('#nt').value.trim() : ''; if (b.getAttribute('data-a') === 'reject' && !nt && !confirm('Reject without a note? The customer will see a default message.')) return; go({ action: b.getAttribute('data-a'), note: nt }, b); }); });
+    var del = $('#delo'); if (del) del.addEventListener('click', function () { if (!confirm('Permanently delete order ' + o.number + ' and its payment screenshot? This cannot be undone.')) return; api('DELETE', '/api/admin/orders/' + o.id).then(function () { toast('Order deleted'); closeDrawer(); refreshBadges(); if (state.view === 'orders') loadOrders(); else if (state.view === 'overview') overview(true); }, function (e) { toast(e.message, 'bad'); }); });
     var ns = $('#ns'); if (ns) ns.addEventListener('change', function () { if (ns.value === 'shipped') $('.adm__trk').open = true; });
     var ss = $('#ss'); if (ss) ss.addEventListener('click', function () {
       var tr = { courier: $('#tc').value.trim(), id: $('#ti').value.trim(), url: $('#tu').value.trim() }, any = tr.courier || tr.id || tr.url || o.tracking, st = ns.value, note = $('#sn').value.trim();
@@ -138,7 +145,9 @@
 
   /* ------------ payment settings ------------ */
   function paymentView() {
+    var live = guard();
     api('GET', '/api/admin/settings').then(function (s) {
+      if (!live()) return;
       view('<div class="adm__two"><section class="adm__card"><h2>Payment QR</h2><p class="muted">This is the QR customers scan at checkout.</p><figure class="qrcard qrcard--sm"><img id="qrimg" src="' + s.qrUrl + '" alt="Current payment QR" width="320" height="320"><i class="qrcard__c qrcard__c--tl"></i><i class="qrcard__c qrcard__c--tr"></i><i class="qrcard__c qrcard__c--bl"></i><i class="qrcard__c qrcard__c--br"></i></figure>' + (s.qrIsDemo ? '<p class="pay__demo">Showing the demo QR — upload yours.</p>' : '') +
         '<label class="drop" id="qd"><input type="file" id="qf" accept="image/jpeg,image/png,image/webp"><span class="drop__ico" aria-hidden="true">+</span><span class="drop__t"><strong>Upload new QR image</strong><small>PNG, JPG or WebP · up to 3 MB</small></span></label><p class="field__err" id="qe" role="alert"></p>' + (s.qrIsDemo ? '' : '<button class="link" id="qrm">Remove and use demo QR</button>') + '</section>' +
         '<section class="adm__card"><h2>Payee details</h2><form id="pf" novalidate><div class="field"><label class="field__l" for="pn">Payee name</label><input class="input" id="pn" value="' + esc(s.payeeName) + '" maxlength="60"></div><div class="field"><label class="field__l" for="pu">UPI ID</label><input class="input" id="pu" value="' + esc(s.upiId) + '" placeholder="yourname@bank" autocapitalize="off" maxlength="80"><small class="muted">Enables the “Open my UPI app” button with the exact amount filled in.</small></div><div class="field"><label class="field__l" for="pi">Instructions shown to buyers</label><textarea class="input" id="pi" rows="3" maxlength="500">' + esc(s.instructions) + '</textarea></div><p class="field__err" id="pe" role="alert"></p><button class="btn btn--lg" type="submit"><span>Save</span></button></form></section></div>' +
@@ -151,7 +160,9 @@
     });
   }
   function alertsView(quiet) {
+    var live = guard();
     Promise.all([api('GET', '/api/admin/settings'), api('GET', '/api/admin/notifications')]).then(function (a) {
+      if (!live()) return;
       var s = a[0], n = a[1], perm = window.Notification ? Notification.permission : 'unsupported';
       view('<div class="adm__two"><section class="adm__card"><h2>How you’re alerted</h2><ul class="adm__ch"><li><span class="live on"><i></i></span><div><strong>In this console</strong><small>Instant toast, bell and chime whenever a customer places an order or uploads a screenshot.</small></div></li><li><span>🔔</span><div><strong>Browser notifications</strong><small>' + (perm === 'granted' ? 'Enabled — you’ll get desktop/phone alerts when this tab is in the background.' : perm === 'denied' ? 'Blocked in your browser settings.' : 'Get alerts even when this tab is in the background.') + '</small>' + (perm === 'default' ? '<button class="btn btn--ghost" id="np">Enable notifications</button>' : '') + '</div></li><li><span>🔗</span><div><strong>Phone / chat webhook</strong><small>' + (s.envWebhook ? 'Configured by the server (ADMIN_WEBHOOK_URL).' : 'Send alerts to Slack, Discord or any HTTPS endpoint.') + '</small>' + (s.envWebhook ? '' : '<form id="wf"><label class="vh" for="wu">Webhook URL</label><input class="input" id="wu" type="url" placeholder="https://hooks.slack.com/…" value="' + esc(s.webhookUrl) + '"><button class="btn" type="submit"><span>Save</span></button></form><p class="field__err" id="we" role="alert"></p>') + '</div></li></ul><button class="btn btn--ghost" id="ta">Send a test alert</button></section>' +
         '<section class="adm__card"><header class="adm__ch2"><h2>Recent alerts</h2><button class="link" id="mr2">Mark all read</button></header>' + (n.notifications.length ? '<ul class="adm__nl">' + n.notifications.map(nItem).join('') + '</ul>' : '<p class="muted">Nothing yet.</p>') + '</section></div>');
@@ -162,11 +173,8 @@
       $$('[data-o]', $('#view')).forEach(function (b) { b.addEventListener('click', function () { openOrder(b.getAttribute('data-o')); }); });
     });
   }
-  function securityView() {
-    view('<section class="adm__card adm__card--narrow"><h2>Change password</h2><form id="cf" novalidate><div class="field"><label class="field__l" for="cp">Current password</label><input class="input" id="cp" type="password" autocomplete="current-password" required></div><div class="field"><label class="field__l" for="np2">New password <span class="muted">(10+ characters)</span></label><input class="input" id="np2" type="password" autocomplete="new-password" minlength="10" required></div><p class="field__err" id="ce" role="alert"></p><button class="btn btn--lg" type="submit"><span>Update password</span></button></form><p class="muted">Changing your password signs you out everywhere else.</p></section>' +
-      '<section class="adm__card adm__card--narrow"><h2>Who can see orders?</h2><ul class="ticks"><li>' + ico('check') + 'Only you (admin) and the customer who placed an order.</li><li>' + ico('check') + 'Payment screenshots are stored privately and served only to those two.</li><li>' + ico('check') + 'Customers can never open other customers’ orders.</li></ul></section>');
-    $('#cf').addEventListener('submit', function (e) { e.preventDefault(); api('POST', '/api/admin/password', { current: $('#cp').value, next: $('#np2').value }).then(function () { $('#ce').textContent = ''; $('#cf').reset(); toast('Password updated'); }, function (er) { $('#ce').textContent = er.message; }); });
-  }
+  function securityView() { ADM.views.security2(); }
 
+  var ADM = window.ADM = { $: $, $$: $$, esc: esc, money: money, api: api, toast: toast, ico: ico, view: view, showDrawer: showDrawer, closeDrawer: closeDrawer, refreshBadges: refreshBadges, me: function () { return me; }, setMe: function (u) { me = u; }, views: {}, guard: guard };
   api('GET', '/api/me').then(function (r) { if (r.user && r.user.role === 'admin') { me = r.user; consoleView(); } else loginView(r.user ? 'You are signed in as a customer. Sign in with the admin account to continue.' : ''); }, function () { loginView('Can’t reach the server.'); });
 })();

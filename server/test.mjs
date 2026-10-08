@@ -1,6 +1,6 @@
 // End-to-end tests for the server: auth, privacy, uploads, admin, webhooks, static allow-list. Run: npm test
 import { createRequire } from 'node:module';
-import os from 'node:os'; import fs from 'node:fs'; import path from 'node:path'; import crypto from 'node:crypto';
+import vm from 'node:vm'; import os from 'node:os'; import fs from 'node:fs'; import path from 'node:path'; import crypto from 'node:crypto';
 const require = createRequire(import.meta.url);
 process.env.ADMIN_PASSWORD = 'correct-horse-battery'; process.env.WEBHOOK_SECRET_GENERIC = 'whsec_test';
 const { createApp } = require('./index.js');
@@ -126,6 +126,52 @@ const regNo = (await A.req('GET', '/api/orders/' + oid)).json.order.number;
 r = await new Client().req('POST', '/api/track', { number: regNo, phone: '9876543210' }); ok(r.status === 200 && r.json.order.canClaim === false, 'account-owned orders can be tracked but not claimed');
 ok((await new Client().req('POST', '/api/track/claim', { number: regNo, phone: '9876543210' })).status === 409, 'account-owned orders cannot be claimed');
 
+console.log('\nAdmin accounts (admin-only)');
+ok((await A.req('GET', '/api/admin/admins')).status === 404 && (await A.req('POST', '/api/admin/admins', { email: 'x@y.co', password: 'longpassword1' })).status === 404 && (await A.req('POST', '/api/admin/account', { current: 'x', email: 'a@b.co' })).status === 404, 'customers cannot see or use admin-account tools');
+ok((await anon.req('GET', '/api/admin/admins')).status === 401, 'anonymous gets 401');
+ok((await ADM.req('POST', '/api/admin/account', { current: 'wrong-password-1', email: 'new@asingh.example' })).status === 401, 'changing login needs the current password');
+ok((await ADM.req('POST', '/api/admin/account', { current: 'correct-horse-battery', email: 'bina@example.com' })).status === 409, 'cannot take an email another account uses');
+ok((await ADM.req('POST', '/api/admin/account', { current: 'correct-horse-battery', email: 'owner@asingh.example', next: 'a-brand-new-passphrase' })).status === 200, 'admin changes their own username (email) and password');
+const FRESH = new Client(); ok((await FRESH.req('POST', '/api/auth/login', { email: 'admin@asingh.local', password: 'correct-horse-battery' })).status === 401, 'old username/password stop working');
+ok((await FRESH.req('POST', '/api/auth/login', { email: 'owner@asingh.example', password: 'a-brand-new-passphrase' })).json.user.role === 'admin', 'new username/password work');
+r = await ADM.req('POST', '/api/admin/admins', { email: 'staff@asingh.example', name: 'Staff', password: 'staff-password-123' }); ok(r.status === 201, 'admin adds a second admin (staff)');
+const STAFF = new Client(); ok((await STAFF.req('POST', '/api/auth/login', { email: 'staff@asingh.example', password: 'staff-password-123' })).json.user.role === 'admin', 'staff admin can sign in');
+ok((await ADM.req('POST', '/api/admin/admins', { email: 'weak@asingh.example', password: 'short' })).status === 400, 'weak passwords refused for new admins');
+ok((await ADM.req('DELETE', '/api/admin/admins/' + (await ADM.req('GET', '/api/admin/admins')).json.admins.find(a => a.self).id)).status === 409, 'you cannot remove yourself');
+ok((await ADM.req('DELETE', '/api/admin/admins/' + r.json.admin.id)).status === 200 && (await STAFF.req('GET', '/api/admin/summary')).status === 401, 'removing an admin ends their access immediately');
+ok((await ADM.req('GET', '/api/admin/summary')).status === 200, 'current admin session still works after changing own password');
+
+console.log('\nAdmin manages the catalogue');
+const jpg = Buffer.concat([Buffer.from([0xff, 0xd8, 0xff, 0xe0]), crypto.randomBytes(400)]);
+ok((await A.req('POST', '/api/admin/products', { name: 'X', cat: 'poshak', price: 100, colors: [{ name: 'Red', hex: '#ff0000' }], stitch: ['unstitched'] })).status === 404, 'customers cannot add products');
+ok((await ADM.req('GET', '/api/admin/catalog')).json.products.length >= 12, 'admin sees the full catalogue');
+r = await ADM.req('POST', '/api/admin/products', { name: 'Test Kota Poshak', cat: 'poshak', price: 12500, was: 15000, fabric: 'Kota doria', colors: [{ name: 'Rose', hex: '#d98b8b' }], stitch: ['unstitched', 'custom'], occ: ['wedding'], blurb: 'Hello', inc: ['Ghagra'], details: ['Hand made'] });
+ok(r.status === 201 && r.json.product.id === 'test-kota-poshak' && r.json.product.published === true, 'admin creates a product');
+const pid = r.json.product.id;
+ok((await ADM.req('POST', '/api/admin/products', { name: 'Bad', cat: 'poshak', price: -5, colors: [{ name: 'R', hex: '#fff' }], stitch: ['unstitched'] })).status === 400, 'bad price / colour code rejected');
+ok((await ADM.req('POST', '/api/admin/products', { name: 'Bad2', cat: 'nope', price: 5, colors: [{ name: 'R', hex: '#ffffff' }], stitch: ['unstitched'] })).status === 400, 'unknown category rejected');
+const u = (rev, w, data) => ADM.req('POST', `/api/admin/products/${pid}/image?rev=${rev}&w=${w}`, data, { 'content-type': 'application/octet-stream' });
+ok((await u('abc123', 800, Buffer.from('<svg onload=1>'.padEnd(40)))).status === 400, 'non-image photo rejected');
+ok((await u('abc123', 400, jpg)).status === 200 && (await u('abc123', 800, jpg)).status === 200 && (await u('abc123', 1200, jpg)).status === 200, 'admin uploads a photo in 3 sizes');
+r = await new Client().req('GET', `/media/p/${pid}/abc123-800.jpg`); ok(r.status === 200 && /immutable/.test(r.headers.get('cache-control')) && r.headers.get('content-type') === 'image/jpeg', 'photo served publicly with long cache');
+ok((await new Client().req('GET', `/media/p/${pid}/../../db.json`)).status === 404 && (await new Client().req('GET', `/media/p/..%2f..%2fdb/abc123-800.jpg`)).status === 404, 'media route cannot be traversed');
+let dj = await new Client().req('GET', '/js/data.js'); ok(/Test Kota Poshak/.test(dj.text) && /abc123-800\.jpg/.test(dj.text) && /ASINGH\.PRODUCTS|A\[k\]=d\[k\]/.test(dj.text), 'storefront data.js now includes the new product + its photo');
+ok((await new Client().req('GET', '/js/data.js', undefined, { 'if-none-match': dj.headers.get('etag') })).status === 304, 'data.js is cacheable by ETag');
+r = await A.req('POST', '/api/orders', { items: [{ id: pid, size: 'M', stitch: 'custom', color: 'Rose', qty: 2 }], customer: cust, method: 'upi_qr' }); ok(r.status === 201 && r.json.order.totals.subtotal === (12500 + 1800) * 2, 'orders price the new product from the live catalogue: ' + r.json.order?.totals.subtotal);
+ok(/abc123-400\.jpg/.test(JSON.stringify(r.json)), 'order keeps a snapshot of the product photo');
+await ADM.req('PUT', '/api/admin/products/' + pid, { price: 9000, soldOut: true });
+ok((await A.req('POST', '/api/orders', { items: [{ id: pid, size: 'M', stitch: 'unstitched' }], customer: cust, method: 'upi_qr' })).status === 400, 'sold-out product cannot be ordered');
+await ADM.req('PUT', '/api/admin/products/' + pid, { soldOut: false, published: false });
+ok(!/Test Kota Poshak/.test((await new Client().req('GET', '/js/data.js')).text), 'hidden products disappear from the storefront');
+ok((await A.req('POST', '/api/orders', { items: [{ id: pid, size: 'M', stitch: 'unstitched' }], customer: cust, method: 'upi_qr' })).status === 400, 'hidden product cannot be ordered');
+await ADM.req('PUT', '/api/admin/products/' + pid, { published: true, price: 9000 });
+r = await A.req('POST', '/api/orders', { items: [{ id: pid, size: 'M', stitch: 'unstitched' }], customer: cust, method: 'upi_qr' }); ok(r.json.order.totals.subtotal === 9000, 'price change applies to new orders immediately');
+ok((await ADM.req('PUT', '/api/admin/site', { shipFreeFrom: 5000, shipFlat: 99, contactEmail: 'care@asingh.example', contactPhone: '+91 99999 00000', heroTitle: 'Hello *world*', stitch: [{ id: 'custom', add: 2500 }] })).status === 200, 'admin edits store settings');
+dj = await new Client().req('GET', '/js/data.js'); ok(/care@asingh\.example/.test(dj.text) && /"FREE_SHIP_FROM":5000/.test(dj.text) && /Hello \*world\*/.test(dj.text), 'storefront gets the new contact details, shipping rule and hero text');
+r = await A.req('POST', '/api/orders', { items: [{ id: pid, size: 'M', stitch: 'custom' }], customer: cust, method: 'upi_qr' }); ok(r.json.order.totals.subtotal === 9000 + 2500 && r.json.order.totals.shipping === 0, 'shipping + stitching charges follow the admin settings');
+ok((await ADM.req('PUT', '/api/admin/categories', { categories: [{ label: 'Only One' }] })).status === 400, 'cannot delete categories that still hold products');
+ok((await ADM.req('PUT', '/api/admin/categories', { categories: [...(await ADM.req('GET', '/api/admin/catalog')).json.categories, { label: 'Kids Poshak' }] })).status === 200, 'admin adds a category');
+ok((await ADM.req('PUT', '/api/admin/products/' + pid, { images: [] })).json.product.images.length === 0 && (await new Client().req('GET', `/media/p/${pid}/abc123-800.jpg`)).status === 404, 'removing a photo deletes the file');
 console.log('\nAdmin settings & QR');
 ok((await ADM.req('PUT', '/api/admin/settings', { upiId: 'not-valid' })).status === 400, 'invalid UPI id rejected');
 ok((await ADM.req('PUT', '/api/admin/settings', { upiId: 'asingh@okbank', payeeName: 'ASINGH Fashions', webhookUrl: 'http://x.example/h' })).status === 400, 'webhook must be https');
@@ -154,6 +200,12 @@ await new Promise(r => setTimeout(r, 100)); await ADM.req('POST', '/api/admin/te
 console.log('\nStatic allow-list');
 for (const p of ['/server/index.js', '/data/db.json', '/package.json', '/.gitignore', '/tools/qa.mjs', '/../server/db.js', '/%2e%2e/package.json', '/js/../package.json']) { const s = (await fetch(base + p)).status; ok(s === 404 || s === 400, `${p} not served (${s})`); }
 ok((await fetch(base + '/index.html')).status === 200 && (await fetch(base + '/css/styles.css')).status === 200 && (await fetch(base + '/img/hero-tall-480.avif')).status === 200, 'site files served');
+
+console.log('\nGoing live: clear demo content');
+r = await ADM.req('POST', '/api/admin/catalog/clear-demo', {}); ok(r.json.removed >= 12, 'admin clears all demo products in one click (' + r.json.removed + ')');
+{ const sb = {}; vm.createContext(sb); vm.runInContext((await new Client().req('GET', '/js/data.js')).text, sb); ok(sb.ASINGH.PRODUCTS.length === 1 && sb.ASINGH.PRODUCTS[0].name === 'Test Kota Poshak' && sb.ASINGH.REVIEWS.length === 0, 'storefront now shows only the owner’s products and no sample reviews'); }
+ok((await A.req('GET', '/api/orders/' + oid)).json.order.items[0].name.length > 3, 'past orders keep their item details after products are deleted');
+ok((await ADM.req('DELETE', '/api/admin/products/' + pid)).status === 200 && (await ADM.req('GET', '/api/admin/catalog')).json.products.length === 0, 'admin deletes a product');
 
 console.log('\nSign out');
 await B.req('POST', '/api/auth/logout', {}); ok((await B.req('GET', '/api/orders')).status === 401, 'session ends on sign-out');
