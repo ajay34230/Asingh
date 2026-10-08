@@ -152,6 +152,13 @@ console.log('\nSale banner (browser)');
   ok(/Ends in/.test(await o.locator('.offer__left').innerText()), 'countdown is running'); ok(await o.evaluate(() => document.documentElement.scrollWidth <= innerWidth), 'banner causes no sideways scroll on a phone');
   await o.click('[data-offer-close]'); ok(await o.locator('.offer').count() === 0, 'visitor can close it'); await call(ad, 'PUT', '/api/admin/site', { offer: { on: false, text: '' } }); }
 
+console.log('\nGift wrap at checkout (browser)');
+{ await call(ad, 'PUT', '/api/admin/site', { giftFee: 80 }); const g = await page(1280, 1000); await g.goto(BASE + '/account.html'); await call(g, 'POST', '/api/auth/register', { name: 'Gift Buyer', email: 'gift@example.com', password: 'gift-pass-1234' });
+  await g.evaluate(() => localStorage.setItem('asingh.cart.v1', JSON.stringify([{ key: 'k', id: 'kota-doria-suit', size: 'M', stitch: 'unstitched', color: 'Sand', note: '', qty: 1 }]))); await g.goto(BASE + '/checkout.html'); await g.waitForSelector('#step-details');
+  await g.fill('#phone', '9876543210'); await g.fill('#name', 'Gift Buyer'); await g.fill('#line1', '12 MG Road'); await g.fill('#pin', '560001'); await g.fill('#city', 'Bengaluru'); await g.selectOption('#state', 'Karnataka'); await g.click('#step-details button[type=submit]'); await g.waitForSelector('#gift-on');
+  const before = await g.textContent('#sum-total'); await g.check('#gift-on'); await g.fill('#gift-msg', 'For you!'); await g.waitForTimeout(300); ok(/Gift wrap/.test(await g.locator('#order-lines').innerText()) && (await g.textContent('#sum-total')) !== before, 'ticking gift wrap adds the fee to the summary');
+  await g.click('#place'); await g.waitForSelector('#step-qr:not([hidden]),#step-done:not([hidden])', { timeout: 8000 }); const mine = (await call(g, 'GET', '/api/orders')).json.orders[0]; ok(mine.totals.gift === 80 && mine.gift.message === 'For you!', 'the order carries the gift fee and message'); await call(ad, 'PUT', '/api/admin/site', { giftFee: 0 }); }
+
 console.log('\nCookie notice only when Analytics is on');
 await call(ad, 'PUT', '/api/admin/site', { ga4Id: 'G-TEST123456' });
 const v = await page(); await v.goto(BASE + '/'); await v.waitForSelector('.consent', { timeout: 5000 }); ok(true, 'cookie notice appears');

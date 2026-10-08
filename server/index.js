@@ -178,7 +178,7 @@ function createApp(opts = {}) {
     const same = u.cart && JSON.stringify(u.cart.items) === JSON.stringify(items); if (!items.length) { if (u.cart) { delete u.cart; db.save(); } return send(res, 200, { ok: true }); }
     if (!same) { u.cart = { items, at: Date.now() }; db.save(); } send(res, 200, { ok: true });
   });
-  const cartValue = c => c.items.reduce((a, i) => { const p = catalog.find(i.id); return a + (p ? (p.price + catalog.stitchAdd(i.stitch)) * i.qty : 0); }, 0);
+  const cartValue = c => c.items.reduce((a, i) => { const p = catalog.find(i.id); return a + (p ? (catalog.eff(p).price + catalog.stitchAdd(i.stitch)) * i.qty : 0); }, 0);
   const abandonedSweep = (now = Date.now()) => {
     const base = lastOrigin || process.env.SITE_URL || ''; let n = 0;
     D.users.forEach(u => {
@@ -419,7 +419,7 @@ function createApp(opts = {}) {
       if (!p || !p.published) return { ...noindex, title: 'Piece not available — ' + t.name, status: 404 };
       const cat = catalog.categories.find(x => x.id === p.cat), url = 'product.html?id=' + p.id, img = SEO.abs(o, feedImg(p)), price = SSR.basePrice(catalog, p);
       const free = price >= t.shipFreeFrom, onlyCustom = p.stitch.every(x => x === 'custom');
-      const offer = { '@type': 'Offer', priceCurrency: 'INR', price, priceValidUntil: new Date(Date.now() + 90 * 864e5).toISOString().slice(0, 10), itemCondition: 'https://schema.org/NewCondition', availability: 'https://schema.org/' + (p.soldOut ? 'OutOfStock' : 'InStock'), url: SEO.abs(o, url), seller: { '@type': 'Organization', name: t.name },
+      const offer = { '@type': 'Offer', priceCurrency: 'INR', price, priceValidUntil: new Date(p.saleEnd > Date.now() && catalog.saleActive(p) ? p.saleEnd : Date.now() + 90 * 864e5).toISOString().slice(0, 10), itemCondition: 'https://schema.org/NewCondition', availability: 'https://schema.org/' + (p.soldOut ? 'OutOfStock' : 'InStock'), url: SEO.abs(o, url), seller: { '@type': 'Organization', name: t.name },
         shippingDetails: { '@type': 'OfferShippingDetails', shippingRate: { '@type': 'MonetaryAmount', value: free ? 0 : t.shipFlat, currency: 'INR' }, shippingDestination: { '@type': 'DefinedRegion', addressCountry: 'IN' }, deliveryTime: { '@type': 'ShippingDeliveryTime', handlingTime: { '@type': 'QuantitativeValue', minValue: t.handlingMin, maxValue: t.handlingMax, unitCode: 'DAY' }, transitTime: { '@type': 'QuantitativeValue', minValue: t.deliveryMin, maxValue: t.deliveryMax, unitCode: 'DAY' } } },
         hasMerchantReturnPolicy: t.returnDays > 0 && !onlyCustom ? { '@type': 'MerchantReturnPolicy', applicableCountry: 'IN', returnPolicyCategory: 'https://schema.org/MerchantReturnFiniteReturnWindow', merchantReturnDays: t.returnDays, returnMethod: 'https://schema.org/ReturnByMail', returnFees: 'https://schema.org/ReturnFeesCustomerResponsibility' } : { '@type': 'MerchantReturnPolicy', applicableCountry: 'IN', returnPolicyCategory: 'https://schema.org/MerchantReturnNotPermitted' } };
       const real = !p.demo && p.rating && p.reviews > 0;   // never publish demo/placeholder ratings as structured data
@@ -468,7 +468,7 @@ function createApp(opts = {}) {
   route('GET', /^\/feeds\/google-merchant\.xml$/, async (req, res) => {
     const o = SEO.origin(req), t = catalog.site, x = v => String(v == null ? '' : v).replace(/[<>&"']/g, c => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;', '"': '&quot;', "'": '&apos;' })[c]), inr = n => Number(n).toFixed(2) + ' INR';
     const items = catalog.products.filter(p => p.published && !p.demo && p.images.length).map(p => {
-      const cat = catalog.categories.find(c => c.id === p.cat), price = SSR.basePrice(catalog, p), was = p.was && p.was > price ? p.was : 0, free = price >= t.shipFreeFrom;
+      const cat = catalog.categories.find(c => c.id === p.cat), price = SSR.basePrice(catalog, p), was = catalog.eff(p).was && catalog.eff(p).was + catalog.stitchAdd(p.stitch.filter(id => catalog.stitchOpt(id))[0]) > price ? catalog.eff(p).was + catalog.stitchAdd(p.stitch.filter(id => catalog.stitchOpt(id))[0]) : 0, free = price >= t.shipFreeFrom;
       return `<item><g:id>${x(p.id)}</g:id><g:title>${x(p.name.slice(0, 150))}</g:title><g:description>${x((p.blurb || p.name).slice(0, 4900))}</g:description><g:link>${x(SEO.abs(o, 'product.html?id=' + p.id))}</g:link><g:image_link>${x(SEO.abs(o, feedImg(p)))}</g:image_link>` +
         p.images.slice(1, 6).map(r => `<g:additional_image_link>${x(SEO.abs(o, catalog.imgUrl(p, r, 'feed')))}</g:additional_image_link>`).join('') +
         `<g:availability>${p.soldOut ? 'out_of_stock' : 'in_stock'}</g:availability><g:price>${inr(was || price)}</g:price>${was ? `<g:sale_price>${inr(price)}</g:sale_price>` : ''}<g:brand>${x(t.name)}</g:brand><g:condition>new</g:condition><g:identifier_exists>no</g:identifier_exists><g:gender>female</g:gender><g:age_group>adult</g:age_group>` +
@@ -494,9 +494,9 @@ function createApp(opts = {}) {
     res.writeHead(200, { 'Content-Type': t.mime, 'Cache-Control': 'public, max-age=31536000, immutable', ...headersFor(false) }); fs.createReadStream(f).pipe(res);
   });
   /* generated storefront data: the static defaults + the live catalogue */
-  let dataCache = { v: -1, raw: null, gz: null, etag: '' };
+  let dataCache = { v: -1, raw: null, gz: null, etag: '', until: Infinity };
   route('GET', /^\/js\/data\.js$/, async (req, res) => {
-    if (dataCache.v !== catalog.D.version) { const raw = Buffer.from(fs.readFileSync(path.join(Static.ROOT, 'js/data.js'), 'utf8') + catalog.overlay()); dataCache = { v: catalog.D.version, raw, gz: zlib.gzipSync(raw, { level: 9 }), etag: '"d' + catalog.D.version + '-' + raw.length.toString(36) + '"' }; }
+    if (dataCache.v !== catalog.D.version || Date.now() >= dataCache.until) { const raw = Buffer.from(fs.readFileSync(path.join(Static.ROOT, 'js/data.js'), 'utf8') + catalog.overlay()); dataCache = { v: catalog.D.version, raw, gz: zlib.gzipSync(raw, { level: 9 }), etag: '"d' + catalog.D.version + '-' + raw.length.toString(36) + '-' + Date.now().toString(36) + '"', until: catalog.nextPriceChange() }; }
     const h = { 'Content-Type': 'text/javascript; charset=utf-8', 'Cache-Control': 'no-cache', ETag: dataCache.etag, Vary: 'Accept-Encoding', ...headersFor(false) };
     if (req.headers['if-none-match'] === dataCache.etag) { res.writeHead(304, h); return res.end(); }
     if (/\bgzip\b/.test(req.headers['accept-encoding'] || '')) { res.writeHead(200, { ...h, 'Content-Encoding': 'gzip', 'Content-Length': dataCache.gz.length }); return res.end(dataCache.gz); }

@@ -115,6 +115,13 @@ class Catalog {
     if (!base || b.details !== undefined) out.details = (Array.isArray(b.details) ? b.details : []).map(x => s(x, 200)).filter(Boolean).slice(0, 10);
     ['best', 'isNew', 'published', 'soldOut'].forEach(k => { if (b[k] !== undefined) out[k] = !!b[k]; else if (!base) out[k] = k === 'published'; });
     if (!base || b.stock !== undefined) { const n = b.stock === '' || b.stock == null ? null : Math.round(Number(b.stock)); if (n !== null && !(n >= 0 && n <= 99999)) throw bad('Stock must be a whole number (or blank for unlimited).'); out.stock = n; if (n === 0) out.soldOut = true; }
+    if (!base || b.salePrice !== undefined || b.saleStart !== undefined || b.saleEnd !== undefined) {   // limited-time price (all three optional; clearing the price clears the sale)
+      const rawP = b.salePrice !== undefined ? b.salePrice : base && base.salePrice, sp = rawP === '' || rawP == null || rawP === 0 ? 0 : Math.round(Number(rawP)), price = out.price !== undefined ? out.price : base.price;
+      const ms = (v, keep) => v === undefined ? keep : (v === '' || v == null || v === 0) ? 0 : (Number.isFinite(Number(v)) && Number(v) > 1e11 ? Number(v) : Date.parse(v));
+      let st = ms(b.saleStart, base && base.saleStart || 0), en = ms(b.saleEnd, base && base.saleEnd || 0);
+      if (sp) { if (!(sp >= 1 && sp < price)) throw bad('The limited-time price must be lower than the regular price.'); if (!Number.isFinite(en) || !en) throw bad('Choose when the price drop ends.'); if (!Number.isFinite(st)) throw bad('The start time is not valid.'); if (st && en <= st) throw bad('The price drop must end after it starts.'); if (en <= Date.now() && b.saleEnd !== undefined) throw bad('The end time is already in the past.'); }
+      out.salePrice = sp || 0; out.saleStart = sp ? (st || 0) : 0; out.saleEnd = sp ? en : 0;
+    }
     if (!base || b.seoTitle !== undefined) out.seoTitle = s(b.seoTitle, 70); if (!base || b.seoDesc !== undefined) out.seoDesc = s(b.seoDesc, 170);
     if (!base || b.sizeStock !== undefined) {   // optional stock per size, e.g. { S: 3, M: 0 } — sizes not listed are unlimited
       const src = b.sizeStock && typeof b.sizeStock === 'object' ? b.sizeStock : {}, ss = {};
@@ -226,8 +233,13 @@ class Catalog {
     if (old && old.rev !== rev) rm(old); this.D.site.heroImage = { rev, ext, tall: ws.tall, wide: ws.wide };
   }
   /* ---- what the storefront receives ---- */
+  /* limited-time price drop: while salePrice is active it IS the price (and the regular price shows as "was") */
+  saleActive(p, now = Date.now()) { return p.salePrice > 0 && p.salePrice < p.price && p.saleEnd > now && (!p.saleStart || p.saleStart <= now); }
+  eff(p, now = Date.now()) { return this.saleActive(p, now) ? { price: p.salePrice, was: p.price, saleEnd: p.saleEnd } : { price: p.price, was: p.was || null }; }
+  nextPriceChange(now = Date.now()) { let t = Infinity; this.D.products.forEach(p => { if (p.salePrice > 0) [p.saleStart, p.saleEnd].forEach(x => { if (x > now && x < t) t = x; }); }); return t; }
   publicProduct(p) {
-    const o = { id: p.id, name: p.name, cat: p.cat, occ: p.occ, fabric: p.fabric, price: p.price, was: p.was || null, badge: p.badge || '', best: !!p.best, isNew: !!p.isNew, rating: p.rating || 0, reviews: p.reviews || 0, colors: p.colors, inc: p.inc, stitch: p.stitch, blurb: p.blurb, details: p.details, soldOut: !!p.soldOut, demo: !!p.demo };
+    const ef = this.eff(p), o = { id: p.id, name: p.name, cat: p.cat, occ: p.occ, fabric: p.fabric, price: ef.price, was: ef.was || null, badge: p.badge || '', best: !!p.best, isNew: !!p.isNew, rating: p.rating || 0, reviews: p.reviews || 0, colors: p.colors, inc: p.inc, stitch: p.stitch, blurb: p.blurb, details: p.details, soldOut: !!p.soldOut, demo: !!p.demo };
+    if (ef.saleEnd) o.saleEnd = ef.saleEnd;
     if (p.stock != null && p.stock > 0 && p.stock <= 5) o.left = p.stock;
     const ss = p.sizeStock || {}, so = Object.keys(ss).filter(k => ss[k] === 0), sl = {}; Object.keys(ss).forEach(k => { if (ss[k] > 0 && ss[k] <= 3) sl[k] = ss[k]; });
     const co = p.colors.filter(c => c.stock === 0).map(c => c.name), cl = {}; p.colors.forEach(c => { if (c.stock > 0 && c.stock <= 3) cl[c.name] = c.stock; }); if (co.length) o.colorOut = co; if (Object.keys(cl).length) o.colorLeft = cl;

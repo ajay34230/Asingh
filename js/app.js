@@ -65,7 +65,8 @@
   var Cart = {
     items: store.get('asingh.cart.v1', []).filter(function (i) { return byId[i.id]; }),
     wish: store.get('asingh.wish.v1', []).filter(function (id) { return byId[id]; }),
-    coupon: null,
+    coupon: null, gift: null,
+    giftFee: function () { return Cart.gift && Cart.gift.on && A.SITE && A.SITE.giftFee ? A.SITE.giftFee : 0; },
     discount: function () { return Cart.coupon ? Math.min(Cart.coupon.discount, Cart.subtotal()) : 0; },
     save: function () { Cart.coupon = null; store.set('asingh.cart.v1', Cart.items); store.set('asingh.wish.v1', Cart.wish); subs.forEach(function (f) { f(); }); },
     subscribe: function (f) { subs.push(f); f(); },
@@ -73,7 +74,7 @@
     count: function () { return Cart.items.reduce(function (a, i) { return a + i.qty; }, 0); },
     subtotal: function () { return Cart.items.reduce(function (a, i) { return a + Cart.unit(i) * i.qty; }, 0); },
     shipping: function () { var s = Cart.subtotal() - Cart.discount(); return s === 0 || s >= A.FREE_SHIP_FROM ? 0 : A.SHIP_FLAT; },
-    total: function () { return Cart.subtotal() - Cart.discount() + Cart.shipping(); },
+    total: function () { return Cart.subtotal() - Cart.discount() + Cart.shipping() + Cart.giftFee(); },
     add: function (id, o) {
       var key = [id, o.size, o.stitch, o.color || '', o.note || ''].join('|');
       var f = Cart.items.filter(function (i) { return i.key === key; })[0];
@@ -156,8 +157,20 @@
   }
   function priceHTML(p, extra) {
     return '<p class="price"><span class="price__now">' + money(p.price + (extra || 0)) + '</span>' +
-      (p.was ? ' <s class="price__was"><span class="vh">Was </span>' + money(p.was) + '</s> <span class="price__off">' + Math.round((1 - p.price / p.was) * 100) + '% off</span>' : '') + '</p>';
+      (p.was ? ' <s class="price__was"><span class="vh">Was </span>' + money(p.was) + '</s> <span class="price__off">' + Math.round((1 - p.price / p.was) * 100) + '% off</span>' : '') + '</p>' +
+      (p.saleEnd ? '<p class="price__drop">⏱ Limited-time price · ends in <b data-cd="' + p.saleEnd + '">…</b></p>' : '');
   }
+  function tickCd() {
+    var now = Date.now(), over = false;
+    document.querySelectorAll('[data-cd]').forEach(function (el) {
+      var ms = +el.getAttribute('data-cd') - now;
+      if (ms <= 0) { over = true; return; }
+      var d = Math.floor(ms / 864e5), h = Math.floor(ms % 864e5 / 36e5), m = Math.floor(ms % 36e5 / 6e4), sec = Math.floor(ms % 6e4 / 1e3);
+      el.textContent = d ? d + 'd ' + h + 'h ' + m + 'm' : (h ? h + 'h ' : '') + m + 'm ' + (sec < 10 ? '0' : '') + sec + 's';
+    });
+    if (over && !window.__cdReload) { window.__cdReload = 1; setTimeout(function () { location.reload(); }, 1500); }
+  }
+  setInterval(tickCd, 1000); document.addEventListener('DOMContentLoaded', tickCd);
   function card(p, o) {
     o = o || {};
     var wish = Cart.isWish(p.id);
@@ -205,8 +218,8 @@
     var sub = Cart.subtotal(), sh = Cart.shipping(), left = A.FREE_SHIP_FROM - sub;
     var dc = Cart.discount();
     return '<dl class="totals"><div><dt>Subtotal</dt><dd>' + money(sub) + '</dd></div>' + (dc ? '<div class="totals__disc"><dt>Discount <small>' + esc(Cart.coupon.code) + '</small></dt><dd>− ' + money(dc) + '</dd></div>' : '') +
-      '<div><dt>Shipping</dt><dd>' + (sub === 0 ? '—' : sh ? money(sh) : 'Free') + '</dd></div>' +
-      '<div class="totals__total"><dt>Total <small>incl. taxes</small></dt><dd>' + money(sub - dc + sh) + '</dd></div></dl>';
+      '<div><dt>Shipping</dt><dd>' + (sub === 0 ? '—' : sh ? money(sh) : 'Free') + '</dd></div>' + (Cart.giftFee() ? '<div><dt>Gift wrap</dt><dd>' + money(Cart.giftFee()) + '</dd></div>' : '') +
+      '<div class="totals__total"><dt>Total <small>incl. taxes</small></dt><dd>' + money(sub - dc + sh + Cart.giftFee()) + '</dd></div></dl>';
   }
   function shipMeter() {
     var sub = Cart.subtotal(); if (!sub) return '';

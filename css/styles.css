@@ -315,6 +315,8 @@ html:has(.stickybuy.is-on) .toast { bottom: calc(96px + var(--safe-b)); }
 .price { display: flex; flex-wrap: wrap; align-items: baseline; gap: 2px 8px; margin-top: 2px; }
 .price__now { font-weight: 700; font-size: 1.05rem; }
 .price__was { color: var(--ink-2); font-size: .88rem; }
+.price__drop { margin: .2rem 0 0; font-size: .78rem; color: var(--sale); font-weight: 600; flex-basis: 100%; }
+.stickybuy .price__drop { display: none; }
 .price__off { color: var(--sale); font-size: .82rem; font-weight: 600; }
 .stars { position: relative; display: inline-block; line-height: 1; letter-spacing: 1px; font-size: .95rem; }
 .stars__bg { color: var(--line); } .stars__fg { position: absolute; left: 0; top: 0; overflow: hidden; white-space: nowrap; color: var(--gold); }

@@ -33,3 +33,4 @@ td { padding: 10px 6px; border-bottom: 1px solid var(--line); vertical-align: to
 .inv__logo { width: 56px; height: 56px; border-radius: 50%; margin-bottom: 6px; display: block; } .inv__brand { font-family: "Noto Serif Devanagari", "Nirmala UI", "Mangal", Georgia, serif; letter-spacing: 0; }
 .inv__logo { width: 72px; height: 72px; border-radius: 0; }
 .slip__to address { font-size: 1.25rem; line-height: 1.55; font-style: normal; } .slip__box { display: inline-block; width: 22px; height: 22px; border: 2px solid #333; border-radius: 4px; }
+.slip__gift { border: 2px dashed #b08a3e; }

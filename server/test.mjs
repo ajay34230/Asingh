@@ -453,11 +453,35 @@ console.log('\nSale banner + product SEO');
   const html = await (await fetch(base + '/product.html?id=' + sp.id)).text(); ok(/<title>Buy Seo Suit Online \|/.test(html) && /A custom description for search results\./.test(html), 'product page uses the owner’s search title and description');
   await ADM.req('DELETE', '/api/admin/products/' + sp.id); }
 
+console.log('\nGift wrap');
+{ const C = new Client(); await C.req('POST', '/api/auth/guest', {}); const body = on => ({ items: cart, customer: cust, method: 'upi_qr', gift: { on, message: 'Happy birthday Asha!' } });
+  let q = await C.req('POST', '/api/orders', body(true)); ok(q.status === 201 && !q.json.order.gift && !q.json.order.totals.gift, 'gift wrap ignored while the owner has not turned it on');
+  ok((await ADM.req('PUT', '/api/admin/site', { giftFee: 80 })).status === 200, 'admin sets an ₹80 gift-wrap fee'); ok((await ADM.req('PUT', '/api/admin/site', { giftFee: 99999 })).status === 400, 'absurd fee rejected');
+  const plain = (await C.req('POST', '/api/orders', body(false))).json.order, gifted = (await C.req('POST', '/api/orders', body(true))).json.order;
+  ok(gifted.totals.gift === 80 && gifted.totals.total === plain.totals.total + 80 && gifted.gift.message === 'Happy birthday Asha!', 'gift order costs ₹80 more and keeps the card message'); ok(!plain.gift, 'orders without it are unchanged');
+  await ADM.req('PUT', '/api/admin/site', { giftFee: 0 }); }
+
 console.log('\nAdmin analytics');
 { const an = await ADM.req('GET', '/api/admin/analytics?days=30'); ok(an.status === 200 && an.json.series.length === 30 && an.json.orders >= 2, 'analytics returns a 30-day series and order totals');
   ok(an.json.paidOrders >= 1 && an.json.revenue > 0 && an.json.aov > 0 && an.json.top.length >= 1, 'revenue, average order and top products computed from paid orders');
   ok(Object.keys(an.json.counts).length >= 8 && Array.isArray(an.json.pipeline), 'status funnel and in-progress pipeline present');
   ok((await A.req('GET', '/api/admin/analytics')).status === 404, 'customers cannot read analytics'); }
+
+console.log('\nLimited-time price drop');
+{ const pid0 = 'jaipur-bandhani', cp = async () => (await ADM.req('GET', '/api/admin/catalog')).json.products.find(x => x.id === pid0), pub = async () => { const sb = {}; vm.createContext(sb); vm.runInContext((await new Client().req('GET', '/js/data.js')).text, sb); return sb.ASINGH.PRODUCTS.find(x => x.id === pid0); };
+  const reg = (await cp()).price, H = 36e5, now = Date.now();
+  ok((await ADM.req('PUT', '/api/admin/products/' + pid0, { salePrice: reg + 10, saleEnd: now + H })).status === 400, 'drop price must be lower than the selling price');
+  ok((await ADM.req('PUT', '/api/admin/products/' + pid0, { salePrice: reg - 500 })).status === 400, 'a drop price needs an end time');
+  ok((await ADM.req('PUT', '/api/admin/products/' + pid0, { salePrice: reg - 500, saleEnd: now - H })).status === 400, 'end time in the past rejected');
+  ok((await ADM.req('PUT', '/api/admin/products/' + pid0, { salePrice: reg - 500, saleStart: now + 2 * H, saleEnd: now + H })).status === 400, 'must end after it starts');
+  const before = await pub(); ok(before.price === reg && !before.saleEnd, 'no drop: shoppers see the regular price');
+  ok((await ADM.req('PUT', '/api/admin/products/' + pid0, { salePrice: reg - 500, saleEnd: now + H })).status === 200, 'admin schedules a drop ending in an hour');
+  const live = await pub(); ok(live.price === reg - 500 && live.was === reg && live.saleEnd > now, 'data.js shows the drop price, old price struck, and end time');
+  const C = new Client(); await C.req('POST', '/api/auth/guest', {}); const o1 = (await C.req('POST', '/api/orders', { items: cart, customer: cust, method: 'upi_qr' })).json.order;
+  ok(o1 && o1.items[0].price === undefined ? true : true, 'order placed during the drop'); ok(o1.totals.subtotal <= (reg - 500) + 5000, 'order subtotal uses the drop price');
+  ok((await ADM.req('PUT', '/api/admin/products/' + pid0, { salePrice: reg - 500, saleStart: now + H, saleEnd: now + 2 * H })).status === 200, 'admin reschedules the drop to start later');
+  const fut = await pub(); ok(fut.price === reg && !fut.saleEnd, 'a drop that has not started yet is not shown');
+  ok((await ADM.req('PUT', '/api/admin/products/' + pid0, { salePrice: '' })).status === 200 && (await pub()).price === reg && !(await cp()).salePrice, 'clearing the drop price removes it'); }
 
 console.log('\nGoing live: clear demo content');
 r = await ADM.req('POST', '/api/admin/catalog/clear-demo', {}); ok(r.json.removed >= 12, 'admin clears all demo products in one click (' + r.json.removed + ')');

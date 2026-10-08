@@ -601,6 +601,8 @@
 "Leheriya": "लहरिया",
 "Gota patti": "गोटा पट्टी",
 "Search poshak, ghagra, bandhani…": "पोशाक, घाघरा, बांधनी खोजें…",
+"⏱ Limited-time price · ends in": "⏱ सीमित समय का दाम · समाप्त होने में",
+"Price drop": "दाम में कमी",
 "Custom stitching in 10–14 days": "10–14 दिनों में कस्टम सिलाई",
 "one free alteration": "एक मुफ़्त अल्टरेशन",
 "Rani Pink Anarkali Suit": "रानी गुलाबी अनारकली सूट",

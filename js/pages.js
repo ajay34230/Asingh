@@ -288,7 +288,7 @@
     }
     function renderPlacedSummary(o) {
       order.innerHTML = '<ul class="lines lines--mini">' + o.items.map(function (i) { return '<li class="line line--mini"><a class="line__img" href="product.html?id=' + i.id + '" tabindex="-1" aria-hidden="true">' + U.picture(i.id, 1, { sizes: '72px', alt: '' }) + '<span class="line__qty">' + i.qty + '</span></a><div class="line__info"><p class="line__name">' + esc(i.name) + '</p><p class="line__meta">Size ' + esc(i.size) + ' · ' + esc(i.stitchLabel) + '</p></div><span class="line__price">' + money(i.unit * i.qty) + '</span></li>'; }).join('') + '</ul>' +
-        '<dl class="totals"><div><dt>Subtotal</dt><dd>' + money(o.totals.subtotal) + '</dd></div>' + (o.totals.discount ? '<div class="totals__disc"><dt>Discount <small>' + esc(o.totals.coupon || '') + '</small></dt><dd>− ' + money(o.totals.discount) + '</dd></div>' : '') + '<div><dt>Shipping</dt><dd>' + (o.totals.shipping ? money(o.totals.shipping) : 'Free') + '</dd></div>' + (o.totals.codFee ? '<div><dt>Cash on delivery fee</dt><dd>' + money(o.totals.codFee) + '</dd></div>' : '') + '<div class="totals__total"><dt>Total</dt><dd>' + money(o.totals.total) + '</dd></div></dl>';
+        '<dl class="totals"><div><dt>Subtotal</dt><dd>' + money(o.totals.subtotal) + '</dd></div>' + (o.totals.discount ? '<div class="totals__disc"><dt>Discount <small>' + esc(o.totals.coupon || '') + '</small></dt><dd>− ' + money(o.totals.discount) + '</dd></div>' : '') + '<div><dt>Shipping</dt><dd>' + (o.totals.shipping ? money(o.totals.shipping) : 'Free') + '</dd></div>' + (o.totals.codFee ? '<div><dt>Cash on delivery fee</dt><dd>' + money(o.totals.codFee) + '</dd></div>' : '') + (o.totals.gift ? '<div><dt>Gift wrap</dt><dd>' + money(o.totals.gift) + '</dd></div>' : '') + '<div class="totals__total"><dt>Total</dt><dd>' + money(o.totals.total) + '</dd></div></dl>';
       $('#sum-total').textContent = money(o.totals.total); $('#sum-count').textContent = o.items.length + ' item' + (o.items.length === 1 ? '' : 's');
     }
     var syncSum = function () { sum.open = window.matchMedia('(min-width: 900px)').matches; };
@@ -378,6 +378,12 @@
     $('#back-1').addEventListener('click', function () { go(1); });
 
     /* payment methods come from the server — adding a gateway later needs no change here */
+    if (A.SITE && A.SITE.giftFee) {
+      var gw = document.createElement('fieldset'); gw.className = 'field gift'; gw.innerHTML = '<legend class="field__l">Gift wrap</legend><label class="check"><input type="checkbox" id="gift-on"> <span>Wrap it as a gift <strong>+' + money(A.SITE.giftFee) + '</strong></span></label><div id="gift-msg-w" hidden><label class="field__l" for="gift-msg">Message on the card <span class="muted">(optional)</span></label><textarea class="input" id="gift-msg" rows="2" maxlength="200" placeholder="With love…"></textarea></div>';
+      form2.insertBefore(gw, form2.firstChild);
+      $('#gift-on').addEventListener('change', function () { Cart.gift = this.checked ? { on: true, message: '' } : null; $('#gift-msg-w').hidden = !this.checked; renderSummary(); });
+      $('#gift-msg').addEventListener('input', function () { if (Cart.gift) Cart.gift.message = this.value; });
+    }
     A.Orders.config().then(function (cfg) {
       $('#methods').insertAdjacentHTML('beforeend', cfg.methods.map(function (m, i) {
         return '<label class="paymethod' + (m.enabled ? '' : ' is-off') + '"><input type="radio" name="pay" value="' + m.id + '"' + (m.enabled && i === 0 ? ' checked' : '') + (m.enabled ? '' : ' disabled') + '><span><strong>' + esc(m.label) + (m.enabled ? '' : ' <em class="soon">Soon</em>') + '</strong><small>' + esc(m.note) + '</small></span></label>';
@@ -387,7 +393,7 @@
       e.preventDefault(); var m = form2.querySelector('[name=pay]:checked'), btn = $('#place'), err = $('#method-err'); err.textContent = '';
       if (!m) { err.textContent = 'Please choose a payment method.'; return; }
       btn.disabled = true; btn.classList.add('is-busy');
-      api('POST', '/api/orders', { items: Cart.items.map(function (i) { return { id: i.id, size: i.size, stitch: i.stitch, color: i.color, note: i.note, qty: i.qty }; }), customer: cust, method: m.value, coupon: Cart.coupon ? Cart.coupon.code : undefined }).then(function (r) { finished = true; var sv = $('#save-addr'); if (sv && sv.checked && U.Auth.user && !U.Auth.user.isGuest) api('POST', '/api/me/addresses', { label: 'Home', name: cust.name, phone: cust.phone, line1: cust.line1, line2: cust.line2, pin: cust.pin, city: cust.city, state: cust.state }).then(function (x) { U.Auth.user = x.user; }, function () {}); Cart.clear(); if (r.order.method === 'cod' || r.order.status === 'paid') showDone(r.order); else { showQr(r.order); if (r.order.method === 'razorpay') setTimeout(function () { var b = $('#pay-online'); if (b) b.click(); }, 400); } }, function (er) { btn.disabled = false; btn.classList.remove('is-busy'); err.textContent = er.message; });
+      api('POST', '/api/orders', { items: Cart.items.map(function (i) { return { id: i.id, size: i.size, stitch: i.stitch, color: i.color, note: i.note, qty: i.qty }; }), customer: cust, method: m.value, coupon: Cart.coupon ? Cart.coupon.code : undefined, gift: Cart.giftFee() ? Cart.gift : undefined }).then(function (r) { finished = true; var sv = $('#save-addr'); if (sv && sv.checked && U.Auth.user && !U.Auth.user.isGuest) api('POST', '/api/me/addresses', { label: 'Home', name: cust.name, phone: cust.phone, line1: cust.line1, line2: cust.line2, pin: cust.pin, city: cust.city, state: cust.state }).then(function (x) { U.Auth.user = x.user; }, function () {}); Cart.clear(); if (r.order.method === 'cod' || r.order.status === 'paid') showDone(r.order); else { showQr(r.order); if (r.order.method === 'razorpay') setTimeout(function () { var b = $('#pay-online'); if (b) b.click(); }, 400); } }, function (er) { btn.disabled = false; btn.classList.remove('is-busy'); err.textContent = er.message; });
     });
 
     Cart.subscribe(function () {

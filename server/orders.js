@@ -50,7 +50,7 @@ function price(rawItems, cat, coupon) {
     const stitch = str(r.stitch, 12); const so = cat.stitchOpt(stitch); if (!so || p.stitch.indexOf(stitch) < 0) throw bad('Stitching option not available for ' + p.name + '.');
     const color = (p.colors.find(c => c.name === r.color) || p.colors[0]).name;
     const qty = Math.max(1, Math.min(9, parseInt(r.qty, 10) || 1));
-    const unit = p.price + cat.stitchAdd(stitch);
+    const unit = cat.eff(p).price + cat.stitchAdd(stitch);
     return { id: p.id, img: cat.thumb(p), name: p.name, size, stitch, stitchLabel: so.label, color, note: str(r.note, 240), qty, unit };
   });
   const wantS = {}; items.forEach(i => { const k = i.id + '|' + i.size; wantS[k] = (wantS[k] || 0) + i.qty; });
@@ -86,10 +86,12 @@ function create(db, user, body, methodId, cat) {
     if (c.max && totals.total > c.max) throw bad('Cash on delivery is available for orders up to ₹' + c.max.toLocaleString('en-IN') + '. Please pay online or by UPI for this order.');
     if (c.fee) { totals.codFee = c.fee; totals.total += c.fee; }
   }
+  const gf = (cat.site.giftFee || 0), gift = gf > 0 && body.gift && body.gift.on ? { message: str(body.gift.message, 200) } : null;
+  if (gift) { totals.gift = gf; totals.total += gf; }
   const now = Date.now(), d = new Date(now);
   const number = newNumber(db);
   const stockUsed = {}, wantSize = {}, wantCol = {}; items.forEach(i => { { const kc = i.id + '|' + i.color; wantCol[kc] = (wantCol[kc] || 0) + i.qty; } stockUsed[i.id] = (stockUsed[i.id] || 0) + i.qty; const k = i.id + '|' + i.size; wantSize[k] = (wantSize[k] || 0) + i.qty; });
-  const order = { id: id(10), number, userId: user.id, items, totals, customer: customer(body.customer), method: methodId, status: 'awaiting_payment', proof: null, createdAt: now, updatedAt: now, timeline: [{ at: now, status: 'awaiting_payment', note: 'Order placed', by: 'customer' }] };
+  const order = { id: id(10), number, userId: user.id, items, totals, customer: customer(body.customer), method: methodId, gift, status: 'awaiting_payment', proof: null, createdAt: now, updatedAt: now, timeline: [{ at: now, status: 'awaiting_payment', note: 'Order placed', by: 'customer' }] };
   order.stockSize = wantSize; order.stockColor = wantCol; order.stock = stockUsed; adjustStock(db, order, -1); if (coupon) coupon.uses = (coupon.uses || 0) + 1;
   db.data.orders.unshift(order); db.save(); if (hooks.created) try { hooks.created(order); } catch (e) {} return order;
 }
@@ -109,7 +111,7 @@ function transition(db, order, status, note, by) {
 }
 /* customers see their own order; proof file name and internal ids stay server-side */
 function view(o, isAdmin) {
-  const v = { id: o.id, number: o.number, status: o.status, statusLabel: STATUS[o.status], items: o.items, totals: o.totals, customer: o.customer, method: o.method, createdAt: o.createdAt, updatedAt: o.updatedAt, timeline: o.timeline.map(t => ({ at: t.at, status: t.status, label: STATUS[t.status], note: String(t.by).startsWith('webhook') ? '' : t.note })), proof: o.proof ? { at: o.proof.at, utr: o.proof.utr, mime: o.proof.mime } : null, tracking: o.tracking || null, request: o.request || null };
+  const v = { id: o.id, number: o.number, status: o.status, statusLabel: STATUS[o.status], items: o.items, totals: o.totals, customer: o.customer, method: o.method, createdAt: o.createdAt, updatedAt: o.updatedAt, timeline: o.timeline.map(t => ({ at: t.at, status: t.status, label: STATUS[t.status], note: String(t.by).startsWith('webhook') ? '' : t.note })), proof: o.proof ? { at: o.proof.at, utr: o.proof.utr, mime: o.proof.mime } : null, tracking: o.tracking || null, gift: o.gift || null, request: o.request || null };
   if (isAdmin) { v.userId = o.userId; v.shipment = o.shipment || null; v.wa = o.wa || []; v.next = ADMIN_NEXT[o.status] || []; v.timeline = o.timeline.map(t => ({ at: t.at, status: t.status, label: STATUS[t.status], note: t.note, by: t.by })); }
   return v;
 }

@@ -29,7 +29,7 @@ await cp.fill('#email', 'asha@example.com'); await cp.fill('#phone', '9876543210
 await cp.tap('#step-details [type=submit]'); await cp.waitForSelector('#auth.is-open'); ok(true, 'auth sheet offers sign in / create account / guest'); await cp.waitForTimeout(500); await shot(cp, 'auth-sheet');
 ok(await cp.locator('#auth [data-guest]').isVisible(), 'guest option visible — "No details needed"');
 await cp.tap('#auth [data-guest]'); await cp.waitForSelector('#step-method:not([hidden])'); ok(true, 'continued as guest (no details) to payment step');
-ok(await cp.locator('.paymethod.is-off').count() >= 1, 'future payment methods shown as “Soon”');
+ok(await cp.locator('.paymethod').count() >= 1, 'payment methods listed (only the ones the owner has switched on)');
 await cp.tap('#place'); await cp.waitForSelector('.qrcard img'); ok(true, 'order placed, QR shown');
 await cp.waitForTimeout(700); await shot(cp, 'qr-phone');
 const orderNo = (await cp.textContent('.numcard__n')).trim(); ok(/^CV-\d{5}$/.test(orderNo), 'short order number shown big: ' + orderNo);
