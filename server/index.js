@@ -11,6 +11,7 @@ const Orders = require('./orders');
 const Mail = require('./mail');
 const Ship = require('./shiprocket');
 const WA = require('./whatsapp');
+const AI = require('./ai');
 const Static = require('./static');
 const { Catalog } = require('./catalog');
 const Home = require('./home');
@@ -297,6 +298,25 @@ function createApp(opts = {}) {
     send(res, 200, { order: Orders.view(o, false) });
   });
   /* ---- delivery check for a PIN code: live from Shiprocket when connected, otherwise just validates ---- */
+  /* ---- AI (Gemini free tier when GEMINI_API_KEY is set; free rule-based answers otherwise) ---- */
+  const aiChatLimit = limiter(15, 10 * 60e3), aiFindLimit = limiter(40, 10 * 60e3), aiWriteLimit = limiter(40, 3600e3);
+  route('POST', /^\/api\/ai\/chat$/, async (req, res) => {
+    if (catalog.site.aiChat === false) throw fail(404, 'Not found');
+    if (!aiChatLimit(ip(req))) throw fail(429, 'You are asking quickly — please wait a few minutes or message us on WhatsApp.');
+    const b = await jsonBody(req);
+    try { send(res, 200, await AI.chat(catalog, b.messages, b.lang === 'hi' ? 'hi' : 'en')); } catch (e) { if (e.code === 'bad') throw fail(400, e.message); throw e; }
+  });
+  route('GET', /^\/api\/ai\/search$/, async (req, res) => {
+    if (!aiFindLimit(ip(req))) throw fail(429, 'Too many searches. Please wait a few minutes.');
+    send(res, 200, await AI.smartSearch(catalog, new URL(req.url, 'http://x').searchParams.get('q')));
+  });
+  route('GET', /^\/api\/admin\/ai$/, async (req, res) => { need(req, 'admin'); send(res, 200, AI.status()); });
+  route('POST', /^\/api\/admin\/ai\/describe$/, async (req, res) => {
+    need(req, 'admin'); if (!AI.enabled()) throw fail(400, 'AI is not connected yet. Add GEMINI_API_KEY on your host (see the AI card in Store settings).');
+    if (!aiWriteLimit(ip(req))) throw fail(429, 'Too many AI requests this hour.');
+    let b; try { b = JSON.parse((await readBody(req, 1.4e6)).toString('utf8') || '{}'); } catch (e) { throw fail(400, 'Invalid JSON'); }
+    try { send(res, 200, { suggestion: await AI.describe(catalog, b) }); } catch (e) { throw fail(e.code === 'limit' ? 429 : 502, e.message); }
+  });
   const pinCache = new Map(), pinLimit = limiter(60, 10 * 60e3);
   route('GET', /^\/api\/pincheck$/, async (req, res) => {
     if (!pinLimit(ip(req))) throw fail(429, 'Too many checks. Please wait a few minutes.');

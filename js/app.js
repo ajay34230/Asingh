@@ -18,6 +18,7 @@
 
   /* ---------- Icons ---------- */
   var ICONS = {
+    spark: '<path d="M12 3.5l1.9 5.3 5.3 1.9-5.3 1.9L12 17.9l-1.9-5.3-5.3-1.9 5.3-1.9z"/><path d="M18.5 15.5l.7 1.8 1.8.7-1.8.7-.7 1.8-.7-1.8-1.8-.7 1.8-.7z"/>',
     search: '<circle cx="11" cy="11" r="6.5"/><path d="m20 20-4.2-4.2"/>',
     heart: '<path d="M12 20.5s-7.5-4.6-7.5-10.2A4.3 4.3 0 0 1 12 7.6a4.3 4.3 0 0 1 7.5 2.7C19.5 15.9 12 20.5 12 20.5z"/>',
     bag: '<path d="M5.5 8h13l-1 12h-11z"/><path d="M9 8V6.5a3 3 0 0 1 6 0V8"/>',
@@ -350,6 +351,16 @@
     var msg = 'Hello ' + A.BRAND + (pr ? ', I have a question about “' + pr.name + '” ' + location.href : ', I need some help.');
     return '<a class="wa" href="https://wa.me/' + n + '?text=' + encodeURIComponent(msg) + '" target="_blank" rel="noopener" aria-label="Chat on WhatsApp"><svg viewBox="0 0 32 32" width="28" height="28" fill="currentColor" aria-hidden="true"><path d="M16 3C9.4 3 4 8.3 4 14.9c0 2.6.9 5.1 2.4 7.1L4.7 28l6.2-1.6c1.9 1 4 1.5 6.1 1.5 6.6 0 12-5.3 12-11.9S22.600 3 16 3zm0 21.400c-1.900 0-3.800-.5-5.400-1.500l-.4-.2-3.700 1 1-3.600-.2-.4c-1.100-1.600-1.600-3.400-1.600-5.300C5.700 9.600 10.300 5 16 5s10.300 4.600 10.300 10.300S21.700 24.400 16 24.400zm5.600-7.700c-.3-.2-1.800-.9-2.100-1-.3-.1-.5-.2-.7.200-.2.300-.8 1-.9 1.200-.2.200-.3.200-.6.100-.3-.2-1.300-.5-2.500-1.500-.9-.8-1.500-1.800-1.700-2.100-.2-.3 0-.5.100-.6l.5-.5c.1-.2.200-.3.300-.5.100-.2.100-.4 0-.5-.1-.2-.7-1.700-1-2.300-.3-.6-.5-.5-.7-.5h-.6c-.2 0-.5.100-.8.400-.3.300-1.100 1.100-1.100 2.600s1.100 3 1.300 3.200c.2.200 2.200 3.400 5.300 4.700 3.100 1.300 3.100.9 3.600.8.600-.1 1.800-.7 2.100-1.400.3-.7.300-1.300.2-1.400-.1-.1-.3-.2-.6-.4z"/></svg></a>';
   }
+  function aiButton() {
+    if (A.SITE && A.SITE.aiChat === false) return '';
+    return '<button type="button" class="aibtn" id="aibtn" aria-haspopup="dialog" aria-expanded="false">' + icon('spark', 'ico--xs') + '<span>Ask us</span></button>';
+  }
+  document.addEventListener('click', function (e) {
+    var b = e.target.closest('#aibtn,[data-ask]'); if (!b) return; e.preventDefault();
+    var go = function () { window.ASINGH_CHAT.open(b.getAttribute('data-ask') || ''); };
+    if (window.ASINGH_CHAT) return go();
+    var sc = document.createElement('script'); sc.src = 'js/chat.js'; sc.onload = go; sc.onerror = function () { toast('Assistant could not load. Please try again.'); }; document.head.appendChild(sc);
+  });
   function brandLink() {
     var tag = (A.SITE && A.SITE.tagline !== undefined ? A.SITE.tagline : A.TAGLINE) || '';
     return '<a class="logo" href="index.html" aria-label="' + esc(A.BRAND) + ' home"><img class="logo__mark" src="img/brand/logo-128.webp" width="56" height="56" alt="" decoding="async"><span class="logo__t"><span class="logo__n">' + esc(A.BRAND) + '</span>' + (tag ? '<small class="logo__s" data-no-i18n>' + esc(tag) + '</small>' : '') + '</span></a>';
@@ -431,7 +442,7 @@
  '<div class="sheet sheet--quick sheet--auth" id="auth" aria-hidden="true"><div class="sheet__backdrop" data-close></div><div class="sheet__panel" aria-label="Sign in">' +
       '<div class="sheet__head"><h2 class="sheet__title">Welcome to ' + A.BRAND + '</h2><button type="button" class="icon-btn" data-close aria-label="Close">' + icon('close') + '</button></div>' +
       '<div class="sheet__body" id="auth-mount"></div></div></div>' +
-      waButton() + '<button type="button" class="totop" id="totop" aria-label="Back to top">' + icon('chev') + '</button><div class="toast" id="toast" role="status" aria-live="polite"></div>';
+      waButton() + aiButton() + '<button type="button" class="totop" id="totop" aria-label="Back to top">' + icon('chev') + '</button><div class="toast" id="toast" role="status" aria-live="polite"></div>';
     var pg = $('#page');
     pg.insertAdjacentHTML('afterbegin', header);
     var sk = $('.skip'); if (sk) sk.addEventListener('click', function (ev) { ev.preventDefault(); var m = $('#main'); if (m) { m.setAttribute('tabindex', '-1'); m.focus(); m.scrollIntoView(); } });
@@ -470,12 +481,42 @@
         return '<li><a class="result" href="product.html?id=' + p.id + '"><span class="result__img">' + picture(p.id, 1, { sizes: '72px', alt: '' }) + '</span><span class="result__t"><strong>' + esc(p.name) + '</strong><span>' + esc(p.fabric) + ' · ' + money(p.price) + '</span></span></a></li>';
       }).join('') + '</ul><a class="btn btn--ghost result__all" href="shop.html?q=' + encodeURIComponent(v) + '">See all results</a>' : '<p class="empty__sub">No matches for “' + esc(q.value.trim()) + '”. Try “anarkali” or “lehenga”.</p>';
     }
+    /* Free "smart" search: understands colours (red → Sindoor), occasions (shaadi), budgets (under 5000). No AI needed. */
+    var FAM = { red: 1, pink: 1, orange: 1, yellow: 1, green: 1, blue: 1, purple: 1, black: 1, white: 1, brown: 1, grey: 1, gray: 'grey', maroon: 'red', magenta: 'pink', teal: 'blue', gold: 'yellow', golden: 'yellow', mustard: 'yellow', navy: 'blue', cream: 'white', ivory: 'white', beige: 'white', peach: 'orange', rani: 'pink', violet: 'purple', lilac: 'purple', lal: 'red', hara: 'green', neela: 'blue', peela: 'yellow', gulabi: 'pink', kala: 'black', safed: 'white' };
+    var OCCW = { wedding: 'wedding', shaadi: 'wedding', shadi: 'wedding', bridal: 'wedding', engagement: 'wedding', festive: 'festive', festival: 'festive', puja: 'festive', diwali: 'festive', navratri: 'festive', eid: 'festive', rakhi: 'festive', sangeet: 'sangeet', mehendi: 'sangeet', mehndi: 'sangeet', haldi: 'sangeet', party: 'party', evening: 'party', cocktail: 'party', birthday: 'party', office: 'everyday', daily: 'everyday', everyday: 'everyday', casual: 'everyday', school: 'everyday' };
+    var STOP = ' a an the for in on of to with and or me my i we you show want need looking look find get some any good best nice pretty beautiful girl girls kid kids child children little baby dress dresses outfit outfits wear ethnic clothes please suggest something under below above over upto than less more rs inr rupees budget price ';
+    var SYN = { lehnga: 'lehenga', lehanga: 'lehenga', lahenga: 'lehenga', ghaghra: 'ghagra', salwar: 'suit', salvar: 'suit', churidar: 'suit', kurta: 'suit', gotapatti: 'gota', sharaara: 'sharara' };
+    function family(hex) {
+      var m = /^#?([0-9a-f]{6})$/i.exec(hex || ''); if (!m) return ''; var n = parseInt(m[1], 16), r = (n >> 16) / 255, g = (n >> 8 & 255) / 255, b = (n & 255) / 255, mx = Math.max(r, g, b), mn = Math.min(r, g, b), l = (mx + mn) / 2, d = mx - mn;
+      if (d < 0.08) return l > 0.85 ? 'white' : l < 0.18 ? 'black' : 'grey';
+      var sat = d / (1 - Math.abs(2 * l - 1)), h = mx === r ? ((g - b) / d) % 6 : mx === g ? (b - r) / d + 2 : (r - g) / d + 4; h = (h * 60 + 360) % 360;
+      if (l > 0.88) return 'white'; if (h < 15 || h >= 345) return l < 0.3 ? 'maroon' : l > 0.7 ? 'pink' : 'red'; if (h < 40) return l < 0.35 ? 'brown' : 'orange';
+      if (h < 65) return sat < 0.5 && l < 0.5 ? 'brown' : 'yellow'; if (h < 165) return 'green'; if (h < 200) return 'teal'; if (h < 255) return 'blue'; if (h < 290) return 'purple'; return l > 0.6 ? 'pink' : 'magenta';
+    }
+    function famOf(f) { return FAM[f] === 1 ? f : FAM[f] || f; }
+    function parseQ(v) {
+      var t = String(v).toLowerCase().replace(/[₹,]/g, '').replace(/(\d+(?:\.\d+)?)\s*k\b/g, function (m, n) { return String(Math.round(parseFloat(n) * 1000)); }), max = 0, min = 0, m;
+      if ((m = /(?:under|below|upto|up to|less than|within|max|budget)\s*(?:rs\.?|inr)?\s*(\d{3,6})/.exec(t))) { max = +m[1]; t = t.replace(m[0], ' '); }
+      if ((m = /(?:above|over|more than|min|minimum)\s*(?:rs\.?|inr)?\s*(\d{3,6})/.exec(t))) { min = +m[1]; t = t.replace(m[0], ' '); }
+      var f = { cols: [], occ: [], words: [], max: max, min: min };
+      t.split(/[^a-z0-9\u0900-\u097f-]+/).filter(Boolean).forEach(function (w) { w = SYN[w] || w; if (FAM[w]) f.cols.push(famOf(w)); else if (OCCW[w]) f.occ.push(OCCW[w]); else if (STOP.indexOf(' ' + w + ' ') < 0 && !/^\d+$/.test(w)) f.words.push(w.replace(/s$/, '')); });
+      return f;
+    }
+    A.aiHits = {};
     A.search = function (v) {
-      var words = v.toLowerCase().split(/\s+/).filter(Boolean);
-      return A.PRODUCTS.filter(function (p) {
+      var f = parseQ(v); if (!f.cols.length && !f.occ.length && !f.words.length && !f.max && !f.min) return [];
+      var hits = A.PRODUCTS.filter(function (p) {
         var hay = [p.name, p.fabric, p.cat, p.occ.join(' '), p.colors.map(function (c) { return c.name; }).join(' ')].join(' ').toLowerCase();
-        return words.every(function (w) { w = ({ lehnga: 'lehenga', ghagra: 'ghagra', salwar: 'suit', churidar: 'suit', kurta: 'suit', dupatta: 'dupatta', anarkali: 'anarkali', gotapatti: 'gota' })[w] || w; return hay.indexOf(w.replace(/s$/, '')) > -1; });
+        var fams = p.colors.map(function (c) { return family(c.hex); });
+        return f.words.every(function (w) { return hay.indexOf(w) > -1; }) && f.cols.every(function (c) { return fams.indexOf(c) > -1 || hay.indexOf(c) > -1 || (c === 'red' && fams.indexOf('maroon') > -1); }) && f.occ.every(function (o) { return p.occ.indexOf(o) > -1; }) && (!f.max || p.price <= f.max) && (!f.min || p.price >= f.min);
       });
+      if (!hits.length && A.aiHits[v]) hits = A.aiHits[v].map(function (id) { return byId[id]; }).filter(Boolean);
+      return hits;
+    };
+    /* when the rules find nothing the shop page asks the server (Gemini, if connected) once per query */
+    A.aiSearch = function (v) {
+      if (A.aiHits[v]) return Promise.resolve(A.aiHits[v]);
+      return fetch('/api/ai/search?q=' + encodeURIComponent(v), { credentials: 'same-origin' }).then(function (r) { return r.ok ? r.json() : { ids: [] }; }).then(function (j) { A.aiHits[v] = j.ids || []; return A.aiHits[v]; }, function () { A.aiHits[v] = []; return []; });
     };
     q.addEventListener('input', run); idle();
     document.addEventListener('sheetopen', function (e) { if (e.detail === 'search') { q.select(); } if (e.detail !== 'search' && e.detail !== 'menu') return; });
@@ -694,7 +735,7 @@
     if (window.matchMedia) { var mq = matchMedia('(display-mode: standalone)'); (mq.addEventListener ? mq.addEventListener.bind(mq, 'change') : mq.addListener.bind(mq))(function (e) { standalone = e.matches; paint(); }); }
   })();
 
-  A.U = { api: api, upload: upload, Auth: Auth, reveal: reveal, fly: fly, $: $, $$: $$, money: money, esc: esc, picture: picture, icon: icon, stars: stars, priceHTML: priceHTML, card: card, sizeRadios: sizeRadios, stitchRadios: stitchRadios, line: line, totalsHTML: totalsHTML, shipMeter: shipMeter, emptyCart: emptyCart, byId: byId, stitchById: stitchById, Cart: Cart, Sheet: Sheet, toast: toast, afterAdd: afterAdd, bindRails: bindRails, store: store, mqDesktop: mqDesktop, mqSmall: mqSmall, reduceMotion: reduceMotion };
+  A.U = { aiSearch: function (v) { return A.aiSearch(v); }, api: api, upload: upload, Auth: Auth, reveal: reveal, fly: fly, $: $, $$: $$, money: money, esc: esc, picture: picture, icon: icon, stars: stars, priceHTML: priceHTML, card: card, sizeRadios: sizeRadios, stitchRadios: stitchRadios, line: line, totalsHTML: totalsHTML, shipMeter: shipMeter, emptyCart: emptyCart, byId: byId, stitchById: stitchById, Cart: Cart, Sheet: Sheet, toast: toast, afterAdd: afterAdd, bindRails: bindRails, store: store, mqDesktop: mqDesktop, mqSmall: mqSmall, reduceMotion: reduceMotion };
 
   document.addEventListener('load', function (e) { if (e.target.tagName === 'IMG') e.target.classList.add('ld'); }, true);
   $$('img').forEach(function (i) { if (i.complete && i.naturalWidth) i.classList.add('ld'); });

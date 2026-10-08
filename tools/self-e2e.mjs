@@ -80,6 +80,17 @@ console.log('\nPacking slip');
   ok(await u.locator('.slip__box').count() === 1, 'tick box per item'); }
 
 console.log('\nWhatsApp button');
+{ const w = await page(390, 844); const errs = []; w.on('pageerror', e => errs.push(e.message)); await w.goto(BASE + '/index.html'); await w.waitForSelector('#aibtn');
+  await w.click('#aibtn'); await w.waitForSelector('.chat:not([hidden])'); ok(await w.getAttribute('#aibtn', 'aria-expanded') === 'true', 'assistant opens from the “Ask us” button');
+  ok(await w.locator('.chat').getAttribute('role') === 'dialog' && await w.locator('.chat__log').getAttribute('role') === 'log', 'assistant is an accessible dialog with a live log');
+  await w.click('.chat__chips [data-q]:has-text("delivery")'); await w.waitForSelector('.chat__m--bot:not(.is-wait) >> nth=1'); ok(/deliver/i.test(await w.locator('.chat__m--bot').last().innerText()), 'tapping a starter question gets a delivery answer');
+  await w.fill('#chat-in', 'pink lehenga under 20000'); await w.press('#chat-in', 'Enter'); await w.waitForSelector('.chat__prod'); ok(await w.locator('.chat__prod').count() >= 1, 'asking for a product shows tappable product cards');
+  const href = await w.getAttribute('.chat__prod', 'href'); ok(/^product\.html\?id=[\w-]+$/.test(href), 'product card links to the product page');
+  await w.keyboard.press('Escape'); ok(await w.locator('.chat').isHidden(), 'Esc closes the assistant'); ok(await w.evaluate(() => document.activeElement && document.activeElement.id) === 'aibtn', 'focus returns to the button');
+  await w.reload(); await w.click('#aibtn'); await w.waitForSelector('.chat__prod'); ok(true, 'the conversation is remembered during the visit');
+  await w.goto(BASE + '/shop.html?q=' + encodeURIComponent('red sharara under 30000')); await w.waitForSelector('#grid'); await w.waitForTimeout(400); ok(await w.locator('#grid .card, .empty--grid').count() >= 1, 'sentence-style search does not break the shop');
+  await w.goto(BASE + '/shop.html?q=' + encodeURIComponent('under 99999')); await w.waitForSelector('#grid .card'); ok(await w.locator('#grid .card').count() >= 5, 'budget-only search lists everything within budget');
+  ok(errs.length === 0, 'no console errors while using the assistant (' + errs.join('|') + ')'); await w.close(); }
 { await call(ad, 'PUT', '/api/admin/site', { whatsapp: '9876543210' }); const w = await page(390, 844); await w.goto(BASE + '/product.html?id=rani-sa-anarkali'); await w.waitForSelector('#add-btn'); await w.waitForTimeout(500);
   const href = await w.getAttribute('a.wa', 'href'); ok(/^https:\/\/wa\.me\/919876543210\?text=/.test(href) && /Anarkali/.test(decodeURIComponent(href)), 'chat button opens WhatsApp with the product in the message');
   const bb = await w.locator('a.wa').boundingBox(), sb = await w.locator('#sticky-add').boundingBox().catch(() => null); ok(!sb || bb.y + bb.height <= sb.y + 1 || bb.y >= sb.y + sb.height, 'chat button does not cover the sticky Add to bag bar');

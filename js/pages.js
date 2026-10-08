@@ -78,9 +78,10 @@
       return f ? l.sort(f) : l;
     }
     var state = readURL();
-    var PAGE = 24, shown = PAGE, lastKey = '';
+    var PAGE = 24, shown = PAGE, lastKey = '', asked = {};
     function render() {
       var res = sorted(A.PRODUCTS.filter(function (p) { return match(p, state); }), state.sort);
+      if (!res.length && state.q && !state.wishlist && !asked[state.q]) { asked[state.q] = 1; U.aiSearch(state.q).then(function (ids) { if (ids.length) render(); }); }
       var title = state.wishlist ? 'Your wishlist' : state.q ? 'Results for “' + state.q + '”' : (state.cat.length === 1 ? LABELS.cat[state.cat[0]] : 'All collections');
       $('#shop-title').textContent = title; document.title = title + ' — ' + A.BRAND;
       count.textContent = res.length + (res.length === 1 ? ' piece' : ' pieces');

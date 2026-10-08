@@ -983,3 +983,31 @@ body[data-page="product"] .wa { bottom: calc(96px + var(--safe-b)); } body[data-
 .notify { margin-top: 14px; border: 1px dashed var(--line); border-radius: 14px; padding: 8px 14px; } .notify summary { cursor: pointer; font-weight: 600; min-height: 40px; display: flex; align-items: center; } .notify form { display: grid; gap: 10px; padding-bottom: 10px; } .hp { position: absolute; left: -9999px; width: 1px; height: 1px; opacity: 0; }
 
 .pay__wa { margin: 1rem 0 0; display: grid; gap: .4rem; } .pay__wa small { font-size: .78rem; line-height: 1.45; }
+
+/* shopper assistant */
+.aibtn { position: fixed; left: max(16px, var(--safe-l)); bottom: calc(18px + var(--safe-b)); z-index: 71; min-height: 48px; padding: 0 18px 0 14px; display: inline-flex; align-items: center; gap: 8px; border: 0; border-radius: 999px; background: var(--wine); color: #fff; font: inherit; font-weight: 600; font-size: .95rem; cursor: pointer; box-shadow: 0 14px 28px -12px rgba(60,10,30,.65); }
+.aibtn .ico { width: 20px; height: 20px; }
+body[data-page="product"] .aibtn { bottom: calc(96px + var(--safe-b)); }
+.chat-open .aibtn { display: none; }
+.chat { position: fixed; z-index: 90; inset: auto 0 0 0; height: min(78dvh, 640px); display: flex; flex-direction: column; background: var(--surface); color: var(--ink); border: 1px solid var(--line); border-radius: 18px 18px 0 0; box-shadow: 0 -18px 50px -18px rgba(0,0,0,.45); padding-bottom: var(--safe-b); }
+.chat[hidden] { display: none; }
+@media (min-width: 700px) { .chat { inset: auto auto 18px 18px; width: 390px; height: min(620px, calc(100dvh - 36px)); border-radius: 18px; } }
+.chat__head { display: flex; align-items: center; justify-content: space-between; padding: 8px 8px 8px 16px; border-bottom: 1px solid var(--line); }
+.chat__head strong { display: inline-flex; align-items: center; gap: 8px; font-family: var(--serif); font-size: 1.1rem; }
+.chat__log { flex: 1; overflow-y: auto; padding: 14px; display: flex; flex-direction: column; gap: 10px; overscroll-behavior: contain; }
+.chat__m { max-width: 88%; padding: 10px 14px; border-radius: 16px; font-size: .95rem; line-height: 1.5; overflow-wrap: anywhere; }
+.chat__m p { margin: 0; white-space: pre-wrap; }
+.chat__m--bot { align-self: flex-start; background: var(--bg-2); border-bottom-left-radius: 4px; }
+.chat__m--me { align-self: flex-end; background: var(--wine); color: #fff; border-bottom-right-radius: 4px; }
+.chat__m.is-wait { opacity: .7; }
+.chat__chips { display: flex; flex-wrap: wrap; gap: 8px; }
+.chat__prods { list-style: none; margin: 10px 0 0; padding: 0; display: grid; gap: 8px; }
+.chat__prod { display: flex; gap: 10px; align-items: center; text-decoration: none; color: var(--ink); background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 6px; min-height: 44px; }
+.chat__img { flex: none; width: 48px; height: 60px; border-radius: 8px; overflow: hidden; background: var(--bg-2); }
+.chat__img img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.chat__pt { display: grid; gap: 2px; min-width: 0; } .chat__pt strong { font-size: .88rem; } .chat__pt small { color: var(--ink-2); }
+.chat__form { display: flex; gap: 8px; padding: 10px 12px 6px; border-top: 1px solid var(--line); }
+.chat__form .input { min-height: 48px; }
+.chat__form .btn { min-height: 48px; padding-inline: 18px; }
+.chat__fine { margin: 0; padding: 0 14px 10px; font-size: .74rem; color: var(--ink-2); line-height: 1.4; }
+@media (prefers-reduced-motion: no-preference) { .chat { animation: rise .25s ease both; } }

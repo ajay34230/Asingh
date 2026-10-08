@@ -19,6 +19,7 @@ Storefront: `/` · Track an order: `/track.html` · Account & orders: `/account.
 | `COOKIE_SECURE=1` | force `Secure` cookies (auto when `X-Forwarded-Proto: https`) |
 | `TRUST_PROXY=1` | trust `X-Forwarded-For` for rate limiting when behind a reverse proxy |
 | `SITE_URL` | Your public address, e.g. `https://asingh.onrender.com` (used in sitemap, Google feed, emails) |
+| `GEMINI_API_KEY` | Optional, **free**: get a key at aistudio.google.com. Turns on the AI writing helper (product editor), smarter shopper answers (Hindi/English) and sentence-style search. Without it the “Ask us” assistant still answers delivery/returns/sizes from your settings and finds products by colour, style, occasion and budget. `GEMINI_MODEL` (default `gemini-2.5-flash`) and `AI_DAILY_LIMIT` (default 400 requests/day) are optional. The key stays on the server; shoppers’ personal details are never sent. |
 | `RESEND_API_KEY` + `MAIL_FROM` | Optional: send order/status/password-reset emails through [Resend](https://resend.com) (free tier). Without them the store works and sends no email |
 | `ADMIN_WEBHOOK_URL` | HTTPS webhook (Slack/Discord-style `{text}`) for admin alerts |
 | `WEBHOOK_SECRET_<PROVIDER>` | enables payment webhooks for that provider (see below) |
@@ -115,6 +116,11 @@ Hero with drifting gold ornaments, shimmering key phrase and pointer parallax (a
 **Admin:** Overview with go-live checklist, Orders (+CSV export), **Analytics** (revenue, order funnel, top products, live pipeline), Products (photos, stock), Offers (discount codes), Reviews, Customers (reset link, delete), Home page, Pages, Inbox, Store settings (delivery/returns, Google IDs, backup), Payment & QR, Alerts, Admins & login.
 
 **Google:** product/organization/breadcrumb structured data, sitemap + robots, Search Console verification field, Google Merchant Center feed at `/feeds/google-merchant.xml` (real products only), Analytics (GA4) loaded only after the visitor accepts a cookie notice, privacy/returns/shipping policy pages. Before sharing the link, complete the checklist on the admin Overview and review each policy page (they are templates, not legal advice).
+
+## AI helpers
+- **Shopper assistant (“Ask us”)** — `js/chat.js`, `POST /api/ai/chat`: grounded in your live catalogue and policies; recommends only real products; falls back to free answers when AI is off, busy or out of quota. Owner can switch it off in Store settings.
+- **Writing helper** — product editor → “AI writing helper”: photo + a few words → description, details, search title/description, Hindi text, style/occasion. Suggestions only; nothing saves until you apply and save.
+- **Smart search** — free rules (colour families, occasions, “under ₹5000”) in `js/app.js`; if they find nothing, `GET /api/ai/search` asks Gemini to map the sentence to filters, then the server applies them.
 
 ## Languages (English / हिन्दी) and themes
 Visitors switch language and theme from the top bar (or Menu on phones); the choice is remembered. Hindi is applied in place from a built-in dictionary (`js/i18n-hi.js`, downloaded only when Hindi is chosen). **To add or change anything**: Admin → **Hindi** lists your product names, categories, hero and home texts with a box for the Hindi version of each (anything you leave empty stays English); policy/help pages have a Hindi box inside Pages. Store name, contact details and all other texts are editable in the admin as before. Themes: **Royal** (wine & gold) and **Bloom** (pastel, animated).
