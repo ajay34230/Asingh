@@ -72,6 +72,13 @@ console.log('\nShop paging and recently viewed');
   await q.goto(BASE + '/'); await q.waitForSelector('#recent .card'); ok(await q.locator('#recent .card').count() === 2, 'home page shows both');
   await q.click('[data-clear-recent]'); await q.waitForTimeout(300); ok(await q.locator('#recent').count() === 0, 'Clear removes the strip'); }
 
+console.log('\nPacking slip');
+{ const u = await page(1280, 900); await u.goto(BASE + '/account.html'); await call(u, 'POST', '/api/auth/register', { name: 'Slip Tester', email: 'slip@example.com', password: 'slip-pass-123' });
+  const o = (await call(u, 'POST', '/api/orders', { items: [{ id: 'kota-doria-suit', size: 'M', stitch: 'semi', color: 'Sand', qty: 2, note: 'height 5ft4' }], customer: { name: 'Slip Tester', email: 'slip@example.com', phone: '9876543210', line1: '12 MG Road', pin: '560001', city: 'Bengaluru', state: 'Karnataka' }, method: 'upi_qr' })).json.order;
+  await u.goto(BASE + '/invoice.html?id=' + o.id + '&slip=1'); await u.waitForSelector('.slip__to'); const txt = await u.locator('#doc, main, body').first().innerText();
+  ok(/Packing slip/.test(txt) && /Slip Tester/.test(txt) && /height 5ft4/.test(txt) && !/Subtotal|Total|₹/.test(txt), 'slip shows address, items and notes but no prices');
+  ok(await u.locator('.slip__box').count() === 1, 'tick box per item'); }
+
 console.log('\nCookie notice only when Analytics is on');
 await call(ad, 'PUT', '/api/admin/site', { ga4Id: 'G-TEST123456' });
 const v = await page(); await v.goto(BASE + '/'); await v.waitForSelector('.consent', { timeout: 5000 }); ok(true, 'cookie notice appears');
