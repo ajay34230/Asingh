@@ -960,3 +960,4 @@ text, p, li { text-wrap: pretty; }
 .logo__s { font-size: max(.75rem, 12px); }
 .more { display: grid; justify-items: center; gap: 12px; padding-block: 28px 8px; }
 .footer__col li a { min-height: 44px; }
+.crumbs a { display: inline-flex; align-items: center; min-height: 44px; min-width: 44px; }
