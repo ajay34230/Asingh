@@ -28,7 +28,7 @@
       '<p class="muted">Saved details pre-fill checkout. Only you can see them.</p><button class="btn btn--lg" type="submit"><span>Save details</span></button></form></section>' +
       '<section id="pn-s" role="tabpanel" aria-labelledby="tab-s" hidden>' + securityHtml(u) + '</section>';
     $('#signout').addEventListener('click', function () { Auth.signOut().then(function () { authView(); }); });
-    var tabs = $$('[role=tab]', root); tabs.forEach(function (t) { t.addEventListener('click', function () { tabs.forEach(function (x) { var on = x === t; x.setAttribute('aria-selected', on); x.tabIndex = on ? 0 : -1; }); $('#pn-o').hidden = t.id !== 'tab-o'; $('#pn-p').hidden = t.id !== 'tab-p'; }); });
+    var tabs = $$('[role=tab]', root); tabs.forEach(function (t) { t.addEventListener('click', function () { tabs.forEach(function (x) { var on = x === t; x.setAttribute('aria-selected', on); x.tabIndex = on ? 0 : -1; }); $('#pn-o').hidden = t.id !== 'tab-o'; $('#pn-p').hidden = t.id !== 'tab-p'; $('#pn-s').hidden = t.id !== 'tab-s'; }); });
     var p = u.profile || {}, f = $('#pf'); Object.keys(p).forEach(function (k) { if (f.elements[k]) f.elements[k].value = p[k]; }); if (f.elements.name) f.elements.name.value = u.name || '';
     f.addEventListener('submit', function (e) { e.preventDefault(); var d = { name: f.elements.name ? f.elements.name.value : undefined, profile: {} }; ['phone', 'pin', 'line1', 'line2', 'city', 'state'].forEach(function (k) { d.profile[k] = f.elements[k].value; }); api('PATCH', '/api/me', d).then(function (r) { Auth.user = r.user; Auth.paint(); U.toast('Saved'); }, function (er) { U.toast(er.message); }); });
     bindSecurity(u);
@@ -84,6 +84,7 @@
       });
     }
     function draw(o, first) {
+      var vh1 = document.querySelector('main > h1.vh'); if (vh1) vh1.remove();
       document.title = 'Order ' + o.number + ' — ' + A.BRAND; var c = o.customer, due = o.status === 'awaiting_payment' || o.status === 'payment_rejected';
       var keep = $('#paymount') && $('#paymount').firstChild && due && !first;
       root.innerHTML = '<nav class="crumbs" aria-label="Breadcrumb"><ol><li><a href="account.html">My orders</a></li><li aria-current="page">' + esc(o.number) + '</li></ol></nav>' +
