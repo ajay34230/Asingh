@@ -282,6 +282,13 @@
   /* ---------- Chrome ---------- */
   var shortLabel = function (l) { return l.length > 13 ? l.split(/[\s&]+/)[0] : l; };
   var NAV = [{ label: 'New In', href: 'shop.html?sort=new' }].concat(A.CATEGORIES.slice(0, 4).map(function (c, i) { return { label: shortLabel(c.label), href: 'shop.html?cat=' + c.id, xl: i > 2 }; }), [{ label: 'Custom Stitching', href: 'shop.html?stitch=custom', xl: true }]);
+  function footerCols() {
+    var pg = A.PAGES || [], link = function (p) { return '<li><a href="' + esc(p.slug) + '.html">' + esc(p.title) + '</a></li>'; };
+    var help = pg.filter(function (p) { return p.group === 'help'; }).map(link).join('');
+    var legal = pg.filter(function (p) { return p.group === 'legal'; }).map(link).join('');
+    return '<details class="footer__col" open><summary>Help</summary><ul>' + help + '<li><a href="track.html">Track your order</a></li><li><a href="#size-guide" data-size-guide>Size guide</a></li></ul></details>' +
+      (legal ? '<details class="footer__col" open><summary>Policies</summary><ul>' + legal + '</ul></details>' : '');
+  }
   function contactItems() {
     var t = A.SITE || {}, out = '';
     if (t.contactEmail) out += '<li><a href="mailto:' + esc(t.contactEmail) + '">' + esc(t.contactEmail) + '</a></li>';
@@ -316,9 +323,9 @@
       '</div></div></header>';
     var footer = '<footer class="footer"><div class="container footer__in">' +
       '<div class="footer__brand"><a class="logo" href="index.html">' + A.BRAND + '</a><p>Authentic Rajputi dresses — poshak, ghagra choli and odhni — made to your measure.</p>' +
-      '<form class="newsletter" action="#" data-newsletter novalidate><label for="nl-email" class="vh">Email address</label><input id="nl-email" type="email" name="email" inputmode="email" autocomplete="email" placeholder="Your email address" required><button class="btn" type="submit">Subscribe</button><p class="newsletter__msg" role="status" aria-live="polite"></p></form></div>' +
+      '<form class="newsletter" action="#" data-newsletter novalidate><div class="hp" aria-hidden="true"><label>Website <input name="website" tabindex="-1" autocomplete="off"></label></div><label for="nl-email" class="vh">Email address</label><input id="nl-email" type="email" name="email" inputmode="email" autocomplete="email" placeholder="Your email address" required><button class="btn" type="submit">Subscribe</button><p class="newsletter__msg" role="status" aria-live="polite"></p></form></div>' +
       '<details class="footer__col" open><summary>Shop</summary><ul>' + A.CATEGORIES.map(function (c) { return '<li><a href="shop.html?cat=' + c.id + '">' + c.label + '</a></li>'; }).join('') + '</ul></details>' +
-      '<details class="footer__col" open><summary>Care</summary><ul><li><a href="shop.html?stitch=custom">Custom stitching</a></li><li><a href="#size-guide" data-size-guide>Size guide</a></li><li><a href="cart.html">Shipping &amp; returns</a></li><li><a href="track.html">Track order</a></li></ul></details>' +
+      footerCols() +
       '<details class="footer__col" open><summary>Contact</summary><ul>' + contactItems() + '</ul></details>' +
       '</div><p class="footer__legal container">© ' + new Date().getFullYear() + ' ' + A.BRAND + '. All rights reserved.</p></footer>';
     var sheets =
@@ -352,6 +359,7 @@
       '<button type="button" class="totop" id="totop" aria-label="Back to top">' + icon('chev') + '</button><div class="toast" id="toast" role="status" aria-live="polite"></div>';
     var pg = $('#page');
     pg.insertAdjacentHTML('afterbegin', header);
+    var sk = $('.skip'); if (sk) sk.addEventListener('click', function (ev) { ev.preventDefault(); var m = $('#main'); if (m) { m.setAttribute('tabindex', '-1'); m.focus(); m.scrollIntoView(); } });
     pg.insertAdjacentHTML('beforeend', footer);
     pg.insertAdjacentHTML('afterend', sheets);
     // Footer accordions: open on larger screens, collapsed on small ones.
@@ -461,9 +469,11 @@
   function bindNewsletter() {
     document.addEventListener('submit', function (e) {
       var f = e.target.closest('[data-newsletter]'); if (!f) return; e.preventDefault();
-      var i = f.querySelector('input'), m = f.querySelector('.newsletter__msg');
-      if (!i.checkValidity()) { m.textContent = 'Please enter a valid email address.'; i.setAttribute('aria-invalid', 'true'); i.focus(); return; }
-      i.removeAttribute('aria-invalid'); m.textContent = 'Thank you — you’re on the list.'; f.reset();
+      var i = f.querySelector('input[type=email]'), m = f.querySelector('.newsletter__msg'), b = f.querySelector('button');
+      var hp = f.querySelector('[name=website]');
+      if (!i.checkValidity() || !i.value.trim()) { m.textContent = 'Please enter a valid email address.'; i.setAttribute('aria-invalid', 'true'); i.focus(); return; }
+      i.removeAttribute('aria-invalid'); b.disabled = true; m.textContent = '';
+      api('POST', '/api/newsletter', { email: i.value, website: hp ? hp.value : '', source: 'footer' }).then(function (r) { b.disabled = false; m.textContent = r.already ? 'You’re already on our list — thank you!' : 'Thank you — you’re on the list.'; f.reset(); }, function (er) { b.disabled = false; m.textContent = er.message; });
     });
   }
 

@@ -12,9 +12,8 @@ function resolve(urlPath) {
   if (p === '/') p = '/index.html';
   if (p.includes('\0') || p.includes('..')) return null;
   const rel = p.replace(/^\/+/, '');
-  if (/^[a-z]+\.html$/.test(rel)) return PAGES.has(rel.slice(0, -5)) ? path.join(ROOT, rel) : null;
-  if (rel === 'robots.txt') return path.join(ROOT, 'server/assets/robots.txt');
-  if (!ALLOWED_DIRS.some(d => rel.startsWith(d + '/')) || rel.startsWith('server/assets/') && !/\.(png|svg|txt)$/.test(rel)) return null;
+  if (/^[a-z0-9-]+\.html$/.test(rel)) return null; // HTML is rendered by server routes (SEO tags, CMS pages)
+    if (!ALLOWED_DIRS.some(d => rel.startsWith(d + '/')) || rel.startsWith('server/assets/') && !/\.(png|svg|txt)$/.test(rel)) return null;
   const abs = path.join(ROOT, rel); return abs.startsWith(ROOT + path.sep) ? abs : null;
 }
 

@@ -222,4 +222,52 @@
       $$('[data-rm]').forEach(function (b) { b.addEventListener('click', function () { if (confirm('Remove this admin? They are signed out immediately.')) api('DELETE', '/api/admin/admins/' + b.getAttribute('data-rm')).then(function () { toast('Admin removed'); V.security2(); }, function (er) { toast(er.message, 'bad'); }); }); });
     });
   };
+
+  /* ================= PAGES (About, FAQ, policies, contact…) ================= */
+  V.pages = function () {
+    var live = ADM.guard();
+    api('GET', '/api/admin/pages').then(function (r) {
+      if (!live()) return; var pages = r.pages, GL = { help: 'Footer: Help', legal: 'Footer: Policies', none: 'Not in footer' };
+      view('<div class="adm__bar adm__bar--row"><p class="muted" style="flex:1;margin:0">Pages customers (and Google) can read. Each lives at <code>/page-name.html</code> and can be shown in the footer.</p><button class="btn" id="addpg">+ Add page</button></div>' +
+        '<div class="adm__setup"><strong>Check the default text.</strong><p>The About, FAQ, shipping &amp; returns, privacy and terms pages start with <em>template</em> text. Edit them so they match your real business — they are not legal advice.</p></div>' +
+        '<div class="adm__list">' + pages.map(function (p) { return '<button type="button" class="prow__main prow__page" data-pg="' + esc(p.slug) + '"><span class="prow__t"><strong>' + esc(p.title) + '</strong><small>/' + esc(p.slug) + '.html · ' + GL[p.group] + '</small></span><span class="prow__chips">' + (p.published ? '<span class="chip-s chip-s--good">Published</span>' : '<span class="chip-s chip-s--mute">Hidden</span>') + '</span></button>'; }).join('') + '</div>');
+      $('#addpg').addEventListener('click', function () { editPage(null); });
+      $$('[data-pg]').forEach(function (b) { b.addEventListener('click', function () { editPage(pages.filter(function (p) { return p.slug === b.getAttribute('data-pg'); })[0]); }); });
+    });
+  };
+  function editPage(p) {
+    var isNew = !p; p = p || { title: '', body: '', group: 'help', published: true };
+    ADM.showDrawer('<header class="adm__dh"><div><h2>' + (isNew ? 'Add page' : 'Edit page') + '</h2>' + (isNew ? '' : '<p class="muted"><a href="/' + esc(p.slug) + '.html" target="_blank" rel="noopener">/' + esc(p.slug) + '.html ↗</a></p>') + '</div><button class="adm__icon" data-x aria-label="Close">' + ico('close') + '</button></header>' +
+      '<form class="adm__db pform" id="pgf" novalidate>' + F('g-title', 'Title', I('g-title', p.title, { max: 80 })) +
+      '<div class="adm__two3">' + F('g-group', 'Show in footer', '<select class="input input--select" id="g-group">' + [['help', 'Help links'], ['legal', 'Policies'], ['none', 'Don’t show']].map(function (o) { return '<option value="' + o[0] + '"' + (p.group === o[0] ? ' selected' : '') + '>' + o[1] + '</option>'; }).join('') + '</select>') + '<div class="field"><span class="field__l">Visibility</span>' + SW('g-pub', 'Published', p.published) + '</div></div>' +
+      F('g-body', 'Page text', T('g-body', p.body, 16, 20000), 'Formatting: <code># Heading</code> · <code>## Sub-heading</code> · <code>**bold**</code> · <code>*italic*</code> · <code>- list item</code> · <code>1. numbered</code> · <code>[link text](url)</code> · <code>---</code> line. Fill-ins: <code>{{name}}</code> <code>{{email}}</code> <code>{{phone}}</code> <code>{{hours}}</code> <code>{{address}}</code> (from Store settings).') +
+      '<div class="adm__row"><button type="button" class="btn btn--ghost" id="g-prev">Preview</button></div><div id="g-pv" class="prose__body pvbox" hidden></div>' +
+      '<p class="field__err" id="g-err" role="alert"></p><div class="adm__row"><button class="btn btn--lg btn--grow" type="submit" id="g-save"><span>' + (isNew ? 'Add page' : 'Save page') + '</span></button></div>' +
+      (isNew || p.slug === 'contact' ? '' : '<section><h3>Danger zone</h3><button type="button" class="btn btn--ghost adm__del" id="g-del">Delete this page…</button></section>') + '</form>');
+    $('#g-prev').addEventListener('click', function () { api('POST', '/api/admin/pages/preview', { body: val('g-body') }).then(function (r) { var b = $('#g-pv'); b.hidden = false; b.innerHTML = r.html; }); });
+    $('#pgf').addEventListener('submit', function (e) {
+      e.preventDefault(); var b = $('#g-save'); b.disabled = true; b.classList.add('is-busy'); var body = { title: val('g-title'), group: val('g-group'), published: chk('g-pub'), body: val('g-body') };
+      (isNew ? api('POST', '/api/admin/pages', body) : api('PUT', '/api/admin/pages/' + p.slug, body)).then(function () { toast('Page saved'); ADM.closeDrawer(); V.pages(); }, function (er) { b.disabled = false; b.classList.remove('is-busy'); $('#g-err').textContent = er.message; });
+    });
+    var d = $('#g-del'); if (d) d.addEventListener('click', function () { if (confirm('Delete the page “' + p.title + '”?')) api('DELETE', '/api/admin/pages/' + p.slug).then(function () { toast('Page deleted'); ADM.closeDrawer(); V.pages(); }, function (er) { toast(er.message, 'bad'); }); });
+  }
+
+  /* ================= INBOX (messages + newsletter subscribers) ================= */
+  V.inbox = function () {
+    var live = ADM.guard(), tab = 'messages';
+    Promise.all([api('GET', '/api/admin/messages'), api('GET', '/api/admin/subscribers')]).then(function (a) {
+      if (!live()) return; var msgs = a[0].messages, subs = a[1];
+      function draw() {
+        view('<div class="tabs tabs--page" role="tablist"><button role="tab" data-t="messages" aria-selected="' + (tab === 'messages') + '">Messages' + (a[0].unread ? ' (' + a[0].unread + ' new)' : '') + '</button><button role="tab" data-t="subscribers" aria-selected="' + (tab === 'subscribers') + '">Subscribers (' + subs.total + ')</button></div>' +
+          (tab === 'messages' ? (msgs.length ? '<div class="adm__list">' + msgs.map(function (m) { return '<details class="msg' + (m.read ? '' : ' is-new') + '" data-m="' + m.id + '"><summary><span class="msg__t"><strong>' + esc(m.name) + '</strong><small>' + esc(m.message.slice(0, 90)) + '</small></span><span class="msg__d">' + (m.replied ? '<span class="chip-s chip-s--good">Replied</span> ' : '') + new Date(m.at).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' }) + '</span></summary><div class="msg__b"><p>' + esc(m.message).replace(/\n/g, '<br>') + '</p><p class="muted"><a href="mailto:' + esc(m.email) + '?subject=' + encodeURIComponent('Re: your message to ' + document.title.replace(/ — .*/, '')) + '">' + esc(m.email) + '</a>' + (m.phone ? ' · <a href="tel:' + esc(m.phone) + '">' + esc(m.phone) + '</a>' : '') + '</p><div class="adm__row"><a class="btn" href="mailto:' + esc(m.email) + '">Reply by email</a><button class="btn btn--ghost" data-rep="' + m.id + '">' + (m.replied ? 'Mark not replied' : 'Mark as replied') + '</button><button class="btn btn--ghost adm__del" data-dm="' + m.id + '">Delete</button></div></div></details>'; }).join('') + '</div>' : '<p class="muted pad">No messages yet. Messages sent from your Contact page appear here (and as an alert).</p>')
+          : '<div class="adm__row" style="margin-bottom:12px"><a class="btn" href="/api/admin/subscribers.csv" download>Download CSV</a><span class="muted">Emails of people who subscribed in the footer.</span></div>' + (subs.subscribers.length ? '<ul class="alist">' + subs.subscribers.map(function (x) { return '<li><span><strong>' + esc(x.email) + '</strong><small>' + new Date(x.at).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' }) + '</small></span><button class="btn btn--ghost adm__del" data-ds="' + esc(x.email) + '">Remove</button></li>'; }).join('') + '</ul>' : '<p class="muted pad">No subscribers yet.</p>')));
+        $$('[data-t]').forEach(function (b) { b.addEventListener('click', function () { tab = b.getAttribute('data-t'); draw(); }); });
+        $$('.msg').forEach(function (d) { d.addEventListener('toggle', function () { var m = msgs.filter(function (x) { return x.id === d.getAttribute('data-m'); })[0]; if (d.open && !m.read) { m.read = true; d.classList.remove('is-new'); api('PATCH', '/api/admin/messages/' + m.id, { read: true }).then(ADM.refreshBadges); } }); });
+        $$('[data-rep]').forEach(function (b) { b.addEventListener('click', function () { var m = msgs.filter(function (x) { return x.id === b.getAttribute('data-rep'); })[0]; api('PATCH', '/api/admin/messages/' + m.id, { replied: !m.replied }).then(function () { m.replied = !m.replied; draw(); }); }); });
+        $$('[data-dm]').forEach(function (b) { b.addEventListener('click', function () { if (confirm('Delete this message?')) api('DELETE', '/api/admin/messages/' + b.getAttribute('data-dm')).then(function () { V.inbox(); ADM.refreshBadges(); }); }); });
+        $$('[data-ds]').forEach(function (b) { b.addEventListener('click', function () { if (confirm('Remove ' + b.getAttribute('data-ds') + ' from the list?')) api('DELETE', '/api/admin/subscribers', { email: b.getAttribute('data-ds') }).then(function () { V.inbox(); }); }); });
+      }
+      draw();
+    });
+  };
 })();

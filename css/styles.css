@@ -895,3 +895,24 @@ text, p, li { text-wrap: pretty; }
 /* print the order page itself cleanly (the dedicated bill lives at invoice.html) */
 @media print { body * { visibility: visible; } .numcard__a, .oact, .pay, .logwrap, .crumbs, .totop, .toast, .announce, .header, .footer, .sheet { display: none !important; } }
 .announce__track { padding: 10px 6px; margin: -10px 0; }
+
+/* =====================================================================
+   v7 — content pages, 404, honeypot
+   ===================================================================== */
+.hp { position: absolute !important; left: -9999px; width: 1px; height: 1px; overflow: hidden; }
+.prose { padding-block: 8px clamp(24px, 4vw, 72px); max-width: calc(820px + 2 * var(--gut)); }
+.prose .h1 { margin-block: 8px 20px; }
+.prose__body { font-size: clamp(1rem, .98rem + .2vw, 1.12rem); line-height: 1.75; }
+.prose__body h2, .prose__body h3, .prose__body h4 { font-family: var(--serif); font-weight: 500; line-height: 1.2; margin: 1.8em 0 .5em; } .prose__body h2 { font-size: clamp(1.4rem, 1.2rem + 1vw, 1.9rem); } .prose__body h3 { font-size: 1.3rem; } .prose__body h4 { font-size: 1.1rem; }
+.prose__body h2:first-child { margin-top: 0; }
+.prose__body p { margin: 0 0 1em; } .prose__body ul, .prose__body ol { margin: 0 0 1.2em; padding-left: 1.3em; } .prose__body ul { list-style: disc; } .prose__body ol { list-style: decimal; } .prose__body li { margin-bottom: .4em; padding-left: .2em; }
+.prose__body a { color: var(--wine); text-underline-offset: .2em; text-decoration-thickness: 1.5px; } .prose__body hr { border: 0; border-top: 1px solid var(--line); margin: 2em 0; }
+.prose__body blockquote { margin: 1.4em 0; padding: .6em 1.2em; border-left: 3px solid var(--gold); background: var(--bg-2); border-radius: 0 var(--r) var(--r) 0; font-family: var(--serif); font-size: 1.15em; }
+.contactform { margin-top: 2.2em; padding: clamp(16px, 2.4vw, 28px); background: var(--surface); border: 1px solid var(--line); border-radius: var(--r); }
+#contact-form .fields { display: grid; grid-template-columns: 1fr; gap: 0 14px; } @media (min-width: 640px) { #contact-form .fields { grid-template-columns: 1fr 1fr; } #contact-form .field--wide { grid-column: 1 / -1; } }
+.nf { display: grid; justify-items: center; text-align: center; gap: 14px; padding-block: clamp(48px, 9vw, 140px); }
+.nf__n { font-family: var(--serif); font-size: clamp(5rem, 3rem + 14vw, 12rem); line-height: .9; background: linear-gradient(120deg, var(--wine), var(--gold-l), var(--wine)); background-size: 200% 100%; -webkit-background-clip: text; background-clip: text; color: transparent; animation: gold 6s linear infinite; }
+.nf__cta { display: flex; gap: 10px; flex-wrap: wrap; justify-content: center; margin-top: 8px; }
+@media (min-width: 700px) { .footer__in { grid-template-columns: repeat(4, 1fr); } }
+@media (min-width: 1000px) { .footer__in { grid-template-columns: 1.5fr repeat(4, 1fr); } }
+@media print { .prose { max-width: none; } }

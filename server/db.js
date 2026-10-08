@@ -8,8 +8,10 @@ class DB {
   constructor(dir) {
     this.dir = dir; this.file = path.join(dir, 'db.json'); this.uploads = path.join(dir, 'uploads');
     fs.mkdirSync(this.uploads, { recursive: true, mode: 0o700 });
-    this.data = { users: [], sessions: [], orders: [], notifications: [], settings: {}, seq: 0 };
+    this.data = { users: [], sessions: [], orders: [], notifications: [], settings: {}, seq: 0, messages: [], subscribers: [] };
+    // (older databases get the new collections below after loading)
     if (fs.existsSync(this.file)) { try { Object.assign(this.data, JSON.parse(fs.readFileSync(this.file, 'utf8'))); } catch (e) { fs.copyFileSync(this.file, this.file + '.corrupt-' + Date.now()); } }
+    ['messages', 'subscribers'].forEach(k => { if (!Array.isArray(this.data[k])) this.data[k] = []; });
     this.timer = null;
     process.on('exit', () => this.flush());
   }

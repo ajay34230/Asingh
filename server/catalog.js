@@ -5,10 +5,12 @@
 const fs = require('fs'), path = require('path');
 const A = require('../js/data.js');
 const { id } = require('./db');
+const Pages = require('./pages');
 
 const bad = m => Object.assign(new Error(m), { status: 400 });
 const s = (v, n) => String(v == null ? '' : v).trim().slice(0, n);
 const clone = o => JSON.parse(JSON.stringify(o));
+const slug2 = t => String(t).toLowerCase().normalize('NFKD').replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 40) || 'page';
 const slug = t => String(t).toLowerCase().normalize('NFKD').replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 48) || 'item';
 const HEX = /^#[0-9a-fA-F]{6}$/, WIDTHS = [400, 800, 1200], MAX_IMAGES = 6;
 const OCC_SUB = { wedding: 'Bridal poshak & heavy gota work', festive: 'Leheriya & bandhani brights', sangeet: 'Shisha mirror work & colour', everyday: 'Kota doria & breathable cotton' };
@@ -27,6 +29,7 @@ const defaultSite = () => ({
   stitch: A.STITCH.map(x => ({ id: x.id, label: x.label, note: x.note, eta: x.eta, add: { unstitched: 0, semi: 600, custom: 1800 }[x.id], enabled: true })),
   sizeChart: [['XS', 32, 26, 35], ['S', 34, 28, 37], ['M', 36, 30, 39], ['L', 38, 32, 41], ['XL', 40, 34, 43], ['XXL', 42, 36, 45]].map(r => ({ size: r[0], bust: r[1], waist: r[2], hip: r[3] })),
   contactEmail: '', contactPhone: '', contactAddress: '', contactHours: '',
+  googleSiteVerification: '', ga4Id: '', returnDays: 7, handlingMin: 1, handlingMax: 3, deliveryMin: 3, deliveryMax: 7,
   shipFreeFrom: A.FREE_SHIP_FROM, shipFlat: A.SHIP_FLAT, testimonials: []
 });
 const merge = (d, v) => { const o = { ...d }; Object.keys(v || {}).forEach(k => { o[k] = d[k] && typeof d[k] === 'object' && !Array.isArray(d[k]) && v[k] && typeof v[k] === 'object' && !Array.isArray(v[k]) ? { ...d[k], ...v[k] } : v[k]; }); return o; };
@@ -40,6 +43,8 @@ class Catalog {
       db.save();
     }
     this.D = D.catalog; this.D.site = merge(defaultSite(), this.D.site); delete this.D.site.stitchAdd;
+    if (Array.isArray(this.D.pages)) Pages.DEFAULT_PAGES.forEach(d => { if (!this.D.pages.some(p => p.slug === d.slug)) this.D.pages.push({ ...d, published: true, system: true, updatedAt: Date.now() }); });
+    if (!Array.isArray(this.D.pages)) { this.D.pages = Pages.DEFAULT_PAGES.map(p => ({ ...p, published: true, system: true, updatedAt: Date.now() })); db.save(); }
     fs.mkdirSync(path.join(db.dir, 'media'), { recursive: true, mode: 0o700 });
   }
   touch() { this.D.version = (this.D.version || 0) + 1; this.db.save(); }
@@ -52,11 +57,15 @@ class Catalog {
   get sizes() { return this.site.sizeChart.map(r => r.size); }
   get occasions() { return this.site.occasions; }
   /* ---- images ---- */
-  imgUrl(p, rev, w) { const e = p.imageStore[rev]; return e ? `/media/p/${p.id}/${rev}-${w}.${e.ext}` : ''; }
+  imgUrl(p, rev, w) { const e = p.imageStore[rev]; return e ? (w === 'feed' ? (e.feed ? `/media/p/${p.id}/${rev}-feed.jpg` : `/media/p/${p.id}/${rev}-${e.ws.indexOf(1200) > -1 ? 1200 : e.ws[e.ws.length - 1]}.${e.ext}`) : `/media/p/${p.id}/${rev}-${w}.${e.ext}`) : ''; }
   thumb(p) { if (p.images.length) { const r = p.images[0], e = p.imageStore[r]; return this.imgUrl(p, r, e.ws.indexOf(400) > -1 ? 400 : e.ws[0]); } return `img/${p.id}-1-400.webp`; }
   mediaPath(pid, file) { return path.join(this.db.dir, 'media', pid, file); }
   addImage(p, rev, w, ext, data) {
     if (!/^[A-Za-z0-9_]{6,12}$/.test(rev)) throw bad('Bad image id.');
+    if (w === 'feed') {   // a JPEG copy for Google Merchant Center (which prefers JPEG/PNG)
+      if (ext !== 'jpg') throw bad('The feed copy must be a JPEG.'); const e0 = p.imageStore[rev]; if (!e0) throw bad('Upload the photo first.');
+      fs.writeFileSync(path.join(this.db.dir, 'media', p.id, `${rev}-feed.jpg`), data, { mode: 0o600 }); e0.feed = true; this.touch(); return;
+    }
     if (WIDTHS.indexOf(w) < 0) throw bad('Bad image size.');
     if (!p.imageStore[rev] && p.images.length >= MAX_IMAGES) throw bad(`Up to ${MAX_IMAGES} photos per product.`);
     const dir = path.join(this.db.dir, 'media', p.id); fs.mkdirSync(dir, { recursive: true, mode: 0o700 });
@@ -69,7 +78,7 @@ class Catalog {
   }
   dropImage(p, rev) {
     const e = p.imageStore[rev]; if (!e) return;
-    e.ws.forEach(w => fs.rmSync(path.join(this.db.dir, 'media', p.id, `${rev}-${w}.${e.ext}`), { force: true }));
+    e.ws.forEach(w => fs.rmSync(path.join(this.db.dir, 'media', p.id, `${rev}-${w}.${e.ext}`), { force: true })); fs.rmSync(path.join(this.db.dir, 'media', p.id, `${rev}-feed.jpg`), { force: true });
     delete p.imageStore[rev]; p.images = p.images.filter(r => r !== rev);
   }
   /* ---- products ---- */
@@ -106,6 +115,19 @@ class Catalog {
     this.D.products = this.D.products.filter(x => x !== p); this.touch();
   }
   clearDemo() { const demo = this.D.products.filter(p => p.demo); demo.forEach(p => this.remove(p.id)); this.D.site.testimonials = []; this.touch(); return demo.length; }
+  /* ---- content pages ---- */
+  get pages() { return this.D.pages; }
+  page(slug) { return this.D.pages.find(p => p.slug === slug); }
+  pageVars() { const t = this.site; return { name: t.name, email: t.contactEmail, phone: t.contactPhone, hours: t.contactHours, address: t.contactAddress }; }
+  savePage(slug, b) {
+    b = b || {}; let p = slug ? this.page(slug) : null; if (slug && !p) throw Object.assign(new Error('Page not found'), { status: 404 });
+    const title = s(b.title !== undefined ? b.title : p && p.title, 80); if (title.length < 2) throw bad('Give the page a title.');
+    const body = b.body !== undefined ? String(b.body).slice(0, 20000) : p ? p.body : '';
+    const group = ['help', 'legal', 'none'].indexOf(b.group) > -1 ? b.group : p ? p.group : 'help';
+    if (!p) { let sl = slug2(b.slug || title), n = 2; if (['index', 'shop', 'product', 'cart', 'checkout', 'account', 'track', 'order', 'invoice', 'admin', 'page', '404', 'sitemap'].indexOf(sl) > -1) sl += '-page'; const base = sl; while (this.page(sl)) sl = base + '-' + n++; p = { slug: sl, system: false }; this.D.pages.push(p); }
+    Object.assign(p, { title, body, group, reviewed: true, published: b.published === undefined ? (p.published !== false) : !!b.published, updatedAt: Date.now() }); this.touch(); return p;
+  }
+  removePage(slug) { const p = this.page(slug); if (!p) throw Object.assign(new Error('Page not found'), { status: 404 }); if (slug === 'contact') throw bad('The contact page can be hidden but not deleted.'); this.D.pages = this.D.pages.filter(x => x !== p); this.touch(); }
   /* ---- categories & site ---- */
   setCategories(list) {
     const seen = new Set(), out = (Array.isArray(list) ? list : []).slice(0, 12).map(c => { const label = s(c && c.label, 30); let cid = s(c && c.id, 30).toLowerCase().replace(/[^a-z0-9-]/g, '') || slug(label); if (!label) return null; while (seen.has(cid)) cid += '-2'; seen.add(cid); return { id: cid, label }; }).filter(Boolean);
@@ -119,7 +141,10 @@ class Catalog {
     if (!t.name) t.name = 'ASINGH';
     if (t.contactEmail && !/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(t.contactEmail)) throw bad('Contact email looks invalid.');
     const money = (k, max, label) => { if (b[k] !== undefined) { const v = Math.round(Number(b[k])); if (!(v >= 0 && v <= max)) throw bad(label + ' is not valid.'); t[k] = v; } };
-    money('shipFreeFrom', 1e6, 'Free-shipping amount'); money('shipFlat', 1e4, 'Shipping fee');
+    money('shipFreeFrom', 1e6, 'Free-shipping amount'); money('shipFlat', 1e4, 'Shipping fee'); money('returnDays', 90, 'Return window'); ['handlingMin', 'handlingMax', 'deliveryMin', 'deliveryMax'].forEach(k => money(k, 60, 'Delivery days'));
+    if (t.handlingMax < t.handlingMin || t.deliveryMax < t.deliveryMin) throw bad('Maximum days can’t be smaller than minimum days.');
+    if (b.googleSiteVerification !== undefined) { const v = s(b.googleSiteVerification, 100); if (v && !/^[\w-]{8,100}$/.test(v)) throw bad('Search Console code should be the long code from Google (letters, numbers, - and _ only).'); t.googleSiteVerification = v; }
+    if (b.ga4Id !== undefined) { const v = s(b.ga4Id, 20).toUpperCase(); if (v && !/^G-[A-Z0-9]{6,14}$/.test(v)) throw bad('Google Analytics ID looks like G-XXXXXXXXXX.'); t.ga4Id = v; }
     if (b.sections && typeof b.sections === 'object') Object.keys(t.sections).forEach(k => { if (b.sections[k] !== undefined) t.sections[k] = !!b.sections[k]; });
     if (Array.isArray(b.marquee)) t.marquee = b.marquee.map(x => s(x, 30)).filter(Boolean).slice(0, 16);
     if (Array.isArray(b.trust)) t.trust = b.trust.slice(0, 4).map(x => ({ title: s(x && x.title, 40), sub: s(x && x.sub, 60) })).filter(x => x.title);
@@ -166,7 +191,7 @@ class Catalog {
   }
   overlay() {
     const t = this.site, st = t.stitch.filter(x => x.enabled).map(x => ({ id: x.id, label: x.label, note: x.note, eta: x.eta, add: x.add }));
-    const data = { PRODUCTS: this.D.products.filter(p => p.published).map(p => this.publicProduct(p)), CATEGORIES: this.categories, STITCH: st, FREE_SHIP_FROM: t.shipFreeFrom, SHIP_FLAT: t.shipFlat, BRAND: t.name, OCCASIONS: t.occasions.map(o => ({ id: o.id, label: o.label })), SIZES: this.sizes, SIZECHART: t.sizeChart, SITE: Object.assign({}, t, { heroImage: t.heroImage }), IMGS: this.imgs(), REVIEWS: t.testimonials.map(x => ({ who: x.name, city: x.city, stars: x.stars, title: '', body: x.text })) };
+    const data = { PRODUCTS: this.D.products.filter(p => p.published).map(p => this.publicProduct(p)), CATEGORIES: this.categories, STITCH: st, FREE_SHIP_FROM: t.shipFreeFrom, SHIP_FLAT: t.shipFlat, BRAND: t.name, OCCASIONS: t.occasions.map(o => ({ id: o.id, label: o.label })), SIZES: this.sizes, SIZECHART: t.sizeChart, SITE: Object.assign({}, t, { heroImage: t.heroImage }), IMGS: this.imgs(), PAGES: this.D.pages.filter(p => p.published && p.group !== 'none').map(p => ({ slug: p.slug, title: p.title, group: p.group })), REVIEWS: t.testimonials.map(x => ({ who: x.name, city: x.city, stars: x.stars, title: '', body: x.text })) };
     return `\n/* generated from the live catalogue */\n(function(A){var d=${JSON.stringify(data).replace(/</g, '\\u003c')};for(var k in d)A[k]=d[k];})(ASINGH);\n`;
   }
 }

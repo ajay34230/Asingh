@@ -39,9 +39,11 @@ function createApp(opts = {}) {
   const ownerOrAdmin = (u, o) => o && (u.role === 'admin' || o.userId === u.id);
   const findOrder = (idv, u) => { const o = D.orders.find(x => x.id === idv); if (!o || !ownerOrAdmin(u, o)) throw fail(404, 'Order not found'); return o; };
   const money = n => '₹' + Number(n).toLocaleString('en-IN');
+  /* Google Analytics hosts are allowed only when the admin has set a GA4 id */
+  const csp = () => { const ga = catalog.site.ga4Id, gs = ga ? ' https://www.googletagmanager.com' : '', gc = ga ? ' https://*.google-analytics.com https://*.analytics.google.com https://*.googletagmanager.com' : ''; return `default-src 'self'; img-src 'self' data: blob:${gc}; style-src 'self' 'unsafe-inline'; script-src 'self'${gs}; connect-src 'self'${gc}; frame-ancestors 'none'; base-uri 'self'; form-action 'self'; object-src 'none'`; };
   const headersFor = isHtml => ({
     'X-Content-Type-Options': 'nosniff', 'Referrer-Policy': 'strict-origin-when-cross-origin', 'X-Frame-Options': 'DENY', 'Permissions-Policy': 'camera=(), microphone=(), geolocation=(), payment=(self)',
-    ...(isHtml ? { 'Content-Security-Policy': "default-src 'self'; img-src 'self' data: blob:; style-src 'self' 'unsafe-inline'; script-src 'self'; connect-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'self'; object-src 'none'" } : {})
+    ...(isHtml ? { 'Content-Security-Policy': csp() } : {})
   });
 
   /* ---- routes ---- */
@@ -156,17 +158,82 @@ function createApp(opts = {}) {
     send(res, 200, { orderId: o.id, user: publicUser(u) });
   });
 
-  /* the home page is rendered with the admin's content so the first paint is already correct */
-  let homeCache = { v: -1, raw: null, gz: null, etag: '' };
+  /* ---- HTML pages: server-injected SEO/share tags, CMS pages, sitemap/robots/manifest, branded 404 ---- */
+  const SEO = require('./seo'), Pages = require('./pages');
+  const tplCache = new Map();
+  const tpl = name => { const f = path.join(Static.ROOT, name), mt = fs.statSync(f).mtimeMs, c = tplCache.get(name); if (c && c.mt === mt) return c.html; const html = fs.readFileSync(f, 'utf8'); tplCache.set(name, { mt, html }); return html; };
+  const sendHtml = (req, res, status, html, extra) => {
+    const raw = Buffer.from(html), etag = '"' + crypto.createHash('sha1').update(raw).digest('base64url').slice(0, 20) + '"';
+    const h = { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-cache', ETag: etag, Vary: 'Accept-Encoding', ...headersFor(true), ...extra };
+    if (status === 200 && req.headers['if-none-match'] === etag) { res.writeHead(304, h); return res.end(); }
+    if (/\bgzip\b/.test(req.headers['accept-encoding'] || '')) { const gz = zlib.gzipSync(raw, { level: 6 }); res.writeHead(status, { ...h, 'Content-Encoding': 'gzip', 'Content-Length': gz.length }); return res.end(req.method === 'HEAD' ? undefined : gz); }
+    res.writeHead(status, { ...h, 'Content-Length': raw.length }); res.end(req.method === 'HEAD' ? undefined : raw);
+  };
+  const SSR = require('./ssr');
+  const feedImg = p => (p.images.length ? catalog.imgUrl(p, p.images[0], 'feed') : `img/${p.id}-1-800.jpg`);
+  const first = p => (p.images.length ? catalog.imgUrl(p, p.images[0], p.imageStore[p.images[0]].ws.indexOf(800) > -1 ? 800 : p.imageStore[p.images[0]].ws[0]) : `img/${p.id}-1-800.jpg`);
+  const siteLd = o => ({ '@context': 'https://schema.org', '@type': 'Organization', name: catalog.site.name, url: o, logo: o + '/img/icons/icon-512.png', ...(catalog.site.contactEmail ? { email: catalog.site.contactEmail } : {}), ...(catalog.site.contactPhone ? { telephone: catalog.site.contactPhone } : {}), ...(catalog.site.contactEmail || catalog.site.contactPhone ? { contactPoint: { '@type': 'ContactPoint', contactType: 'customer service', areaServed: 'IN', availableLanguage: ['en', 'hi'], ...(catalog.site.contactEmail ? { email: catalog.site.contactEmail } : {}), ...(catalog.site.contactPhone ? { telephone: catalog.site.contactPhone } : {}) } } : {}) });
+  /* per-page SEO description */
+  function seoFor(name, req, u) {
+    const o = SEO.origin(req), t = catalog.site, base = { origin: o, site: t.name, verify: t.googleSiteVerification };
+    const noindex = { ...base, title: ({ cart: 'Your bag', checkout: 'Checkout', account: 'My account', track: 'Track your order', order: 'Your order', invoice: 'Order bill', admin: 'Admin' }[name] || name) + ' — ' + t.name, desc: t.name, noindex: true, path: name + '.html' };
+    if (name === 'shop') {
+      const c = catalog.categories.find(x => x.id === u.searchParams.get('cat')), q = u.searchParams.get('q');
+      if (q || u.searchParams.get('wishlist')) return { ...noindex, title: 'Search — ' + t.name };
+      const label = c ? c.label : 'All Rajputi dresses';
+      const demo = catalog.products.find(p => p.published && (!c || p.cat === c.id));
+      return { ...base, title: `${label} | ${t.name}`, desc: `Shop ${label.toLowerCase()} at ${t.name}: ${t.heroLead}`, path: 'shop.html' + (c ? '?cat=' + c.id : ''), image: demo ? first(demo) : '', ld: SEO.crumbs(o, [['Home', '/'], ['Shop', 'shop.html']].concat(c ? [[c.label, 'shop.html?cat=' + c.id]] : [])) };
+    }
+    if (name === 'product') {
+      const p = catalog.find(u.searchParams.get('id'));
+      if (!p || !p.published) return { ...noindex, title: 'Piece not available — ' + t.name, status: 404 };
+      const cat = catalog.categories.find(x => x.id === p.cat), url = 'product.html?id=' + p.id, img = SEO.abs(o, feedImg(p)), price = SSR.basePrice(catalog, p);
+      const free = price >= t.shipFreeFrom, onlyCustom = p.stitch.every(x => x === 'custom');
+      const offer = { '@type': 'Offer', priceCurrency: 'INR', price, priceValidUntil: new Date(Date.now() + 90 * 864e5).toISOString().slice(0, 10), itemCondition: 'https://schema.org/NewCondition', availability: 'https://schema.org/' + (p.soldOut ? 'OutOfStock' : 'InStock'), url: SEO.abs(o, url), seller: { '@type': 'Organization', name: t.name },
+        shippingDetails: { '@type': 'OfferShippingDetails', shippingRate: { '@type': 'MonetaryAmount', value: free ? 0 : t.shipFlat, currency: 'INR' }, shippingDestination: { '@type': 'DefinedRegion', addressCountry: 'IN' }, deliveryTime: { '@type': 'ShippingDeliveryTime', handlingTime: { '@type': 'QuantitativeValue', minValue: t.handlingMin, maxValue: t.handlingMax, unitCode: 'DAY' }, transitTime: { '@type': 'QuantitativeValue', minValue: t.deliveryMin, maxValue: t.deliveryMax, unitCode: 'DAY' } } },
+        hasMerchantReturnPolicy: t.returnDays > 0 && !onlyCustom ? { '@type': 'MerchantReturnPolicy', applicableCountry: 'IN', returnPolicyCategory: 'https://schema.org/MerchantReturnFiniteReturnWindow', merchantReturnDays: t.returnDays, returnMethod: 'https://schema.org/ReturnByMail', returnFees: 'https://schema.org/ReturnFeesCustomerResponsibility' } : { '@type': 'MerchantReturnPolicy', applicableCountry: 'IN', returnPolicyCategory: 'https://schema.org/MerchantReturnNotPermitted' } };
+      const real = !p.demo && p.rating && p.reviews > 0;   // never publish demo/placeholder ratings as structured data
+      const ld = [{ '@context': 'https://schema.org', '@type': 'Product', name: p.name, description: p.blurb || p.name, image: p.images.length ? p.images.map(r => SEO.abs(o, catalog.imgUrl(p, r, 'feed'))) : [img], sku: p.id, mpn: p.id, category: cat && cat.label, material: p.fabric || undefined, color: p.colors.map(c => c.name).join(', '), brand: { '@type': 'Brand', name: t.name }, ...(real ? { aggregateRating: { '@type': 'AggregateRating', ratingValue: p.rating, reviewCount: p.reviews } } : {}), offers: offer }, SEO.crumbs(o, [['Home', '/'], ['Shop', 'shop.html'], [cat ? cat.label : 'Shop', 'shop.html?cat=' + p.cat], [p.name, url]])];
+      return { ...base, title: `${p.name} | ${t.name}`, desc: (p.blurb || p.name) + ` Price ₹${price.toLocaleString('en-IN')}.`, path: url, image: feedImg(p), type: 'product', ld, product: p };
+    }
+    return noindex;
+  }
+  const htmlRoute = name => async (req, res) => {
+    const u = new URL(req.url, 'http://x'), s = seoFor(name, req, u); let html = tpl(name + '.html');
+    html = SEO.apply(html, s);
+    if (name === 'product' && s.product) html = html.replace('<div class="pdp" id="pdp"></div>', '<div class="pdp" id="pdp">' + SSR.product(catalog, s.product) + '</div>');
+    if (name === 'shop' && !u.searchParams.get('q') && !u.searchParams.get('wishlist')) { const c = u.searchParams.get('cat'); html = html.replace('<div class="grid grid--shop" id="grid"></div>', '<div class="grid grid--shop" id="grid">' + SSR.grid(catalog, catalog.products.filter(p => p.published && (!c || p.cat === c))) + '</div>'); }
+    if (name === 'product' && s.status === 404) return sendHtml(req, res, 404, html); sendHtml(req, res, 200, html);
+  };
+  ['shop', 'product', 'cart', 'checkout', 'account', 'track', 'order', 'invoice', 'admin'].forEach(n => { route('GET', new RegExp('^\\/' + n + '\\.html$'), htmlRoute(n)); route('HEAD', new RegExp('^\\/' + n + '\\.html$'), htmlRoute(n)); });
   const serveHome = async (req, res) => {
-    const mt = fs.statSync(path.join(Static.ROOT, 'index.html')).mtimeMs;
-    if (homeCache.v !== catalog.D.version + ':' + mt) { const raw = Buffer.from(Home.renderIndex(fs.readFileSync(path.join(Static.ROOT, 'index.html'), 'utf8'), catalog)); homeCache = { v: catalog.D.version + ':' + mt, raw, gz: zlib.gzipSync(raw, { level: 9 }), etag: '"h' + catalog.D.version + '-' + raw.length.toString(36) + '"' }; }
-    const h = { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-cache', ETag: homeCache.etag, Vary: 'Accept-Encoding', ...headersFor(true) };
-    if (req.headers['if-none-match'] === homeCache.etag) { res.writeHead(304, h); return res.end(); }
-    if (/\bgzip\b/.test(req.headers['accept-encoding'] || '')) { res.writeHead(200, { ...h, 'Content-Encoding': 'gzip', 'Content-Length': homeCache.gz.length }); return res.end(req.method === 'HEAD' ? undefined : homeCache.gz); }
-    res.writeHead(200, { ...h, 'Content-Length': homeCache.raw.length }); res.end(req.method === 'HEAD' ? undefined : homeCache.raw);
+    const o = SEO.origin(req), t = catalog.site; let html = Home.renderIndex(tpl('index.html'), catalog);
+    const h = t.heroImage ? `/media/s/${t.heroImage.rev}-wide-1920.${t.heroImage.ext}` : 'img/hero-wide-1920.jpg';
+    html = html.replace('<div class="grid" id="new-grid"></div>', '<div class="grid" id="new-grid">' + SSR.grid(catalog, catalog.products.filter(p => p.published).sort((a, b) => (b.isNew ? 1 : 0) - (a.isNew ? 1 : 0)), 8) + '</div>');
+    html = SEO.apply(html, { origin: o, verify: t.googleSiteVerification, site: t.name, title: t.name + ' — ' + (t.heroEyebrow || 'Rajputi dresses'), desc: t.heroLead, path: '', image: h, ld: [siteLd(o), { '@context': 'https://schema.org', '@type': 'WebSite', name: t.name, url: o, potentialAction: { '@type': 'SearchAction', target: o + '/shop.html?q={search_term_string}', 'query-input': 'required name=search_term_string' } }] });
+    sendHtml(req, res, 200, html);
   };
   route('GET', /^\/(index\.html)?$/, serveHome); route('HEAD', /^\/(index\.html)?$/, serveHome);
+  /* admin-editable content pages live at /<slug>.html (about, faq, contact, privacy-policy…) */
+  const serveCms = async (req, res, m) => {
+    const p = catalog.page(m[1]); if (!p || !p.published) return serve404(req, res);
+    const o = SEO.origin(req), t = catalog.site; let html = tpl('page.html'), extra = '';
+    const body = Pages.render(p.body, catalog.pageVars());
+    if (p.slug === 'contact') extra = '<section class="contactform" aria-labelledby="cf-h"><h2 id="cf-h" class="h3">Send us a message</h2><form id="contact-form" novalidate><div class="fields"><div class="field"><label class="field__l" for="c-name">Your name</label><input class="input" id="c-name" name="name" autocomplete="name" maxlength="80" required></div><div class="field"><label class="field__l" for="c-email">Email</label><input class="input" id="c-email" name="email" type="email" inputmode="email" autocomplete="email" maxlength="120" required></div><div class="field"><label class="field__l" for="c-phone">Mobile <span class="muted">(optional)</span></label><input class="input" id="c-phone" name="phone" type="tel" inputmode="tel" autocomplete="tel" maxlength="20"></div><div class="field field--wide"><label class="field__l" for="c-msg">How can we help?</label><textarea class="input" id="c-msg" name="message" rows="5" maxlength="2000" required></textarea></div></div><div class="hp" aria-hidden="true"><label>Website <input name="website" tabindex="-1" autocomplete="off"></label></div><p class="field__err" id="c-err" role="alert"></p><button class="btn btn--lg" type="submit"><span>Send message</span></button><p class="muted" id="c-ok" role="status"></p></form></section>';
+    html = SEO.apply(html, { origin: o, site: t.name, title: `${p.title} | ${t.name}`, desc: Pages.plain(Pages.render(p.body, catalog.pageVars()).replace(/<[^>]+>/g, ' '), 160) || p.title, path: p.slug + '.html', verify: t.googleSiteVerification, ld: SEO.crumbs(o, [['Home', '/'], [p.title, p.slug + '.html']]) });
+    html = html.replace('<!--@crumb-->', SEO.esc(p.title)).replace('<!--@h1-->', SEO.esc(p.title)).replace('<!--@body-->', body).replace('<!--@extra-->', extra);
+    sendHtml(req, res, 200, html);
+  };
+  route('GET', /^\/([a-z0-9-]{2,40})\.html$/, serveCms); route('HEAD', /^\/([a-z0-9-]{2,40})\.html$/, serveCms);
+  function serve404(req, res) { const o = SEO.origin(req); sendHtml(req, res, 404, SEO.apply(tpl('404.html'), { origin: o, site: catalog.site.name, title: 'Page not found — ' + catalog.site.name, desc: 'Page not found', noindex: true, path: '' })); }
+  /* sitemap, robots, web-app manifest */
+  route('GET', /^\/sitemap\.xml$/, async (req, res) => {
+    const o = SEO.origin(req), u = [['', 1], ['shop.html', .9]].concat(catalog.categories.filter(c => catalog.products.some(p => p.published && p.cat === c.id)).map(c => ['shop.html?cat=' + c.id, .8]), catalog.products.filter(p => p.published).map(p => ['product.html?id=' + p.id, .7]), catalog.pages.filter(p => p.published).map(p => [p.slug + '.html', .4]), [['track.html', .3]]);
+    const body = '<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n' + u.map(x => `<url><loc>${SEO.esc(SEO.abs(o, x[0]))}</loc><priority>${x[1]}</priority></url>`).join('\n') + '\n</urlset>\n';
+    res.writeHead(200, { 'Content-Type': 'application/xml; charset=utf-8', 'Cache-Control': 'public, max-age=3600' }); res.end(body);
+  });
+  route('GET', /^\/robots\.txt$/, async (req, res) => { const o = SEO.origin(req); res.writeHead(200, { 'Content-Type': 'text/plain; charset=utf-8', 'Cache-Control': 'public, max-age=3600' }); res.end(`User-agent: *\nAllow: /\nDisallow: /api/\nDisallow: /admin.html\nDisallow: /account.html\nDisallow: /order.html\nDisallow: /invoice.html\nDisallow: /cart.html\nDisallow: /checkout.html\nSitemap: ${o}/sitemap.xml\n`); });
+  route('GET', /^\/manifest\.webmanifest$/, async (req, res) => { const t = catalog.site; res.writeHead(200, { 'Content-Type': 'application/manifest+json', 'Cache-Control': 'public, max-age=3600' }); res.end(JSON.stringify({ name: t.name, short_name: t.name.slice(0, 12), description: t.heroLead, start_url: '/', display: 'standalone', background_color: '#faf6ef', theme_color: '#5b1530', lang: 'en-IN', icons: [{ src: '/img/icons/icon-192.png', sizes: '192x192', type: 'image/png' }, { src: '/img/icons/icon-512.png', sizes: '512x512', type: 'image/png' }, { src: '/img/icons/icon-maskable-512.png', sizes: '512x512', type: 'image/png', purpose: 'maskable' }] })); });
   route('GET', /^\/media\/s\/([A-Za-z0-9_]{6,12})-(wide|tall)-(480|800|1080|1280|1920|2560)\.(webp|jpg|png)$/, async (req, res, m) => {
     const f = catalog.heroPath(m[1], m[2], +m[3], m[4]); if (!fs.existsSync(f)) throw fail(404, 'Not found');
     const t = sniffImage(fs.readFileSync(f).subarray(0, 16)); if (!t) throw fail(404, 'Not found');
@@ -181,13 +248,46 @@ function createApp(opts = {}) {
     if (/\bgzip\b/.test(req.headers['accept-encoding'] || '')) { res.writeHead(200, { ...h, 'Content-Encoding': 'gzip', 'Content-Length': dataCache.gz.length }); return res.end(dataCache.gz); }
     res.writeHead(200, { ...h, 'Content-Length': dataCache.raw.length }); res.end(dataCache.raw);
   });
-  route('GET', /^\/media\/p\/([a-z0-9-]+)\/([A-Za-z0-9_]{6,12})-(400|800|1200)\.(webp|jpg|png)$/, async (req, res, m) => {
+  route('GET', /^\/media\/p\/([a-z0-9-]+)\/([A-Za-z0-9_]{6,12})-(400|800|1200|feed)\.(webp|jpg|png)$/, async (req, res, m) => {
     const f = catalog.mediaPath(m[1], `${m[2]}-${m[3]}.${m[4]}`); if (!fs.existsSync(f)) throw fail(404, 'Not found');
     const t = sniffImage(fs.readFileSync(f).subarray(0, 16)); if (!t) throw fail(404, 'Not found');
     res.writeHead(200, { 'Content-Type': t.mime, 'Cache-Control': 'public, max-age=31536000, immutable', ...headersFor(false) }); fs.createReadStream(f).pipe(res);
   });
 
   /* admin */
+  /* ---- public: contact form + newsletter (stored, never just a fake success message) ---- */
+  const contactLimit = limiter(5, 10 * 60e3), newsLimit = limiter(8, 10 * 60e3);
+  const validEmail0 = e => /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(e);
+  route('POST', /^\/api\/contact$/, async (req, res) => {
+    if (!contactLimit(ip(req))) throw fail(429, 'Too many messages. Please try again in a few minutes.');
+    const b = await jsonBody(req); if (b.website) return send(res, 201, { ok: true });   // honeypot: bots fill the hidden field
+    const name = String(b.name || '').trim().slice(0, 80), email = String(b.email || '').trim().toLowerCase().slice(0, 120), phone = String(b.phone || '').trim().slice(0, 20), message = String(b.message || '').trim().slice(0, 2000);
+    if (name.length < 2) throw fail(400, 'Please enter your name.'); if (!validEmail0(email)) throw fail(400, 'Please enter a valid email so we can reply.'); if (message.length < 5) throw fail(400, 'Please write your message.');
+    D.messages.unshift({ id: id(8), at: Date.now(), name, email, phone, message, read: false, replied: false }); D.messages.length = Math.min(D.messages.length, 2000); db.save();
+    notifier.push('message', null, 'New message from ' + name, message.slice(0, 100)); send(res, 201, { ok: true });
+  });
+  route('POST', /^\/api\/newsletter$/, async (req, res) => {
+    if (!newsLimit(ip(req))) throw fail(429, 'Too many attempts. Please try again later.');
+    const b = await jsonBody(req), email = String(b.email || '').trim().toLowerCase().slice(0, 120); if (b.website) return send(res, 200, { ok: true });
+    if (!validEmail0(email)) throw fail(400, 'Please enter a valid email address.');
+    const had = D.subscribers.some(x => x.email === email); if (!had) { D.subscribers.push({ email, at: Date.now(), source: String(b.source || 'footer').slice(0, 20) }); db.save(); }
+    send(res, 200, { ok: true, already: had });
+  });
+
+  /* ---- admin: content pages, inbox, subscribers ---- */
+  route('GET', /^\/api\/admin\/pages$/, async (req, res) => { need(req, 'admin'); send(res, 200, { pages: catalog.pages }); });
+  route('POST', /^\/api\/admin\/pages$/, async (req, res) => { need(req, 'admin'); send(res, 201, { page: catalog.savePage(null, await jsonBody(req)) }); });
+  route('POST', /^\/api\/admin\/pages\/preview$/, async (req, res) => { need(req, 'admin'); send(res, 200, { html: Pages.render((await jsonBody(req)).body, catalog.pageVars()) }); });
+  route('PUT', /^\/api\/admin\/pages\/([a-z0-9-]+)$/, async (req, res, m) => { need(req, 'admin'); send(res, 200, { page: catalog.savePage(m[1], await jsonBody(req)) }); });
+  route('DELETE', /^\/api\/admin\/pages\/([a-z0-9-]+)$/, async (req, res, m) => { need(req, 'admin'); catalog.removePage(m[1]); send(res, 200, { ok: true }); });
+  route('GET', /^\/api\/admin\/messages$/, async (req, res) => { need(req, 'admin'); send(res, 200, { messages: D.messages.slice(0, 300), unread: D.messages.filter(m => !m.read).length }); });
+  route('PATCH', /^\/api\/admin\/messages\/([\w-]+)$/, async (req, res, m) => { need(req, 'admin'); const x = D.messages.find(y => y.id === m[1]); if (!x) throw fail(404, 'Not found'); const b = await jsonBody(req); if (b.read !== undefined) x.read = !!b.read; if (b.replied !== undefined) x.replied = !!b.replied; db.save(); send(res, 200, { message: x }); });
+  route('DELETE', /^\/api\/admin\/messages\/([\w-]+)$/, async (req, res, m) => { need(req, 'admin'); D.messages = D.messages.filter(y => y.id !== m[1]); db.save(); send(res, 200, { ok: true }); });
+  route('GET', /^\/api\/admin\/subscribers$/, async (req, res) => { need(req, 'admin'); send(res, 200, { subscribers: D.subscribers.slice().reverse().slice(0, 1000), total: D.subscribers.length }); });
+  route('DELETE', /^\/api\/admin\/subscribers$/, async (req, res) => { need(req, 'admin'); const e = String((await jsonBody(req)).email || '').toLowerCase(); D.subscribers = D.subscribers.filter(x => x.email !== e); db.save(); send(res, 200, { ok: true }); });
+  const csv = rows => rows.map(r => r.map(v => { v = String(v == null ? '' : v); if (/^[=+\-@\t\r]/.test(v)) v = "'" + v; return /[",\n]/.test(v) ? '"' + v.replace(/"/g, '""') + '"' : v; }).join(',')).join('\r\n') + '\r\n';
+  route('GET', /^\/api\/admin\/subscribers\.csv$/, async (req, res) => { need(req, 'admin'); res.writeHead(200, { 'Content-Type': 'text/csv; charset=utf-8', 'Content-Disposition': 'attachment; filename="subscribers.csv"', 'Cache-Control': 'no-store' }); res.end('\ufeff' + csv([['email', 'subscribed_at', 'source']].concat(D.subscribers.map(x => [x.email, new Date(x.at).toISOString(), x.source])))); });
+
   /* ---- admin: catalogue, categories, store settings ---- */
   const adminProduct = p => ({ ...p, imageUrls: p.images.map(r => ({ rev: r, url: catalog.imgUrl(p, r, p.imageStore[r].ws.indexOf(400) > -1 ? 400 : p.imageStore[r].ws[0]) })), thumb: catalog.thumb(p), imageStore: undefined });
   route('GET', /^\/api\/admin\/catalog$/, async (req, res) => { need(req, 'admin'); send(res, 200, { products: catalog.products.map(adminProduct), categories: catalog.categories, site: catalog.site, stitch: A.STITCH.map(x => ({ id: x.id, label: x.label })), occasions: A.OCCASIONS, demoCount: catalog.products.filter(p => p.demo).length }); });
@@ -197,7 +297,7 @@ function createApp(opts = {}) {
   route('POST', /^\/api\/admin\/products\/([a-z0-9-]+)\/image$/, async (req, res, m) => {
     need(req, 'admin'); const p = catalog.find(m[1]); if (!p) throw fail(404, 'Product not found');
     const q = new URL(req.url, 'http://x').searchParams, data = await readBody(req, 1.6e6); const t = sniffImage(data); if (!t) throw fail(400, 'Please upload a JPG, PNG or WebP photo.');
-    catalog.addImage(p, q.get('rev') || '', parseInt(q.get('w'), 10), t.ext, data); send(res, 200, { product: adminProduct(p) });
+    catalog.addImage(p, q.get('rev') || '', q.get('w') === 'feed' ? 'feed' : parseInt(q.get('w'), 10), t.ext, data); send(res, 200, { product: adminProduct(p) });
   });
   route('PUT', /^\/api\/admin\/categories$/, async (req, res) => { need(req, 'admin'); catalog.setCategories((await jsonBody(req)).categories); send(res, 200, { categories: catalog.categories }); });
   route('PUT', /^\/api\/admin\/site$/, async (req, res) => { need(req, 'admin'); catalog.setSite(await jsonBody(req)); send(res, 200, { site: catalog.site }); });
@@ -214,7 +314,7 @@ function createApp(opts = {}) {
   route('GET', /^\/api\/admin\/summary$/, async (req, res) => {
     need(req, 'admin'); const c = {}; Object.keys(Orders.STATUS).forEach(k => c[k] = 0); D.orders.forEach(o => c[o.status]++);
     const rev = D.orders.filter(o => ['paid', 'processing', 'shipped', 'delivered'].indexOf(o.status) > -1).reduce((a, o) => a + o.totals.total, 0);
-    send(res, 200, { products: catalog.products.length, demoProducts: catalog.products.filter(p => p.demo).length, counts: c, revenue: rev, orders: D.orders.length, customers: D.users.filter(u => u.role === 'customer' && !u.isGuest).length, guests: D.users.filter(u => u.isGuest).length, unread: D.notifications.filter(n => !n.read).length, qrIsDemo: !D.settings.qrFile, upiSet: !!D.settings.upiId });
+    send(res, 200, { unreadMessages: D.messages.filter(m => !m.read).length, subscribers: D.subscribers.length, products: catalog.products.length, demoProducts: catalog.products.filter(p => p.demo).length, counts: c, revenue: rev, orders: D.orders.length, customers: D.users.filter(u => u.role === 'customer' && !u.isGuest).length, guests: D.users.filter(u => u.isGuest).length, unread: D.notifications.filter(n => !n.read).length, qrIsDemo: !D.settings.qrFile, upiSet: !!D.settings.upiId });
   });
   route('GET', /^\/api\/admin\/orders$/, async (req, res) => {
     need(req, 'admin'); const q = new URL(req.url, 'http://x').searchParams, st = q.get('status'), s = (q.get('q') || '').toLowerCase();
@@ -307,19 +407,18 @@ function createApp(opts = {}) {
   /* ---- dispatcher ---- */
   const server = http.createServer(async (req, res) => {
     try {
-      const url = req.url.split('?')[0];
-      if (url.startsWith('/api/') || url === '/media/qr' || url === '/js/data.js' || url.startsWith('/media/p/') || url.startsWith('/media/s/') || url === '/' || url === '/index.html') {
-        const mutating = req.method !== 'GET' && req.method !== 'HEAD';
-        if (mutating && !url.startsWith('/api/webhooks/')) {
+      const url = req.url.split('?')[0], mutating = req.method !== 'GET' && req.method !== 'HEAD';
+      if (mutating) {
+        if (!url.startsWith('/api/')) throw fail(405, 'Method not allowed');
+        if (!url.startsWith('/api/webhooks/')) {
           if (req.headers['x-requested-with'] !== 'asingh') throw fail(403, 'Blocked request');
           const o = req.headers.origin; if (o && new URL(o).host !== req.headers.host) throw fail(403, 'Blocked cross-origin request');
         }
-        for (const [method, re, fn] of routes) { const m = re.exec(url); if (m && method === req.method) return await fn(req, res, m); }
-        throw fail(404, 'Not found');
       }
-      if (req.method !== 'GET' && req.method !== 'HEAD') throw fail(405, 'Method not allowed');
+      for (const [method, re, fn] of routes) { const m = re.exec(url); if (m && method === req.method) return await fn(req, res, m); }
+      if (url.startsWith('/api/') || url.startsWith('/media/')) throw fail(404, 'Not found');
       if (Static.serve(req, res, headersFor)) return;
-      res.writeHead(404, { 'Content-Type': 'text/plain; charset=utf-8', ...headersFor(false) }); res.end('Not found');
+      serve404(req, res);
     } catch (e) {
       const status = e.status || 500; if (status === 500) console.error(e);
       if (res.headersSent) return res.end();
