@@ -14,8 +14,9 @@ function createApp(opts = {}) {
   const dataDir = path.resolve(opts.dataDir || process.env.DATA_DIR || path.join(Static.ROOT, 'data'));
   const db = new DB(dataDir), auth = new Auth(db, { secure: opts.secure || process.env.COOKIE_SECURE === '1' }), notifier = new Notifier(db);
   const D = db.data;
-  D.settings = Object.assign({ payeeName: 'ASINGH', upiId: '', instructions: 'Scan the QR with any UPI app, pay the exact amount, then upload a screenshot of the payment on the next screen.', webhookUrl: '', qrFile: '', qrV: 0 }, D.settings);
-  const authLimit = limiter(12, 10 * 60e3), guestLimit = limiter(60, 10 * 60e3), orderLimit = limiter(20, 3600e3), uploadLimit = limiter(15, 3600e3), emailLimit = limiter(8, 15 * 60e3);
+  D.settings = Object.assign({ payeeName: 'ASINGH', upiId: '', instructions: 'Scan the QR with any UPI app, pay the exact amount, then upload a screenshot of the payment on the next screen.', webhookUrl: '', qrFile: '', qrV: 0, invoice: { name: 'ASINGH', address: '', gstin: '', contact: '' } }, D.settings);
+  D.settings.invoice = Object.assign({ name: 'ASINGH', address: '', gstin: '', contact: '' }, D.settings.invoice);
+  const trackLimit = limiter(20, 10 * 60e3), authLimit = limiter(12, 10 * 60e3), guestLimit = limiter(60, 10 * 60e3), orderLimit = limiter(20, 3600e3), uploadLimit = limiter(15, 3600e3), emailLimit = limiter(8, 15 * 60e3);
 
   /* ---- admin bootstrap: never ships with a default password ---- */
   const adminEmail = String(process.env.ADMIN_EMAIL || 'admin@asingh.local').toLowerCase();
@@ -45,7 +46,7 @@ function createApp(opts = {}) {
 
   route('GET', /^\/api\/config$/, async (req, res) => {
     const s = D.settings;
-    send(res, 200, { brand: A.BRAND, methods: Pay.publicMethods(), upi: { payeeName: s.payeeName, upiId: s.upiId, instructions: s.instructions, qrUrl: '/media/qr?v=' + s.qrV, isDemo: !s.qrFile } });
+    send(res, 200, { brand: A.BRAND, methods: Pay.publicMethods(), upi: { payeeName: s.payeeName, upiId: s.upiId, instructions: s.instructions, qrUrl: '/media/qr?v=' + s.qrV, isDemo: !s.qrFile }, invoice: s.invoice });
   });
   route('GET', /^\/media\/qr$/, async (req, res) => {
     const f = D.settings.qrFile ? path.join(db.dir, D.settings.qrFile) : path.join(Static.ROOT, 'server/assets/demo-qr.png');
@@ -130,6 +131,27 @@ function createApp(opts = {}) {
     fs.createReadStream(f).pipe(res);
   });
 
+  /* guest-friendly tracking: short order number + the mobile number used at checkout (no sign-in needed) */
+  const trackFails = new Map();
+  function lookup(req, b) {
+    if (!trackLimit(ip(req))) throw fail(429, 'Too many lookups. Please wait a few minutes and try again.');
+    const num = Orders.normNumber(b.number), phone = Orders.normPhone(b.phone), key = num || 'x';
+    const f = trackFails.get(key) || { n: 0, until: 0 };
+    if (f.until > Date.now()) throw fail(429, 'Too many wrong attempts for this order. Please try again in 15 minutes, or sign in.');
+    const o = num && phone.length === 10 ? D.orders.find(x => Orders.normNumber(x.number) === num) : null;
+    if (!o || Orders.normPhone(o.customer.phone) !== phone) { f.n++; if (f.n >= 8) { f.until = Date.now() + 15 * 60e3; f.n = 0; } trackFails.set(key, f); if (trackFails.size > 5000) trackFails.clear(); throw fail(404, 'We couldn’t match that order number and mobile number. Check both and try again.'); }
+    trackFails.delete(key); return o;
+  }
+  const ownerIsGuest = o => { const u = D.users.find(x => x.id === o.userId); return !u || u.isGuest; };
+  route('POST', /^\/api\/track$/, async (req, res) => { const o = lookup(req, await jsonBody(req)); send(res, 200, { order: Orders.trackView(o, ownerIsGuest(o)) }); });
+  route('POST', /^\/api\/track\/claim$/, async (req, res) => {
+    const b = await jsonBody(req), o = lookup(req, b); if (!ownerIsGuest(o)) throw fail(409, 'This order belongs to an account. Please sign in to open it.');
+    let u = auth.user(req); if (!u) { u = { id: id(), role: 'customer', name: '', email: '', isGuest: true, createdAt: Date.now(), profile: {} }; D.users.push(u); auth.login(req, res, u); }
+    if (u.role === 'admin') throw fail(400, 'Admins cannot claim orders.');
+    if (o.userId !== u.id) { o.userId = u.id; o.timeline.push({ at: Date.now(), status: o.status, note: 'Opened on a new device', by: 'customer' }); db.save(); }
+    send(res, 200, { orderId: o.id, user: publicUser(u) });
+  });
+
   /* admin */
   route('GET', /^\/api\/admin\/summary$/, async (req, res) => {
     need(req, 'admin'); const c = {}; Object.keys(Orders.STATUS).forEach(k => c[k] = 0); D.orders.forEach(o => c[o.status]++);
@@ -138,21 +160,27 @@ function createApp(opts = {}) {
   });
   route('GET', /^\/api\/admin\/orders$/, async (req, res) => {
     need(req, 'admin'); const q = new URL(req.url, 'http://x').searchParams, st = q.get('status'), s = (q.get('q') || '').toLowerCase();
-    send(res, 200, { orders: D.orders.filter(o => (!st || o.status === st) && (!s || (o.number + ' ' + o.customer.name + ' ' + o.customer.email + ' ' + o.customer.phone + ' ' + (o.proof && o.proof.utr || '')).toLowerCase().includes(s))).slice(0, 300).map(o => Orders.view(o, true)) });
+    send(res, 200, { orders: D.orders.filter(o => (!st || o.status === st) && (!s || (o.number + ' ' + Orders.normNumber(o.number) + ' ' + o.customer.name + ' ' + o.customer.email + ' ' + o.customer.phone + ' ' + (o.proof && o.proof.utr || '')).toLowerCase().includes(s))).slice(0, 300).map(o => Orders.view(o, true)) });
   });
   route('PATCH', /^\/api\/admin\/orders\/([\w-]+)$/, async (req, res, m) => {
     const u = need(req, 'admin'), o = D.orders.find(x => x.id === m[1]); if (!o) throw fail(404, 'Order not found');
     const b = await jsonBody(req), note = String(b.note || '').slice(0, 300);
     if (b.action === 'verify') { if (['payment_review', 'payment_rejected', 'awaiting_payment'].indexOf(o.status) < 0) throw fail(409, 'Not awaiting verification.'); Orders.transition(db, o, 'paid', note || 'Payment verified', 'admin'); }
     else if (b.action === 'reject') { if (o.status !== 'payment_review') throw fail(409, 'Nothing to reject.'); Orders.transition(db, o, 'payment_rejected', note || 'We could not verify this payment. Please upload a clear screenshot.', 'admin'); }
-    else if (b.action === 'status') { if ((Orders.ADMIN_NEXT[o.status] || []).indexOf(b.status) < 0) throw fail(409, 'Invalid status change.'); Orders.transition(db, o, b.status, note, 'admin'); }
+    else if (b.action === 'status') {
+      if ((Orders.ADMIN_NEXT[o.status] || []).indexOf(b.status) < 0) throw fail(409, 'Invalid status change.');
+      if (b.tracking !== undefined) o.tracking = Orders.cleanTracking(b.tracking);
+      Orders.transition(db, o, b.status, note, 'admin');
+    }
+    else if (b.action === 'tracking') { o.tracking = Orders.cleanTracking(b.tracking); o.updatedAt = Date.now(); o.timeline.push({ at: o.updatedAt, status: o.status, note: o.tracking ? 'Tracking details updated' : 'Tracking details removed', by: 'admin' }); db.save(); }
     else throw fail(400, 'Unknown action');
     send(res, 200, { order: Orders.view(o, true) });
   });
-  route('GET', /^\/api\/admin\/settings$/, async (req, res) => { need(req, 'admin'); const s = D.settings; send(res, 200, { payeeName: s.payeeName, upiId: s.upiId, instructions: s.instructions, webhookUrl: s.webhookUrl, qrUrl: '/media/qr?v=' + s.qrV, qrIsDemo: !s.qrFile, envWebhook: !!process.env.ADMIN_WEBHOOK_URL }); });
+  route('GET', /^\/api\/admin\/settings$/, async (req, res) => { need(req, 'admin'); const s = D.settings; send(res, 200, { invoice: s.invoice, payeeName: s.payeeName, upiId: s.upiId, instructions: s.instructions, webhookUrl: s.webhookUrl, qrUrl: '/media/qr?v=' + s.qrV, qrIsDemo: !s.qrFile, envWebhook: !!process.env.ADMIN_WEBHOOK_URL }); });
   route('PUT', /^\/api\/admin\/settings$/, async (req, res) => {
     need(req, 'admin'); const b = await jsonBody(req), s = D.settings;
     if (b.upiId !== undefined) { const v = String(b.upiId).trim().slice(0, 80); if (v && !/^[\w.\-]{2,}@[\w.\-]{2,}$/.test(v)) throw fail(400, 'UPI ID should look like name@bank.'); s.upiId = v; }
+    if (b.invoice && typeof b.invoice === 'object') { const i = b.invoice, c = (v, n) => String(v == null ? '' : v).trim().slice(0, n); const g = c(i.gstin, 15).toUpperCase(); if (g && !/^[0-9A-Z]{15}$/.test(g)) throw fail(400, 'GSTIN should be 15 letters/digits (or leave it blank).'); s.invoice = { name: c(i.name, 80) || 'ASINGH', address: c(i.address, 240), gstin: g, contact: c(i.contact, 120) }; }
     if (b.payeeName !== undefined) s.payeeName = String(b.payeeName).trim().slice(0, 60) || 'ASINGH';
     if (b.instructions !== undefined) s.instructions = String(b.instructions).trim().slice(0, 500);
     if (b.webhookUrl !== undefined) { const v = String(b.webhookUrl).trim().slice(0, 300); if (v) { let u; try { u = new URL(v); } catch (e) { throw fail(400, 'Webhook URL is not valid.'); } if (u.protocol !== 'https:') throw fail(400, 'Webhook URL must start with https://'); } s.webhookUrl = v; }
@@ -183,7 +211,7 @@ function createApp(opts = {}) {
     const raw = await readBody(req, 200e3), ad = Pay.adapter(m[1]); if (!ad) throw fail(404, 'Unknown provider');
     if (!ad.verify(raw, req.headers, ad.secret)) throw fail(401, 'Bad signature');
     let ev; try { ev = ad.parse(JSON.parse(raw.toString('utf8'))); } catch (e) { throw fail(400, 'Bad payload'); }
-    const o = ev && D.orders.find(x => x.number === ev.orderNumber); if (!o) return send(res, 202, { ignored: true });
+    const o = ev && D.orders.find(x => Orders.normNumber(x.number) === Orders.normNumber(ev.orderNumber)); if (!o) return send(res, 202, { ignored: true });
     if (ev.status === 'paid') {
       if (['paid', 'processing', 'shipped', 'delivered', 'cancelled'].indexOf(o.status) > -1) return send(res, 200, { ok: true, duplicate: true });
       const mismatch = ev.amount != null && Math.abs(Number(ev.amount) - o.totals.total) > 1;
@@ -215,7 +243,7 @@ function createApp(opts = {}) {
       send(res, status, { error: status === 500 ? 'Something went wrong. Please try again.' : e.message });
     }
   });
-  return { server, db, notifier };
+  return { server, db, notifier, resetTrackLocks: () => trackFails.clear() };
 }
 
 if (require.main === module) {

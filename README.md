@@ -9,7 +9,7 @@ npm start                      # http://localhost:3000
 ADMIN_EMAIL=you@example.com ADMIN_PASSWORD='a-long-passphrase' npm start
 npm test                       # 70+ server/privacy tests
 ```
-Storefront: `/` · Account & orders: `/account.html` · Admin console: `/admin.html`
+Storefront: `/` · Track an order: `/track.html` · Account & orders: `/account.html` · Admin console: `/admin.html`
 
 | Env var | Purpose |
 |---|---|
@@ -20,6 +20,12 @@ Storefront: `/` · Account & orders: `/account.html` · Admin console: `/admin.h
 | `TRUST_PROXY=1` | trust `X-Forwarded-For` for rate limiting when behind a reverse proxy |
 | `ADMIN_WEBHOOK_URL` | HTTPS webhook (Slack/Discord-style `{text}`) for admin alerts |
 | `WEBHOOK_SECRET_<PROVIDER>` | enables payment webhooks for that provider (see below) |
+
+## Order numbers, guest tracking & bills
+- **Short order numbers** like `AS-48213` (random, so they don't reveal your order volume). Shown big on the payment and confirmation screens with **Copy / Share / Track** buttons.
+- **Guests can track without signing in** at `/track.html` with the **order number + the mobile number used at checkout**. The page shows status, progress, admin messages and courier/tracking ID — never the address, email or payment screenshot. Wrong guesses get one generic message, are rate-limited per IP, and lock that order for 15 minutes after 8 misses. A guest who has verified can tap **“Open full order on this device”** to pay/upload or download the bill.
+- **Admin controls the status** (Admin → Orders → open an order → *Order status*): change it forward (or one step back to fix a mistake), add a message the customer sees, and add **courier, tracking ID and tracking link**. Every change appears instantly for the customer; the tracking page also refreshes itself every 30 s.
+- **Bill / invoice** (`/invoice.html?id=…`, buyer or admin only): A4 layout with seller details (set in Admin → Payment & QR → *Bill details*, incl. optional GSTIN), buyer and delivery details, **product photos**, itemised prices, totals, PAID / PAYMENT DUE stamp, UTR, courier and progress. **Save as PDF** (opens the browser's print dialog → *Save as PDF*, photos included), **Print**, or **Download text (.txt)**. Available from the order page, the confirmation screen and the admin order view.
 
 ## Sign-in options
 Sign in · Create account · **Continue as guest (no details at all)**. A guest who later creates an account keeps their orders. Passwords use scrypt; sessions are random 256-bit tokens in `HttpOnly; SameSite=Lax` cookies; login/register are rate-limited.

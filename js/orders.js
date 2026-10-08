@@ -86,5 +86,17 @@
       });
     }
   }
-  A.Orders = { LABEL: LABEL, chip: chip, timeline: timeline, items: itemsHTML, payPanel: payPanel, config: config, fmtDate: fmtDate, tone: TONE };
+  /* Big, shareable order number — the thing a guest needs to remember */
+  function numberCard(o, mount, note) {
+    var digits = String(o.number).replace(/^AS-?/i, ''), url = location.origin + '/track.html?n=' + encodeURIComponent(digits), canShare = !!navigator.share;
+    mount.innerHTML = '<div class="numcard"><div class="numcard__main"><span class="numcard__l">Your order number</span><strong class="numcard__n" aria-label="Order number ' + esc(o.number.split('').join(' ')) + '">' + esc(o.number) + '</strong><small>' + (note || 'Keep this number. With your mobile number it’s all you need to check your order status — no sign-in required.') + '</small></div>' +
+      '<div class="numcard__a"><button type="button" class="copy" data-copy="' + esc(o.number) + '">Copy</button>' + (canShare ? '<button type="button" class="copy" data-share>Share</button>' : '') + '<a class="btn btn--ghost" href="track.html?n=' + esc(digits) + '">Track order</a></div></div>';
+    $$('[data-copy]', mount).forEach(function (b) { b.addEventListener('click', function () { copy(b.getAttribute('data-copy'), b); }); });
+    var sh = $('[data-share]', mount); if (sh) sh.addEventListener('click', function () { navigator.share({ title: 'My ASINGH order ' + o.number, text: 'My ASINGH order number is ' + o.number + '. Track it here:', url: url }).catch(function () {}); });
+  }
+  function trackingCard(t) {
+    if (!t || (!t.courier && !t.id && !t.url)) return '';
+    return '<div class="trackcard"><span class="trackcard__ico" aria-hidden="true">' + U.icon('truck') + '</span><div><strong>' + esc(t.courier || 'Courier') + '</strong>' + (t.id ? '<span>Tracking ID <code>' + esc(t.id) + '</code> <button type="button" class="copy" data-copy="' + esc(t.id) + '">Copy</button></span>' : '') + (t.url ? '<a class="link" href="' + esc(t.url) + '" target="_blank" rel="noopener noreferrer">Track shipment ↗</a>' : '') + '</div></div>';
+  }
+  A.Orders = { numberCard: numberCard, trackingCard: trackingCard, copy: copy, LABEL: LABEL, chip: chip, timeline: timeline, items: itemsHTML, payPanel: payPanel, config: config, fmtDate: fmtDate, tone: TONE };
 })(window.ASINGH);

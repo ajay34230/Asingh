@@ -5,21 +5,23 @@ const require = createRequire(import.meta.url);
 process.env.ADMIN_PASSWORD = 'correct-horse-battery'; process.env.WEBHOOK_SECRET_GENERIC = 'whsec_test';
 const { createApp } = require('./index.js');
 const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'asingh-'));
-const app = createApp({ dataDir: dir, quiet: true });
+const app = createApp({ dataDir: dir, quiet: true, trustProxy: true });
 await new Promise(r => app.server.listen(0, '127.0.0.1', r));
 const base = 'http://127.0.0.1:' + app.server.address().port;
+
 let fails = 0; const ok = (c, m) => { console.log((c ? '  ✓ ' : '  ✗ ') + m); if (!c) fails++; };
 
 class Client {
-  constructor() { this.cookie = ''; }
+  constructor() { this.cookie = ''; this.ip = '10.' + crypto.randomInt(255) + '.' + crypto.randomInt(255) + '.' + crypto.randomInt(255); }
   async req(method, url, body, extra = {}) {
-    const headers = { 'x-requested-with': 'asingh', ...(this.cookie ? { cookie: this.cookie } : {}), ...extra };
+    const headers = { 'x-requested-with': 'asingh', 'x-forwarded-for': this.ip, ...(this.cookie ? { cookie: this.cookie } : {}), ...extra };
     let payload = body; if (body && !(body instanceof Buffer) && !extra['content-type']) { headers['content-type'] = 'application/json'; payload = JSON.stringify(body); }
     const r = await fetch(base + url, { method, headers, body: payload, redirect: 'manual' });
     const sc = r.headers.getSetCookie?.() || []; sc.forEach(c => { const kv = c.split(';')[0]; this.cookie = kv.startsWith('as_sid=') ? kv : this.cookie; });
     const t = await r.text(); let j = null; try { j = JSON.parse(t); } catch {} return { status: r.status, json: j, text: t, headers: r.headers };
   }
 }
+let trackReset = () => app.resetTrackLocks();
 const cust = { name: 'Asha Singh', email: 'asha@example.com', phone: '9876543210', line1: '12 MG Road', pin: '560001', city: 'Bengaluru', state: 'Karnataka' };
 const cart = [{ id: 'jaipur-bandhani', size: 'M', stitch: 'semi', color: 'Sindoor', qty: 1, note: 'height 5ft6' }];
 const png = Buffer.concat([Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]), crypto.randomBytes(300)]);
@@ -52,7 +54,7 @@ r = await fetch(base + '/index.html'); ok(/script-src 'self'/.test(r.headers.get
 console.log('\nOrders & pricing');
 r = await A.req('POST', '/api/orders', { items: [{ ...cart[0], price: 1, unit: 1 }], customer: cust, method: 'upi_qr' });
 ok(r.status === 201 && r.json.order.totals.total === 21800 + 600, 'server prices the order (client price ignored): ' + r.json.order?.totals.total);
-const oid = r.json.order.id; ok(/^AS\d{6}-\d{4}$/.test(r.json.order.number), 'order number ' + r.json.order.number);
+const oid = r.json.order.id; ok(/^AS-\d{5}$/.test(r.json.order.number), 'short, memorable order number ' + r.json.order.number);
 ok((await A.req('POST', '/api/orders', { items: [{ id: 'nope', size: 'M', stitch: 'semi' }], customer: cust, method: 'upi_qr' })).status === 400, 'unknown product rejected');
 ok((await A.req('POST', '/api/orders', { items: cart, customer: cust, method: 'gateway_cards' })).status === 400, 'disabled payment method rejected');
 ok((await A.req('POST', '/api/orders', { items: cart, customer: { ...cust, phone: '123' }, method: 'upi_qr' })).status === 400, 'bad phone rejected');
@@ -89,6 +91,40 @@ ok((await ADM.req('PATCH', '/api/admin/orders/' + oid, { action: 'status', statu
 ok((await ADM.req('PATCH', '/api/admin/orders/' + oid, { action: 'status', status: 'processing' })).json.order.status === 'processing', 'admin moves to processing');
 ok((await A.req('PATCH', '/api/admin/orders/' + oid, { action: 'verify' })).status === 404, 'customer cannot verify own payment');
 [bd, hd] = up({ utr: 'zzzzzzzzzz' }, { name: 's.png', type: 'image/png', data: png }); ok((await A.req('POST', `/api/orders/${oid}/proof`, bd, hd)).status === 409, 'no screenshot swap after payment verified');
+
+console.log('\nGuest order tracking (number + mobile)');
+const G = new Client(); await G.req('POST', '/api/auth/guest', {});
+const go = (await G.req('POST', '/api/orders', { items: cart, customer: { ...cust, name: 'Guest Gita', phone: '9000011111', email: 'g@example.com' }, method: 'upi_qr' })).json.order;
+const T = new Client();   // a completely signed-out visitor, e.g. on another phone
+r = await T.req('POST', '/api/track', { number: go.number, phone: '9000011111' });
+ok(r.status === 200 && r.json.order.number === go.number && r.json.order.status === 'awaiting_payment', 'number + mobile shows status with no sign-in');
+ok(!/Gita|g@example|MG Road|560001|9000011111|proof|userId/i.test(JSON.stringify(r.json)), 'tracking view leaks no name, email, phone, address or proof');
+ok((await T.req('POST', '/api/track', { number: go.number.toLowerCase().replace('-', ' '), phone: '+91 90000-11111' })).status === 200, 'tolerant of "as 48213" and "+91 90000-11111"');
+ok((await T.req('POST', '/api/track', { number: go.number.replace('AS-', ''), phone: '9000011111' })).status === 200, 'digits alone work');
+r = await T.req('POST', '/api/track', { number: go.number, phone: '9000022222' }); ok(r.status === 404, 'wrong mobile → generic not-found');
+const r404 = await T.req('POST', '/api/track', { number: 'AS-00001', phone: '9000011111' }); ok(r404.status === 404 && r404.json.error === r.json.error, 'unknown number gives the identical message (no enumeration)');
+const TL = new Client(); let last; for (let i = 0; i < 9; i++) last = await TL.req('POST', '/api/track', { number: go.number, phone: '9111100000' });
+ok(last.status === 429, 'repeated wrong guesses lock that order for a while');
+ok((await T.req('POST', '/api/track', { number: go.number, phone: '9000011111' })).status === 429, '…even for the right mobile until the lock expires');
+ok((await T.req('POST', '/api/track/claim', { number: go.number, phone: '9000011111' })).status === 429, 'claim is locked too');
+trackReset();
+r = await ADM.req('PATCH', '/api/admin/orders/' + go.id, { action: 'verify', note: 'Got it, thanks!' }); ok(r.json.order.status === 'paid', 'admin verifies');
+r = await ADM.req('PATCH', '/api/admin/orders/' + go.id, { action: 'status', status: 'shipped', note: 'Left Jaipur today', tracking: { courier: 'India Post', id: 'EE123456789IN', url: 'https://www.indiapost.gov.in/track' } });
+ok(r.json.order.status === 'shipped' && r.json.order.tracking.courier === 'India Post', 'admin sets status + courier details');
+r = await T.req('POST', '/api/track', { number: go.number, phone: '9000011111' }); ok(r.json.order.status === 'shipped' && r.json.order.tracking.id === 'EE123456789IN', 'guest sees the new status and tracking id');
+ok(r.json.order.timeline.some(t => t.note === 'Left Jaipur today') && !r.json.order.timeline.some(t => /ref|UTR/i.test(t.note)), 'guest sees admin notes only');
+
+ok((await ADM.req('PATCH', '/api/admin/orders/' + go.id, { action: 'tracking', tracking: { courier: 'X', url: 'javascript:alert(1)' } })).status === 400, 'non-https tracking link rejected');
+ok((await ADM.req('PATCH', '/api/admin/orders/' + go.id, { action: 'status', status: 'processing', note: 'Correction' })).json.order.status === 'processing', 'admin can step back to correct a mistake');
+ok((await ADM.req('PATCH', '/api/admin/orders/' + go.id, { action: 'status', status: 'delivered' })).status === 409, 'but not skip ahead');
+ok((await ADM.req('PATCH', '/api/admin/orders/' + go.id, { action: 'status', status: 'shipped' })).json.order.status === 'shipped' && (await ADM.req('PATCH', '/api/admin/orders/' + go.id, { action: 'status', status: 'delivered', note: 'Delivered' })).json.order.status === 'delivered', 'ships, then delivered');
+r = await T.req('POST', '/api/track/claim', { number: go.number, phone: '9000011111' }); ok(r.status === 200 && r.json.orderId === go.id, 'guest can open the order on a new device');
+ok((await T.req('GET', '/api/orders/' + go.id)).status === 200, 'new device now has the full order');
+ok((await G.req('GET', '/api/orders/' + go.id)).status === 404, 'old device no longer does');
+ok((await new Client().req('POST', '/api/track/claim', { number: oid, phone: '9876543210' })).status === 404, 'claim needs a valid number + mobile');
+const regNo = (await A.req('GET', '/api/orders/' + oid)).json.order.number;
+r = await new Client().req('POST', '/api/track', { number: regNo, phone: '9876543210' }); ok(r.status === 200 && r.json.order.canClaim === false, 'account-owned orders can be tracked but not claimed');
+ok((await new Client().req('POST', '/api/track/claim', { number: regNo, phone: '9876543210' })).status === 409, 'account-owned orders cannot be claimed');
 
 console.log('\nAdmin settings & QR');
 ok((await ADM.req('PUT', '/api/admin/settings', { upiId: 'not-valid' })).status === 400, 'invalid UPI id rejected');

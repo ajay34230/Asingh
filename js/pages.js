@@ -277,8 +277,8 @@
     }
     function showQr(o) {
       placed = o; finished = true; U.store.set('asingh.pending', o.id); renderPlacedSummary(o);
-      $('#qr-no').textContent = o.number; $('#track').href = 'order.html?id=' + o.id;
-      A.Orders.payPanel(o, $('#qr-mount'), function (upd) { placed = upd; if (upd.status === 'payment_review') { U.store.set('asingh.pending', null); $('#order-no').textContent = upd.number; go(4); } });
+      A.Orders.numberCard(o, $('#qr-numcard')); $('#track').href = 'order.html?id=' + o.id; $('#bill').href = 'invoice.html?id=' + o.id;
+      A.Orders.payPanel(o, $('#qr-mount'), function (upd) { placed = upd; if (upd.status === 'payment_review') { U.store.set('asingh.pending', null); A.Orders.numberCard(upd, $('#done-numcard'), 'Save this number — with your mobile number you can check progress any time, even without signing in.'); go(4); } });
       go(3);
     }
 

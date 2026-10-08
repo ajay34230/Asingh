@@ -7,7 +7,23 @@ const STATUS = {
   awaiting_payment: 'Awaiting payment', payment_review: 'Payment under review', payment_rejected: 'Payment needs attention',
   paid: 'Payment verified', processing: 'Being crafted', shipped: 'Shipped', delivered: 'Delivered', cancelled: 'Cancelled'
 };
-const ADMIN_NEXT = { paid: ['processing', 'cancelled'], processing: ['shipped', 'cancelled'], shipped: ['delivered'], payment_review: ['paid', 'payment_rejected', 'cancelled'], awaiting_payment: ['cancelled'], payment_rejected: ['cancelled', 'paid'] };
+/* What the admin may change an order to. Forward steps plus one step back, so a mis-click can be corrected. */
+const ADMIN_NEXT = {
+  awaiting_payment: ['paid', 'cancelled'], payment_review: ['paid', 'payment_rejected', 'cancelled'], payment_rejected: ['paid', 'awaiting_payment', 'cancelled'],
+  paid: ['processing', 'shipped', 'cancelled'], processing: ['paid', 'shipped', 'cancelled'], shipped: ['processing', 'delivered'], delivered: ['shipped'], cancelled: ['awaiting_payment']
+};
+/* Short, memorable order numbers — "AS-48213". Random (not sequential) so they don't reveal how many orders you have;
+   tracking also needs the buyer's mobile number, so a guessed number reveals nothing. */
+const normNumber = s => { let u = String(s || '').toUpperCase().replace(/[^A-Z0-9]/g, ''); if (/^\d+$/.test(u)) u = 'AS' + u; return u; };
+const normPhone = s => String(s || '').replace(/\D/g, '').slice(-10);
+function newNumber(db) {
+  const used = new Set(db.data.orders.map(o => normNumber(o.number)));
+  for (let digits = 5; digits <= 8; digits++) {
+    const lo = Math.pow(10, digits - 1), span = 9 * lo;
+    for (let i = 0; i < 40; i++) { const n = 'AS' + (lo + require('crypto').randomInt(span)); if (!used.has(n)) return 'AS-' + n.slice(2); }
+  }
+  throw Object.assign(new Error('Could not allocate an order number'), { status: 500 });
+}
 
 const bad = m => Object.assign(new Error(m), { status: 400 });
 const str = (v, max) => String(v == null ? '' : v).trim().slice(0, max);
@@ -45,7 +61,7 @@ function customer(c) {
 function create(db, user, body, methodId) {
   const { items, totals } = price(body.items);
   const now = Date.now(), d = new Date(now);
-  const number = 'AS' + String(d.getUTCFullYear()).slice(2) + String(d.getUTCMonth() + 1).padStart(2, '0') + String(d.getUTCDate()).padStart(2, '0') + '-' + String(1000 + (db.nextSeq() * 7919 % 9000));
+  const number = newNumber(db);
   const order = { id: id(10), number, userId: user.id, items, totals, customer: customer(body.customer), method: methodId, status: 'awaiting_payment', proof: null, createdAt: now, updatedAt: now, timeline: [{ at: now, status: 'awaiting_payment', note: 'Order placed', by: 'customer' }] };
   db.data.orders.unshift(order); db.save(); return order;
 }
@@ -54,8 +70,21 @@ function transition(db, order, status, note, by) {
 }
 /* customers see their own order; proof file name and internal ids stay server-side */
 function view(o, isAdmin) {
-  const v = { id: o.id, number: o.number, status: o.status, statusLabel: STATUS[o.status], items: o.items, totals: o.totals, customer: o.customer, method: o.method, createdAt: o.createdAt, updatedAt: o.updatedAt, timeline: o.timeline.map(t => ({ at: t.at, status: t.status, label: STATUS[t.status], note: t.note })), proof: o.proof ? { at: o.proof.at, utr: o.proof.utr, mime: o.proof.mime } : null };
+  const v = { id: o.id, number: o.number, status: o.status, statusLabel: STATUS[o.status], items: o.items, totals: o.totals, customer: o.customer, method: o.method, createdAt: o.createdAt, updatedAt: o.updatedAt, timeline: o.timeline.map(t => ({ at: t.at, status: t.status, label: STATUS[t.status], note: String(t.by).startsWith('webhook') ? '' : t.note })), proof: o.proof ? { at: o.proof.at, utr: o.proof.utr, mime: o.proof.mime } : null, tracking: o.tracking || null };
   if (isAdmin) { v.userId = o.userId; v.next = ADMIN_NEXT[o.status] || []; v.timeline = o.timeline.map(t => ({ at: t.at, status: t.status, label: STATUS[t.status], note: t.note, by: t.by })); }
   return v;
 }
-module.exports = { STATUS, ADMIN_NEXT, create, transition, view, price };
+/* Limited, address-free view for the public tracking page (needs number + mobile). */
+function trackView(o, canClaim) {
+  return { number: o.number, status: o.status, statusLabel: STATUS[o.status], createdAt: o.createdAt, updatedAt: o.updatedAt, tracking: o.tracking || null, totals: o.totals,
+    items: o.items.map(i => ({ id: i.id, name: i.name, color: i.color, size: i.size, stitchLabel: i.stitchLabel, qty: i.qty })),
+    timeline: o.timeline.map(t => ({ at: t.at, status: t.status, label: STATUS[t.status], note: t.by === 'admin' ? t.note : '' })), canClaim: !!canClaim };
+}
+function cleanTracking(t) {
+  if (!t || typeof t !== 'object') return null;
+  const courier = str(t.courier, 40), id = str(t.id, 60); let url = str(t.url, 300);
+  if (!courier && !id && !url) return null;
+  if (url) { let u; try { u = new URL(url); } catch (e) { throw bad('Tracking link is not a valid URL.'); } if (u.protocol !== 'https:') throw bad('Tracking link must start with https://'); url = u.href; }
+  return { courier, id, url };
+}
+module.exports = { STATUS, ADMIN_NEXT, create, transition, view, trackView, cleanTracking, normNumber, normPhone, price };

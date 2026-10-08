@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="en-IN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Track your order — ASINGH</title>
+<meta name="description" content="Check your order status with your order number and mobile number — no sign-in needed.">
+<meta name="theme-color" content="#faf6ef" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#16100f" media="(prefers-color-scheme: dark)">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='6' fill='%235b1530'/%3E%3Ctext x='16' y='22' font-family='serif' font-size='18' text-anchor='middle' fill='%23e9c46a'%3EA%3C/text%3E%3C/svg%3E">
+<meta name="robots" content="noindex">
+<link rel="stylesheet" href="css/styles.css">
+<script src="js/data.js" defer></script>
+<script src="js/app.js" defer></script>
+<script src="js/orders.js" defer></script>
+<script src="js/track.js" defer></script>
+<script src="js/pages.js" defer></script>
+</head>
+<body data-page="track">
+<div id="page">
+<main id="main"><div class="container trackpg">
+  <header class="trackpg__head"><p class="eyebrow">Order tracking</p><h1 class="h1">Where is my order?</h1><p class="muted">Enter your order number and the mobile number you used at checkout. No sign-in needed.</p></header>
+  <div class="trackpg__grid">
+    <form class="trackform" id="tf" novalidate>
+      <div class="field"><label class="field__l" for="tn">Order number</label><div class="prefixed"><span aria-hidden="true">AS-</span><input class="input" id="tn" name="number" inputmode="numeric" autocomplete="off" maxlength="12" placeholder="48213" aria-describedby="tn-help"></div><p class="muted" id="tn-help">You’ll find it on your confirmation screen, e.g. AS-48213.</p></div>
+      <div class="field"><label class="field__l" for="tp">Mobile number</label><input class="input" id="tp" name="phone" type="tel" inputmode="tel" autocomplete="tel" maxlength="16" placeholder="98765 43210"></div>
+      <p class="field__err" id="te" role="alert"></p>
+      <button class="btn btn--block btn--lg" type="submit"><span>Check status</span></button>
+      <p class="secure"><svg class="ico ico--xs" viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="5" y="10.5" width="14" height="9.5" rx="2"/><path d="M8 10.5V8a4 4 0 0 1 8 0v2.5"/></svg> We only show progress here — never your address or payment details.</p>
+      <p class="muted">Have an account? <a href="account.html">Sign in to see all your orders</a>.</p>
+    </form>
+    <div id="tr" aria-live="polite"></div>
+  </div>
+</div></main>
+</div>
+<noscript><p class="noscript">This page needs JavaScript.</p></noscript>
+</body>
+</html>

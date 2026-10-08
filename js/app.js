@@ -287,7 +287,7 @@
     var page = document.body.getAttribute('data-page');
     var sprite = '';
     var header = '<a class="skip" href="#main">Skip to content</a>' +
-      '<p class="announce"><span>Free shipping over ₹15,000</span><span class="announce__sep" aria-hidden="true">·</span><span class="announce__opt">Rajasthani craft · custom stitching in 10–14 days</span></p>' +
+      '<p class="announce"><span>Free shipping over ₹15,000</span><span class="announce__sep" aria-hidden="true">·</span><span class="announce__opt">Rajasthani craft · custom stitching in 10–14 days</span><span class="announce__sep" aria-hidden="true">·</span><a class="announce__track" href="track.html">Track your order</a></p>' +
       '<header class="header" id="site-header"><div class="header__bar container">' +
       '<a class="logo" href="index.html" aria-label="' + A.BRAND + ' home">' + A.BRAND + '</a>' +
       '<nav class="nav" aria-label="Primary"><ul class="nav__list">' +
@@ -311,7 +311,7 @@
       '<div class="footer__brand"><a class="logo" href="index.html">' + A.BRAND + '</a><p>Authentic Rajputi dresses — poshak, ghagra choli and odhni — made to your measure.</p>' +
       '<form class="newsletter" action="#" data-newsletter novalidate><label for="nl-email" class="vh">Email address</label><input id="nl-email" type="email" name="email" inputmode="email" autocomplete="email" placeholder="Your email address" required><button class="btn" type="submit">Subscribe</button><p class="newsletter__msg" role="status" aria-live="polite"></p></form></div>' +
       '<details class="footer__col" open><summary>Shop</summary><ul>' + A.CATEGORIES.map(function (c) { return '<li><a href="shop.html?cat=' + c.id + '">' + c.label + '</a></li>'; }).join('') + '</ul></details>' +
-      '<details class="footer__col" open><summary>Care</summary><ul><li><a href="shop.html?stitch=custom">Custom stitching</a></li><li><a href="#size-guide" data-size-guide>Size guide</a></li><li><a href="cart.html">Shipping &amp; returns</a></li><li><a href="cart.html">Track order</a></li></ul></details>' +
+      '<details class="footer__col" open><summary>Care</summary><ul><li><a href="shop.html?stitch=custom">Custom stitching</a></li><li><a href="#size-guide" data-size-guide>Size guide</a></li><li><a href="cart.html">Shipping &amp; returns</a></li><li><a href="track.html">Track order</a></li></ul></details>' +
       '<details class="footer__col" open><summary>Contact</summary><ul><li><a href="mailto:care@asingh.example">care@asingh.example</a></li><li><a href="tel:+910000000000">+91 00000 00000</a></li><li>Mon–Sat, 10am–7pm IST</li></ul></details>' +
       '</div><p class="footer__legal container">© ' + new Date().getFullYear() + ' ' + A.BRAND + '. All rights reserved.</p></footer>';
     var sheets =
@@ -321,7 +321,7 @@
       '<ul class="menu"><li><a href="shop.html">Shop all</a></li><li><a href="shop.html?sort=new">New in</a></li>' +
       A.CATEGORIES.map(function (c) { return '<li><a href="shop.html?cat=' + c.id + '">' + c.label + '</a></li>'; }).join('') + '</ul>' +
       '<h2 class="menu__h">Shop by occasion</h2><ul class="pills">' + A.OCCASIONS.map(function (c) { return '<li><a href="shop.html?occ=' + c.id + '">' + c.label + '</a></li>'; }).join('') + '</ul>' +
-      '<ul class="menu menu--sub"><li><a href="shop.html?stitch=custom">Custom stitching</a></li><li><a href="shop.html?wishlist=1">Wishlist</a></li><li><a href="account.html" data-account>Account &amp; orders</a></li></ul></div></div></div>' +
+      '<ul class="menu menu--sub"><li><a href="track.html">Track your order</a></li><li><a href="shop.html?stitch=custom">Custom stitching</a></li><li><a href="shop.html?wishlist=1">Wishlist</a></li><li><a href="account.html" data-account>Account &amp; orders</a></li></ul></div></div></div>' +
       '<div class="sheet sheet--search" id="search" aria-hidden="true"><div class="sheet__backdrop" data-close></div><div class="sheet__panel" aria-label="Search">' +
       '<form class="searchform" action="shop.html" role="search"><label class="vh" for="q">Search products</label>' + icon('search') +
       '<input id="q" name="q" type="search" inputmode="search" enterkeyhint="search" autocomplete="off" placeholder="Search poshak, ghagra, bandhani…" data-autofocus>' +

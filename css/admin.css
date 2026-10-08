@@ -51,3 +51,6 @@
 .adm__toasts { position: fixed; z-index: 120; top: 12px; right: 12px; left: 12px; display: grid; gap: 8px; justify-items: end; pointer-events: none; }
 .adm__toast { max-width: 440px; padding: 12px 16px; border-radius: 12px; background: var(--ink); color: var(--bg); box-shadow: 0 16px 30px rgba(0,0,0,.35); animation: rise .35s both; pointer-events: auto; } .adm__toast--alert { background: linear-gradient(120deg, var(--wine), #3b1022); color: #fff; border: 1px solid rgba(233,196,106,.5); } .adm__toast--bad { background: var(--bad); color: #fff; } .adm__toast.out { opacity: 0; transform: translateY(-8px); transition: .35s; }
 @media (prefers-reduced-motion: reduce) { .live.on i, .adm__bell.ring svg, .stat, .adm__card { animation: none !important; } }
+.adm__status { padding: 16px; border-radius: 14px; border: 1.5px solid var(--gold); background: color-mix(in srgb, var(--gold-l) 12%, var(--surface)); } .adm__status .muted { margin-bottom: 10px; }
+.adm__trk { margin-bottom: 14px; border: 1px solid var(--line); border-radius: 10px; padding: 0 12px; background: var(--surface); } .adm__trk summary { min-height: 44px; display: flex; align-items: center; cursor: pointer; font-weight: 600; } .adm__trk[open] summary { margin-bottom: 8px; }
+.adm__two3 { display: grid; gap: 0 12px; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); }

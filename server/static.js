@@ -2,7 +2,7 @@
 /* Static file server with an allow-list (server code, data, tools and dotfiles are never reachable), ETag + compression. */
 const fs = require('fs'), path = require('path'), zlib = require('zlib'), crypto = require('crypto');
 const ROOT = path.resolve(__dirname, '..');
-const PAGES = new Set(['index', 'shop', 'product', 'cart', 'checkout', 'account', 'order', 'admin']);
+const PAGES = new Set(['index', 'shop', 'product', 'cart', 'checkout', 'account', 'order', 'track', 'invoice', 'admin']);
 const ALLOWED_DIRS = ['css', 'js', 'img', 'server/assets'];
 const TYPES = { '.html': 'text/html; charset=utf-8', '.css': 'text/css; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.svg': 'image/svg+xml', '.avif': 'image/avif', '.webp': 'image/webp', '.jpg': 'image/jpeg', '.png': 'image/png', '.json': 'application/json', '.ico': 'image/x-icon', '.txt': 'text/plain; charset=utf-8' };
 const cache = new Map();
@@ -25,7 +25,7 @@ function serve(req, res, headersFor) {
   const etag = '"' + st.size.toString(36) + '-' + Math.floor(st.mtimeMs).toString(36) + '"';
   const isHtml = ext === '.html', long = /\.(avif|webp|jpg|png)$/.test(ext);
   const h = { 'Content-Type': type, ETag: etag, 'Cache-Control': isHtml ? 'no-cache' : long ? 'public, max-age=604800' : 'no-cache', Vary: 'Accept-Encoding', ...headersFor(isHtml) };
-  if (/admin\.html$|account\.html$|order\.html$/.test(abs)) h['X-Robots-Tag'] = 'noindex, nofollow';
+  if (/admin\.html$|account\.html$|order\.html$|invoice\.html$/.test(abs)) h['X-Robots-Tag'] = 'noindex, nofollow';
   if (req.headers['if-none-match'] === etag) { res.writeHead(304, h); res.end(); return true; }
   const ae = String(req.headers['accept-encoding'] || ''), enc = /\bbr\b/.test(ae) ? 'br' : /\bgzip\b/.test(ae) ? 'gzip' : '';
   if (enc && /\.(html|css|js|svg|json|txt)$/.test(ext)) {

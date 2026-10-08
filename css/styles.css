@@ -875,3 +875,23 @@ text, p, li { text-wrap: pretty; }
 
 @media print { body * { visibility: hidden; } .orderpg, .orderpg * { visibility: visible; } .orderpg { position: absolute; inset: 0 auto auto 0; width: 100%; } .pay, .oact, .logwrap, .crumbs { display: none !important; } .ocardx { border: 0; padding: 0; } }
 @media (prefers-reduced-motion: reduce) { .qrcard, .qrcard__scan::after, .track li.is-now .track__dot, .skel, .done__ico::before { animation: none !important; } }
+
+/* =====================================================================
+   v5 — order numbers, guest tracking, bills
+   ===================================================================== */
+.announce__track { color: var(--gold-l); font-weight: 600; text-underline-offset: 3px; min-height: 24px; display: inline-flex; align-items: center; }
+.numcard { display: flex; align-items: center; justify-content: space-between; gap: 14px 24px; flex-wrap: wrap; padding: clamp(14px, 2vw, 22px); margin: 8px 0 14px; border-radius: 16px; border: 1.5px solid var(--gold); background: linear-gradient(135deg, color-mix(in srgb, var(--gold-l) 24%, var(--surface)), var(--surface)); animation: rise .5s both; }
+.numcard__main { display: grid; gap: 2px; min-width: 0; } .numcard__l { font-size: .75rem; letter-spacing: .16em; text-transform: uppercase; color: var(--gold); font-weight: 700; }
+.numcard__n { font-family: var(--serif); font-weight: 500; font-size: clamp(2.1rem, 1.5rem + 3vw, 3.4rem); line-height: 1.05; letter-spacing: .04em; color: var(--wine); } .numcard__main small { color: var(--ink-2); max-width: 46ch; }
+.numcard__a { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+.trackcard { display: flex; gap: 14px; align-items: flex-start; padding: 14px; margin: 10px 0 16px; border-radius: 12px; background: var(--info-bg); color: var(--ink); } .trackcard > div { display: grid; gap: 4px; min-width: 0; } .trackcard__ico { display: grid; place-items: center; width: 44px; height: 44px; border-radius: 50%; background: var(--surface); color: var(--info); flex: none; } .trackcard code { font-family: ui-monospace, Menlo, monospace; word-break: break-all; }
+.trackpg { padding-block: clamp(14px, 3vw, 56px) 0; } .trackpg__head { max-width: 640px; margin-bottom: 22px; display: grid; gap: 6px; }
+.trackpg__grid { display: grid; gap: 22px; align-items: start; } @media (min-width: 960px) { .trackpg__grid { grid-template-columns: minmax(320px, 420px) minmax(0, 1fr); gap: clamp(28px, 4vw, 72px); } .trackform { position: sticky; top: calc(var(--hdr) + 16px); } }
+.trackform { display: grid; gap: 4px; padding: clamp(16px, 2vw, 28px); background: var(--surface); border: 1px solid var(--line); border-radius: var(--r); }
+.prefixed { display: flex; align-items: stretch; border: 1.5px solid var(--line); border-radius: 10px; background: var(--surface); overflow: hidden; } .prefixed:focus-within { outline: 3px solid var(--focus); outline-offset: 2px; } .prefixed span { display: grid; place-items: center; padding: 0 12px; font-weight: 700; letter-spacing: .08em; color: var(--wine); background: var(--bg-2); } .prefixed .input { border: 0; border-radius: 0; font-size: 1.25rem; letter-spacing: .08em; } .prefixed .input:focus { outline: 0; }
+.trackres__lead { font-size: 1.1rem; margin: 6px 0 4px; } .trackres__tot { display: flex; justify-content: space-between; align-items: baseline; padding-top: 10px; border-top: 1px solid var(--line); } .trackres__tot strong { font-family: var(--serif); font-size: 1.5rem; }
+.live { display: flex; align-items: center; gap: 8px; margin-top: 10px; } .live i { width: 9px; height: 9px; border-radius: 50%; background: #1fa86a; animation: pulse 2s infinite; } @keyframes pulse { 70% { box-shadow: 0 0 0 9px rgba(31,168,106,0); } 100% { box-shadow: 0 0 0 0 rgba(31,168,106,0); } }
+@media (prefers-reduced-motion: reduce) { .live i, .numcard { animation: none !important; } }
+/* print the order page itself cleanly (the dedicated bill lives at invoice.html) */
+@media print { body * { visibility: visible; } .numcard__a, .oact, .pay, .logwrap, .crumbs, .totop, .toast, .announce, .header, .footer, .sheet { display: none !important; } }
+.announce__track { padding: 10px 6px; margin: -10px 0; }

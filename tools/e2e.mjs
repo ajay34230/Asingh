@@ -7,7 +7,7 @@ const b = await chromium.launch({ executablePath: '/opt/pw-browsers/chromium-119
 let fails = 0; const ok = (c, m) => { console.log((c ? '  ✓ ' : '  ✗ ') + m); if (!c) fails++; };
 const shot = (p, n) => p.screenshot({ path: `/tmp/shots/e-${n}.png` });
 const errs = [];
-const mk = async (w, h, mobile) => { const c = await b.newContext({ viewport: { width: w, height: h }, isMobile: mobile, hasTouch: mobile, acceptDownloads: false }); const p = await c.newPage(); p.on('pageerror', e => errs.push(String(e))); p.on('console', m => { if (m.type() === 'error' && !/Failed to load resource/.test(m.text())) errs.push(m.text()); }); return { c, p }; };
+const mk = async (w, h, mobile) => { const c = await b.newContext({ viewport: { width: w, height: h }, isMobile: mobile, hasTouch: mobile, acceptDownloads: true }); const p = await c.newPage(); p.on('pageerror', e => errs.push(String(e))); p.on('console', m => { if (m.type() === 'error' && !/Failed to load resource/.test(m.text())) errs.push(m.text()); }); return { c, p }; };
 
 console.log('\nAdmin opens the console first (live alerts)');
 const adm = await mk(1440, 900, false), ap = adm.p;
@@ -32,7 +32,8 @@ await cp.tap('#auth [data-guest]'); await cp.waitForSelector('#step-method:not([
 ok(await cp.locator('.paymethod.is-off').count() >= 1, 'future payment methods shown as “Soon”');
 await cp.tap('#place'); await cp.waitForSelector('.qrcard img'); ok(true, 'order placed, QR shown');
 await cp.waitForTimeout(700); await shot(cp, 'qr-phone');
-const orderNo = await cp.textContent('#qr-no'); ok(/^AS\d{6}-\d{4}$/.test(orderNo), 'order number ' + orderNo);
+const orderNo = (await cp.textContent('.numcard__n')).trim(); ok(/^AS-\d{5}$/.test(orderNo), 'short order number shown big: ' + orderNo);
+ok(await cp.locator('#qr-numcard [data-copy]').isVisible(), 'copy button on the order number');
 ok(await cp.evaluate(() => JSON.parse(localStorage.getItem('asingh.cart.v1')).length) === 0, 'bag cleared after order placed');
 
 console.log('\nAdmin gets an instant alert for the new order');
@@ -58,6 +59,26 @@ await st.p.goto(BASE + '/api/orders/' + new URL(orderUrl).searchParams.get('id')
 await st.p.goto(BASE + '/account.html'); await st.p.waitForSelector('[data-guest]'); await st.p.click('[data-guest]'); await st.p.waitForSelector('.acct__head');
 await st.p.goto(orderUrl); await st.p.waitForSelector('.empty'); ok(/couldn.t find/i.test(await st.p.textContent('.empty')), 'another (guest) customer gets “not found”'); await shot(st.p, 'privacy');
 await st.p.goto(BASE + '/admin.html'); await st.p.waitForSelector('#lf'); ok(/customer/.test(await st.p.textContent('.adm__login')) || true, 'customers see admin login, not the console');
+
+console.log('\nAdmin updates status → guest tracks it from another phone');
+await ap.goto(BASE + '/admin.html#/orders'); await ap.waitForSelector('.orow'); await ap.click('.orow:has-text("' + orderNo + '")'); await ap.waitForSelector('#ns');
+await ap.selectOption('#ns', 'shipped'); await ap.fill('#sn', 'Handed to courier today'); await ap.fill('#tc', 'India Post'); await ap.fill('#ti', 'EE123456789IN'); await ap.fill('#tu', 'https://www.indiapost.gov.in/track');
+await ap.click('#ss'); await ap.waitForFunction(() => /Shipped/.test(document.querySelector('#dp .chip-s')?.textContent || '')); ok(true, 'admin changed status to Shipped with courier details'); await shot(ap, 'admin-status'); await ap.keyboard.press('Escape');
+const gp = await mk(390, 844, true), g = gp.p; await g.goto(BASE + '/track.html'); await g.waitForSelector('#tf');
+await g.fill('#tn', orderNo.replace('AS-', '')); await g.fill('#tp', '98765 43210'); await g.tap('#tf [type=submit]'); await g.waitForSelector('.trackres'); await g.waitForTimeout(700);
+ok(/Shipped/.test(await g.textContent('.trackres')) && /EE123456789IN/.test(await g.textContent('.trackres')), 'guest on a new phone sees Shipped + tracking ID with no sign-in');
+ok(!/12 MG Road|asha@example|560001/.test(await g.textContent('main')), 'tracking page shows no address or email'); await shot(g, 'track-result');
+await g.fill('#tp', '9000000000'); await g.tap('#tf [type=submit]'); await g.waitForFunction(() => document.querySelector('#te').textContent.length > 0); ok(/couldn.t match/.test(await g.textContent('#te')), 'wrong mobile number is refused');
+await g.fill('#tp', '9876543210'); await g.tap('#tf [type=submit]'); await g.waitForSelector('#claim'); await g.tap('#claim'); await g.waitForSelector('.ohead'); ok(/Shipped|Payment verified/.test(await g.textContent('.ohead')) && (await g.locator('.numcard__n').textContent()).trim() === orderNo, 'guest opens the full order on this device');
+console.log('\nBill: PDF (print) + text, with photos');
+await g.goto(BASE + '/invoice.html?id=' + new URL(g.url()).searchParams.get('id')); await g.waitForSelector('.inv__head'); await g.waitForFunction(() => !document.querySelector('#pdf').disabled);
+ok(await g.evaluate(() => [...document.querySelectorAll('.ph img')].length > 0 && [...document.querySelectorAll('.ph img')].every(i => i.complete && i.naturalWidth > 0)), 'bill includes the product photos');
+ok(/PAID/.test(await g.textContent('.stamp')) && /Asha Singh/.test(await g.textContent('.inv__cols')) && /EE123456789IN/.test(await g.textContent('#doc')), 'bill shows PAID stamp, buyer details and shipment');
+const [dl] = await Promise.all([g.waitForEvent('download'), g.tap('#txt')]); const txt = fs.readFileSync(await dl.path(), 'utf8');
+ok(dl.suggestedFilename() === 'ASINGH-bill-' + orderNo + '.txt' && txt.includes(orderNo) && txt.includes('TOTAL') && txt.includes('Asha Singh') && txt.includes('/product.html?id='), 'text bill downloads with items, total and photo links');
+await shot(g, 'bill-phone'); const pdf = await g.pdf({ format: 'A4', printBackground: true }); ok(pdf.length > 20000 && pdf.subarray(0, 4).toString() === '%PDF', 'prints to a real PDF (' + Math.round(pdf.length / 1024) + ' KB, photos embedded)');
+const sb = await mk(1280, 800, false); await sb.p.goto(BASE + '/invoice.html?id=' + new URL(g.url()).searchParams.get('id')); await sb.p.waitForSelector('.err'); ok(/sign in/i.test(await sb.p.textContent('.err')) && !(await sb.p.locator('.inv__head').count()), 'a stranger cannot open the bill');
+await gp.c.close();
 
 console.log('\nAdmin changes QR + payee');
 await ap.goto(BASE + '/admin.html#/payment'); await ap.waitForSelector('#qf');
