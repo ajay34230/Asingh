@@ -564,6 +564,15 @@ console.log('\nAdmin AI key, guide & editable words');
   ok(!('Shop the collection' in (await ADM.req('PUT', '/api/admin/textedit', { lang: 'en', from: 'Shop the collection', to: '' })).json.textEdits) && !('Shop the collection' in (await ADM.req('PUT', '/api/admin/textedit', { lang: 'hi', from: 'Shop the collection', to: '' })).json.translations), 'restore original removes the edits');
   ok((await ADM.req('PUT', '/api/admin/textedit', { lang: 'en', from: 'Same', to: 'Same' })).json.textEdits.Same === undefined, 'saving identical text is not stored as an edit'); }
 
+console.log('\nSticky & floating parts');
+{ const sbx = async () => { const sb = {}; vm.createContext(sb); vm.runInContext((await new Client().req('GET', '/js/data.js')).text, sb); return sb.ASINGH.SITE; };
+  ok((await sbx()).sticky.header === true && (await sbx()).sticky.wa === true, 'everything sticky is on by default');
+  let r = await ADM.req('PUT', '/api/admin/site', { sticky: { header: false, buy: false, wa: false, ai: false, top: false, panels: false } }); ok(r.status === 200 && Object.values(r.json.site.sticky).every(v => v === false), 'owner removes all sticking parts in one go');
+  ok(Object.values((await sbx()).sticky).every(v => v === false), 'shoppers receive the setting at once');
+  r = await ADM.req('PUT', '/api/admin/site', { sticky: { wa: true, bogus: false } }); ok(r.json.site.sticky.wa === true && r.json.site.sticky.header === false && !('bogus' in r.json.site.sticky), 'one part can be switched back on; unknown keys are ignored');
+  ok((await A.req('PUT', '/api/admin/site', { sticky: { wa: false } })).status === 404, 'customers cannot change it');
+  await ADM.req('PUT', '/api/admin/site', { sticky: { header: true, buy: true, wa: true, ai: true, top: true, panels: true } }); }
+
 console.log('\nLimited-time price drop');
 { const pid0 = 'jaipur-bandhani', cp = async () => (await ADM.req('GET', '/api/admin/catalog')).json.products.find(x => x.id === pid0), pub = async () => { const sb = {}; vm.createContext(sb); vm.runInContext((await new Client().req('GET', '/js/data.js')).text, sb); return sb.ASINGH.PRODUCTS.find(x => x.id === pid0); };
   const reg = (await cp()).price, H = 36e5, now = Date.now();

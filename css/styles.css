@@ -1039,3 +1039,9 @@ body[data-page="product"] .editbtn { bottom: calc(96px + var(--safe-b)); }
 .ed__card textarea { width: 100%; font: inherit; font-size: 1rem; padding: 10px 12px; border: 1.5px solid var(--line); border-radius: 10px; background: var(--surface); color: var(--ink); resize: vertical; }
 .ed__err { margin: 0; color: var(--sale); font-size: .85rem; }
 .ed__row { display: flex; flex-wrap: wrap; gap: 8px; } .ed__row .btn { min-height: 46px; }
+
+/* sticky / floating parts the owner has switched off */
+html.ns-header #page > header, html.ns-header .header { position: static; } html.ns-header { scroll-padding-top: 16px; }
+html.ns-buy .stickybuy { display: none !important; } html.ns-buy .cartbar { position: static; }
+html.ns-wa .wa, html.ns-ai .aiwrap, html.ns-top .totop { display: none !important; }
+html.ns-panels .toolbar, html.ns-panels .pdp__info, html.ns-panels .checkout__aside, html.ns-panels .sheet--filters { position: static !important; max-height: none; }

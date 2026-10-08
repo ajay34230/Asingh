@@ -29,7 +29,7 @@ const defaultSite = () => ({
   stitch: A.STITCH.map(x => ({ id: x.id, label: x.label, note: x.note, eta: x.eta, add: { unstitched: 0, semi: 600, custom: 1800 }[x.id], enabled: true })),
   sizeChart: [['XS', 32, 26, 35], ['S', 34, 28, 37], ['M', 36, 30, 39], ['L', 38, 32, 41], ['XL', 40, 34, 43], ['XXL', 42, 36, 45]].map(r => ({ size: r[0], bust: r[1], waist: r[2], hip: r[3] })),
   contactEmail: '', contactPhone: '', contactAddress: '', contactHours: '',
-  googleSiteVerification: '', ga4Id: '', translations: {}, textEdits: {}, whatsapp: '', aiChat: true, offer: { on: false, text: '', code: '', until: 0 }, giftFee: 0, pickupPin: '', pkgKg: 0.8, pkgL: 30, pkgB: 25, pkgH: 6, returnDays: 7, handlingMin: 1, handlingMax: 3, deliveryMin: 3, deliveryMax: 7,
+  googleSiteVerification: '', ga4Id: '', translations: {}, textEdits: {}, sticky: { header: true, buy: true, wa: true, ai: true, top: true, panels: true }, whatsapp: '', aiChat: true, offer: { on: false, text: '', code: '', until: 0 }, giftFee: 0, pickupPin: '', pkgKg: 0.8, pkgL: 30, pkgB: 25, pkgH: 6, returnDays: 7, handlingMin: 1, handlingMax: 3, deliveryMin: 3, deliveryMax: 7,
   shipFreeFrom: A.FREE_SHIP_FROM, shipFlat: A.SHIP_FLAT, testimonials: []
 });
 const merge = (d, v) => { const o = { ...d }; Object.keys(v || {}).forEach(k => { o[k] = d[k] && typeof d[k] === 'object' && !Array.isArray(d[k]) && v[k] && typeof v[k] === 'object' && !Array.isArray(v[k]) ? { ...d[k], ...v[k] } : v[k]; }); return o; };
@@ -207,6 +207,7 @@ class Catalog {
     if (b.offer && typeof b.offer === 'object') { const o = b.offer, text = s(o.text, 110), code = s(o.code, 20).toUpperCase().replace(/\s+/g, ''); let until = 0; if (o.until) { until = Date.parse(String(o.until).slice(0, 10) + 'T23:59:59+05:30'); if (!Number.isFinite(until)) throw bad('Offer end date is not valid.'); }
       if (code && !/^[A-Z0-9_-]{3,20}$/.test(code)) throw bad('Offer code can only have letters and numbers.'); t.offer = { on: !!o.on && !!text, text, code, until }; }
     if (b.aiChat !== undefined) t.aiChat = !!b.aiChat;
+    if (b.sticky && typeof b.sticky === 'object') { t.sticky = t.sticky || {}; ['header', 'buy', 'wa', 'ai', 'top', 'panels'].forEach(k => { if (b.sticky[k] !== undefined) t.sticky[k] = !!b.sticky[k]; }); }
     if (b.textEdits !== undefined) {   // owner's own wording for any English text on the site: { "original": "new wording" }
       const src = b.textEdits && typeof b.textEdits === 'object' ? b.textEdits : {}, out = {}; let n = 0;
       Object.keys(src).forEach(k => { const key = s(k, 300).replace(/\s+/g, ' ').trim(), v = s(src[k], 600); if (key && v && v !== key && n < 1500) { out[key] = v; n++; } });

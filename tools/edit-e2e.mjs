@@ -42,5 +42,11 @@ try {
   await p.evaluate(() => localStorage.setItem('asingh.lang', 'hi')); await p.goto(BASE + '/index.html?edit=1'); await p.waitForSelector('#ed-ui:not([hidden])'); await p.waitForTimeout(500);
   const hi = p.locator('.hero__lead, .hero p').first(); await hi.click(); await p.waitForSelector('#ed-in'); ok(/हिन्दी/.test(await p.textContent('.ed__lang')), 'in Hindi mode the editor edits the Hindi wording'); await p.fill('#ed-in', 'मेरा हिंदी शब्द'); await p.click('#ed-save'); await p.waitForFunction(() => document.body.innerText.includes('मेरा हिंदी शब्द')); ok(true, 'Hindi change appears');
   ok(e2.length === 0, 'no console errors while editing (' + e2.join('|') + ')');
+  /* sticky parts switched off from the admin card */
+  await p.evaluate(() => localStorage.setItem('asingh.lang', 'en')); await p.goto(BASE + '/admin.html#/store'); await p.waitForSelector('#st-none'); await p.click('#st-none'); await p.waitForTimeout(600);
+  const m2 = await (await b.newContext({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true })).newPage(); await m2.goto(BASE + '/product.html?id=jodha-gown'); await m2.waitForSelector('#add-btn'); await m2.waitForTimeout(800);
+  ok(await m2.evaluate(() => ['ns-header', 'ns-buy', 'ns-wa', 'ns-ai', 'ns-top', 'ns-panels'].every(c => document.documentElement.classList.contains(c))), 'storefront switches every sticky part off');
+  ok(await m2.evaluate(() => getComputedStyle(document.querySelector('.header')).position === 'static' && ['.stickybuy', '.aiwrap', '.totop'].every(s => { const e = document.querySelector(s); return !e || getComputedStyle(e).display === 'none'; })), 'header scrolls away; bottom bar, AI icon and back-to-top are gone');
+  await p.click('#st-all'); await p.waitForTimeout(500); await m2.reload(); await m2.waitForSelector('#add-btn'); ok(await m2.evaluate(() => !document.documentElement.className.includes('ns-')), '“Restore all” brings them back');
 } catch (e) { console.log('ERR', e.message.split('\n')[0]); fails++; }
 await b.close(); console.log(fails ? `\n${fails} FAILED` : '\nEDIT E2E PASS'); process.exit(fails ? 1 : 0);
