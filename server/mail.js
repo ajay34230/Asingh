@@ -1,6 +1,6 @@
 'use strict';
 /* Transactional email through an HTTP API (no SMTP, no dependencies). Set RESEND_API_KEY and MAIL_FROM
-   (e.g. "ASINGH <orders@yourdomain.com>"). Without them the store works normally and simply sends no email. */
+   (e.g. "चंद्रवंशी <orders@yourdomain.com>"). Without them the store works normally and simply sends no email. */
 const esc = s => String(s == null ? '' : s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]);
 const enabled = () => !!(process.env.RESEND_API_KEY && process.env.MAIL_FROM);
 async function send(to, subject, html) {

@@ -16,7 +16,7 @@ const safeEq = (a, b) => { const x = Buffer.from(String(a || '')), y = Buffer.fr
 /* An adapter turns a provider's raw webhook into { orderNumber, status: 'paid'|'failed', reference, amount? } */
 const ADAPTERS = {
   // Generic: any system that can sign `HMAC-SHA256(secret, rawBody)` into the X-Signature header and send
-  // { "orderNumber": "AS-...", "status": "paid" | "failed", "reference": "txn_123", "amount": 1234 }
+  // { "orderNumber": "CV-...", "status": "paid" | "failed", "reference": "txn_123", "amount": 1234 }
   generic: {
     verify: (raw, headers, secret) => safeEq(hmac(secret, raw), headers['x-signature']),
     parse: j => ({ orderNumber: j.orderNumber, status: j.status === 'paid' ? 'paid' : 'failed', reference: j.reference, amount: j.amount })

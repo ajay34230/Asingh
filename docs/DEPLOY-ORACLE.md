@@ -1,4 +1,4 @@
-# Hosting ASINGH free on Oracle Cloud (Always Free VM)
+# Hosting Chandravanshi free on Oracle Cloud (Always Free VM)
 
 Takes about 30–45 minutes. Oracle's console wording changes now and then — the names below are close, not exact. Free-tier terms also change, so check Oracle's current "Always Free" page.
 

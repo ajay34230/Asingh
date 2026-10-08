@@ -88,11 +88,11 @@
   }
   /* Big, shareable order number — the thing a guest needs to remember */
   function numberCard(o, mount, note) {
-    var digits = String(o.number).replace(/^AS-?/i, ''), url = location.origin + '/track.html?n=' + encodeURIComponent(digits), canShare = !!navigator.share;
+    var digits = String(o.number).replace(/^(?:AS|CV)-?/i, ''), url = location.origin + '/track.html?n=' + encodeURIComponent(digits), canShare = !!navigator.share;
     mount.innerHTML = '<div class="numcard"><div class="numcard__main"><span class="numcard__l">Your order number</span><strong class="numcard__n" aria-label="Order number ' + esc(o.number.split('').join(' ')) + '">' + esc(o.number) + '</strong><small>' + (note || 'Keep this number. With your mobile number it’s all you need to check your order status — no sign-in required.') + '</small></div>' +
       '<div class="numcard__a"><button type="button" class="copy" data-copy="' + esc(o.number) + '">Copy</button>' + (canShare ? '<button type="button" class="copy" data-share>Share</button>' : '') + '<a class="btn btn--ghost" href="track.html?n=' + esc(digits) + '">Track order</a></div></div>';
     $$('[data-copy]', mount).forEach(function (b) { b.addEventListener('click', function () { copy(b.getAttribute('data-copy'), b); }); });
-    var sh = $('[data-share]', mount); if (sh) sh.addEventListener('click', function () { navigator.share({ title: 'My ASINGH order ' + o.number, text: 'My ASINGH order number is ' + o.number + '. Track it here:', url: url }).catch(function () {}); });
+    var sh = $('[data-share]', mount); if (sh) sh.addEventListener('click', function () { navigator.share({ title: 'My '+(A.BRAND||'')+' order ' + o.number, text: 'My order number is ' + o.number + '. Track it here:', url: url }).catch(function () {}); });
   }
   function trackingCard(t) {
     if (!t || (!t.courier && !t.id && !t.url)) return '';

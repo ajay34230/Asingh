@@ -79,7 +79,7 @@ Add your dress to the bag, choose your size and stitching, and check out — as 
 After you place the order we show our payment QR and the exact amount. Pay with any UPI app, then upload the screenshot. We verify it and confirm your order.
 
 ## How do I track my order?
-Use the order number we gave you (like AS-48213) together with your mobile number on the [tracking page](track.html). No sign-in is needed.
+Use the order number we gave you (like CV-48213) together with your mobile number on the [tracking page](track.html). No sign-in is needed.
 
 ## What does unstitched, semi-stitched and custom-stitched mean?
 **Unstitched** pieces come as fabric to take to your own tailor. **Semi-stitched** pieces are partly made with room to adjust. **Custom-stitched** pieces are made to your measurements by our artisans.
@@ -98,7 +98,7 @@ See our [Care guide](care-guide.html).`, titleHi: "अक्सर पूछे 
 ऑर्डर करने के बाद हम अपना भुगतान QR और सही रकम दिखाते हैं। किसी भी UPI ऐप से भुगतान करें, फिर स्क्रीनशॉट अपलोड करें। हम उसे जाँचकर आपका ऑर्डर पक्का करते हैं।
 
 ## अपना ऑर्डर कैसे ट्रैक करूँ?
-हमारे दिए ऑर्डर नंबर (जैसे AS-48213) और अपने मोबाइल नंबर के साथ [ट्रैकिंग पेज](track.html) पर जाएँ। साइन इन की ज़रूरत नहीं।
+हमारे दिए ऑर्डर नंबर (जैसे CV-48213) और अपने मोबाइल नंबर के साथ [ट्रैकिंग पेज](track.html) पर जाएँ। साइन इन की ज़रूरत नहीं।
 
 ## बिना सिला, अर्ध-सिला और कस्टम-सिला का क्या मतलब है?
 **बिना सिले** परिधान कपड़े के रूप में आते हैं जिन्हें आप अपने दर्ज़ी के पास ले जा सकती हैं। **अर्ध-सिले** परिधान आंशिक रूप से बने होते हैं और फ़िट के लिए गुंजाइश रहती है। **कस्टम-सिले** परिधान हमारे कारीगर आपके माप से बनाते हैं।

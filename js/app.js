@@ -310,6 +310,10 @@
   /* ---------- Chrome ---------- */
   var shortLabel = function (l) { return l.length > 13 ? l.split(/[\s&]+/)[0] : l; };
   var NAV = [{ label: 'New In', href: 'shop.html?sort=new' }].concat(A.CATEGORIES.slice(0, 4).map(function (c, i) { return { label: shortLabel(c.label), href: 'shop.html?cat=' + c.id, xl: i > 1 }; }), [{ label: 'Custom Stitching', href: 'shop.html?stitch=custom', xl: true }]);
+  function brandLink() {
+    var tag = (A.SITE && A.SITE.tagline !== undefined ? A.SITE.tagline : A.TAGLINE) || '';
+    return '<a class="logo" href="index.html" aria-label="' + esc(A.BRAND) + ' home"><img class="logo__mark" src="img/brand/mark-96.webp" width="44" height="44" alt="" decoding="async"><span class="logo__t"><span class="logo__n">' + esc(A.BRAND) + '</span>' + (tag ? '<small class="logo__s" data-no-i18n>' + esc(tag) + '</small>' : '') + '</span></a>';
+  }
   function footerCols() {
     var pg = A.PAGES || [], link = function (p) { return '<li><a href="' + esc(p.slug) + '.html">' + esc(p.title) + '</a></li>'; };
     var help = pg.filter(function (p) { return p.group === 'help'; }).map(link).join('');
@@ -331,7 +335,7 @@
     var header = '<a class="skip" href="#main">Skip to content</a>' +
       '<p class="announce"><span>' + (A.FREE_SHIP_FROM ? 'Free shipping over ' + money(A.FREE_SHIP_FROM) : 'Free shipping on all orders') + '</span>' + ((A.SITE && A.SITE.announcement) ? '<span class="announce__sep" aria-hidden="true">·</span><span class="announce__opt">' + esc(A.SITE.announcement) + '</span>' : '') + '<span class="announce__sep" aria-hidden="true">·</span><a class="announce__track" href="track.html">Track your order</a><button type="button" class="themebtn" data-theme-toggle aria-label="Change theme"><span class="themebtn__dot" aria-hidden="true"></span><span class="themebtn__t"></span></button><button type="button" class="themebtn langbtn" data-lang-toggle data-no-i18n aria-label="Language: switch between English and Hindi"><span class="langbtn__t">हिन्दी</span></button></p>' +
       '<header class="header" id="site-header"><div class="header__bar container">' +
-      '<a class="logo" href="index.html" aria-label="' + A.BRAND + ' home">' + A.BRAND + '</a>' +
+      brandLink() +
       '<nav class="nav" aria-label="Primary"><ul class="nav__list">' +
       '<li class="nav__item nav__item--mega"><button type="button" class="nav__link nav__trigger" aria-expanded="false" aria-controls="mega">Shop ' + icon('chev', 'ico--xs') + '</button></li>' +
       NAV.map(function (n) { return '<li class="nav__item' + (n.xl ? ' nav__item--xl' : '') + '"><a class="nav__link" href="' + n.href + '">' + n.label + '</a></li>'; }).join('') +
@@ -350,15 +354,15 @@
       '<a class="mega__feature" href="product.html?id=rani-sa-anarkali">' + picture('rani-sa-anarkali', 1, { sizes: '(min-width:1100px) 22vw, 0px', alt: '' }) + '<span class="mega__cap"><small>Bestseller</small>Rani Pink Anarkali Suit</span></a>' +
       '</div></div></header>';
     var footer = '<footer class="footer"><div class="container footer__in">' +
-      '<div class="footer__brand"><a class="logo" href="index.html">' + A.BRAND + '</a><p>Girls’ suits &amp; ethnic wear — anarkali, lehenga choli, sharara, kurti sets and more — made to your measure.</p>' +
+      '<div class="footer__brand"><img class="footer__logo" src="img/brand/logo-400.webp" width="132" height="132" alt="' + esc(A.BRAND) + ' logo" loading="lazy" decoding="async">' + brandLink() + '<p>Girls’ suits &amp; ethnic wear — anarkali, lehenga choli, sharara, kurti sets and more — made to your measure.</p>' +
       '<form class="newsletter" action="#" data-newsletter novalidate><div class="hp" aria-hidden="true"><label>Website <input name="website" tabindex="-1" autocomplete="off"></label></div><label for="nl-email" class="vh">Email address</label><input id="nl-email" type="email" name="email" inputmode="email" autocomplete="email" placeholder="Your email address" required><button class="btn" type="submit">Subscribe</button><p class="newsletter__msg" role="status" aria-live="polite"></p></form></div>' +
-      '<details class="footer__col" open><summary>Shop</summary><ul>' + A.CATEGORIES.map(function (c) { return '<li><a href="shop.html?cat=' + c.id + '">' + c.label + '</a></li>'; }).join('') + '</ul></details>' +
+      '<details class="footer__col footer__col--cats" open><summary>Shop</summary><ul>' + A.CATEGORIES.map(function (c) { return '<li><a href="shop.html?cat=' + c.id + '">' + c.label + '</a></li>'; }).join('') + '</ul></details>' +
       footerCols() +
       '<details class="footer__col" open><summary>Contact</summary><ul>' + contactItems() + '</ul></details>' +
       '</div><p class="footer__legal container">© ' + new Date().getFullYear() + ' ' + A.BRAND + '. All rights reserved.</p></footer>';
     var sheets =
       '<div class="sheet sheet--menu" id="menu" aria-hidden="true"><div class="sheet__backdrop" data-close></div><div class="sheet__panel" aria-label="Menu">' +
-      '<div class="sheet__head"><a class="logo" href="index.html">' + A.BRAND + '</a><button type="button" class="icon-btn" data-close aria-label="Close menu">' + icon('close') + '</button></div>' +
+      '<div class="sheet__head">' + brandLink() + '<button type="button" class="icon-btn" data-close aria-label="Close menu">' + icon('close') + '</button></div>' +
       '<div class="sheet__body"><button type="button" class="searchpill searchpill--wide" data-open="search" aria-label="Search">' + icon('search') + '<span>Search suits…</span></button>' +
       '<ul class="menu"><li><a href="shop.html">Shop all</a></li><li><a href="shop.html?sort=new">New in</a></li>' +
       A.CATEGORIES.map(function (c) { return '<li><a href="shop.html?cat=' + c.id + '">' + c.label + '</a></li>'; }).join('') + '</ul>' +

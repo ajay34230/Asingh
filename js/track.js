@@ -3,12 +3,12 @@
   'use strict';
   var U = A.U, $ = U.$, esc = U.esc, money = U.money, api = U.api, O = A.Orders;
   var form = $('#tf'), out = $('#tr'), err = $('#te'), timer = null, current = null, KEY = 'asingh.lastOrder';
-  var q = new URLSearchParams(location.search), pre = (q.get('n') || U.store.get(KEY, '') || '').replace(/^AS-?/i, '');
+  var q = new URLSearchParams(location.search), pre = (q.get('n') || U.store.get(KEY, '') || '').replace(/^(?:AS|CV)-?/i, '');
   if (pre) $('#tn').value = pre;
   if ($('#tn').value) setTimeout(function () { $('#tp').focus(); }, 50);
 
   function show(o) {
-    current = o; U.store.set(KEY, String(o.number).replace(/^AS-?/i, ''));
+    current = o; U.store.set(KEY, String(o.number).replace(/^(?:AS|CV)-?/i, ''));
     var lead = { awaiting_payment: 'We’re waiting for your payment. Pay by QR and upload the screenshot to continue.', payment_review: 'We received your screenshot and are verifying your payment.', payment_rejected: 'We couldn’t verify your payment. Please upload a clear screenshot.', paid: 'Payment verified — your order will go to our artisans next.', processing: 'Your order is being crafted by our artisans.', shipped: 'Your order is on its way!', delivered: 'Delivered. We hope you love it.', cancelled: 'This order was cancelled.' }[o.status] || '';
     out.innerHTML = '<section class="ocardx trackres" aria-labelledby="trh"><header class="ohead"><div><p class="eyebrow">Order</p><h2 class="h1" id="trh">' + esc(o.number) + '</h2><p class="muted">Placed ' + O.fmtDate(o.createdAt) + ' · updated ' + O.fmtDate(o.updatedAt) + '</p></div>' + O.chip(o.status) + '</header>' +
       '<p class="trackres__lead">' + esc(lead) + '</p>' + O.trackingCard(o.tracking) + O.timeline(o) +

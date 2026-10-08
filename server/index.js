@@ -1,5 +1,5 @@
 'use strict';
-/* ASINGH store server — zero dependencies. Static site + JSON API + private order/proof storage + admin console + live alerts. */
+/* Chandravanshi store server — zero dependencies. Static site + JSON API + private order/proof storage + admin console + live alerts. */
 const http = require('http'), fs = require('fs'), path = require('path'), crypto = require('crypto');
 const A = require('../js/data.js');
 const { DB, id } = require('./db');
@@ -19,8 +19,8 @@ function createApp(opts = {}) {
   const db = new DB(dataDir), auth = new Auth(db, { secure: opts.secure || process.env.COOKIE_SECURE === '1' }), notifier = new Notifier(db);
   const D = db.data;
   const catalog = new Catalog(db);
-  D.settings = Object.assign({ payeeName: 'ASINGH', upiId: '', instructions: 'Scan the QR with any UPI app, pay the exact amount, then upload a screenshot of the payment on the next screen.', webhookUrl: '', qrFile: '', qrV: 0, invoice: { name: 'ASINGH', address: '', gstin: '', contact: '' } }, D.settings);
-  D.settings.invoice = Object.assign({ name: 'ASINGH', address: '', gstin: '', contact: '' }, D.settings.invoice);
+  D.settings = Object.assign({ payeeName: 'चंद्रवंशी', upiId: '', instructions: 'Scan the QR with any UPI app, pay the exact amount, then upload a screenshot of the payment on the next screen.', webhookUrl: '', qrFile: '', qrV: 0, invoice: { name: 'चंद्रवंशी', address: '', gstin: '', contact: '' } }, D.settings);
+  D.settings.invoice = Object.assign({ name: 'चंद्रवंशी', address: '', gstin: '', contact: '' }, D.settings.invoice);
   const trackLimit = limiter(20, 10 * 60e3), authLimit = limiter(12, 10 * 60e3), guestLimit = limiter(60, 10 * 60e3), orderLimit = limiter(20, 3600e3), uploadLimit = limiter(15, 3600e3), emailLimit = limiter(8, 15 * 60e3);
 
   /* ---- admin bootstrap: never ships with a default password ---- */
@@ -63,7 +63,7 @@ function createApp(opts = {}) {
   });
 
   let lastOrigin = process.env.SITE_URL || '';
-  const brand = () => catalog.site.name || 'ASINGH';
+  const brand = () => catalog.site.name || 'चंद्रवंशी';
   Orders.hooks.created = o => { if (o.customer.email) { const m = Mail.orderEmail(brand(), o, lastOrigin, 'created'); Mail.send(o.customer.email, m.subject, m.html); } };
   Orders.hooks.status = o => { if (o.customer.email && ['paid', 'processing', 'shipped', 'delivered', 'cancelled', 'payment_rejected'].indexOf(o.status) > -1) { const m = Mail.orderEmail(brand(), o, lastOrigin, 'status'); Mail.send(o.customer.email, m.subject, m.html); } };
   const mkReset = u => { const tok = crypto.randomBytes(24).toString('base64url'); D.resets = D.resets.filter(r => r.exp > Date.now() && r.uid !== u.id); D.resets.push({ h: crypto.createHash('sha256').update(tok).digest('hex'), uid: u.id, exp: Date.now() + 36e5 }); db.save(); return lastOrigin + '/account.html?reset=' + tok; };
@@ -517,8 +517,8 @@ function createApp(opts = {}) {
   route('PUT', /^\/api\/admin\/settings$/, async (req, res) => {
     need(req, 'admin'); const b = await jsonBody(req), s = D.settings;
     if (b.upiId !== undefined) { const v = String(b.upiId).trim().slice(0, 80); if (v && !/^[\w.\-]{2,}@[\w.\-]{2,}$/.test(v)) throw fail(400, 'UPI ID should look like name@bank.'); s.upiId = v; }
-    if (b.invoice && typeof b.invoice === 'object') { const i = b.invoice, c = (v, n) => String(v == null ? '' : v).trim().slice(0, n); const g = c(i.gstin, 15).toUpperCase(); if (g && !/^[0-9A-Z]{15}$/.test(g)) throw fail(400, 'GSTIN should be 15 letters/digits (or leave it blank).'); s.invoice = { name: c(i.name, 80) || 'ASINGH', address: c(i.address, 240), gstin: g, contact: c(i.contact, 120) }; }
-    if (b.payeeName !== undefined) s.payeeName = String(b.payeeName).trim().slice(0, 60) || 'ASINGH';
+    if (b.invoice && typeof b.invoice === 'object') { const i = b.invoice, c = (v, n) => String(v == null ? '' : v).trim().slice(0, n); const g = c(i.gstin, 15).toUpperCase(); if (g && !/^[0-9A-Z]{15}$/.test(g)) throw fail(400, 'GSTIN should be 15 letters/digits (or leave it blank).'); s.invoice = { name: c(i.name, 80) || 'चंद्रवंशी', address: c(i.address, 240), gstin: g, contact: c(i.contact, 120) }; }
+    if (b.payeeName !== undefined) s.payeeName = String(b.payeeName).trim().slice(0, 60) || 'चंद्रवंशी';
     if (b.instructions !== undefined) s.instructions = String(b.instructions).trim().slice(0, 500);
     if (b.webhookUrl !== undefined) { const v = String(b.webhookUrl).trim().slice(0, 300); if (v) { let u; try { u = new URL(v); } catch (e) { throw fail(400, 'Webhook URL is not valid.'); } if (u.protocol !== 'https:') throw fail(400, 'Webhook URL must start with https://'); } s.webhookUrl = v; }
     db.save(); send(res, 200, { ok: true });
@@ -610,6 +610,6 @@ function createApp(opts = {}) {
 
 if (require.main === module) {
   const port = Number(process.env.PORT) || 3000, host = process.env.HOST || '0.0.0.0';
-  createApp().server.listen(port, host, () => console.log(`  ASINGH store → http://localhost:${port}   (admin: /admin.html)`));
+  createApp().server.listen(port, host, () => console.log(`  Chandravanshi store → http://localhost:${port}   (admin: /admin.html)`));
 }
 module.exports = { createApp };

@@ -14,7 +14,7 @@
 
   function text(o, inv) {
     var L = [], line = function (a, b) { L.push(a + (b ? ' ' + b : '')); }, hr = '='.repeat(56), c = o.customer;
-    L.push(hr, (inv.name || 'ASINGH') + ' — ORDER BILL', hr);
+    L.push(hr, (inv.name || 'चंद्रवंशी') + ' — ORDER BILL', hr);
     if (inv.address) L.push(inv.address.replace(/\n+/g, ', ')); if (inv.gstin) L.push('GSTIN: ' + inv.gstin); if (inv.contact) L.push(inv.contact);
     L.push('', 'Order number : ' + o.number, 'Order date   : ' + dt(o.createdAt), 'Status       : ' + o.statusLabel + (isPaid(o.status) ? ' (paid)' : ''), '',
       'BILL TO / SHIP TO', c.name, c.line1 + (c.line2 ? ', ' + c.line2 : ''), c.city + ', ' + c.state + ' ' + c.pin, 'Mobile: ' + c.phone, 'Email : ' + c.email, '', 'ITEMS', '-'.repeat(56));
@@ -25,13 +25,13 @@
       'Payment: UPI / QR' + (o.proof && o.proof.utr ? ' · UTR ' + o.proof.utr : ''));
     if (o.tracking) L.push('Shipment: ' + [o.tracking.courier, o.tracking.id].filter(Boolean).join(' · ') + (o.tracking.url ? '\n          ' + o.tracking.url : ''));
     L.push('', 'PROGRESS'); o.timeline.forEach(function (t) { L.push('  ' + dt(t.at) + '  ' + t.label + (t.note ? ' — ' + t.note : '')); });
-    L.push('', 'Track this order: ' + location.origin + '/track.html?n=' + o.number.replace(/^AS-?/i, ''), '(you will need your mobile number)', '', 'Prices include applicable taxes.' + (inv.returns ? ' ' + inv.returns : ''), 'Thank you for shopping with ' + (inv.name || 'ASINGH') + '.');
+    L.push('', 'Track this order: ' + location.origin + '/track.html?n=' + o.number.replace(/^(?:AS|CV)-?/i, ''), '(you will need your mobile number)', '', 'Prices include applicable taxes.' + (inv.returns ? ' ' + inv.returns : ''), 'Thank you for shopping with ' + (inv.name || 'चंद्रवंशी') + '.');
     return L.filter(function (x) { return x !== null; }).join('\n');
   }
   function render(o, inv) {
     var c = o.customer, tone = TONE[o.status], paid = isPaid(o.status);
-    document.title = 'Bill ' + o.number + ' — ' + (inv.name || 'ASINGH');
-    doc.innerHTML = '<header class="inv__head"><div><div class="inv__brand">' + esc(inv.name || 'ASINGH') + '</div><div class="inv__seller">' + esc([inv.address, inv.gstin ? 'GSTIN: ' + inv.gstin : '', inv.contact].filter(Boolean).join('\n')) + '</div></div>' +
+    document.title = 'Bill ' + o.number + ' — ' + (inv.name || 'चंद्रवंशी');
+    doc.innerHTML = '<header class="inv__head"><div><img class="inv__logo" src="img/brand/mark-96.webp" width="56" height="56" alt=""><div class="inv__brand">' + esc(inv.name || 'चंद्रवंशी') + '</div><div class="inv__seller">' + esc([inv.address, inv.gstin ? 'GSTIN: ' + inv.gstin : '', inv.contact].filter(Boolean).join('\n')) + '</div></div>' +
       '<div class="inv__meta"><h1>Order bill</h1><div class="inv__no">' + esc(o.number) + '</div><p>' + d0(o.createdAt) + '</p><span class="stamp stamp--' + (paid ? 'good' : tone) + '">' + PAYLINE[o.status] + '</span></div></header>' +
       '<section class="inv__cols"><div><h2>Bill to / ship to</h2><address><strong>' + esc(c.name) + '</strong><br>' + esc(c.line1) + (c.line2 ? ', ' + esc(c.line2) : '') + '<br>' + esc(c.city) + ', ' + esc(c.state) + ' ' + esc(c.pin) + '<br>' + esc(c.phone) + '<br>' + esc(c.email) + '</address></div>' +
       '<div><h2>Order</h2><p>Status: <strong>' + esc(o.statusLabel) + '</strong></p><p>Payment: UPI / QR</p>' + (o.proof && o.proof.utr ? '<p>UTR: <strong>' + esc(o.proof.utr) + '</strong></p>' : '') + '<p>Updated: ' + dt(o.updatedAt) + '</p></div></section>' +
@@ -45,7 +45,7 @@
     var imgs = [].slice.call(doc.querySelectorAll('img')), ready = Promise.all(imgs.map(function (i) { return i.complete ? 0 : new Promise(function (r) { i.onload = i.onerror = r; }); }));
     ready.then(function () { $('#pdf').disabled = false; $('#txt').disabled = false; if (/[?&]print=1/.test(location.search)) setTimeout(function () { window.print(); }, 250); });
     $('#pdf').onclick = function () { window.print(); };
-    $('#txt').onclick = function () { var b = new Blob([text(o, inv)], { type: 'text/plain;charset=utf-8' }), a = document.createElement('a'); a.href = URL.createObjectURL(b); a.download = 'ASINGH-bill-' + o.number + '.txt'; document.body.appendChild(a); a.click(); setTimeout(function () { URL.revokeObjectURL(a.href); a.remove(); }, 500); };
+    $('#txt').onclick = function () { var b = new Blob([text(o, inv)], { type: 'text/plain;charset=utf-8' }), a = document.createElement('a'); a.href = URL.createObjectURL(b); a.download = 'Chandravanshi-bill-' + o.number + '.txt'; document.body.appendChild(a); a.click(); setTimeout(function () { URL.revokeObjectURL(a.href); a.remove(); }, 500); };
   }
   function fail(m, link) { doc.innerHTML = '<div class="err"><p><strong>' + esc(m) + '</strong></p><p>Bills are private — only the person who placed the order (and the store) can open them.</p><p><a href="' + (link || 'account.html') + '">' + (link ? 'Go to sign in' : 'My orders') + '</a></p></div>'; $('#pdf').hidden = $('#txt').hidden = true; $('#hint').hidden = true; }
   if (!id) return fail('No order selected.');

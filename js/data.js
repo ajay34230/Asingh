@@ -2,7 +2,8 @@
 var __root = typeof window !== 'undefined' ? window : globalThis;
 __root.ASINGH = __root.ASINGH || {};
 (function (A) {
-  A.BRAND = 'ASINGH';
+  A.BRAND = 'चंद्रवंशी';
+  A.TAGLINE = 'By Tanwar Baisa';
   A.FREE_SHIP_FROM = 15000;
   A.SHIP_FLAT = 250;
   A.STITCH = [

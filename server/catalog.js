@@ -15,7 +15,7 @@ const slug = t => String(t).toLowerCase().normalize('NFKD').replace(/[^a-z0-9]+/
 const HEX = /^#[0-9a-fA-F]{6}$/, WIDTHS = [400, 800, 1200], MAX_IMAGES = 6;
 const OCC_SUB = { wedding: 'Lehengas, anarkalis & bridal sets', festive: 'Chaniya cholis & bright festive suits', sangeet: 'Mirror work, sharara & gharara', party: 'Gowns, peplum & indo-western', everyday: 'Kurti sets & easy cotton suits' };
 const defaultSite = () => ({
-  name: 'ASINGH', announcement: 'Custom stitching in 10–14 days · one free alteration',
+  name: 'चंद्रवंशी', tagline: 'By Tanwar Baisa', announcement: 'Custom stitching in 10–14 days · one free alteration',
   heroEyebrow: 'Suits & ethnic wear for girls', heroTitle: 'Dressed in *every shade of festive*', heroLead: 'Anarkalis, lehenga cholis, shararas, kurti sets and more — with gota patti, bandhani and zardozi, stitched to your measure in 10–14 days.', heroCta: 'Shop the collection', heroImage: null,
   sections: { marquee: true, trust: true, collections: true, occasions: true, newArrivals: true, story: true, bestsellers: true, testimonials: true },
   marquee: ['Anarkali', 'Lehenga Choli', 'Sharara', 'Gharara', 'Patiala', 'Kurti Sets', 'Indo-Western', 'Ethnic Gowns'],
@@ -38,7 +38,7 @@ class Catalog {
   constructor(db) {
     this.db = db; const D = db.data;
     if (!D.catalog) {
-      D.catalog = { version: 1, suits: 1, categories: A.CATEGORIES.map(c => ({ id: c.id, label: c.label })), site: defaultSite(),
+      D.catalog = { version: 1, suits: 1, brandV: 1, categories: A.CATEGORIES.map(c => ({ id: c.id, label: c.label })), site: defaultSite(),
         products: A.PRODUCTS.map(p => Object.assign(clone(p), { published: true, soldOut: false, demo: true, images: [], imageStore: {}, createdAt: Date.now() })) };
       db.save();
     }
@@ -51,6 +51,10 @@ class Catalog {
         ['announcement', 'heroEyebrow', 'heroTitle', 'heroLead', 'heroCta', 'marquee', 'trust', 'occasions', 'story'].forEach(k => { this.D.site[k] = d[k]; });
       }
       db.save();
+    }
+    if (!this.D.brandV) {   // one-time rebrand of stores created under the old name
+      this.D.brandV = 1; if (this.D.site && (!this.D.site.name || this.D.site.name === 'ASINGH')) { this.D.site.name = defaultSite().name; this.D.site.tagline = defaultSite().tagline; }
+      const st = db.data.settings || {}; if (st.payeeName === 'ASINGH') st.payeeName = defaultSite().name; if (st.invoice && st.invoice.name === 'ASINGH') st.invoice.name = defaultSite().name; db.save();
     }
     this.D.site = merge(defaultSite(), this.D.site); delete this.D.site.stitchAdd;
     if (Array.isArray(this.D.pages)) Pages.DEFAULT_PAGES.forEach(d => {
@@ -153,8 +157,8 @@ class Catalog {
   }
   setSite(b) {
     b = b || {}; const t = this.D.site, st = (k, n) => { if (b[k] !== undefined) t[k] = s(b[k], n); };
-    [['name', 40], ['announcement', 90], ['heroEyebrow', 50], ['heroTitle', 120], ['heroLead', 240], ['heroCta', 30], ['contactEmail', 120], ['contactPhone', 30], ['contactAddress', 200], ['contactHours', 60]].forEach(x => st(x[0], x[1]));
-    if (!t.name) t.name = 'ASINGH';
+    [['name', 40], ['tagline', 40], ['announcement', 90], ['heroEyebrow', 50], ['heroTitle', 120], ['heroLead', 240], ['heroCta', 30], ['contactEmail', 120], ['contactPhone', 30], ['contactAddress', 200], ['contactHours', 60]].forEach(x => st(x[0], x[1]));
+    if (!t.name) t.name = 'चंद्रवंशी';
     if (t.contactEmail && !/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(t.contactEmail)) throw bad('Contact email looks invalid.');
     const money = (k, max, label) => { if (b[k] !== undefined) { const v = Math.round(Number(b[k])); if (!(v >= 0 && v <= max)) throw bad(label + ' is not valid.'); t[k] = v; } };
     money('shipFreeFrom', 1e6, 'Free-shipping amount'); money('shipFlat', 1e4, 'Shipping fee'); money('returnDays', 90, 'Return window'); ['handlingMin', 'handlingMax', 'deliveryMin', 'deliveryMax'].forEach(k => money(k, 60, 'Delivery days'));

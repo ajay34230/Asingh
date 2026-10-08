@@ -40,7 +40,7 @@ html[data-theme="bloom"] body::before { content: ""; position: fixed; inset: -20
 html[data-theme="bloom"] .announce { background: linear-gradient(90deg, #6d3df2, #c04be0, #ff7a59, #6d3df2); background-size: 300% 100%; animation: shimmerbar 12s linear infinite; color: #fff; }
 @keyframes shimmerbar { to { background-position: 300% 0; } }
 html[data-theme="bloom"] .header { background: rgba(255,255,255,.72); -webkit-backdrop-filter: saturate(1.6) blur(16px); backdrop-filter: saturate(1.6) blur(16px); }
-html[data-theme="bloom"] .logo { font-family: var(--serif); font-weight: 800; letter-spacing: .14em; background: linear-gradient(90deg, #6d3df2, #ff7a59); -webkit-background-clip: text; background-clip: text; color: transparent; }
+html[data-theme="bloom"] .logo__n { font-weight: 800; background: linear-gradient(90deg, #6d3df2, #ff7a59); -webkit-background-clip: text; background-clip: text; color: transparent; }
 html[data-theme="bloom"] .nav__link::after { height: 3px; border-radius: 3px; background: linear-gradient(90deg, #6d3df2, #ff7a59); bottom: 8px; }
 html[data-theme="bloom"] .mega { border-radius: 0 0 28px 28px; }
 
@@ -144,3 +144,5 @@ html[lang="hi"] .hero__title, html[lang="hi"] .h1, html[lang="hi"] .h2 { line-he
 html[lang="hi"] .logo, html[lang="hi"] .btn, html[lang="hi"] .nav__link { letter-spacing: 0; }
 html[lang="hi"] .eyebrow, html[lang="hi"] .hero__eyebrow, html[lang="hi"] .badge, html[lang="hi"] .announce { letter-spacing: 0; text-transform: none; }
 .announce { flex-wrap: wrap; row-gap: 4px; }
+html[data-theme="bloom"] .logo__s { color: var(--gold); }
+html[data-theme="bloom"] .logo__mark { box-shadow: 0 0 0 2px #fff, 0 8px 18px -6px rgba(109,61,242,.55); }

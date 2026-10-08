@@ -12,15 +12,15 @@ const ADMIN_NEXT = {
   awaiting_payment: ['paid', 'cancelled'], payment_review: ['paid', 'payment_rejected', 'cancelled'], payment_rejected: ['paid', 'awaiting_payment', 'cancelled'],
   paid: ['processing', 'shipped', 'cancelled'], processing: ['paid', 'shipped', 'cancelled'], shipped: ['processing', 'delivered'], delivered: ['shipped'], cancelled: ['awaiting_payment']
 };
-/* Short, memorable order numbers — "AS-48213". Random (not sequential) so they don't reveal how many orders you have;
+/* Short, memorable order numbers — "CV-48213". Random (not sequential) so they don't reveal how many orders you have;
    tracking also needs the buyer's mobile number, so a guessed number reveals nothing. */
-const normNumber = s => { let u = String(s || '').toUpperCase().replace(/[^A-Z0-9]/g, ''); if (/^\d+$/.test(u)) u = 'AS' + u; return u; };
+const normNumber = s => { let u = String(s || '').toUpperCase().replace(/[^A-Z0-9]/g, ''); u = u.replace(/^(AS|CV)(?=\d)/, ''); return /^\d+$/.test(u) ? 'CV' + u : u; };   // older AS-12345 numbers keep working
 const normPhone = s => String(s || '').replace(/\D/g, '').slice(-10);
 function newNumber(db) {
   const used = new Set(db.data.orders.map(o => normNumber(o.number)));
   for (let digits = 5; digits <= 8; digits++) {
     const lo = Math.pow(10, digits - 1), span = 9 * lo;
-    for (let i = 0; i < 40; i++) { const n = 'AS' + (lo + require('crypto').randomInt(span)); if (!used.has(n)) return 'AS-' + n.slice(2); }
+    for (let i = 0; i < 40; i++) { const n = 'CV' + (lo + require('crypto').randomInt(span)); if (!used.has(n)) return 'CV-' + n.slice(2); }
   }
   throw Object.assign(new Error('Could not allocate an order number'), { status: 500 });
 }

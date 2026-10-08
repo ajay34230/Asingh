@@ -47,7 +47,7 @@ else echo "   $ENVF already exists — keeping it."; fi
 echo "==> systemd service"
 cat > /etc/systemd/system/asingh.service <<UNIT
 [Unit]
-Description=ASINGH store
+Description=Chandravanshi store
 After=network.target
 [Service]
 User=asingh

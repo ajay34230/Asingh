@@ -30,8 +30,8 @@
 "Your bag is empty": "आपका बैग खाली है",
 "Discover handcrafted pieces made to be treasured.": "हाथ से बने ऐसे परिधान खोजें जो सँजोकर रखने लायक हों।",
 "Start shopping": "खरीदारी शुरू करें",
-"Welcome to ASINGH": "ASINGH में आपका स्वागत है",
-"ASINGH home": "ASINGH होम",
+"Welcome to चंद्रवंशी": "चंद्रवंशी में आपका स्वागत है",
+"चंद्रवंशी home": "चंद्रवंशी होम",
 "Primary": "मुख्य",
 "Search": "खोजें",
 "Sign in or create account": "साइन इन करें या खाता बनाएँ",
@@ -65,7 +65,7 @@
 "Privacy policy": "गोपनीयता नीति",
 "Terms & conditions": "नियम और शर्तें",
 "Contact": "संपर्क",
-"© 2026 ASINGH. All rights reserved.": "© 2026 ASINGH. सर्वाधिकार सुरक्षित।",
+"© 2026 चंद्रवंशी. All rights reserved.": "© 2026 चंद्रवंशी. सर्वाधिकार सुरक्षित।",
 "Measurements are in inches, taken on the body. Between sizes? Choose custom stitching and we’ll make it to your measurements.": "माप इंच में हैं और शरीर पर लिए गए हैं। दो साइज़ के बीच में हैं? कस्टम सिलाई चुनें, हम आपके माप के अनुसार बनाएँगे।",
 "Size": "साइज़",
 "Bust": "बस्ट",
@@ -674,4 +674,4 @@
       [new RegExp("^Free shipping over (₹[\\d,]+)\\. Easy (\\d+)-day returns on unstitched pieces\\.$"), "$1 से ऊपर मुफ़्त शिपिंग। बिना सिले परिधानों पर आसान $2 दिन का रिटर्न।"],
       [new RegExp("^(.+) — (.+)$"), "$1 — $2"]
     ] };
-})(window.ASINGH = window.ASINGH || {});
+})(window.चंद्रवंशी = window.चंद्रवंशी || {});

@@ -1,4 +1,4 @@
-/* ASINGH admin console — standalone (does not load the storefront bundle). */
+/* Chandravanshi admin console — standalone (does not load the storefront bundle). */
 (function () {
   'use strict';
   var $ = function (s, r) { return (r || document).querySelector(s); }, $$ = function (s, r) { return Array.prototype.slice.call((r || document).querySelectorAll(s)); };
@@ -23,7 +23,7 @@
 
   /* ------------ login ------------ */
   function loginView(msg) {
-    app.innerHTML = '<main class="adm__login"><form class="adm__card" id="lf" novalidate><span class="adm__logo">ASINGH</span><h1>Admin sign in</h1><p class="muted">Only the store owner can see orders and payment details.</p>' +
+    app.innerHTML = '<main class="adm__login"><form class="adm__card" id="lf" novalidate><span class="adm__logo">चंद्रवंशी</span><h1>Admin sign in</h1><p class="muted">Only the store owner can see orders and payment details.</p>' +
       '<div class="field"><label class="field__l" for="e">Email</label><input class="input" id="e" type="email" autocomplete="username" inputmode="email" autocapitalize="off" required></div>' +
       '<div class="field"><label class="field__l" for="p">Password</label><input class="input" id="p" type="password" autocomplete="current-password" required></div>' +
       '<p class="field__err" role="alert" id="le">' + esc(msg || '') + '</p><button class="btn btn--block btn--lg" type="submit"><span>Sign in</span></button><p class="adm__fine">' + ico('lock') + ' Sessions are encrypted and expire automatically.</p></form></main>';
@@ -39,7 +39,7 @@
   /* ------------ shell ------------ */
   var NAV = [['overview', 'Overview', 'home'], ['orders', 'Orders', 'box'], ['analytics', 'Analytics', 'chart'], ['products', 'Products', 'tag'], ['home', 'Home page', 'layout'], ['pages', 'Pages', 'doc'], ['hindi', 'Hindi (हिन्दी)', 'doc'], ['store', 'Store settings', 'gear'], ['offers', 'Offers', 'tag'], ['reviews', 'Reviews', 'check'], ['customers', 'Customers', 'users'], ['inbox', 'Inbox', 'mail'], ['payment', 'Payment & QR', 'qr'], ['alerts', 'Alerts', 'bell'], ['security', 'Admins & login', 'lock']];
   function consoleView() {
-    app.innerHTML = '<div class="adm__shell"><aside class="adm__nav"><a class="adm__brand" href="index.html" title="View storefront">ASINGH <small>Admin</small></a><nav aria-label="Admin">' + NAV.map(function (n) { return '<a href="#/' + n[0] + '" data-v="' + n[0] + '">' + ico(n[2]) + '<span>' + n[1] + '</span><b class="adm__badge" data-b="' + n[0] + '" hidden></b></a>'; }).join('') + '</nav><button class="adm__out" id="so">' + ico('out') + '<span>Sign out</span></button></aside>' +
+    app.innerHTML = '<div class="adm__shell"><aside class="adm__nav"><a class="adm__brand" href="index.html" title="View storefront">चंद्रवंशी <small>Admin</small></a><nav aria-label="Admin">' + NAV.map(function (n) { return '<a href="#/' + n[0] + '" data-v="' + n[0] + '">' + ico(n[2]) + '<span>' + n[1] + '</span><b class="adm__badge" data-b="' + n[0] + '" hidden></b></a>'; }).join('') + '</nav><button class="adm__out" id="so">' + ico('out') + '<span>Sign out</span></button></aside>' +
       '<div class="adm__main"><header class="adm__top"><h1 id="vt">Overview</h1><div class="adm__tools"><span class="live" id="live" title="Live alerts"><i></i><em>Connecting…</em></span><button class="adm__icon" id="snd" aria-pressed="' + sound + '" aria-label="Alert sound">' + (sound ? '🔔' : '🔕') + '</button><button class="adm__icon adm__bell" id="bell" aria-label="Notifications" aria-expanded="false">' + ico('bell') + '<b class="adm__badge" id="bb" hidden>0</b></button></div></header><main id="view" tabindex="-1"></main></div>' +
       '<nav class="adm__tabs" aria-label="Admin sections">' + NAV.map(function (n) { return '<a href="#/' + n[0] + '" data-v="' + n[0] + '">' + ico(n[2]) + '<span>' + n[1].split(' ')[0] + '</span><b class="adm__badge" data-b="' + n[0] + '" hidden></b></a>'; }).join('') + '</nav>' +
       '<section class="adm__drawer" id="drawer" aria-hidden="true"><div class="adm__scrim" data-x></div><div class="adm__dpanel" role="dialog" aria-modal="true" aria-label="Order details" id="dp"></div></section>' +

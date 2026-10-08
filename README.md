@@ -1,4 +1,4 @@
-# ASINGH — girls’ suits & ethnic wear storefront
+# चंद्रवंशी (Chandravanshi) — girls’ suits & ethnic wear storefront · By Tanwar Baisa
 
 A fast, dependency-free ecommerce site for **girls’ suits & ethnic wear** (anarkali, lehenga choli, sharara, gharara, kurti sets, patiala, indo-western, gowns and more) with accounts, guest checkout, QR payments with screenshot upload, private orders, live admin alerts and an admin console. Node 20+ only — **no `npm install` needed**.
 

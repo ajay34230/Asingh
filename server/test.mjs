@@ -54,7 +54,7 @@ r = await fetch(base + '/index.html'); ok(/script-src 'self'/.test(r.headers.get
 console.log('\nOrders & pricing');
 r = await A.req('POST', '/api/orders', { items: [{ ...cart[0], price: 1, unit: 1 }], customer: cust, method: 'upi_qr' });
 ok(r.status === 201 && r.json.order.totals.total === 21800 + 600, 'server prices the order (client price ignored): ' + r.json.order?.totals.total);
-const oid = r.json.order.id; ok(/^AS-\d{5}$/.test(r.json.order.number), 'short, memorable order number ' + r.json.order.number);
+const oid = r.json.order.id; ok(/^CV-\d{5}$/.test(r.json.order.number), 'short, memorable order number ' + r.json.order.number);
 ok((await A.req('POST', '/api/orders', { items: [{ id: 'nope', size: 'M', stitch: 'semi' }], customer: cust, method: 'upi_qr' })).status === 400, 'unknown product rejected');
 ok((await A.req('POST', '/api/orders', { items: cart, customer: cust, method: 'gateway_cards' })).status === 400, 'disabled payment method rejected');
 ok((await A.req('POST', '/api/orders', { items: cart, customer: { ...cust, phone: '123' }, method: 'upi_qr' })).status === 400, 'bad phone rejected');
@@ -100,9 +100,9 @@ r = await T.req('POST', '/api/track', { number: go.number, phone: '9000011111' }
 ok(r.status === 200 && r.json.order.number === go.number && r.json.order.status === 'awaiting_payment', 'number + mobile shows status with no sign-in');
 ok(!/Gita|g@example|MG Road|560001|9000011111|proof|userId/i.test(JSON.stringify(r.json)), 'tracking view leaks no name, email, phone, address or proof');
 ok((await T.req('POST', '/api/track', { number: go.number.toLowerCase().replace('-', ' '), phone: '+91 90000-11111' })).status === 200, 'tolerant of "as 48213" and "+91 90000-11111"');
-ok((await T.req('POST', '/api/track', { number: go.number.replace('AS-', ''), phone: '9000011111' })).status === 200, 'digits alone work');
+ok((await T.req('POST', '/api/track', { number: go.number.replace('CV-', ''), phone: '9000011111' })).status === 200, 'digits alone work');
 r = await T.req('POST', '/api/track', { number: go.number, phone: '9000022222' }); ok(r.status === 404, 'wrong mobile → generic not-found');
-const r404 = await T.req('POST', '/api/track', { number: 'AS-00001', phone: '9000011111' }); ok(r404.status === 404 && r404.json.error === r.json.error, 'unknown number gives the identical message (no enumeration)');
+const r404 = await T.req('POST', '/api/track', { number: 'CV-00001', phone: '9000011111' }); ok(r404.status === 404 && r404.json.error === r.json.error, 'unknown number gives the identical message (no enumeration)');
 const TL = new Client(); let last; for (let i = 0; i < 9; i++) last = await TL.req('POST', '/api/track', { number: go.number, phone: '9111100000' });
 ok(last.status === 429, 'repeated wrong guesses lock that order for a while');
 ok((await T.req('POST', '/api/track', { number: go.number, phone: '9000011111' })).status === 429, '…even for the right mobile until the lock expires');
