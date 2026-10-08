@@ -412,7 +412,7 @@ function createApp(opts = {}) {
 
   /* ---- admin: catalogue, categories, store settings ---- */
   const adminProduct = p => ({ ...p, imageUrls: p.images.map(r => ({ rev: r, url: catalog.imgUrl(p, r, p.imageStore[r].ws.indexOf(400) > -1 ? 400 : p.imageStore[r].ws[0]) })), thumb: catalog.thumb(p), imageStore: undefined });
-  route('GET', /^\/api\/admin\/catalog$/, async (req, res) => { need(req, 'admin'); send(res, 200, { products: catalog.products.map(adminProduct), categories: catalog.categories, site: catalog.site, stitch: A.STITCH.map(x => ({ id: x.id, label: x.label })), occasions: A.OCCASIONS, demoCount: catalog.products.filter(p => p.demo).length }); });
+  route('GET', /^\/api\/admin\/catalog$/, async (req, res) => { need(req, 'admin'); send(res, 200, { sizes: catalog.sizes, products: catalog.products.map(adminProduct), categories: catalog.categories, site: catalog.site, stitch: A.STITCH.map(x => ({ id: x.id, label: x.label })), occasions: A.OCCASIONS, demoCount: catalog.products.filter(p => p.demo).length }); });
   route('POST', /^\/api\/admin\/products$/, async (req, res) => { need(req, 'admin'); const p = catalog.create(await jsonBody(req)); send(res, 201, { product: adminProduct(p) }); });
   route('PUT', /^\/api\/admin\/products\/([a-z0-9-]+)$/, async (req, res, m) => { need(req, 'admin'); send(res, 200, { product: adminProduct(catalog.update(m[1], await jsonBody(req))) }); });
   route('DELETE', /^\/api\/admin\/products\/([a-z0-9-]+)$/, async (req, res, m) => { need(req, 'admin'); catalog.remove(m[1]); send(res, 200, { ok: true }); });

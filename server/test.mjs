@@ -300,6 +300,19 @@ console.log('\nWhatsApp');
   ok((await ADM.req('PUT', '/api/admin/site', { whatsapp: '98765 43210' })).status === 200, 'admin saves a WhatsApp number');
   ok(/"whatsapp":"919876543210"/.test((await new Client().req('GET', '/js/data.js')).text), '10-digit number gets the India code and reaches the storefront'); await ADM.req('PUT', '/api/admin/site', { whatsapp: '' }); }
 
+console.log('\nStock per size');
+{ const sp = (await ADM.req('POST', '/api/admin/products', { name: 'Sized Suit', cat: 'straight', price: 3000, colors: [{ name: 'Red', hex: '#ff0000' }], stitch: ['unstitched'], sizeStock: { M: 1, L: 0, ZZ: 5 } })).json.product;
+  ok(sp.sizeStock.M === 1 && sp.sizeStock.L === 0 && sp.sizeStock.ZZ === undefined, 'per-size stock saved (unknown sizes ignored)');
+  const line = (size, qty = 1) => ({ items: [{ id: sp.id, size, stitch: 'unstitched', color: 'Red', qty }], customer: cust, method: 'upi_qr' });
+  ok((await A.req('POST', '/api/orders', line('L'))).status === 400, 'size with 0 stock cannot be ordered');
+  ok((await A.req('POST', '/api/orders', line('M', 2))).status === 400, 'cannot order more than the size stock');
+  const o1 = await A.req('POST', '/api/orders', line('M')); ok(o1.status === 201, 'order within size stock accepted');
+  ok((await A.req('POST', '/api/orders', line('M'))).status === 400, 'size sold out once used up');
+  ok((await A.req('POST', '/api/orders', line('S'))).status === 201, 'sizes without a limit stay orderable');
+  const pub = (await new Client().req('GET', '/js/data.js')).text; ok(/"sizeOut":\["L","M"\]|"sizeOut":\["M","L"\]/.test(pub), 'storefront learns which sizes are sold out');
+  await A.req('POST', '/api/orders/' + o1.json.order.id + '/cancel', {}); ok((await A.req('POST', '/api/orders', line('M'))).status === 201, 'cancelling gives the size stock back');
+  await ADM.req('DELETE', '/api/admin/products/' + sp.id); }
+
 console.log('\nAdmin analytics');
 { const an = await ADM.req('GET', '/api/admin/analytics?days=30'); ok(an.status === 200 && an.json.series.length === 30 && an.json.orders >= 2, 'analytics returns a 30-day series and order totals');
   ok(an.json.paidOrders >= 1 && an.json.revenue > 0 && an.json.aov > 0 && an.json.top.length >= 1, 'revenue, average order and top products computed from paid orders');

@@ -99,3 +99,4 @@
 .orow--wrap { align-items: flex-start; flex-wrap: wrap; } .orow--wrap .orow__t small { white-space: normal; }
 .hirows { display: grid; gap: 10px; } .hirow { display: grid; gap: 4px; } .hirow__en { font-size: .88rem; color: var(--ink-2); } @media (min-width: 900px) { .hirow { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); align-items: center; gap: 14px; } }
 .adm__logo, .adm__brand { letter-spacing: 0 !important; font-family: "Noto Serif Devanagari", "Nirmala UI", "Mangal", Georgia, serif; }
+.sizestock { display: flex; flex-wrap: wrap; gap: 8px; margin: 6px 0; } .sizestock__i { display: grid; gap: 2px; width: 68px; text-align: center; font-size: .82rem; }

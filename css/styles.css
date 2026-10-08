@@ -972,3 +972,6 @@ body[data-page="product"] .wa { bottom: calc(96px + var(--safe-b)); } body[data-
 @media (min-width: 900px) { body[data-page="product"] .wa { bottom: calc(18px + var(--safe-b)); } body[data-page="product"] .totop { bottom: calc(86px + var(--safe-b)); } }
 @media (prefers-reduced-motion: reduce) { .wa { animation: none; } }
 .pdp__share { margin: 10px 0 0; font-size: .92rem; } .pdp__share a { display: inline-flex; align-items: center; min-height: 44px; }
+.chip--out span { opacity: .5; text-decoration: line-through; } .chip--out input { cursor: not-allowed; } .chip__x { font-size: .72rem; text-decoration: none; display: inline-block; }
+.chip--out .chip__x { text-decoration: none; }
+.sizefinder { margin-top: 12px; border: 1px dashed var(--line); border-radius: 14px; padding: 10px 14px; } .sizefinder summary { cursor: pointer; font-weight: 600; min-height: 36px; display: flex; align-items: center; } .sizefinder__f { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; margin: 10px 0; } .sizefinder__r { margin: 6px 0 10px; }

@@ -172,9 +172,11 @@
       '<p class="card__meta">' + esc(p.fabric) + '</p>' + priceHTML(p) + '<p class="card__sw" aria-hidden="true">' + p.colors.map(function (c) { return '<span style="background:' + c.hex + '"></span>'; }).join('') + '</p><span class="vh">Colours: ' + esc(p.colors.map(function (c) { return c.name; }).join(', ')) + '</span>' +
       (p.rating ? '<p class="card__rating">' + stars(p.rating) + ' <span class="card__count">' + p.rating.toFixed(1) + (p.reviews ? ' (' + p.reviews + ')' : '') + '</span></p>' : '') + '</div></article>';
   }
-  function sizeRadios(name) {
+  function sizeRadios(name, p) {
+    var out = (p && p.sizeOut) || [], low = (p && p.sizeLeft) || {};
     return '<div class="chips" role="radiogroup" aria-label="Size">' + A.SIZES.map(function (s) {
-      return '<label class="chip"><input type="radio" name="' + name + '" value="' + s + '"><span>' + s + '</span></label>';
+      var gone = out.indexOf(s) > -1;
+      return '<label class="chip' + (gone ? ' chip--out' : '') + '"><input type="radio" name="' + name + '" value="' + s + '"' + (gone ? ' disabled' : '') + '><span>' + s + (gone ? '<small class="chip__x"> · sold out</small>' : low[s] ? '<small class="chip__x"> · ' + low[s] + ' left</small>' : '') + '</span></label>';
     }).join('') + '</div>';
   }
   function stitchRadios(p, name, sel) {
@@ -482,7 +484,7 @@
       $('#quick-title').textContent = p.name;
       form.setAttribute('data-id', p.id);
       form.innerHTML = '<div class="quick__top"><div class="quick__img">' + picture(p.id, 1, { sizes: '96px', alt: '' }) + '</div><div>' + priceHTML(p) + '<p class="card__meta">' + esc(p.fabric) + '</p><a class="link" href="product.html?id=' + p.id + '">Full details</a></div></div>' +
-        '<fieldset class="field"><legend class="field__l">Size <button type="button" class="link" data-size-guide>Size guide</button></legend>' + sizeRadios('qsize') + '<p class="field__err" role="alert" hidden>Please choose a size.</p></fieldset>' +
+        '<fieldset class="field"><legend class="field__l">Size <button type="button" class="link" data-size-guide>Size guide</button></legend>' + sizeRadios('qsize', p) + '<p class="field__err" role="alert" hidden>Please choose a size.</p></fieldset>' +
         '<fieldset class="field"><legend class="field__l">Stitching</legend>' + stitchRadios(p, 'qstitch') + '</fieldset>' +
         '<div class="sheet__foot sheet__foot--in"><button class="btn btn--block btn--lg" type="submit">Add to bag · <span data-qprice>' + money(p.price) + '</span></button></div>';
       Sheet.open('quick', b);

@@ -115,6 +115,11 @@ class Catalog {
     if (!base || b.details !== undefined) out.details = (Array.isArray(b.details) ? b.details : []).map(x => s(x, 200)).filter(Boolean).slice(0, 10);
     ['best', 'isNew', 'published', 'soldOut'].forEach(k => { if (b[k] !== undefined) out[k] = !!b[k]; else if (!base) out[k] = k === 'published'; });
     if (!base || b.stock !== undefined) { const n = b.stock === '' || b.stock == null ? null : Math.round(Number(b.stock)); if (n !== null && !(n >= 0 && n <= 99999)) throw bad('Stock must be a whole number (or blank for unlimited).'); out.stock = n; if (n === 0) out.soldOut = true; }
+    if (!base || b.sizeStock !== undefined) {   // optional stock per size, e.g. { S: 3, M: 0 } — sizes not listed are unlimited
+      const src = b.sizeStock && typeof b.sizeStock === 'object' ? b.sizeStock : {}, ss = {};
+      Object.keys(src).forEach(k => { if (this.sizes.indexOf(k) < 0 || src[k] === '' || src[k] == null) return; const n = Math.round(Number(src[k])); if (!(n >= 0 && n <= 99999)) throw bad('Size stock must be whole numbers (or blank for unlimited).'); ss[k] = n; });
+      out.sizeStock = ss;
+    }
     if (!base || b.rating !== undefined) { const r = b.rating === '' || b.rating == null ? null : Number(b.rating); if (r != null && !(r >= 1 && r <= 5)) throw bad('Rating must be between 1 and 5 (or blank).'); out.rating = r; }
     if (!base || b.reviews !== undefined) out.reviews = b.reviews === '' || b.reviews == null ? 0 : Math.max(0, Math.round(Number(b.reviews)) || 0);
     return out;
@@ -217,6 +222,8 @@ class Catalog {
   publicProduct(p) {
     const o = { id: p.id, name: p.name, cat: p.cat, occ: p.occ, fabric: p.fabric, price: p.price, was: p.was || null, badge: p.badge || '', best: !!p.best, isNew: !!p.isNew, rating: p.rating || 0, reviews: p.reviews || 0, colors: p.colors, inc: p.inc, stitch: p.stitch, blurb: p.blurb, details: p.details, soldOut: !!p.soldOut, demo: !!p.demo };
     if (p.stock != null && p.stock > 0 && p.stock <= 5) o.left = p.stock;
+    const ss = p.sizeStock || {}, so = Object.keys(ss).filter(k => ss[k] === 0), sl = {}; Object.keys(ss).forEach(k => { if (ss[k] > 0 && ss[k] <= 3) sl[k] = ss[k]; });
+    if (so.length) o.sizeOut = so; if (Object.keys(sl).length) o.sizeLeft = sl;
     const live = this.site.stitch.filter(x => x.enabled).map(x => x.id); o.stitch = o.stitch.filter(x => live.indexOf(x) > -1); o.nimg = p.images.length || (p.demo ? 3 : 0); return o;
   }
   imgs() {

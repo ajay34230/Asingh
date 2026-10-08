@@ -85,6 +85,13 @@ console.log('\nWhatsApp button');
   const bb = await w.locator('a.wa').boundingBox(), sb = await w.locator('#sticky-add').boundingBox().catch(() => null); ok(!sb || bb.y + bb.height <= sb.y + 1 || bb.y >= sb.y + sb.height, 'chat button does not cover the sticky Add to bag bar');
   ok(await w.locator('.pdp__share a').count() === 1, 'share-on-WhatsApp link on product page'); await call(ad, 'PUT', '/api/admin/site', { whatsapp: '' }); }
 
+console.log('\nSize stock and size finder');
+{ await call(ad, 'POST', '/api/admin/products', { name: 'Size Demo Suit', cat: 'straight', price: 3300, colors: [{ name: 'Red', hex: '#ff0000' }], stitch: ['unstitched'], sizeStock: { S: 0, L: 2 } });
+  const z = await page(1280, 900); await z.goto(BASE + '/product.html?id=size-demo-suit'); await z.waitForSelector('#add-btn');
+  ok(await z.locator('input[name=size][value=S]').isDisabled(), 'sold-out size is disabled'); ok(/2 left/.test(await z.locator('#size-field').innerText()), 'low stock size shows how many are left');
+  await z.click('.sizefinder summary'); await z.fill('#sf-b', '35'); await z.fill('#sf-w', '29'); await z.waitForTimeout(200); ok(/size M/.test(await z.textContent('#sf-r')), 'size finder suggests M for 35/29 (' + (await z.textContent('#sf-r')).slice(0, 40) + '…)');
+  await z.click('#sf-pick'); ok(await z.locator('input[name=size][value=M]').isChecked(), '“Choose this size” selects it'); }
+
 console.log('\nCookie notice only when Analytics is on');
 await call(ad, 'PUT', '/api/admin/site', { ga4Id: 'G-TEST123456' });
 const v = await page(); await v.goto(BASE + '/'); await v.waitForSelector('.consent', { timeout: 5000 }); ok(true, 'cookie notice appears');
