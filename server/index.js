@@ -316,6 +316,26 @@ function createApp(opts = {}) {
     const rev = D.orders.filter(o => ['paid', 'processing', 'shipped', 'delivered'].indexOf(o.status) > -1).reduce((a, o) => a + o.totals.total, 0);
     send(res, 200, { unreadMessages: D.messages.filter(m => !m.read).length, subscribers: D.subscribers.length, products: catalog.products.length, demoProducts: catalog.products.filter(p => p.demo).length, counts: c, revenue: rev, orders: D.orders.length, customers: D.users.filter(u => u.role === 'customer' && !u.isGuest).length, guests: D.users.filter(u => u.isGuest).length, unread: D.notifications.filter(n => !n.read).length, qrIsDemo: !D.settings.qrFile, upiSet: !!D.settings.upiId });
   });
+  /* analytics: sales, funnel and top products over the last N days (default 30) */
+  route('GET', /^\/api\/admin\/analytics$/, async (req, res) => {
+    need(req, 'admin'); const days = Math.min(365, Math.max(7, parseInt(new URL(req.url, 'http://x').searchParams.get('days'), 10) || 30));
+    const DAY = 864e5, t0 = new Date(); t0.setHours(0, 0, 0, 0); const start = t0.getTime() - (days - 1) * DAY, key = t => { const d = new Date(t); return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0'); };
+    const PAID = ['paid', 'processing', 'shipped', 'delivered'], inR = D.orders.filter(o => o.createdAt >= start), series = [], byDay = {};
+    for (let i = 0; i < days; i++) { const k = key(start + i * DAY); byDay[k] = { date: k, orders: 0, revenue: 0 }; series.push(byDay[k]); }
+    const counts = {}, prod = {}, city = {}; Object.keys(Orders.STATUS).forEach(k => counts[k] = 0);
+    let revenue = 0, paidN = 0;
+    inR.forEach(o => {
+      counts[o.status]++; const d = byDay[key(o.createdAt)]; if (d) d.orders++;
+      if (PAID.indexOf(o.status) > -1) { paidN++; revenue += o.totals.total; if (d) d.revenue += o.totals.total; o.items.forEach(i => { const r = prod[i.id] || (prod[i.id] = { id: i.id, name: i.name, qty: 0, revenue: 0 }); r.qty += i.qty; r.revenue += (i.unit || 0) * i.qty; }); const c = (o.customer.city || '—') + ', ' + (o.customer.state || ''); city[c] = (city[c] || 0) + 1; }
+    });
+    const settled = inR.filter(o => PAID.indexOf(o.status) > -1 || ['cancelled', 'payment_rejected'].indexOf(o.status) > -1 || o.status === 'awaiting_payment' || o.status === 'payment_review').length;
+    const prev = D.orders.filter(o => o.createdAt >= start - days * DAY && o.createdAt < start && PAID.indexOf(o.status) > -1).reduce((a, o) => a + o.totals.total, 0);
+    const done = D.orders.filter(o => o.status === 'delivered' && o.timeline.length), fulfil = done.map(o => { const a = o.timeline.find(t => PAID.indexOf(t.status) > -1), b = o.timeline.slice().reverse().find(t => t.status === 'delivered'); return a && b ? b.at - a.at : 0; }).filter(Boolean);
+    send(res, 200, { days, series, counts, orders: inR.length, paidOrders: paidN, revenue, prevRevenue: prev, aov: paidN ? Math.round(revenue / paidN) : 0, conversion: settled ? Math.round(paidN / settled * 100) : 0,
+      avgDeliveryDays: fulfil.length ? Math.round(fulfil.reduce((a, b) => a + b, 0) / fulfil.length / DAY * 10) / 10 : null,
+      top: Object.values(prod).sort((a, b) => b.qty - a.qty).slice(0, 6), cities: Object.entries(city).sort((a, b) => b[1] - a[1]).slice(0, 5).map(e => ({ city: e[0], orders: e[1] })),
+      pipeline: D.orders.filter(o => ['payment_review', 'paid', 'processing', 'shipped'].indexOf(o.status) > -1).sort((a, b) => a.updatedAt - b.updatedAt).slice(0, 8).map(o => Orders.view(o, true)) });
+  });
   route('GET', /^\/api\/admin\/orders$/, async (req, res) => {
     need(req, 'admin'); const q = new URL(req.url, 'http://x').searchParams, st = q.get('status'), s = (q.get('q') || '').toLowerCase();
     send(res, 200, { orders: D.orders.filter(o => (!st || o.status === st) && (!s || (o.number + ' ' + Orders.normNumber(o.number) + ' ' + o.customer.name + ' ' + o.customer.email + ' ' + o.customer.phone + ' ' + (o.proof && o.proof.utr || '')).toLowerCase().includes(s))).slice(0, 300).map(o => Orders.view(o, true)) });

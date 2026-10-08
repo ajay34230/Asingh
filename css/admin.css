@@ -85,3 +85,12 @@
 .adm__main input, .adm__main select, .adm__main textarea, .adm__main button, .adm__main .switch, .adm__main summary { scroll-margin-top: 96px; scroll-margin-bottom: 110px; }
 /* a closed drawer must never catch clicks, even mid fade-out */
 .adm__drawer:not(.open) { pointer-events: none; } .adm__drawer:not(.open) * { pointer-events: none; }
+
+/* analytics */
+.chart { width: 100%; height: auto; display: block; } .chart .bar { fill: var(--wine, #6b1d3a); } .chart .ax { stroke: var(--line); } .chart .tx { fill: var(--ink-2); font-size: 11px; }
+.adm__two { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 320px), 1fr)); gap: 14px; margin: 14px 0; }
+.funnel, .toplist, .pipe { list-style: none; margin: 0; padding: 0; display: grid; gap: 10px; }
+.funnel li { display: grid; grid-template-columns: minmax(110px, 1fr) 2fr 2ch; gap: 10px; align-items: center; font-size: .92rem; } .fbar { height: 8px; border-radius: 99px; background: var(--line); overflow: hidden; } .fbar i { display: block; height: 100%; background: var(--wine, #6b1d3a); border-radius: inherit; transition: width .8s cubic-bezier(.2,.7,.2,1); }
+.toplist li { display: grid; grid-template-columns: 1fr auto; gap: 2px 10px; } .toplist small { grid-column: 1 / -1; color: var(--ink-2); }
+.pipe__r { width: 100%; display: grid; grid-template-columns: 1fr auto; gap: 8px; text-align: left; padding: 10px 12px; border: 1px solid var(--line); border-radius: 12px; background: var(--surface); color: inherit; font: inherit; cursor: pointer; } .pipe__r:hover { border-color: var(--wine, #6b1d3a); }
+.pipe__s { font-size: .82rem; color: var(--ink-2); } .steps { grid-column: 1 / -1; display: grid; grid-template-columns: repeat(5, 1fr); gap: 4px; } .steps i { height: 6px; border-radius: 99px; background: var(--line); } .steps i.on { background: var(--wine, #6b1d3a); }

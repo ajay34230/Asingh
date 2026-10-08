@@ -270,4 +270,26 @@
       draw();
     });
   };
+
+  /* ---- Analytics: sales chart, order funnel, top products, live pipeline ---- */
+  var days = 30, STEPS = ['payment_review', 'paid', 'processing', 'shipped', 'delivered'], SL = { awaiting_payment: 'Awaiting payment', payment_review: 'Payment review', payment_rejected: 'Payment rejected', paid: 'Paid', processing: 'Processing', shipped: 'Shipped', delivered: 'Delivered', cancelled: 'Cancelled' };
+  V.analytics = function () {
+    var live = ADM.guard();
+    api('GET', '/api/admin/analytics?days=' + days).then(function (a) {
+      if (!live()) return;
+      var W = 640, H = 200, P = 8, n = a.series.length, max = Math.max.apply(null, a.series.map(function (d) { return d.revenue; }).concat([1])), bw = (W - P * 2) / n;
+      var bars = a.series.map(function (d, i) { var h = Math.round(d.revenue / max * (H - 30)); return '<rect x="' + (P + i * bw + bw * .12).toFixed(1) + '" y="' + (H - 20 - h) + '" width="' + Math.max(1, bw * .76).toFixed(1) + '" height="' + Math.max(h, d.orders ? 2 : 0) + '" rx="2" class="bar"><title>' + d.date + ': ' + d.orders + ' orders, ' + money(d.revenue) + ' paid</title></rect>'; }).join('');
+      var delta = a.prevRevenue ? Math.round((a.revenue - a.prevRevenue) / a.prevRevenue * 100) : null, tot = Math.max(1, a.orders);
+      var fun = ['awaiting_payment', 'payment_review', 'paid', 'processing', 'shipped', 'delivered', 'cancelled', 'payment_rejected'].map(function (k) { return '<li><span>' + SL[k] + '</span><div class="fbar"><i data-w="' + Math.round(a.counts[k] / tot * 100) + '"></i></div><b>' + a.counts[k] + '</b></li>'; }).join('');
+      var v = view('<div class="adm__bar"><div class="fchips" role="group" aria-label="Period">' + [7, 30, 90, 365].map(function (d) { return '<button type="button" data-d="' + d + '" aria-pressed="' + (d === a.days) + '">' + (d === 365 ? '1 year' : d + ' days') + '</button>'; }).join('') + '</div></div>' +
+        '<div class="adm__stats"><div class="stat stat--hot"><span>Revenue (verified)</span><strong>' + money(a.revenue) + '</strong><small>' + (delta === null ? 'no earlier period to compare' : (delta >= 0 ? '▲ ' : '▼ ') + Math.abs(delta) + '% vs previous ' + a.days + ' days') + '</small></div><div class="stat"><span>Orders</span><strong>' + a.orders + '</strong><small>' + a.paidOrders + ' paid</small></div><div class="stat"><span>Average order</span><strong>' + money(a.aov) + '</strong><small>per paid order</small></div><div class="stat"><span>Paid rate</span><strong>' + a.conversion + '%</strong><small>' + (a.avgDeliveryDays === null ? 'delivery time shows after first delivery' : 'avg ' + a.avgDeliveryDays + ' days paid → delivered') + '</small></div></div>' +
+        '<section class="adm__card"><h2 class="adm__h">Daily sales</h2><svg class="chart" viewBox="0 0 ' + W + ' ' + H + '" role="img" aria-label="Bar chart of daily verified revenue"><line x1="0" x2="' + W + '" y1="' + (H - 20) + '" y2="' + (H - 20) + '" class="ax"/>' + bars + '<text x="' + P + '" y="' + (H - 4) + '" class="tx">' + a.series[0].date + '</text><text x="' + (W - P) + '" y="' + (H - 4) + '" text-anchor="end" class="tx">' + a.series[n - 1].date + '</text></svg></section>' +
+        '<div class="adm__two"><section class="adm__card"><h2 class="adm__h">Order progress</h2><ul class="funnel">' + fun + '</ul></section>' +
+        '<section class="adm__card"><h2 class="adm__h">Top products</h2>' + (a.top.length ? '<ol class="toplist">' + a.top.map(function (t) { return '<li><span>' + esc(t.name) + '</span><b>' + t.qty + ' sold</b><small>' + money(t.revenue) + '</small></li>'; }).join('') + '</ol>' : '<p class="muted">Sales will appear once orders are paid.</p>') + (a.cities.length ? '<h3 class="adm__h2">Top cities</h3><p class="muted">' + a.cities.map(function (c) { return esc(c.city) + ' (' + c.orders + ')'; }).join(' · ') + '</p>' : '') + '</section></div>' +
+        '<section class="adm__card"><h2 class="adm__h">Orders in progress</h2>' + (a.pipeline.length ? '<ul class="pipe">' + a.pipeline.map(function (o) { var i = STEPS.indexOf(o.status); return '<li><button type="button" class="pipe__r" data-o="' + o.id + '"><span><strong>' + esc(o.number) + '</strong> · ' + esc(o.customer.name) + '<small> ' + money(o.totals.total) + '</small></span><span class="pipe__s">' + SL[o.status] + '</span><div class="steps" aria-hidden="true">' + STEPS.map(function (x, j) { return '<i class="' + (j <= i ? 'on' : '') + '"></i>'; }).join('') + '</div></button></li>'; }).join('') + '</ul>' : '<p class="muted">Nothing in progress right now.</p>') + '</section>');
+      $$('[data-w]', v).forEach(function (e) { e.style.width = e.getAttribute('data-w') + '%'; });
+      $$('[data-d]', v).forEach(function (b) { b.addEventListener('click', function () { days = +b.getAttribute('data-d'); V.analytics(); }); });
+      $$('.pipe__r', v).forEach(function (b) { b.addEventListener('click', function () { ADM.openOrder(b.getAttribute('data-o')); }); });
+    });
+  };
 })();

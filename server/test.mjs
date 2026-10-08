@@ -201,6 +201,12 @@ console.log('\nStatic allow-list');
 for (const p of ['/server/index.js', '/data/db.json', '/package.json', '/.gitignore', '/tools/qa.mjs', '/../server/db.js', '/%2e%2e/package.json', '/js/../package.json']) { const s = (await fetch(base + p)).status; ok(s === 404 || s === 400, `${p} not served (${s})`); }
 ok((await fetch(base + '/index.html')).status === 200 && (await fetch(base + '/css/styles.css')).status === 200 && (await fetch(base + '/img/hero-tall-480.avif')).status === 200, 'site files served');
 
+console.log('\nAdmin analytics');
+{ const an = await ADM.req('GET', '/api/admin/analytics?days=30'); ok(an.status === 200 && an.json.series.length === 30 && an.json.orders >= 2, 'analytics returns a 30-day series and order totals');
+  ok(an.json.paidOrders >= 1 && an.json.revenue > 0 && an.json.aov > 0 && an.json.top.length >= 1, 'revenue, average order and top products computed from paid orders');
+  ok(Object.keys(an.json.counts).length >= 8 && Array.isArray(an.json.pipeline), 'status funnel and in-progress pipeline present');
+  ok((await A.req('GET', '/api/admin/analytics')).status === 404, 'customers cannot read analytics'); }
+
 console.log('\nGoing live: clear demo content');
 r = await ADM.req('POST', '/api/admin/catalog/clear-demo', {}); ok(r.json.removed >= 12, 'admin clears all demo products in one click (' + r.json.removed + ')');
 { const sb = {}; vm.createContext(sb); vm.runInContext((await new Client().req('GET', '/js/data.js')).text, sb); ok(sb.ASINGH.PRODUCTS.length === 1 && sb.ASINGH.PRODUCTS[0].name === 'Test Kota Poshak' && sb.ASINGH.REVIEWS.length === 0, 'storefront now shows only the owner’s products and no sample reviews'); }
