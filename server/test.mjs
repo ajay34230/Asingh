@@ -492,6 +492,8 @@ console.log('\nAI helpers (Gemini free tier + free fallbacks)');
     a = await ask('cod hai kya?'); ok(/cash on delivery/i.test(a.reply), 'a COD question gets a direct COD answer');
     a = await ask('hello'); ok(/Namaste/.test(a.reply) && a.suggest.length >= 2, 'greetings get a friendly reply with tap-to-ask suggestions');
     const flw = (await C.req('POST', '/api/ai/chat', { messages: [{ role: 'user', content: 'lehenga choli dikhao' }, { role: 'assistant', content: 'Here you go' }, { role: 'user', content: 'pink wala' }] })).json; ok(flw.products.length >= 1 && flw.products.every(x => /lehenga|choli|ghagra/i.test(x.name)), 'a short follow-up (“pink wala”) remembers the earlier style');
+    a = await ask('Tell me about this website'); ok(/चंद्रवंशी/.test(a.reply) && /girls/i.test(a.reply), '“Tell me about this website” gets a proper description of the store');
+    a = await ask('आपकी वेबसाइट के बारे में बताइए'); ok(/हम लड़कियों/.test(a.reply), 'the same question in Hindi gets a Hindi description');
     a = await ask('asdf qwer'); ok(!a.products.length && /Contact|WhatsApp/.test(a.reply), 'gibberish is not answered with random products'); }
   const sb = {}; vm.createContext(sb); vm.runInContext((await C.req('GET', '/js/data.js')).text, sb);
   const first = sb.ASINGH.PRODUCTS[0]; const q1 = (await C.req('GET', '/api/ai/search?q=' + encodeURIComponent('under 99999'))).json.ids; ok(q1.length === sb.ASINGH.PRODUCTS.length, 'a price-only search returns everything within budget');
