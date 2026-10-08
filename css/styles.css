@@ -962,3 +962,4 @@ text, p, li { text-wrap: pretty; }
 .footer__col li a { min-height: 44px; }
 .crumbs a { display: inline-flex; align-items: center; min-height: 44px; min-width: 44px; }
 button.link { min-height: 44px; min-width: 44px; }
+.nav__link { min-width: 44px; justify-content: center; }
