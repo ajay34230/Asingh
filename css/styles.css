@@ -959,3 +959,4 @@ text, p, li { text-wrap: pretty; }
 @media (max-width: 359.98px) { .logo__mark { width: 40px; height: 40px; } }
 .logo__s { font-size: max(.75rem, 12px); }
 .more { display: grid; justify-items: center; gap: 12px; padding-block: 28px 8px; }
+.footer__col li a { min-height: 44px; }
