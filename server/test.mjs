@@ -287,6 +287,14 @@ console.log('\nHindi');
   ok((await (await fetch(base + '/js/i18n-hi.js')).text()).length > 20000, 'Hindi dictionary file is served'); }
 async function cms2(path) { return (await fetch(base + '/' + path, { headers: { cookie: 'as_lang=hi' } })).text(); }
 
+console.log('\nPolicies');
+{ const pg = async (slug, cookie) => (await fetch(base + '/' + slug + '.html', { headers: cookie ? { cookie } : {} })).text();
+  for (const slug of ['shipping-returns', 'privacy-policy', 'terms', 'faq']) ok(!/\{\{/.test(await pg(slug)), slug + ' page has no unfilled placeholders');
+  const sr = await pg('shipping-returns'); ok(/Where we deliver/.test(sr) && /Refunds/.test(sr) && /48 hours/.test(sr) && /custom-stitched/i.test(sr), 'returns policy covers delivery, cancellation, returns, refunds');
+  ok(/Digital Personal Data Protection Act/.test(await pg('privacy-policy')) && /Grievance Officer/.test(await pg('terms')), 'privacy and terms name the DPDP Act and a grievance officer');
+  await ADM.req('PUT', '/api/admin/site', { returnDays: 10, shipFlat: 300 }); const sr2 = await pg('shipping-returns'); ok(/10 days of delivery/.test(sr2) && /₹300/.test(sr2), 'policy numbers follow the store settings');
+  ok(/रिफ़ंड/.test(await pg('shipping-returns', 'as_lang=hi')), 'Hindi policy served with the Hindi cookie'); await ADM.req('PUT', '/api/admin/site', { returnDays: 7, shipFlat: 250 }); }
+
 console.log('\nAdmin analytics');
 { const an = await ADM.req('GET', '/api/admin/analytics?days=30'); ok(an.status === 200 && an.json.series.length === 30 && an.json.orders >= 2, 'analytics returns a 30-day series and order totals');
   ok(an.json.paidOrders >= 1 && an.json.revenue > 0 && an.json.aov > 0 && an.json.top.length >= 1, 'revenue, average order and top products computed from paid orders');

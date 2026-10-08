@@ -11,7 +11,7 @@ function inline(t) {
 /* Markdown-lite: # / ## / ### headings, paragraphs, - lists, 1. lists, > quotes, ---, **bold**, *italic*, [links](url) */
 function render(md, vars) {
   const lv = (String(md).match(/^#{1,3}(?=\s)/gm) || []).map(x => x.length), minL = lv.length ? Math.min.apply(null, lv) : 1;   // top heading level becomes <h2> (the page title is the <h1>)
-  md = String(md || '').replace(/\{\{(\w+)\}\}/g, (m, k) => (vars && vars[k] != null && vars[k] !== '' ? vars[k] : m));
+  md = String(md || '').replace(/\{\{(\w+)\}\}/g, (m, k) => (vars && Object.prototype.hasOwnProperty.call(vars, k) && vars[k] != null ? vars[k] : m));
   const out = [], lines = md.replace(/\r/g, '').split('\n'); let i = 0;
   while (i < lines.length) {
     const l = lines[i];
@@ -73,7 +73,7 @@ Already ordered? You can [track your order](track.html) with your order number a
 **पता:** {{address}}
 
 ऑर्डर कर चुके हैं? अपने ऑर्डर नंबर और मोबाइल नंबर से [अपना ऑर्डर ट्रैक करें](track.html)।` },
-  { slug: 'faq', title: 'FAQ', group: 'help', body: `## How do I place an order?
+  { slug: 'faq', v: 2, title: 'FAQ', group: 'help', body: `## How do I place an order?
 Add your dress to the bag, choose your size and stitching, and check out — as a guest (no account needed) or with an account. You’ll pay by scanning our UPI QR and uploading a screenshot of the payment.
 
 ## How does payment work?
@@ -89,7 +89,16 @@ Use the order number we gave you (like CV-48213) together with your mobile numbe
 Unstitched pieces ship in a few days. Custom-stitched pieces take longer — the timing is shown on each product.
 
 ## Can I return or exchange?
-Please read our [Shipping & returns](shipping-returns.html) page.
+Yes — within {{returnDays}} days of delivery for unstitched and semi-stitched pieces that are unused and have their tags, and within 48 hours for damaged or wrong items. Custom-stitched pieces cannot be returned for fit, but include one free alteration. Full details are in [Shipping, returns & refunds](shipping-returns.html).
+
+## How long do refunds take?
+Approved refunds go back to the UPI ID or bank account you paid from within 5–7 working days (after the returned piece passes inspection, for returns).
+
+## Is cash on delivery available?
+Not at the moment. We accept UPI / QR payment, verified by the payment screenshot you upload.
+
+## Is my payment and personal data safe?
+We never ask for card numbers, OTPs or UPI PINs, and your orders are visible only to you. See our [Privacy policy](privacy-policy.html).
 
 ## How do I look after my dress?
 See our [Care guide](care-guide.html).`, titleHi: "अक्सर पूछे जाने वाले प्रश्न", bodyHi: `## ऑर्डर कैसे करूँ?
@@ -108,7 +117,16 @@ See our [Care guide](care-guide.html).`, titleHi: "अक्सर पूछे 
 बिना सिले परिधान कुछ दिनों में शिप हो जाते हैं। कस्टम-सिले में ज़्यादा समय लगता है — समय हर प्रोडक्ट पर दिखाया गया है।
 
 ## क्या रिटर्न या एक्सचेंज हो सकता है?
-कृपया हमारा [शिपिंग और रिटर्न](shipping-returns.html) पेज पढ़ें।
+हाँ — बिना सिले और अर्ध-सिले परिधान, जो अनपहने हों और टैग सहित हों, डिलीवरी के {{returnDays}} दिन के भीतर; और क्षतिग्रस्त या गलत आइटम 48 घंटे के भीतर। कस्टम-सिले परिधान फ़िट के आधार पर वापस नहीं होते, पर उनमें एक बार मुफ़्त अल्टरेशन शामिल है। पूरी जानकारी [शिपिंग, रिटर्न और रिफ़ंड](shipping-returns.html) में है।
+
+## रिफ़ंड में कितना समय लगता है?
+मंज़ूर रिफ़ंड 5–7 कार्य-दिवस में आपके भुगतान वाले UPI ID या बैंक खाते में जाता है (रिटर्न में, लौटाया परिधान जाँच में पास होने के बाद)।
+
+## क्या कैश ऑन डिलीवरी उपलब्ध है?
+अभी नहीं। हम UPI / QR भुगतान लेते हैं, जिसे आपके अपलोड किए भुगतान स्क्रीनशॉट से सत्यापित किया जाता है।
+
+## क्या मेरा भुगतान और व्यक्तिगत डेटा सुरक्षित है?
+हम कभी कार्ड नंबर, OTP या UPI PIN नहीं माँगते, और आपके ऑर्डर सिर्फ़ आपको दिखते हैं। हमारी [गोपनीयता नीति](privacy-policy.html) देखें।
 
 ## अपनी ड्रेस की देखभाल कैसे करूँ?
 हमारी [देखभाल गाइड](care-guide.html) देखें।` },
@@ -223,4 +241,6 @@ Keep away from moisture to prevent tarnishing. Never iron directly on zari — u
 ## ज़री और गोटा पट्टी
 कालिख से बचाने के लिए नमी से दूर रखें। ज़री पर सीधे इस्त्री कभी न करें — इस्त्री और काम के बीच कपड़ा रखें।` }
 ];
+const POL = require('./policies');
+DEFAULT_PAGES.forEach(d => { if (POL[d.slug]) Object.assign(d, POL[d.slug], { v: 2 }); else if (!d.v) d.v = 1; });
 module.exports = { render, plain, DEFAULT_PAGES, esc };

@@ -61,6 +61,7 @@ class Catalog {
       const ex = this.D.pages.find(p => p.slug === d.slug);
       if (!ex) this.D.pages.push({ ...d, published: true, system: true, updatedAt: Date.now() });
       else if (ex.system && ex.bodyHi === undefined && d.bodyHi) { ex.titleHi = d.titleHi; ex.bodyHi = d.bodyHi; }   // Hindi versions for stores created before Hindi existed
+      if (ex && ex.system && !ex.reviewed && (ex.v || 1) < (d.v || 1)) { Object.assign(ex, { title: d.title, body: d.body, titleHi: d.titleHi, bodyHi: d.bodyHi, v: d.v }); }   // owner never edited it → upgrade to the new full policy
     });
     if (!Array.isArray(this.D.pages)) { this.D.pages = Pages.DEFAULT_PAGES.map(p => ({ ...p, published: true, system: true, updatedAt: Date.now() })); db.save(); }
     fs.mkdirSync(path.join(db.dir, 'media'), { recursive: true, mode: 0o700 });
@@ -137,7 +138,14 @@ class Catalog {
   /* ---- content pages ---- */
   get pages() { return this.D.pages; }
   page(slug) { return this.D.pages.find(p => p.slug === slug); }
-  pageVars() { const t = this.site; return { name: t.name, email: t.contactEmail, phone: t.contactPhone, hours: t.contactHours, address: t.contactAddress }; }
+  pageVars() {   // values for {{placeholders}} in page text; policy pages stay in step with the store settings
+    const t = this.site, inv = (this.db.data.settings || {}).invoice || {}, inr = n => '₹' + Number(n).toLocaleString('en-IN'), rng = (a, b, unit) => a === b ? `${a} ${unit}` : `${a}–${b} ${unit}`;
+    const custom = (t.stitch || []).find(x => x.id === 'custom'), m = custom && /(\d+\s*[–-]\s*\d+\s*days?)/i.exec(custom.eta || '');
+    const dash = v => v || '—';
+    return { name: t.name, legalName: inv.name && inv.name !== t.name ? `${inv.name}` : t.name, email: dash(t.contactEmail), phone: dash(t.contactPhone), hours: dash(t.contactHours), address: dash(t.contactAddress),
+      gstinLine: inv.gstin ? `GSTIN: ${inv.gstin}.` : '', returnDays: t.returnDays || 7, shipFree: t.shipFreeFrom ? inr(t.shipFreeFrom) : 'any amount', shipFee: inr(t.shipFlat || 0),
+      dispatch: rng(t.handlingMin, t.handlingMax, 'working days'), delivery: rng(t.deliveryMin, t.deliveryMax, 'working days'), stitchDays: m ? m[1] : '10–14 days' };
+  }
   savePage(slug, b) {
     b = b || {}; let p = slug ? this.page(slug) : null; if (slug && !p) throw Object.assign(new Error('Page not found'), { status: 404 });
     const title = s(b.title !== undefined ? b.title : p && p.title, 80); if (title.length < 2) throw bad('Give the page a title.');
