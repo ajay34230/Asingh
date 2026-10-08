@@ -277,7 +277,7 @@
     }
     function renderPlacedSummary(o) {
       order.innerHTML = '<ul class="lines lines--mini">' + o.items.map(function (i) { return '<li class="line line--mini"><a class="line__img" href="product.html?id=' + i.id + '" tabindex="-1" aria-hidden="true">' + U.picture(i.id, 1, { sizes: '72px', alt: '' }) + '<span class="line__qty">' + i.qty + '</span></a><div class="line__info"><p class="line__name">' + esc(i.name) + '</p><p class="line__meta">Size ' + esc(i.size) + ' · ' + esc(i.stitchLabel) + '</p></div><span class="line__price">' + money(i.unit * i.qty) + '</span></li>'; }).join('') + '</ul>' +
-        '<dl class="totals"><div><dt>Subtotal</dt><dd>' + money(o.totals.subtotal) + '</dd></div>' + (o.totals.discount ? '<div class="totals__disc"><dt>Discount <small>' + esc(o.totals.coupon || '') + '</small></dt><dd>− ' + money(o.totals.discount) + '</dd></div>' : '') + '<div><dt>Shipping</dt><dd>' + (o.totals.shipping ? money(o.totals.shipping) : 'Free') + '</dd></div><div class="totals__total"><dt>Total</dt><dd>' + money(o.totals.total) + '</dd></div></dl>';
+        '<dl class="totals"><div><dt>Subtotal</dt><dd>' + money(o.totals.subtotal) + '</dd></div>' + (o.totals.discount ? '<div class="totals__disc"><dt>Discount <small>' + esc(o.totals.coupon || '') + '</small></dt><dd>− ' + money(o.totals.discount) + '</dd></div>' : '') + '<div><dt>Shipping</dt><dd>' + (o.totals.shipping ? money(o.totals.shipping) : 'Free') + '</dd></div>' + (o.totals.codFee ? '<div><dt>Cash on delivery fee</dt><dd>' + money(o.totals.codFee) + '</dd></div>' : '') + '<div class="totals__total"><dt>Total</dt><dd>' + money(o.totals.total) + '</dd></div></dl>';
       $('#sum-total').textContent = money(o.totals.total); $('#sum-count').textContent = o.items.length + ' item' + (o.items.length === 1 ? '' : 's');
     }
     var syncSum = function () { sum.open = window.matchMedia('(min-width: 900px)').matches; };
@@ -340,10 +340,17 @@
       for (var i = 0; i < 36; i++) { var s = document.createElement('i'); s.style.cssText = '--x:' + (Math.random() * 100).toFixed(1) + 'vw;--d:' + (Math.random() * .6).toFixed(2) + 's;--t:' + (2.2 + Math.random() * 1.6).toFixed(2) + 's;--r:' + Math.round(Math.random() * 720 - 360) + 'deg;--s:' + (7 + Math.random() * 7).toFixed(0) + 'px;background:' + cols[i % 5]; box.appendChild(s); }
       document.body.appendChild(box); setTimeout(function () { box.remove(); }, 4500);
     }
+    function showDone(o) {
+      placed = o; finished = true; U.store.set('asingh.pending', null); renderPlacedSummary(o);
+      var cod = o.method === 'cod', t = $('#done-title'), x = $('#done-text'), link = ' — check any time on the <a href="track.html">tracking page</a> with your order number and mobile number.';
+      if (o.status === 'paid') { t.textContent = 'Payment received — thank you!'; x.innerHTML = 'Your order is confirmed and we’ll start preparing it' + link; }
+      else if (cod) { t.textContent = 'Order confirmed — pay on delivery'; x.innerHTML = 'Please keep ' + money(o.totals.total) + ' ready (cash or UPI) when your parcel arrives. We’ll update the status' + link; }
+      A.Orders.numberCard(o, $('#done-numcard'), 'Save this number — with your mobile number you can check progress any time, even without signing in.'); $('#track').href = 'order.html?id=' + o.id; $('#bill').href = 'invoice.html?id=' + o.id; go(4);
+    }
     function showQr(o) {
       placed = o; finished = true; U.store.set('asingh.pending', o.id); renderPlacedSummary(o);
       A.Orders.numberCard(o, $('#qr-numcard')); $('#track').href = 'order.html?id=' + o.id; $('#bill').href = 'invoice.html?id=' + o.id;
-      A.Orders.payPanel(o, $('#qr-mount'), function (upd) { placed = upd; if (upd.status === 'payment_review') { U.store.set('asingh.pending', null); A.Orders.numberCard(upd, $('#done-numcard'), 'Save this number — with your mobile number you can check progress any time, even without signing in.'); go(4); } });
+      A.Orders.payPanel(o, $('#qr-mount'), function (upd) { placed = upd; if (upd.status === 'payment_review') { U.store.set('asingh.pending', null); A.Orders.numberCard(upd, $('#done-numcard'), 'Save this number — with your mobile number you can check progress any time, even without signing in.'); go(4); } else if (upd.status === 'paid') showDone(upd); });
       go(3);
     }
 
@@ -369,7 +376,7 @@
       e.preventDefault(); var m = form2.querySelector('[name=pay]:checked'), btn = $('#place'), err = $('#method-err'); err.textContent = '';
       if (!m) { err.textContent = 'Please choose a payment method.'; return; }
       btn.disabled = true; btn.classList.add('is-busy');
-      api('POST', '/api/orders', { items: Cart.items.map(function (i) { return { id: i.id, size: i.size, stitch: i.stitch, color: i.color, note: i.note, qty: i.qty }; }), customer: cust, method: m.value, coupon: Cart.coupon ? Cart.coupon.code : undefined }).then(function (r) { finished = true; var sv = $('#save-addr'); if (sv && sv.checked && U.Auth.user && !U.Auth.user.isGuest) api('POST', '/api/me/addresses', { label: 'Home', name: cust.name, phone: cust.phone, line1: cust.line1, line2: cust.line2, pin: cust.pin, city: cust.city, state: cust.state }).then(function (x) { U.Auth.user = x.user; }, function () {}); Cart.clear(); showQr(r.order); }, function (er) { btn.disabled = false; btn.classList.remove('is-busy'); err.textContent = er.message; });
+      api('POST', '/api/orders', { items: Cart.items.map(function (i) { return { id: i.id, size: i.size, stitch: i.stitch, color: i.color, note: i.note, qty: i.qty }; }), customer: cust, method: m.value, coupon: Cart.coupon ? Cart.coupon.code : undefined }).then(function (r) { finished = true; var sv = $('#save-addr'); if (sv && sv.checked && U.Auth.user && !U.Auth.user.isGuest) api('POST', '/api/me/addresses', { label: 'Home', name: cust.name, phone: cust.phone, line1: cust.line1, line2: cust.line2, pin: cust.pin, city: cust.city, state: cust.state }).then(function (x) { U.Auth.user = x.user; }, function () {}); Cart.clear(); if (r.order.method === 'cod' || r.order.status === 'paid') showDone(r.order); else { showQr(r.order); if (r.order.method === 'razorpay') setTimeout(function () { var b = $('#pay-online'); if (b) b.click(); }, 400); } }, function (er) { btn.disabled = false; btn.classList.remove('is-busy'); err.textContent = er.message; });
     });
 
     Cart.subscribe(function () {

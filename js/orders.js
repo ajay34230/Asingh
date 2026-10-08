@@ -35,6 +35,25 @@
     }).join('') + '</ul>';
   }
 
+  /* Online payment through Razorpay Checkout (cards, UPI apps, netbanking, wallets). Confirmation is verified on the server. */
+  function payOnline(order, done, dismissed) {
+    return api('POST', '/api/orders/' + order.id + '/razorpay', {}).then(function (c) {
+      return new Promise(function (resolve, reject) {
+        var sc = document.querySelector('script[data-rzp]');
+        function open() {
+          var rz = new window.Razorpay({ key: c.keyId, order_id: c.rzpOrderId, amount: c.amount, currency: c.currency, name: c.name, description: c.description, prefill: c.prefill, theme: { color: '#5b1530' },
+            handler: function (resp) { api('POST', '/api/orders/' + order.id + '/razorpay/verify', resp).then(function (r) { resolve(r.order); }, reject); },
+            modal: { ondismiss: function () { if (dismissed) dismissed(); } } });
+          rz.on('payment.failed', function () { U.toast('Payment did not go through — you can try again.'); });
+          rz.open();
+        }
+        if (window.Razorpay) return open();
+        if (!sc) { sc = document.createElement('script'); sc.src = 'https://checkout.razorpay.com/v1/checkout.js'; sc.async = true; sc.setAttribute('data-rzp', '1'); document.head.appendChild(sc); }
+        sc.addEventListener('load', open); sc.addEventListener('error', function () { reject(new Error('Could not load the payment window. Check your connection and try again.')); });
+      });
+    }).then(function (o) { if (done) done(o); return o; });
+  }
+
   /* The QR payment panel. Re-renders itself as the order moves through review. */
   function payPanel(order, mount, onUpdate) {
     config().then(function (cfg) { render(cfg.upi); }, function () { mount.innerHTML = '<p class="field__err">Couldn’t load payment details. Please refresh.</p>'; });
@@ -43,6 +62,16 @@
       var link = upi.upiId ? 'upi://pay?pa=' + encodeURIComponent(upi.upiId) + '&pn=' + encodeURIComponent(upi.payeeName) + '&am=' + total + '&cu=INR&tn=' + encodeURIComponent(o.number) : '';
       var rej = o.status === 'payment_rejected' ? (o.timeline.slice().reverse().filter(function (t) { return t.status === 'payment_rejected'; })[0] || {}).note : '';
       var proofImg = o.proof ? '<a class="proofprev" href="/api/orders/' + o.id + '/proof" target="_blank" rel="noopener"><img src="/api/orders/' + o.id + '/proof?t=' + o.proof.at + '" alt="Your uploaded payment screenshot" loading="lazy"></a>' : '';
+      if (needs && o.method === 'razorpay') {
+        mount.innerHTML = '<div class="pay pay--online"><p class="pay__amt"><span>Amount to pay</span><strong>' + money(total) + '</strong></p>' + (rej ? '<p class="pay__alert" role="alert">' + esc(rej) + '</p>' : '') + '<p class="muted">Pay with a card, any UPI app, netbanking or wallet. You’ll come back here automatically and your order is confirmed instantly.</p><p class="field__err" role="alert" id="onl-err"></p><button type="button" class="btn btn--lg btn--block" id="pay-online"><span>Pay ' + money(total) + ' securely</span></button><p class="muted">Prefer UPI QR? <button type="button" class="link" id="use-qr">Pay by QR instead</button></p></div>';
+        $('#pay-online', mount).addEventListener('click', function () { var b = this; b.disabled = true; payOnline(order, function (upd) { order = upd; U.toast('Payment received — thank you!'); if (onUpdate) onUpdate(order); render(upi); }, function () { b.disabled = false; }).catch(function (er) { b.disabled = false; $('#onl-err', mount).textContent = er.message || 'Payment could not be started.'; }); });
+        $('#use-qr', mount).addEventListener('click', function () { order = Object.assign({}, order, { method: 'upi_qr' }); render(upi); });
+        return;
+      }
+      if (o.method === 'cod' && !['delivered', 'cancelled'].includes(o.status)) {
+        mount.innerHTML = '<div class="payok pay--good"><span class="payok__ico" aria-hidden="true">' + U.icon('check') + '</span><div><strong>Cash on delivery</strong><p>Your order is confirmed. Please keep <strong>' + money(total) + '</strong> ready (cash or UPI) when it arrives.</p></div></div>';
+        return;
+      }
       if (!needs) {
         mount.innerHTML = '<div class="payok pay--' + TONE[o.status] + '"><span class="payok__ico" aria-hidden="true">' + U.icon(o.status === 'payment_review' ? 'ret' : 'check') + '</span><div><strong>' + (o.status === 'payment_review' ? 'Screenshot received — we’re verifying your payment' : o.status === 'cancelled' ? 'This order was cancelled' : 'Payment verified — thank you!') + '</strong><p class="muted">' + (o.status === 'payment_review' ? 'This usually takes a short while during store hours. You’ll see the status change here.' : o.status === 'cancelled' ? '' : 'Our artisans will start on your order.') + '</p></div>' + proofImg + '</div>';
         return;
@@ -98,5 +127,5 @@
     if (!t || (!t.courier && !t.id && !t.url)) return '';
     return '<div class="trackcard"><span class="trackcard__ico" aria-hidden="true">' + U.icon('truck') + '</span><div><strong>' + esc(t.courier || 'Courier') + '</strong>' + (t.id ? '<span>Tracking ID <code>' + esc(t.id) + '</code> <button type="button" class="copy" data-copy="' + esc(t.id) + '">Copy</button></span>' : '') + (t.url ? '<a class="link" href="' + esc(t.url) + '" target="_blank" rel="noopener noreferrer">Track shipment ↗</a>' : '') + '</div></div>';
   }
-  A.Orders = { numberCard: numberCard, trackingCard: trackingCard, copy: copy, LABEL: LABEL, chip: chip, timeline: timeline, items: itemsHTML, payPanel: payPanel, config: config, fmtDate: fmtDate, tone: TONE };
+  A.Orders = { payOnline: payOnline, numberCard: numberCard, trackingCard: trackingCard, copy: copy, LABEL: LABEL, chip: chip, timeline: timeline, items: itemsHTML, payPanel: payPanel, config: config, fmtDate: fmtDate, tone: TONE };
 })(window.ASINGH);

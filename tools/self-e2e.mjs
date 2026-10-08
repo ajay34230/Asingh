@@ -103,6 +103,18 @@ console.log('\nSaved addresses + buy again');
   ok(/Kota Doria/.test(await a.locator('main').innerText()), '“Buy again” puts the same pieces back in the bag');
   await a.goto(BASE + '/account.html'); await a.click('#tab-p'); ok(await a.locator('.addr').count() === 1, 'account lists the saved address'); }
 
+console.log('\nCash on delivery checkout (browser)');
+{ await call(ad, 'PUT', '/api/admin/settings', { cod: { enabled: true, fee: 40, max: 0 } });
+  const c = await page(1280, 1000); await c.goto(BASE + '/account.html'); await call(c, 'POST', '/api/auth/register', { name: 'Cod Buyer', email: 'cod@example.com', password: 'cod-pass-1234' });
+  await c.evaluate(() => localStorage.setItem('asingh.cart.v1', JSON.stringify([{ key: 'k', id: 'kota-doria-suit', size: 'M', stitch: 'unstitched', color: 'Sand', note: '', qty: 1 }])));
+  await c.goto(BASE + '/checkout.html'); await c.waitForSelector('#step-details');
+  await c.fill('#phone', '9876543210'); await c.fill('#name', 'Cod Buyer'); await c.fill('#line1', '12 MG Road'); await c.fill('#pin', '560001'); await c.fill('#city', 'Bengaluru'); await c.selectOption('#state', 'Karnataka'); await c.click('#step-details button[type=submit]');
+  await c.waitForSelector('#step-method:not([hidden])'); await c.waitForSelector('input[name=pay][value=cod]'); ok(await c.locator('input[name=pay][value=razorpay]').count() === 0, 'online option hidden while keys are not set');
+  await c.check('input[name=pay][value=cod]', { force: true }); await c.click('#place'); await c.waitForSelector('#step-done:not([hidden])', { timeout: 8000 });
+  ok(/pay on delivery/i.test(await c.textContent('#done-title')) && /CV-\d{5}/.test(await c.textContent('#done-numcard')), 'COD checkout ends on the confirmation page with an order number');
+  const mine = (await call(c, 'GET', '/api/orders')).json.orders[0]; ok(mine.status === 'processing' && mine.totals.codFee === 40, 'the order is confirmed with the COD fee');
+  await call(ad, 'PUT', '/api/admin/settings', { cod: { enabled: false, fee: 0, max: 0 } }); }
+
 console.log('\nCookie notice only when Analytics is on');
 await call(ad, 'PUT', '/api/admin/site', { ga4Id: 'G-TEST123456' });
 const v = await page(); await v.goto(BASE + '/'); await v.waitForSelector('.consent', { timeout: 5000 }); ok(true, 'cookie notice appears');

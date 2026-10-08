@@ -79,6 +79,11 @@ function customer(c) {
 function create(db, user, body, methodId, cat) {
   const coupon = body.coupon ? findCoupon(db, body.coupon) : null;
   const { items, totals } = price(body.items, cat, coupon);
+  if (methodId === 'cod') {   // cash on delivery: optional handling fee and maximum order value (Admin → Payment & QR)
+    const c = (db.data.settings || {}).cod || {};
+    if (c.max && totals.total > c.max) throw bad('Cash on delivery is available for orders up to ₹' + c.max.toLocaleString('en-IN') + '. Please pay online or by UPI for this order.');
+    if (c.fee) { totals.codFee = c.fee; totals.total += c.fee; }
+  }
   const now = Date.now(), d = new Date(now);
   const number = newNumber(db);
   const stockUsed = {}, wantSize = {}; items.forEach(i => { stockUsed[i.id] = (stockUsed[i.id] || 0) + i.qty; const k = i.id + '|' + i.size; wantSize[k] = (wantSize[k] || 0) + i.qty; });

@@ -325,6 +325,28 @@ console.log('\nSaved addresses');
   const G2 = new Client(); await G2.req('POST', '/api/auth/guest', {}); ok((await G2.req('POST', '/api/me/addresses', ad)).status === 403, 'guests cannot save addresses');
   ok(!(await B.req('GET', '/api/me')).json.user || !(await B.req('GET', '/api/me')).json.user.addresses.some(a => a.line1 === '12 MG Road' && a.name === 'Addr Tester'), 'other customers never see them'); }
 
+console.log('\nCash on delivery + online payment (mock Razorpay)');
+{ const C = new Client(); await C.req('POST', '/api/auth/guest', {}); const cfg0 = (await new Client().req('GET', '/api/config')).json.methods.map(m => m.id); ok(cfg0.indexOf('cod') < 0 && cfg0.indexOf('razorpay') < 0, 'COD and online payment are hidden until enabled');
+  ok((await C.req('POST', '/api/orders', { items: cart, customer: cust, method: 'cod' })).status === 400, 'COD refused while switched off');
+  ok((await ADM.req('PUT', '/api/admin/settings', { cod: { enabled: true, fee: 40, max: 50000 } })).status === 200, 'admin enables COD with a ₹40 fee and ₹50,000 limit');
+  ok((await new Client().req('GET', '/api/config')).json.methods.some(m => m.id === 'cod'), 'COD now offered at checkout');
+  let q = await C.req('POST', '/api/orders', { items: cart, customer: cust, method: 'cod' }); ok(q.status === 201 && q.json.order.status === 'processing' && q.json.order.totals.codFee === 40 && q.json.order.totals.total === q.json.order.totals.subtotal + q.json.order.totals.shipping + 40, 'COD order is confirmed at once and carries the fee');
+  ok((await C.req('POST', '/api/orders', { items: [{ ...cart[0], qty: 3 }], customer: cust, method: 'cod' })).status === 400, 'COD refused above the order limit');
+  // mock gateway
+  const http2 = (await import('node:http')).default; const mock = http2.createServer((rq, rs) => { let b = ''; rq.on('data', d => b += d); rq.on('end', () => { rs.setHeader('content-type', 'application/json'); const j = JSON.parse(b || '{}'); rs.end(JSON.stringify({ id: 'order_MOCK' + j.amount, amount: j.amount, receipt: j.receipt, auth: rq.headers.authorization })); }); }); await new Promise(r => mock.listen(0, r));
+  process.env.RAZORPAY_KEY_ID = 'rzp_test_abc'; process.env.RAZORPAY_KEY_SECRET = 'secret123'; process.env.RAZORPAY_BASE = 'http://127.0.0.1:' + mock.address().port;
+  ok((await new Client().req('GET', '/api/config')).json.methods.some(m => m.id === 'razorpay'), 'online payment appears once the keys are set');
+  q = await C.req('POST', '/api/orders', { items: cart, customer: cust, method: 'razorpay' }); const ro = q.json.order; ok(q.status === 201 && ro.status === 'awaiting_payment', 'online order starts awaiting payment');
+  const init = await C.req('POST', '/api/orders/' + ro.id + '/razorpay', {}); ok(init.status === 200 && init.json.keyId === 'rzp_test_abc' && init.json.amount === ro.totals.total * 100 && /^order_MOCK/.test(init.json.rzpOrderId), 'server creates the gateway order for the exact amount (paise)');
+  ok((await B.req('POST', '/api/orders/' + ro.id + '/razorpay', {})).status === 404, 'another customer cannot start payment for it');
+  const pid = 'pay_TEST1', sig = crypto.createHmac('sha256', 'secret123').update(init.json.rzpOrderId + '|' + pid).digest('hex');
+  ok((await C.req('POST', '/api/orders/' + ro.id + '/razorpay/verify', { razorpay_order_id: init.json.rzpOrderId, razorpay_payment_id: pid, razorpay_signature: 'bad' })).status === 400, 'a wrong signature is refused');
+  q = await C.req('POST', '/api/orders/' + ro.id + '/razorpay/verify', { razorpay_order_id: init.json.rzpOrderId, razorpay_payment_id: pid, razorpay_signature: sig }); ok(q.status === 200 && q.json.order.status === 'paid', 'a correct signature marks the order paid');
+  ok((await C.req('POST', '/api/orders/' + ro.id + '/razorpay/verify', { razorpay_order_id: init.json.rzpOrderId, razorpay_payment_id: pid, razorpay_signature: sig })).status === 200, 'verifying twice is harmless');
+  const csp = (await fetch(base + '/')).headers.get('content-security-policy'); ok(/checkout\.razorpay\.com/.test(csp) && /frame-src[^;]*api\.razorpay\.com/.test(csp), 'CSP opens up for Razorpay only while it is enabled');
+  delete process.env.RAZORPAY_KEY_ID; delete process.env.RAZORPAY_KEY_SECRET; delete process.env.RAZORPAY_BASE; mock.close(); ok(!/razorpay/.test((await fetch(base + '/')).headers.get('content-security-policy')), 'CSP back to strict without it');
+  await ADM.req('PUT', '/api/admin/settings', { cod: { enabled: false, fee: 0, max: 0 } }); }
+
 console.log('\nAdmin analytics');
 { const an = await ADM.req('GET', '/api/admin/analytics?days=30'); ok(an.status === 200 && an.json.series.length === 30 && an.json.orders >= 2, 'analytics returns a 30-day series and order totals');
   ok(an.json.paidOrders >= 1 && an.json.revenue > 0 && an.json.aov > 0 && an.json.top.length >= 1, 'revenue, average order and top products computed from paid orders');

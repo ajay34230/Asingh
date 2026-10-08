@@ -41,7 +41,11 @@ function createApp(opts = {}) {
   const findOrder = (idv, u) => { const o = D.orders.find(x => x.id === idv); if (!o || !ownerOrAdmin(u, o)) throw fail(404, 'Order not found'); return o; };
   const money = n => '₹' + Number(n).toLocaleString('en-IN');
   /* Google Analytics hosts are allowed only when the admin has set a GA4 id */
-  const csp = () => { const ga = catalog.site.ga4Id, gs = ga ? ' https://www.googletagmanager.com' : '', gc = ga ? ' https://*.google-analytics.com https://*.analytics.google.com https://*.googletagmanager.com' : ''; return `default-src 'self'; img-src 'self' data: blob:${gc}; style-src 'self' 'unsafe-inline'; script-src 'self'${gs}; connect-src 'self'${gc}; frame-ancestors 'none'; base-uri 'self'; form-action 'self'; object-src 'none'`; };
+  const csp = () => {
+    const ga = catalog.site.ga4Id, rz = Pay.razorpayOn(), gs = ga ? ' https://www.googletagmanager.com' : '', gc = ga ? ' https://*.google-analytics.com https://*.analytics.google.com https://*.googletagmanager.com' : '';
+    const rs = rz ? ' https://checkout.razorpay.com' : '', rc = rz ? ' https://*.razorpay.com' : '', gg = process.env.GOOGLE_CLIENT_ID ? ' https://accounts.google.com' : '';
+    return `default-src 'self'; img-src 'self' data: blob:${gc}${rc}; style-src 'self' 'unsafe-inline'${gg}; script-src 'self'${gs}${rs}${gg}; connect-src 'self'${gc}${rc}${gg}; frame-src ${rz ? "'self' https://api.razorpay.com https://checkout.razorpay.com" : "'self'"}${gg}; frame-ancestors 'none'; base-uri 'self'; form-action 'self'; object-src 'none'`;
+  };
   const headersFor = isHtml => ({
     'X-Content-Type-Options': 'nosniff', 'Referrer-Policy': 'strict-origin-when-cross-origin', 'X-Frame-Options': 'DENY', 'Permissions-Policy': 'camera=(), microphone=(), geolocation=(), payment=(self)',
     ...(isHtml ? { 'Content-Security-Policy': csp() } : {})
@@ -53,7 +57,7 @@ function createApp(opts = {}) {
 
   route('GET', /^\/api\/config$/, async (req, res) => {
     const s = D.settings;
-    send(res, 200, { brand: catalog.site.name, site: { name: catalog.site.name, contactEmail: catalog.site.contactEmail, contactPhone: catalog.site.contactPhone, policies: catalog.site.policies }, methods: Pay.publicMethods(), upi: { payeeName: s.payeeName, upiId: s.upiId, instructions: s.instructions, qrUrl: '/media/qr?v=' + s.qrV, isDemo: !s.qrFile }, invoice: s.invoice });
+    send(res, 200, { brand: catalog.site.name, site: { name: catalog.site.name, contactEmail: catalog.site.contactEmail, contactPhone: catalog.site.contactPhone, policies: catalog.site.policies }, methods: Pay.publicMethods(D.settings), upi: { payeeName: s.payeeName, upiId: s.upiId, instructions: s.instructions, qrUrl: '/media/qr?v=' + s.qrV, isDemo: !s.qrFile }, invoice: s.invoice });
   });
   route('GET', /^\/media\/qr$/, async (req, res) => {
     const f = D.settings.qrFile ? path.join(db.dir, D.settings.qrFile) : path.join(Static.ROOT, 'server/assets/demo-qr.png');
@@ -207,11 +211,12 @@ function createApp(opts = {}) {
   });
   route('POST', /^\/api\/orders$/, async (req, res) => {
     const u = need(req); if (!orderLimit(u.id)) throw fail(429, 'Too many orders. Please try again later.');
-    const b = await jsonBody(req), m = Pay.method(b.method); if (!m) throw fail(400, 'That payment method is not available yet.');
+    const b = await jsonBody(req), m = Pay.method(b.method, D.settings); if (!m) throw fail(400, 'That payment method is not available.');
     const o = Orders.create(db, u, b, m.id, catalog);
     u.profile = { phone: o.customer.phone, line1: o.customer.line1, line2: o.customer.line2, pin: o.customer.pin, city: o.customer.city, state: o.customer.state };
     if (!u.isGuest && !u.name) u.name = o.customer.name; db.save();
-    notifier.push('new_order', o, 'New order ' + o.number, `${o.customer.name} · ${money(o.totals.total)} · awaiting payment`);
+    if (m.id === 'cod') Orders.transition(db, o, 'processing', 'Cash on delivery — order confirmed. Please keep ₹' + o.totals.total.toLocaleString('en-IN') + ' ready when it arrives.', 'system');
+    notifier.push('new_order', o, 'New order ' + o.number, `${o.customer.name} · ${money(o.totals.total)} · ${m.id === 'cod' ? 'CASH ON DELIVERY — confirmed' : m.id === 'razorpay' ? 'paying online' : 'awaiting payment'}`);
     send(res, 201, { order: Orders.view(o, false) });
   });
   route('GET', /^\/api\/orders$/, async (req, res) => { const u = need(req); send(res, 200, { orders: D.orders.filter(o => o.userId === u.id).map(o => Orders.view(o, false)) }); });
@@ -220,6 +225,22 @@ function createApp(opts = {}) {
     const u = need(req), o = findOrder(m[1], u); if (o.userId !== u.id) throw fail(404, 'Order not found');
     if (['awaiting_payment', 'payment_rejected'].indexOf(o.status) < 0) throw fail(409, 'This order can no longer be cancelled here. Please contact us.');
     Orders.transition(db, o, 'cancelled', 'Cancelled by customer', 'customer'); notifier.push('order_cancelled', o, 'Order cancelled ' + o.number, o.customer.name); send(res, 200, { order: Orders.view(o, false) });
+  });
+  /* ---- online payment (Razorpay): create the gateway order, then verify the signature the browser gets back ---- */
+  const payable = o => ['awaiting_payment', 'payment_rejected'].indexOf(o.status) > -1 && o.method === 'razorpay';
+  route('POST', /^\/api\/orders\/([\w-]+)\/razorpay$/, async (req, res, m) => {
+    const u = need(req), o = findOrder(m[1], u); if (o.userId !== u.id) throw fail(404, 'Order not found'); if (!Pay.razorpayOn()) throw fail(400, 'Online payment is not available.'); if (!payable(o)) throw fail(409, 'This order does not need payment.');
+    if (!o.rzp || o.rzp.amount !== o.totals.total) { let r; try { r = await Pay.rzpCreateOrder({ amountInr: o.totals.total, receipt: o.number, notes: { order_number: o.number } }); } catch (e) { throw fail(502, 'The payment service is not reachable right now. Please try again, or choose UPI / QR.'); } o.rzp = { orderId: r.id, amount: o.totals.total }; db.save(); }
+    send(res, 200, { keyId: process.env.RAZORPAY_KEY_ID, rzpOrderId: o.rzp.orderId, amount: Math.round(o.totals.total * 100), currency: 'INR', name: catalog.site.name, description: 'Order ' + o.number, prefill: { name: o.customer.name, email: o.customer.email, contact: o.customer.phone } });
+  });
+  route('POST', /^\/api\/orders\/([\w-]+)\/razorpay\/verify$/, async (req, res, m) => {
+    const u = need(req), o = findOrder(m[1], u); if (o.userId !== u.id) throw fail(404, 'Order not found'); const b = await jsonBody(req);
+    if (!o.rzp || !payable(o) && o.status !== 'paid') throw fail(409, 'Nothing to verify for this order.');
+    if (o.status === 'paid') return send(res, 200, { order: Orders.view(o, false) });
+    if (String(b.razorpay_order_id) !== o.rzp.orderId || !Pay.rzpVerify(o.rzp.orderId, String(b.razorpay_payment_id || ''), String(b.razorpay_signature || ''))) throw fail(400, 'We could not confirm this payment. If money was deducted it will be refunded automatically, or contact us with your order number.');
+    o.payment = { provider: 'razorpay', id: String(b.razorpay_payment_id).slice(0, 40), at: Date.now() };
+    Orders.transition(db, o, 'paid', 'Paid online (Razorpay) · ' + o.payment.id, 'gateway'); notifier.push('payment_confirmed', o, 'Online payment ' + o.number, `${o.customer.name} · ${money(o.totals.total)} paid by Razorpay`);
+    send(res, 200, { order: Orders.view(o, false) });
   });
   /* after payment: customer asks to cancel; after delivery: asks to return/exchange — admin decides */
   route('POST', /^\/api\/orders\/([\w-]+)\/request$/, async (req, res, m) => {
@@ -529,11 +550,12 @@ function createApp(opts = {}) {
     else throw fail(400, 'Unknown action');
     send(res, 200, { order: Orders.view(o, true) });
   });
-  route('GET', /^\/api\/admin\/settings$/, async (req, res) => { need(req, 'admin'); const s = D.settings; send(res, 200, { invoice: s.invoice, payeeName: s.payeeName, upiId: s.upiId, instructions: s.instructions, webhookUrl: s.webhookUrl, qrUrl: '/media/qr?v=' + s.qrV, qrIsDemo: !s.qrFile, envWebhook: !!process.env.ADMIN_WEBHOOK_URL }); });
+  route('GET', /^\/api\/admin\/settings$/, async (req, res) => { need(req, 'admin'); const s = D.settings; send(res, 200, { invoice: s.invoice, payeeName: s.payeeName, upiId: s.upiId, instructions: s.instructions, webhookUrl: s.webhookUrl, qrUrl: '/media/qr?v=' + s.qrV, qrIsDemo: !s.qrFile, envWebhook: !!process.env.ADMIN_WEBHOOK_URL, cod: { enabled: !!(s.cod && s.cod.enabled), fee: (s.cod && s.cod.fee) || 0, max: (s.cod && s.cod.max) || 0 }, razorpay: { on: Pay.razorpayOn(), webhookUrl: '/api/webhooks/razorpay', webhookReady: !!process.env.WEBHOOK_SECRET_RAZORPAY } }); });
   route('PUT', /^\/api\/admin\/settings$/, async (req, res) => {
     need(req, 'admin'); const b = await jsonBody(req), s = D.settings;
     if (b.upiId !== undefined) { const v = String(b.upiId).trim().slice(0, 80); if (v && !/^[\w.\-]{2,}@[\w.\-]{2,}$/.test(v)) throw fail(400, 'UPI ID should look like name@bank.'); s.upiId = v; }
     if (b.invoice && typeof b.invoice === 'object') { const i = b.invoice, c = (v, n) => String(v == null ? '' : v).trim().slice(0, n); const g = c(i.gstin, 15).toUpperCase(); if (g && !/^[0-9A-Z]{15}$/.test(g)) throw fail(400, 'GSTIN should be 15 letters/digits (or leave it blank).'); s.invoice = { name: c(i.name, 80) || 'चंद्रवंशी', address: c(i.address, 240), gstin: g, contact: c(i.contact, 120) }; }
+    if (b.cod && typeof b.cod === 'object') { const n = (v, mx) => { const x = Math.round(Number(v) || 0); if (x < 0 || x > mx) throw fail(400, 'Cash-on-delivery amounts must be between 0 and ' + mx + '.'); return x; }; s.cod = { enabled: !!b.cod.enabled, fee: n(b.cod.fee, 2000), max: n(b.cod.max, 500000) }; }
     if (b.payeeName !== undefined) s.payeeName = String(b.payeeName).trim().slice(0, 60) || 'चंद्रवंशी';
     if (b.instructions !== undefined) s.instructions = String(b.instructions).trim().slice(0, 500);
     if (b.webhookUrl !== undefined) { const v = String(b.webhookUrl).trim().slice(0, 300); if (v) { let u; try { u = new URL(v); } catch (e) { throw fail(400, 'Webhook URL is not valid.'); } if (u.protocol !== 'https:') throw fail(400, 'Webhook URL must start with https://'); } s.webhookUrl = v; }
