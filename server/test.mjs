@@ -478,6 +478,21 @@ console.log('\nAI helpers (Gemini free tier + free fallbacks)');
   r = await chatQ(C, 'asdf qwer'); ok(r.status === 200 && /WhatsApp|Contact/.test(r.json.reply), 'unknown questions point to WhatsApp / contact');
   ok((await C.req('POST', '/api/ai/chat', { messages: [] })).status === 400, 'empty chat is rejected');
   r = await C.req('GET', '/api/ai/search?q=' + encodeURIComponent('red sharara for sangeet')); ok(r.status === 200 && Array.isArray(r.json.ids) && r.json.ai === false, 'smart search works without AI');
+
+  /* the free assistant understands real customer phrasing (English, Hinglish, Hindi), vague wishes and follow-ups */
+  { const ask = async (text, extra = {}) => (await C.req('POST', '/api/ai/chat', { messages: [{ role: 'user', content: text }], ...extra })).json;
+    let a = await ask('mujhe shaadi ke liye lal lehnga chahiye'); ok(a.products.length >= 1 && a.products.every(x => /lehenga|choli|ghagra/i.test(x.name)), 'Hinglish with spelling slips (“lehnga”) still finds lehengas');
+    a = await ask('red lehnga for wedding'); ok(/lehenga/i.test(a.reply) && a.products.length >= 1, 'if there is no exact colour match it says so honestly and shows the closest');
+    a = await ask('मुझे शादी के लिए लाल लहंगा चाहिए'); ok(/[ऀ-ॿ]/.test(a.reply) && a.products.length >= 1, 'a Hindi (Devanagari) request gets a Hindi answer with products');
+    a = await ask('डिलीवरी कितने दिन में होती है'); ok(/डिलीवरी/.test(a.reply), 'Hindi delivery question is answered in Hindi');
+    a = await ask('kitna sasta suit hai birthday party ke liye'); ok(a.products.length >= 1 && a.products[0].price <= a.products[a.products.length - 1].price, '“cheap” requests list the lowest prices first');
+    a = await ask('sundar suit dikhao 3000 ke andar'); ok(/under ₹3,000|lowest/.test(a.reply) && a.products.length >= 1, 'when nothing fits the budget it shows the lowest-priced pieces');
+    a = await ask('gift for my niece'); ok(a.products.length >= 2 && /age|occasion|budget/i.test(a.reply), 'a vague wish gets popular pieces plus one clarifying question');
+    a = await ask('stitching kitne din'); ok(/stitch/i.test(a.reply), '“stitching kitne din” is answered as a stitching question');
+    a = await ask('cod hai kya?'); ok(/cash on delivery/i.test(a.reply), 'a COD question gets a direct COD answer');
+    a = await ask('hello'); ok(/Namaste/.test(a.reply) && a.suggest.length >= 2, 'greetings get a friendly reply with tap-to-ask suggestions');
+    const flw = (await C.req('POST', '/api/ai/chat', { messages: [{ role: 'user', content: 'lehenga choli dikhao' }, { role: 'assistant', content: 'Here you go' }, { role: 'user', content: 'pink wala' }] })).json; ok(flw.products.length >= 1 && flw.products.every(x => /lehenga|choli|ghagra/i.test(x.name)), 'a short follow-up (“pink wala”) remembers the earlier style');
+    a = await ask('asdf qwer'); ok(!a.products.length && /Contact|WhatsApp/.test(a.reply), 'gibberish is not answered with random products'); }
   const sb = {}; vm.createContext(sb); vm.runInContext((await C.req('GET', '/js/data.js')).text, sb);
   const first = sb.ASINGH.PRODUCTS[0]; const q1 = (await C.req('GET', '/api/ai/search?q=' + encodeURIComponent('under 99999'))).json.ids; ok(q1.length === sb.ASINGH.PRODUCTS.length, 'a price-only search returns everything within budget');
 

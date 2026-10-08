@@ -23,6 +23,11 @@
     if (prods && prods.length) d.insertAdjacentHTML('beforeend', productCards(prods));
     log.appendChild(d); log.scrollTop = log.scrollHeight; return d;
   }
+  function chipsFor(list) {
+    var old = log.querySelector('.chat__chips'); if (old) old.remove();
+    if (!list || !list.length) return;
+    var c = document.createElement('div'); c.className = 'chat__chips'; c.innerHTML = list.slice(0, 3).map(function (s) { return '<button type="button" class="pill" data-q="' + esc(s) + '">' + esc(s) + '</button>'; }).join(''); log.appendChild(c); log.scrollTop = log.scrollHeight;
+  }
   function render() {
     log.innerHTML = '';
     if (!history.length) {
@@ -36,7 +41,7 @@
     history.push({ role: 'user', content: text }); bubble('me', text); input.value = ''; busy = true; sendBtn.disabled = true;
     var wait = bubble('bot', '…'); wait.classList.add('is-wait'); wait.setAttribute('aria-busy', 'true');
     U.api('POST', '/api/ai/chat', { messages: history.map(function (m) { return { role: m.role, content: m.content }; }), lang: isHi() ? 'hi' : 'en' }).then(function (r) {
-      wait.remove(); history.push({ role: 'assistant', content: r.reply, products: r.products }); bubble('bot', r.reply, r.products); save();
+      wait.remove(); history.push({ role: 'assistant', content: r.reply, products: r.products }); bubble('bot', r.reply, r.products); chipsFor(r.suggest); save();
     }, function (e) {
       wait.remove(); history.pop(); bubble('bot', e.status === 429 ? e.message : 'Sorry, I could not answer just now. Please try again or message us on WhatsApp.');
     }).then(function () { busy = false; sendBtn.disabled = false; input.focus(); });

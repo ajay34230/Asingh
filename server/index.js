@@ -300,7 +300,7 @@ function createApp(opts = {}) {
   });
   /* ---- delivery check for a PIN code: live from Shiprocket when connected, otherwise just validates ---- */
   /* ---- AI (Gemini free tier when GEMINI_API_KEY is set; free rule-based answers otherwise) ---- */
-  const aiChatLimit = limiter(15, 10 * 60e3), aiFindLimit = limiter(40, 10 * 60e3), aiWriteLimit = limiter(40, 3600e3);
+  const aiChatLimit = limiter(40, 10 * 60e3), aiFindLimit = limiter(40, 10 * 60e3), aiWriteLimit = limiter(40, 3600e3);
   route('POST', /^\/api\/ai\/chat$/, async (req, res) => {
     if (catalog.site.aiChat === false) throw fail(404, 'Not found');
     if (!aiChatLimit(ip(req))) throw fail(429, 'You are asking quickly — please wait a few minutes or message us on WhatsApp.');
