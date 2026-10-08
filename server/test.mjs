@@ -249,6 +249,21 @@ console.log('\nCoupons & stock');
   await A.req('POST', '/api/orders/' + so.id + '/cancel', {}); ok((await A.req('POST', '/api/orders', { items: [{ ...sc[0], qty: 1 }], customer: cust, method: 'upi_qr' })).status === 201, 'cancelling gives the stock back');
   await ADM.req('DELETE', '/api/admin/products/' + sp.id); }
 
+console.log('\nPassword reset');
+{ const R = new Client(); await R.req('POST', '/api/auth/register', { name: 'Rhea', email: 'rhea@example.com', password: 'rhea-pass-123' });
+  const f1 = await new Client().req('POST', '/api/auth/forgot', { email: 'rhea@example.com' }), f2 = await new Client().req('POST', '/api/auth/forgot', { email: 'nobody@example.com' }); ok(f1.status === 200 && JSON.stringify(f1.json) === JSON.stringify(f2.json), 'forgot-password answers identically for known and unknown emails');
+  const cid = (await ADM.req('GET', '/api/admin/customers')).json.customers.find(c => c.email === 'rhea@example.com').id; const lk = await ADM.req('POST', '/api/admin/customers/' + cid + '/reset-link', {}); ok(lk.status === 200 && /\/account\.html\?reset=/.test(lk.json.link), 'admin can generate a one-hour reset link');
+  const tok = lk.json.link.split('reset=')[1]; ok((await new Client().req('POST', '/api/auth/reset', { token: 'wrong', password: 'whatever-123' })).status === 400, 'bad token rejected');
+  const N = new Client(); const rr = await N.req('POST', '/api/auth/reset', { token: tok, password: 'rhea-new-pass-1' }); ok(rr.status === 200 && rr.json.user.email === 'rhea@example.com', 'valid token sets a new password and signs in');
+  ok((await new Client().req('POST', '/api/auth/reset', { token: tok, password: 'again-again-12' })).status === 400, 'reset link works only once');
+  ok((await R.req('GET', '/api/me')).json.user === null, 'old sessions end after a reset');
+  ok((await new Client().req('POST', '/api/auth/login', { email: 'rhea@example.com', password: 'rhea-new-pass-1' })).status === 200, 'new password works'); }
+
+console.log('\nExports');
+{ const c = await ADM.req('GET', '/api/admin/orders.csv'); ok(c.status === 200 && /^﻿"Order"/.test(c.text) && c.text.split('\r\n').length > 2, 'admin downloads orders as CSV');
+  ok((await A.req('GET', '/api/admin/orders.csv')).status === 404 && (await A.req('GET', '/api/admin/backup')).status === 404, 'customers cannot export or back up');
+  const bk = await ADM.req('GET', '/api/admin/backup'); ok(bk.status === 200 && Array.isArray(bk.json.orders) && bk.json.sessions.length === 0, 'backup file contains data but no login sessions'); }
+
 console.log('\nAdmin analytics');
 { const an = await ADM.req('GET', '/api/admin/analytics?days=30'); ok(an.status === 200 && an.json.series.length === 30 && an.json.orders >= 2, 'analytics returns a 30-day series and order totals');
   ok(an.json.paidOrders >= 1 && an.json.revenue > 0 && an.json.aov > 0 && an.json.top.length >= 1, 'revenue, average order and top products computed from paid orders');

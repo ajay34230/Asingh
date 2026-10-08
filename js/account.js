@@ -103,6 +103,13 @@
     Auth.refresh().then(function (u) { if (!u) { root.innerHTML = '<div class="empty"><p class="empty__title">Please sign in to view this order</p><p>Orders are private to the person who placed them.</p><button class="btn" id="si">Sign in</button></div>'; $('#si').addEventListener('click', function () { Auth.ensure().then(function () { load(true); }, function () {}); }); } else load(true); });
   }
 
-  if (page === 'account') Auth.refresh().then(function (u) { if (u) dash(); else authView(); });
+  function resetView(tok) {
+    document.title = 'Reset password — ' + A.BRAND;
+    root.innerHTML = '<section class="authpage"><div class="authpage__form"><h1 class="h1">Choose a new password</h1><form id="rf" novalidate><div class="field"><label class="field__l" for="r-pw">New password <span class="muted">(8+ characters)</span></label><input class="input" id="r-pw" type="password" autocomplete="new-password" minlength="8"></div><p class="field__err" id="r-e" role="alert"></p><button class="btn btn--lg" type="submit"><span>Save and sign in</span></button></form></div></section>';
+    $('#rf').addEventListener('submit', function (e) { e.preventDefault(); api('POST', '/api/auth/reset', { token: tok, password: $('#r-pw').value }).then(function (r) { Auth.user = r.user; Auth.paint(); history.replaceState(null, '', 'account.html'); U.toast('Password updated'); dash(); }, function (er) { $('#r-e').textContent = er.message; }); });
+  }
+  var rt = page === 'account' && new URLSearchParams(location.search).get('reset');
+  if (rt) resetView(rt);
+  else if (page === 'account') Auth.refresh().then(function (u) { if (u) dash(); else authView(); });
   else if (page === 'order') orderView();
 })(window.ASINGH);

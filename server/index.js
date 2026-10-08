@@ -8,6 +8,7 @@ const { readBody, parseMultipart, sniffImage } = require('./upload');
 const { Notifier } = require('./notify');
 const Pay = require('./payments');
 const Orders = require('./orders');
+const Mail = require('./mail');
 const Static = require('./static');
 const { Catalog } = require('./catalog');
 const Home = require('./home');
@@ -60,6 +61,26 @@ function createApp(opts = {}) {
     const t = sniffImage(fs.readFileSync(f).subarray(0, 16)) || { mime: 'image/png' };
     res.writeHead(200, { 'Content-Type': t.mime, 'Cache-Control': 'no-cache', ...headersFor(false) }); fs.createReadStream(f).pipe(res);
   });
+
+  let lastOrigin = process.env.SITE_URL || '';
+  const brand = () => catalog.site.name || 'ASINGH';
+  Orders.hooks.created = o => { if (o.customer.email) { const m = Mail.orderEmail(brand(), o, lastOrigin, 'created'); Mail.send(o.customer.email, m.subject, m.html); } };
+  Orders.hooks.status = o => { if (o.customer.email && ['paid', 'processing', 'shipped', 'delivered', 'cancelled', 'payment_rejected'].indexOf(o.status) > -1) { const m = Mail.orderEmail(brand(), o, lastOrigin, 'status'); Mail.send(o.customer.email, m.subject, m.html); } };
+  const mkReset = u => { const tok = crypto.randomBytes(24).toString('base64url'); D.resets = D.resets.filter(r => r.exp > Date.now() && r.uid !== u.id); D.resets.push({ h: crypto.createHash('sha256').update(tok).digest('hex'), uid: u.id, exp: Date.now() + 36e5 }); db.save(); return lastOrigin + '/account.html?reset=' + tok; };
+  route('POST', /^\/api\/auth\/forgot$/, async (req, res) => {
+    if (!authLimit(ip(req))) throw fail(429, 'Too many attempts. Try again in a few minutes.');
+    const email = String((await jsonBody(req)).email || '').trim().toLowerCase(), u = D.users.find(x => x.email === email && !x.isGuest && x.role === 'customer');
+    if (u && emailLimit('reset:' + email) && Mail.enabled()) { const m = Mail.resetEmail(brand(), mkReset(u)); Mail.send(u.email, m.subject, m.html); }
+    send(res, 200, { ok: true, emailEnabled: Mail.enabled() });   // same answer whether or not the account exists
+  });
+  route('POST', /^\/api\/auth\/reset$/, async (req, res) => {
+    if (!authLimit(ip(req))) throw fail(429, 'Too many attempts. Try again in a few minutes.');
+    const b = await jsonBody(req), h = crypto.createHash('sha256').update(String(b.token || '')).digest('hex'), r = D.resets.find(x => x.h === h && x.exp > Date.now()), pw = String(b.password || '');
+    if (!r) throw fail(400, 'This link has expired. Please request a new one.'); if (pw.length < 8 || pw.length > 128) throw fail(400, 'Password must be 8–128 characters.');
+    const u = D.users.find(x => x.id === r.uid); if (!u) throw fail(400, 'This link has expired.');
+    u.passHash = hashPassword(pw); D.resets = D.resets.filter(x => x !== r); D.sessions = D.sessions.filter(x => x.uid !== u.id); auth.bySid = new Map(D.sessions.map(x => [x.h, x])); db.save(); auth.login(req, res, u); send(res, 200, { user: publicUser(u) });
+  });
+  route('POST', /^\/api\/admin\/customers\/([\w-]+)\/reset-link$/, async (req, res, m) => { need(req, 'admin'); const u = D.users.find(x => x.id === m[1] && x.role === 'customer' && !x.isGuest); if (!u) throw fail(404, 'Customer not found'); send(res, 200, { link: mkReset(u), expiresInMinutes: 60 }); });
 
   /* auth */
   route('POST', /^\/api\/auth\/register$/, async (req, res) => {
@@ -428,6 +449,17 @@ function createApp(opts = {}) {
   route('POST', /^\/api\/admin\/coupons$/, async (req, res) => { need(req, 'admin'); const o = cleanCoupon(await jsonBody(req), null); if (D.coupons.some(c => c.code === o.code)) throw fail(409, 'That code already exists.'); const c = { ...o, uses: 0, createdAt: Date.now() }; D.coupons.unshift(c); db.save(); send(res, 201, { coupon: c }); });
   route('PUT', /^\/api\/admin\/coupons\/([A-Z0-9_-]+)$/, async (req, res, m) => { need(req, 'admin'); const c = D.coupons.find(x => x.code === m[1]); if (!c) throw fail(404, 'Not found'); Object.assign(c, cleanCoupon({ ...(await jsonBody(req)), code: c.code }, c)); db.save(); send(res, 200, { coupon: c }); });
   route('DELETE', /^\/api\/admin\/coupons\/([A-Z0-9_-]+)$/, async (req, res, m) => { need(req, 'admin'); D.coupons = D.coupons.filter(x => x.code !== m[1]); db.save(); send(res, 200, { ok: true }); });
+  /* exports: orders as a spreadsheet, whole store as a backup file (admin only) */
+  route('GET', /^\/api\/admin\/orders\.csv$/, async (req, res) => {
+    need(req, 'admin'); const q = v => { v = String(v == null ? '' : v); if (/^[=+\-@\t\r]/.test(v)) v = "'" + v; return '"' + v.replace(/"/g, '""') + '"'; };
+    const head = ['Order', 'Date', 'Status', 'Customer', 'Phone', 'Email', 'Address', 'City', 'State', 'PIN', 'Items', 'Subtotal', 'Discount', 'Coupon', 'Shipping', 'Total', 'UTR', 'Courier', 'Tracking ID'];
+    const rows = D.orders.map(o => [o.number, new Date(o.createdAt).toISOString(), Orders.STATUS[o.status], o.customer.name, o.customer.phone, o.customer.email, [o.customer.line1, o.customer.line2].filter(Boolean).join(', '), o.customer.city, o.customer.state, o.customer.pin, o.items.map(i => `${i.name} (${i.color}, ${i.size}, ${i.stitchLabel}) x${i.qty}`).join('; '), o.totals.subtotal, o.totals.discount || 0, o.totals.coupon || '', o.totals.shipping, o.totals.total, (o.proof && o.proof.utr) || '', (o.tracking && o.tracking.courier) || '', (o.tracking && o.tracking.id) || '']);
+    res.writeHead(200, { 'Content-Type': 'text/csv; charset=utf-8', 'Content-Disposition': 'attachment; filename="asingh-orders.csv"', 'Cache-Control': 'no-store' }); res.end('﻿' + [head].concat(rows).map(r => r.map(q).join(',')).join('\r\n'));
+  });
+  route('GET', /^\/api\/admin\/backup$/, async (req, res) => {
+    need(req, 'admin'); const copy = { ...D, sessions: [], resets: [] };
+    res.writeHead(200, { 'Content-Type': 'application/json', 'Content-Disposition': 'attachment; filename="asingh-backup-' + new Date().toISOString().slice(0, 10) + '.json"', 'Cache-Control': 'no-store' }); res.end(JSON.stringify(copy));
+  });
   route('GET', /^\/api\/admin\/customers$/, async (req, res) => {
     need(req, 'admin'); const cnt = {}; D.orders.forEach(o => { const c = cnt[o.userId] || (cnt[o.userId] = { n: 0, spent: 0 }); c.n++; if (['paid', 'processing', 'shipped', 'delivered'].indexOf(o.status) > -1) c.spent += o.totals.total; });
     send(res, 200, { customers: D.users.filter(u => u.role === 'customer').sort((a, b) => b.createdAt - a.createdAt).slice(0, 500).map(u => ({ id: u.id, name: u.name, email: u.email, guest: !!u.isGuest, createdAt: u.createdAt, orders: (cnt[u.id] || {}).n || 0, spent: (cnt[u.id] || {}).spent || 0 })) });
@@ -531,6 +563,7 @@ function createApp(opts = {}) {
   /* ---- dispatcher ---- */
   const server = http.createServer(async (req, res) => {
     try {
+      lastOrigin = SEO.origin(req);
       const url = req.url.split('?')[0], mutating = req.method !== 'GET' && req.method !== 'HEAD';
       if (mutating) {
         if (!url.startsWith('/api/')) throw fail(405, 'Method not allowed');

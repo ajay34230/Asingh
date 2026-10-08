@@ -252,6 +252,7 @@
       (upOnly ? '' : '<form class="aform" id="p-in" role="tabpanel" aria-labelledby="t-in" novalidate data-auth="in">' +
         '<div class="field"><label class="field__l" for="ai-email">Email</label><input class="input" id="ai-email" name="email" type="email" autocomplete="username" inputmode="email" autocapitalize="off" required></div>' +
         '<div class="field"><label class="field__l" for="ai-pw">Password</label><div class="pw"><input class="input" id="ai-pw" name="password" type="password" autocomplete="current-password" required><button type="button" class="pw__t" aria-label="Show password" data-pw>Show</button></div></div>' +
+        '<p class="forgot"><button type="button" class="link" data-forgot>Forgot password?</button></p>' +
         '<button class="btn btn--block btn--lg" type="submit"><span>Sign in</span></button></form>') +
       '<form class="aform" id="p-up" role="tabpanel" aria-labelledby="t-up" novalidate data-auth="up"' + (upOnly ? '' : ' hidden') + '>' +
         (upOnly ? '<p class="aform__lead">Create a free account to keep your orders safe and track them from any device.</p>' : '') +
@@ -266,6 +267,11 @@
     tabs.forEach(function (t) { t.addEventListener('click', function () { show(t.id.slice(2)); }); t.addEventListener('keydown', function (e) { if (e.key === 'ArrowRight' || e.key === 'ArrowLeft') { var n = tabs[t === tabs[0] ? 1 : 0]; n.click(); n.focus(); } }); });
     $$('[data-pw]', el).forEach(function (b) { b.addEventListener('click', function () { var i = b.previousElementSibling, sh = i.type === 'password'; i.type = sh ? 'text' : 'password'; b.textContent = sh ? 'Hide' : 'Show'; b.setAttribute('aria-label', sh ? 'Hide password' : 'Show password'); }); });
     var up = $('#au-pw', el); if (up) up.addEventListener('input', function () { var m = $('.meter-pw span', el), s = strength(up.value); m.style.width = s * 25 + '%'; m.style.background = ['#c0392b', '#c0392b', '#e8913a', '#c9a227', '#1f6b45'][s]; });
+    var fg = $('[data-forgot]', el); if (fg) fg.addEventListener('click', function () {
+      var pn = $('#p-in', el), em = $('[name=email]', pn).value;
+      pn.innerHTML = '<p class="muted">Enter your email and we’ll send a link to choose a new password.</p><div class="field"><label class="field__l" for="fg-e">Email</label><input class="input" id="fg-e" type="email" autocomplete="email" value="' + esc(em) + '"></div><p class="field__err" id="fg-m" role="status"></p><button class="btn btn--block btn--lg" type="button" id="fg-b"><span>Send reset link</span></button>';
+      $('#fg-b', pn).addEventListener('click', function () { var b = this; b.disabled = true; api('POST', '/api/auth/forgot', { email: $('#fg-e', pn).value }).then(function (r) { $('#fg-m', pn).textContent = r.emailEnabled ? 'If an account exists for that email, a reset link is on its way. Check your inbox.' : 'Email isn’t set up for this store yet. Please contact us and we’ll send you a reset link.'; }, function (er) { $('#fg-m', pn).textContent = er.message; b.disabled = false; }); });
+    });
     function busy(f, on) { var b = $('[type=submit]', f); b.disabled = on; b.classList.toggle('is-busy', on); }
     $$('.aform', el).forEach(function (f) {
       f.addEventListener('submit', function (e) {

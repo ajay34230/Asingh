@@ -100,7 +100,7 @@
   function ordersView() {
     guard();
     var chips = [['', 'All']].concat(Object.keys(LABEL).map(function (k) { return [k, LABEL[k]]; }));
-    view('<div class="adm__bar"><label class="vh" for="sq">Search orders</label><input class="input" id="sq" type="search" placeholder="Search number, name, phone, UTR…" value="' + esc(state.q) + '"></div><div class="fchips" role="group" aria-label="Filter by status">' + chips.map(function (c) { return '<button type="button" data-s="' + c[0] + '" aria-pressed="' + (state.filter === c[0]) + '">' + c[1] + '</button>'; }).join('') + '</div><div id="ol" class="adm__list" aria-live="polite"></div>');
+    view('<div class="adm__bar"><label class="vh" for="sq">Search orders</label><input class="input" id="sq" type="search" placeholder="Search number, name, phone, UTR…" value="' + esc(state.q) + '"><a class="btn btn--ghost btn--sm" href="/api/admin/orders.csv" download>Export CSV</a></div><div class="fchips" role="group" aria-label="Filter by status">' + chips.map(function (c) { return '<button type="button" data-s="' + c[0] + '" aria-pressed="' + (state.filter === c[0]) + '">' + c[1] + '</button>'; }).join('') + '</div><div id="ol" class="adm__list" aria-live="polite"></div>');
     var t; $('#sq').addEventListener('input', function () { state.q = this.value; clearTimeout(t); t = setTimeout(loadOrders, 220); });
     $$('.fchips button').forEach(function (b) { b.addEventListener('click', function () { state.filter = b.getAttribute('data-s'); $$('.fchips button').forEach(function (x) { x.setAttribute('aria-pressed', x === b); }); loadOrders(); }); });
     loadOrders();

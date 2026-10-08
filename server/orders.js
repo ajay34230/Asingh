@@ -82,17 +82,18 @@ function create(db, user, body, methodId, cat) {
   const stockUsed = {}; items.forEach(i => { stockUsed[i.id] = (stockUsed[i.id] || 0) + i.qty; });
   const order = { id: id(10), number, userId: user.id, items, totals, customer: customer(body.customer), method: methodId, status: 'awaiting_payment', proof: null, createdAt: now, updatedAt: now, timeline: [{ at: now, status: 'awaiting_payment', note: 'Order placed', by: 'customer' }] };
   order.stock = stockUsed; adjustStock(db, order, -1); if (coupon) coupon.uses = (coupon.uses || 0) + 1;
-  db.data.orders.unshift(order); db.save(); return order;
+  db.data.orders.unshift(order); db.save(); if (hooks.created) try { hooks.created(order); } catch (e) {} return order;
 }
 /* stock follows the order: taken when placed, given back when cancelled (and taken again if a cancelled order is reopened) */
 function adjustStock(db, order, sign) {
   const cat = db.data.catalog; if (!cat || !order.stock) return;
   Object.keys(order.stock).forEach(id => { const p = cat.products.find(x => x.id === id); if (!p || p.stock == null) return; p.stock = Math.max(0, p.stock + sign * order.stock[id]); if (sign < 0 && p.stock === 0) { p.soldOut = true; p.autoSold = true; } if (sign > 0 && p.stock > 0 && p.autoSold) { p.soldOut = false; p.autoSold = false; } });
 }
+const hooks = {};
 function transition(db, order, status, note, by) {
   if (status === 'cancelled' && !order.stockBack) { adjustStock(db, order, +1); order.stockBack = true; }
   else if (status !== 'cancelled' && order.stockBack) { adjustStock(db, order, -1); order.stockBack = false; }
-  const now = Date.now(); order.status = status; order.updatedAt = now; order.timeline.push({ at: now, status, note: note || '', by }); db.save(); return order;
+  const now = Date.now(); order.status = status; order.updatedAt = now; order.timeline.push({ at: now, status, note: note || '', by }); db.save(); if (hooks.status && by !== 'webhook-skip') try { hooks.status(order); } catch (e) {} return order;
 }
 /* customers see their own order; proof file name and internal ids stay server-side */
 function view(o, isAdmin) {
@@ -113,4 +114,4 @@ function cleanTracking(t) {
   if (url) { let u; try { u = new URL(url); } catch (e) { throw bad('Tracking link is not a valid URL.'); } if (u.protocol !== 'https:') throw bad('Tracking link must start with https://'); url = u.href; }
   return { courier, id, url };
 }
-module.exports = { findCoupon, couponDiscount, STATUS, ADMIN_NEXT, create, transition, view, trackView, cleanTracking, normNumber, normPhone, price };
+module.exports = { hooks, findCoupon, couponDiscount, STATUS, ADMIN_NEXT, create, transition, view, trackView, cleanTracking, normNumber, normPhone, price };
