@@ -96,3 +96,4 @@
 .pipe__s { font-size: .82rem; color: var(--ink-2); } .steps { grid-column: 1 / -1; display: grid; grid-template-columns: repeat(5, 1fr); gap: 4px; } .steps i { height: 6px; border-radius: 99px; background: var(--line); } .steps i.on { background: var(--wine, #6b1d3a); }
 
 .orow--static { cursor: default; } .adm__req { border-left: 3px solid var(--gold, #c9a45c); } .btn--sm { min-height: 36px; padding: 0 12px; font-size: .85rem; }
+.orow--wrap { align-items: flex-start; flex-wrap: wrap; } .orow--wrap .orow__t small { white-space: normal; }

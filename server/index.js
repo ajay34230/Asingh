@@ -117,6 +117,27 @@ function createApp(opts = {}) {
     db.save(); send(res, 200, { user: publicUser(u) });
   });
 
+  /* ---- verified reviews: only customers whose order was delivered can write one; the admin approves before it shows ---- */
+  const firstName = n => { const w = String(n || 'Customer').trim().split(/\s+/); return w[0] + (w[1] ? ' ' + w[1][0] + '.' : ''); };
+  const rate = pid => { const p = catalog.find(pid); if (!p || p.demo) return; const ok = D.reviews.filter(r => r.pid === pid && r.state === 'approved'); p.reviews = ok.length; p.rating = ok.length ? Math.round(ok.reduce((a, r) => a + r.stars, 0) / ok.length * 10) / 10 : null; catalog.touch(); };
+  const boughtDelivered = (u, pid) => D.orders.some(o => o.userId === u.id && o.status === 'delivered' && o.items.some(i => i.id === pid));
+  route('GET', /^\/api\/products\/([a-z0-9-]+)\/reviews$/, async (req, res, m) => {
+    const u = auth.user(req), list = D.reviews.filter(r => r.pid === m[1] && r.state === 'approved').sort((a, b) => b.at - a.at).slice(0, 50);
+    send(res, 200, { reviews: list.map(r => ({ who: r.who, stars: r.stars, title: r.title, body: r.body, at: r.at })), canReview: !!(u && !u.isGuest && boughtDelivered(u, m[1]) && !D.reviews.some(r => r.pid === m[1] && r.uid === u.id)), mine: u ? (D.reviews.find(r => r.pid === m[1] && r.uid === u.id) || {}).state || null : null });
+  });
+  route('POST', /^\/api\/products\/([a-z0-9-]+)\/reviews$/, async (req, res, m) => {
+    const u = need(req); if (!guestLimit(ip(req) + 'r')) throw fail(429, 'Too many attempts. Try again later.');
+    if (!catalog.find(m[1])) throw fail(404, 'Not found'); if (!boughtDelivered(u, m[1])) throw fail(403, 'Only customers whose order was delivered can review this piece.');
+    if (D.reviews.some(r => r.pid === m[1] && r.uid === u.id)) throw fail(409, 'You have already reviewed this piece.');
+    const b = await jsonBody(req), stars = Math.round(Number(b.stars)), body = String(b.body || '').trim().slice(0, 800), title = String(b.title || '').trim().slice(0, 80);
+    if (!(stars >= 1 && stars <= 5)) throw fail(400, 'Choose a star rating.'); if (body.length < 10) throw fail(400, 'Please write at least a sentence.');
+    const r = { id: id(8), pid: m[1], uid: u.id, who: firstName(u.name), stars, title, body, state: 'pending', at: Date.now() }; D.reviews.unshift(r); db.save();
+    notifier.push('review', null, 'New review to approve', `${r.who} · ${stars}★ on ${catalog.find(m[1]).name}`); send(res, 201, { ok: true });
+  });
+  route('GET', /^\/api\/admin\/reviews$/, async (req, res) => { need(req, 'admin'); send(res, 200, { reviews: D.reviews.slice(0, 300).map(r => ({ ...r, product: (catalog.find(r.pid) || {}).name || r.pid, uid: undefined })) }); });
+  route('PATCH', /^\/api\/admin\/reviews\/([\w-]+)$/, async (req, res, m) => { need(req, 'admin'); const r = D.reviews.find(x => x.id === m[1]); if (!r) throw fail(404, 'Not found'); const st = (await jsonBody(req)).state; if (['approved', 'hidden', 'pending'].indexOf(st) < 0) throw fail(400, 'Bad state'); r.state = st; db.save(); rate(r.pid); send(res, 200, { ok: true }); });
+  route('DELETE', /^\/api\/admin\/reviews\/([\w-]+)$/, async (req, res, m) => { need(req, 'admin'); const r = D.reviews.find(x => x.id === m[1]); D.reviews = D.reviews.filter(x => x !== r); db.save(); if (r) rate(r.pid); send(res, 200, { ok: true }); });
+
   /* ---- customer self-service: password, sign out everywhere, data export, delete account ---- */
   const IN_PROGRESS = ['payment_review', 'paid', 'processing', 'shipped'];
   const eraseUser = u => {   // removes the person; orders are kept for accounting but stripped of contact details
@@ -125,6 +146,7 @@ function createApp(opts = {}) {
     });
     D.notifications = D.notifications.filter(n => !n.orderId || D.orders.some(o => o.id === n.orderId && o.userId !== 'deleted'));
     if (u.email) D.subscribers = D.subscribers.filter(x => x.email !== u.email);
+    D.reviews.forEach(r => { if (r.uid === u.id) { r.uid = 'deleted'; r.who = 'Customer'; } });
     D.sessions = D.sessions.filter(x => x.uid !== u.id); auth.bySid = new Map(D.sessions.map(x => [x.h, x]));
     D.users = D.users.filter(x => x !== u); db.save();
   };

@@ -264,6 +264,18 @@ console.log('\nExports');
   ok((await A.req('GET', '/api/admin/orders.csv')).status === 404 && (await A.req('GET', '/api/admin/backup')).status === 404, 'customers cannot export or back up');
   const bk = await ADM.req('GET', '/api/admin/backup'); ok(bk.status === 200 && Array.isArray(bk.json.orders) && bk.json.sessions.length === 0, 'backup file contains data but no login sessions'); }
 
+console.log('\nVerified reviews');
+{ const U2 = new Client(); await U2.req('POST', '/api/auth/register', { name: 'Isha Verma', email: 'isha@example.com', password: 'isha-pass-123' });
+  const pidr = 'kota-doria-suit'; ok((await U2.req('POST', '/api/products/' + pidr + '/reviews', { stars: 5, body: 'Lovely suit, very comfortable.' })).status === 403, 'cannot review something you have not received');
+  const ro = (await U2.req('POST', '/api/orders', { items: [{ id: pidr, size: 'M', stitch: 'unstitched', color: 'Sand', qty: 1 }], customer: cust, method: 'upi_qr' })).json.order;
+  for (const st of ['paid', 'processing', 'shipped', 'delivered']) await ADM.req('PATCH', '/api/admin/orders/' + ro.id, { action: 'status', status: st });
+  let g = await U2.req('GET', '/api/products/' + pidr + '/reviews'); ok(g.json.canReview === true, 'delivered buyer may review');
+  ok((await U2.req('POST', '/api/products/' + pidr + '/reviews', { stars: 5, body: 'Lovely suit, very comfortable.', title: 'Love it' })).status === 201, 'review submitted');
+  ok((await U2.req('POST', '/api/products/' + pidr + '/reviews', { stars: 4, body: 'Second review attempt here.' })).status === 409, 'one review per product');
+  g = await new Client().req('GET', '/api/products/' + pidr + '/reviews'); ok(g.json.reviews.length === 0, 'not public until approved');
+  const rid = (await ADM.req('GET', '/api/admin/reviews')).json.reviews[0].id; ok((await ADM.req('PATCH', '/api/admin/reviews/' + rid, { state: 'approved' })).status === 200, 'admin approves');
+  g = await new Client().req('GET', '/api/products/' + pidr + '/reviews'); ok(g.json.reviews.length === 1 && g.json.reviews[0].who === 'Isha V.', 'public sees it with first name + initial only'); }
+
 console.log('\nAdmin analytics');
 { const an = await ADM.req('GET', '/api/admin/analytics?days=30'); ok(an.status === 200 && an.json.series.length === 30 && an.json.orders >= 2, 'analytics returns a 30-day series and order totals');
   ok(an.json.paidOrders >= 1 && an.json.revenue > 0 && an.json.aov > 0 && an.json.top.length >= 1, 'revenue, average order and top products computed from paid orders');

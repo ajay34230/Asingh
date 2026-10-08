@@ -320,4 +320,15 @@
       $$('[data-rm]', v).forEach(function (b) { b.addEventListener('click', function () { if (confirm('Delete code ' + b.getAttribute('data-rm') + '?')) api('DELETE', '/api/admin/coupons/' + b.getAttribute('data-rm')).then(function () { V.offers(); }); }); });
     });
   };
+
+  /* ---- Reviews moderation ---- */
+  V.reviews = function () {
+    var live = ADM.guard();
+    api('GET', '/api/admin/reviews').then(function (r) {
+      if (!live()) return;
+      var v = view('<p class="muted">Only customers whose order was delivered can review. Approve a review to show it on the product page; it then updates the product’s star rating.</p>' + (r.reviews.length ? '<div class="adm__list">' + r.reviews.map(function (x) { return '<div class="orow orow--static orow--wrap"><span class="orow__t"><strong>' + '★'.repeat(x.stars) + ' ' + esc(x.title || '') + '</strong><small>' + esc(x.body) + '</small><small>' + esc(x.who) + ' on ' + esc(x.product) + ' · <b>' + x.state + '</b></small></span>' + (x.state === 'approved' ? '<button class="btn btn--ghost btn--sm" data-rs="hidden" data-id="' + x.id + '">Hide</button>' : '<button class="btn btn--sm" data-rs="approved" data-id="' + x.id + '">Approve</button>') + '<button class="btn btn--ghost btn--sm adm__del" data-rd="' + x.id + '">Delete</button></div>'; }).join('') + '</div>' : '<p class="muted pad">No reviews yet.</p>'));
+      $$('[data-rs]', v).forEach(function (b) { b.addEventListener('click', function () { api('PATCH', '/api/admin/reviews/' + b.getAttribute('data-id'), { state: b.getAttribute('data-rs') }).then(function () { V.reviews(); }); }); });
+      $$('[data-rd]', v).forEach(function (b) { b.addEventListener('click', function () { if (confirm('Delete this review?')) api('DELETE', '/api/admin/reviews/' + b.getAttribute('data-rd')).then(function () { V.reviews(); }); }); });
+    });
+  };
 })();

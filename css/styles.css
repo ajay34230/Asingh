@@ -932,3 +932,4 @@ text, p, li { text-wrap: pretty; }
 
 .coupon { display: flex; gap: 8px; flex-wrap: wrap; align-items: flex-start; margin: 12px 0; } .coupon .input { flex: 1 1 140px; min-width: 0; text-transform: uppercase; } .coupon .field__err { flex-basis: 100%; margin: 0; } .coupon--on { justify-content: space-between; align-items: center; padding: 10px 12px; border-radius: 12px; background: color-mix(in srgb, var(--gold) 14%, transparent); } .totals__disc dd { color: #1b7a43; font-weight: 600; }
 .stockleft { color: #a0162f; font-weight: 600; font-size: .9rem; }
+.review-form { display: grid; gap: 12px; max-width: 560px; margin-top: 24px; }
