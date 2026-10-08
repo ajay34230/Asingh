@@ -30,7 +30,7 @@ const story = cat => { const t = cat.site.story; if (!cat.site.sections.story ||
 
 function renderIndex(html, cat) {
   const t = cat.site, h = hero(cat), off = [['collections', 'collections'], ['newArrivals', 'newArrivals'], ['bestsellers', 'bestsellers'], ['testimonials', 'testimonials']].filter(x => !t.sections[x[0]]).map(x => `[data-sec="${x[1]}"]{display:none!important}`).join('');
-  return html.replace('<!--@title-->', esc(t.name) + ' — ' + esc(t.heroEyebrow || 'Rajputi dresses')).replace('<!--@head-->', h.preload + (off ? `\n<style>${off}</style>` : ''))
+  return html.replace('<!--@title-->', esc(t.name) + ' — ' + esc(t.heroEyebrow || 'Suits & ethnic wear')).replace('<!--@head-->', h.preload + (off ? `\n<style>${off}</style>` : ''))
     .replace('<!--@hero-->', h.html).replace('<!--@marquee-->', marquee(cat)).replace('<!--@trust-->', trust(cat)).replace('<!--@occasions-->', occasions(cat)).replace('<!--@story-->', story(cat));
 }
 module.exports = { renderIndex };

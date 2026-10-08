@@ -143,12 +143,12 @@ ok((await ADM.req('GET', '/api/admin/summary')).status === 200, 'current admin s
 
 console.log('\nAdmin manages the catalogue');
 const jpg = Buffer.concat([Buffer.from([0xff, 0xd8, 0xff, 0xe0]), crypto.randomBytes(400)]);
-ok((await A.req('POST', '/api/admin/products', { name: 'X', cat: 'poshak', price: 100, colors: [{ name: 'Red', hex: '#ff0000' }], stitch: ['unstitched'] })).status === 404, 'customers cannot add products');
+ok((await A.req('POST', '/api/admin/products', { name: 'X', cat: 'rajputi-poshak', price: 100, colors: [{ name: 'Red', hex: '#ff0000' }], stitch: ['unstitched'] })).status === 404, 'customers cannot add products');
 ok((await ADM.req('GET', '/api/admin/catalog')).json.products.length >= 12, 'admin sees the full catalogue');
-r = await ADM.req('POST', '/api/admin/products', { name: 'Test Kota Poshak', cat: 'poshak', price: 12500, was: 15000, fabric: 'Kota doria', colors: [{ name: 'Rose', hex: '#d98b8b' }], stitch: ['unstitched', 'custom'], occ: ['wedding'], blurb: 'Hello', inc: ['Ghagra'], details: ['Hand made'] });
+r = await ADM.req('POST', '/api/admin/products', { name: 'Test Kota Poshak', cat: 'rajputi-poshak', price: 12500, was: 15000, fabric: 'Kota doria', colors: [{ name: 'Rose', hex: '#d98b8b' }], stitch: ['unstitched', 'custom'], occ: ['wedding'], blurb: 'Hello', inc: ['Ghagra'], details: ['Hand made'] });
 ok(r.status === 201 && r.json.product.id === 'test-kota-poshak' && r.json.product.published === true, 'admin creates a product');
 const pid = r.json.product.id;
-ok((await ADM.req('POST', '/api/admin/products', { name: 'Bad', cat: 'poshak', price: -5, colors: [{ name: 'R', hex: '#fff' }], stitch: ['unstitched'] })).status === 400, 'bad price / colour code rejected');
+ok((await ADM.req('POST', '/api/admin/products', { name: 'Bad', cat: 'rajputi-poshak', price: -5, colors: [{ name: 'R', hex: '#fff' }], stitch: ['unstitched'] })).status === 400, 'bad price / colour code rejected');
 ok((await ADM.req('POST', '/api/admin/products', { name: 'Bad2', cat: 'nope', price: 5, colors: [{ name: 'R', hex: '#ffffff' }], stitch: ['unstitched'] })).status === 400, 'unknown category rejected');
 const u = (rev, w, data) => ADM.req('POST', `/api/admin/products/${pid}/image?rev=${rev}&w=${w}`, data, { 'content-type': 'application/octet-stream' });
 ok((await u('abc123', 800, Buffer.from('<svg onload=1>'.padEnd(40)))).status === 400, 'non-image photo rejected');

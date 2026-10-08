@@ -30,7 +30,7 @@ const plain = (md, n) => String(md || '').replace(/\{\{\w+\}\}/g, '').replace(/[
 const DEFAULT_PAGES = [
   { slug: 'about', title: 'About us', group: 'help', body: `# Our story
 
-{{name}} brings you authentic Rajputi dresses — poshak, ghagra choli, bandhani and leheriya, odhni and Rajputi suits — made the way Rajasthan has always made them.
+{{name}} brings you girls’ suits and ethnic wear — Anarkali suits, lehenga cholis, shararas and ghararas, kurti sets, Patiala and straight suits, Rajputi poshaks, indo-western dresses and ethnic gowns — with the craft of traditional embroidery.
 
 ## Crafted by hand
 Every piece is finished with traditional work such as **gota patti**, **zardozi**, **bandhani** and **shisha mirror work**. Nothing is mass-produced: each dress is made for you, in your size.

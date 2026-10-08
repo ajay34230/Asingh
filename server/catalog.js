@@ -13,18 +13,18 @@ const clone = o => JSON.parse(JSON.stringify(o));
 const slug2 = t => String(t).toLowerCase().normalize('NFKD').replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 40) || 'page';
 const slug = t => String(t).toLowerCase().normalize('NFKD').replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 48) || 'item';
 const HEX = /^#[0-9a-fA-F]{6}$/, WIDTHS = [400, 800, 1200], MAX_IMAGES = 6;
-const OCC_SUB = { wedding: 'Bridal poshak & heavy gota work', festive: 'Leheriya & bandhani brights', sangeet: 'Shisha mirror work & colour', everyday: 'Kota doria & breathable cotton' };
+const OCC_SUB = { wedding: 'Lehengas, anarkalis & bridal sets', festive: 'Chaniya cholis & bright festive suits', sangeet: 'Mirror work, sharara & gharara', party: 'Gowns, peplum & indo-western', everyday: 'Kurti sets & easy cotton suits' };
 const defaultSite = () => ({
-  name: 'ASINGH', announcement: 'Rajasthani craft · custom stitching in 10–14 days',
-  heroEyebrow: 'Rajputana heritage', heroTitle: 'Rajputi dresses, made the *royal way*', heroLead: 'Poshak, ghagra choli and odhni hand-finished with gota patti, bandhani and zardozi — stitched to your measure in 10–14 days.', heroCta: 'Shop Rajputi dresses', heroImage: null,
+  name: 'ASINGH', announcement: 'Custom stitching in 10–14 days · one free alteration',
+  heroEyebrow: 'Suits & ethnic wear for girls', heroTitle: 'Dressed in *every shade of festive*', heroLead: 'Anarkalis, lehenga cholis, shararas, kurti sets and more — with gota patti, bandhani and zardozi, stitched to your measure in 10–14 days.', heroCta: 'Shop the collection', heroImage: null,
   sections: { marquee: true, trust: true, collections: true, occasions: true, newArrivals: true, story: true, bestsellers: true, testimonials: true },
-  marquee: ['Gota Patti', 'Bandhani', 'Leheriya', 'Zardozi', 'Shisha Work', 'Kota Doria', 'Marwari Odhni', 'Mewar Poshak'],
-  trust: [{ title: 'Handcrafted in Rajasthan', sub: 'Gota patti · bandhani · zardozi' }, { title: 'Free shipping', sub: '' }, { title: '7-day returns', sub: 'On unstitched pieces' }, { title: 'Secure payments', sub: 'UPI / QR with proof of payment' }],
+  marquee: ['Anarkali', 'Lehenga Choli', 'Sharara', 'Gharara', 'Patiala', 'Kurti Sets', 'Indo-Western', 'Ethnic Gowns'],
+  trust: [{ title: 'Beautifully crafted', sub: 'Gota patti · bandhani · zardozi' }, { title: 'Free shipping', sub: '' }, { title: '7-day returns', sub: 'On unstitched pieces' }, { title: 'Secure payments', sub: 'UPI / QR with proof of payment' }],
   occasions: A.OCCASIONS.map(o => ({ id: o.id, label: o.label, sub: OCC_SUB[o.id] || '' })),
-  story: { eyebrow: 'Made to measure', title: 'Three steps to a perfect poshak', cta: 'Explore custom stitching', steps: [
-    { title: 'Choose your piece', text: 'Pick your poshak, ghagra or suit, then the colour and stitching — unstitched, semi or fully custom.' },
+  story: { eyebrow: 'Made to measure', title: 'Three steps to a perfect fit', cta: 'Explore custom stitching', steps: [
+    { title: 'Choose your piece', text: 'Pick your suit, lehenga or dress, then the colour and stitching — unstitched, semi or fully custom.' },
     { title: 'Share your measurements', text: 'Select a standard size or add notes. Our stylists confirm every detail with you.' },
-    { title: 'Crafted in Rajasthan', text: 'Gota patti, bandhani and zardozi finished by hand and delivered in 10–14 days, with one free alteration.' }] },
+    { title: 'Crafted with care', text: 'Embroidery and finishing done by skilled artisans and delivered in 10–14 days, with one free alteration.' }] },
   policies: { returns: 'Unstitched and semi-stitched pieces can be returned within 7 days. Custom-stitched pieces are made to order and are not returnable, but we offer one complimentary alteration.', shipping: '' },
   stitch: A.STITCH.map(x => ({ id: x.id, label: x.label, note: x.note, eta: x.eta, add: { unstitched: 0, semi: 600, custom: 1800 }[x.id], enabled: true })),
   sizeChart: [['XS', 32, 26, 35], ['S', 34, 28, 37], ['M', 36, 30, 39], ['L', 38, 32, 41], ['XL', 40, 34, 43], ['XXL', 42, 36, 45]].map(r => ({ size: r[0], bust: r[1], waist: r[2], hip: r[3] })),
@@ -130,7 +130,7 @@ class Catalog {
   removePage(slug) { const p = this.page(slug); if (!p) throw Object.assign(new Error('Page not found'), { status: 404 }); if (slug === 'contact') throw bad('The contact page can be hidden but not deleted.'); this.D.pages = this.D.pages.filter(x => x !== p); this.touch(); }
   /* ---- categories & site ---- */
   setCategories(list) {
-    const seen = new Set(), out = (Array.isArray(list) ? list : []).slice(0, 12).map(c => { const label = s(c && c.label, 30); let cid = s(c && c.id, 30).toLowerCase().replace(/[^a-z0-9-]/g, '') || slug(label); if (!label) return null; while (seen.has(cid)) cid += '-2'; seen.add(cid); return { id: cid, label }; }).filter(Boolean);
+    const seen = new Set(), out = (Array.isArray(list) ? list : []).slice(0, 40).map(c => { const label = s(c && c.label, 30); let cid = s(c && c.id, 30).toLowerCase().replace(/[^a-z0-9-]/g, '') || slug(label); if (!label) return null; while (seen.has(cid)) cid += '-2'; seen.add(cid); return { id: cid, label }; }).filter(Boolean);
     if (!out.length) throw bad('Keep at least one category.');
     const missing = this.D.products.filter(p => !seen.has(p.cat)); if (missing.length) throw bad(`Move or delete these products first: ${missing.slice(0, 3).map(p => p.name).join(', ')}${missing.length > 3 ? '…' : ''}`);
     this.D.categories = out; this.touch();

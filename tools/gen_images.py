@@ -1,5 +1,5 @@
-"""Draws the demo catalogue imagery: stylised 'ghost mannequin' Rajputi garments (poshak, ghagra-choli,
-suit, odhni) with gota-patti, bandhani, leheriya, mirror-work and zardozi surfaces, plus hero art.
+"""Draws the demo catalogue imagery: stylised 'ghost mannequin' Indian ethnic girls' garments (poshak, ghagra-choli,
+suit, gown) with gota-patti, bandhani, leheriya, mirror-work and zardozi surfaces, plus hero art.
 Output: AVIF + WebP at several widths, one JPEG fallback. Run: python3 tools/gen_images.py
 These are illustrative placeholders — replace with real photography (same file names)."""
 import math, os
@@ -227,17 +227,22 @@ def detail_view(spec, seed):
 # ---------- catalogue (slug, kind, colours, pattern) ----------
 SPECS = {
  "maharani-poshak":  dict(kind="poshak", base="#7a1f3d", acc="#e9c46a", b2="#7a1f3d", odhni="#c9486e", pat="zardozi"),
- "jodha-poshak":     dict(kind="poshak", base="#14463c", acc="#e3c06a", b2="#14463c", odhni="#a8352b", pat="gota"),
- "gangaur-ghagra":   dict(kind="ghagra", base="#c4572b", acc="#f4dca0", b2="#7a1f3d", odhni="#e8a33b", pat="leheriya", pal=["#c4572b", "#e8a33b", "#7a1f3d", "#f2d489"]),
- "teej-leheriya":    dict(kind="ghagra", base="#c23a6e", acc="#f6e3b4", b2="#1d6b5a", odhni="#1d6b5a", pat="leheriya", pal=["#c23a6e", "#f09a3a", "#1d6b5a", "#f6e3b4"]),
+ "jodha-gown":       dict(kind="poshak", base="#14463c", acc="#e3c06a", b2="#14463c", odhni="#a8352b", pat="gota"),
+ "gangaur-chaniya":  dict(kind="ghagra", base="#c4572b", acc="#f4dca0", b2="#7a1f3d", odhni="#e8a33b", pat="leheriya", pal=["#c4572b", "#e8a33b", "#7a1f3d", "#f2d489"]),
+ "teej-lehenga":     dict(kind="ghagra", base="#c23a6e", acc="#f6e3b4", b2="#1d6b5a", odhni="#1d6b5a", pat="leheriya", pal=["#c23a6e", "#f09a3a", "#1d6b5a", "#f6e3b4"]),
  "jaipur-bandhani":  dict(kind="ghagra", base="#a8281f", acc="#f7ecd2", b2="#7b1d17", odhni="#e9b44a", pat="bandhani"),
- "marwari-odhni":    dict(kind="odhni", base="#b0243a", acc="#f5e3b3", b2="#b0243a", odhni="#e9c46a", pat="bandhani"),
+ "marwari-sharara":  dict(kind="suit", base="#b0243a", acc="#f5e3b3", b2="#b0243a", odhni="#e9c46a", pat="bandhani"),
  "kota-doria-suit":  dict(kind="suit", base="#e4cfa8", acc="#8a5a3c", b2="#c9a26e", odhni="#b5532f", pat="doria"),
- "mewar-gota-suit":  dict(kind="suit", base="#2c3a6b", acc="#e8c875", b2="#1f2b52", odhni="#d98b3a", pat="gota"),
- "udaipur-mirror":   dict(kind="ghagra", base="#3d2a6b", acc="#f0d9a6", b2="#d98b3a", odhni="#c23a6e", pat="mirror"),
- "rani-sa-poshak":   dict(kind="poshak", base="#d6457f", acc="#f6e3b4", b2="#d6457f", odhni="#fff1d6", pat="gota"),
- "pushkar-odhni":    dict(kind="odhni", base="#e8913a", acc="#fff1d6", b2="#e8913a", odhni="#7a1f3d", pat="leheriya", pal=["#e8913a", "#c23a6e", "#1d6b5a", "#f7e3a0"]),
- "kesariya-poshak":  dict(kind="poshak", base="#e0902a", acc="#7a1f3d", b2="#e0902a", odhni="#b0243a", pat="zardozi"),
+ "mewar-patiala":    dict(kind="suit", base="#2c3a6b", acc="#e8c875", b2="#1f2b52", odhni="#d98b3a", pat="gota"),
+ "udaipur-gharara":  dict(kind="ghagra", base="#3d2a6b", acc="#f0d9a6", b2="#d98b3a", odhni="#c23a6e", pat="mirror"),
+ "rani-sa-anarkali": dict(kind="poshak", base="#d6457f", acc="#f6e3b4", b2="#d6457f", odhni="#fff1d6", pat="gota"),
+ "pushkar-kurti-palazzo": dict(kind="suit", base="#e8913a", acc="#fff1d6", b2="#e8913a", odhni="#7a1f3d", pat="leheriya", pal=["#e8913a", "#c23a6e", "#1d6b5a", "#f7e3a0"]),
+ "kesariya-angrakha": dict(kind="suit", base="#e0902a", acc="#7a1f3d", b2="#e0902a", odhni="#b0243a", pat="zardozi"),
+ "gulab-peplum":     dict(kind="suit", base="#d98b9c", acc="#f6e3b4", b2="#b85a74", odhni="#7a1f3d", pat="gota"),
+ "nila-kurti-skirt": dict(kind="ghagra", base="#1f5a8a", acc="#f0d9a6", b2="#173f63", odhni="#e9b44a", pat="bandhani"),
+ "sabz-a-line":      dict(kind="suit", base="#2f6b4f", acc="#f4dca0", b2="#1e4a36", odhni="#d6457f", pat="doria"),
+ "mehndi-frock":     dict(kind="poshak", base="#6f8f3a", acc="#f6e3b4", b2="#6f8f3a", odhni="#d98b3a", pat="gota"),
+ "aaina-indo-western": dict(kind="suit", base="#1d6b6b", acc="#f0d9a6", b2="#134848", odhni="#c23a6e", pat="mirror"),
 }
 
 def save(im, name, widths, ratio, jpg_w=None):
@@ -268,7 +273,7 @@ def hero():
             sub = a[ys - y0:ye - y0, xs - x0:xe - x0]; ff = f[ys - y0:ye - y0, xs - x0:xe - x0]
             c[ys:ye, xs:xe] = c[ys:ye, xs:xe] * (1 - ff) + sub * ff
         rng = np.random.default_rng(3); return Image.fromarray(np.clip(c + rng.normal(0, 2, (h, w, 1)), 0, 255).astype(np.uint8))
-    wide = scene(2560, 1280, [(1580, 90, .78, "jodha-poshak"), (2060, 150, .82, "maharani-poshak"), (2480, 260, .66, "kesariya-poshak")])
+    wide = scene(2560, 1280, [(1580, 90, .78, "jodha-gown"), (2060, 150, .82, "maharani-poshak"), (2480, 260, .66, "rani-sa-anarkali")])
     save(wide, "hero-wide", [1280, 1920, 2560, 3840], .5, 1920)
     tall = scene(1080, 1350, [(540, 8, .6, "maharani-poshak")])
     save(tall, "hero-tall", [480, 800, 1080], 1.25, 800)
@@ -276,12 +281,15 @@ def hero():
 if __name__ == "__main__":
     import sys
     if "--hero" in sys.argv: hero(); sys.exit()
+    only = [a for a in sys.argv[1:] if not a.startswith("-")]
     for slug, spec in SPECS.items():
+        if only and slug not in only: continue
         ims = render(slug, spec)
         for i, im in enumerate(ims):
             if not isinstance(im, Image.Image): im = finish(im, None)
             save(im, f"{slug}-{i + 1}", [400, 800, 1200], H / W, 800)
-        if slug in ("maharani-poshak", "gangaur-ghagra", "jaipur-bandhani", "mewar-gota-suit") :
-            sq = ims[0].crop((0, 160, W, 1360)); k = ["maharani-poshak", "gangaur-ghagra", "jaipur-bandhani", "mewar-gota-suit"].index(slug) + 1
+        if slug in ("maharani-poshak", "gangaur-chaniya", "jaipur-bandhani", "mewar-patiala") :
+            sq = ims[0].crop((0, 160, W, 1360)); k = ["maharani-poshak", "gangaur-chaniya", "jaipur-bandhani", "mewar-patiala"].index(slug) + 1
             save(sq, f"collection-{k}", [400, 800], 1.0, 800)
-    hero(); print("done")
+    if not only: hero()
+    print("done")

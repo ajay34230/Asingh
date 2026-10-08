@@ -1,6 +1,6 @@
-# ASINGH — Rajputi dresses storefront
+# ASINGH — girls’ suits & ethnic wear storefront
 
-A fast, dependency-free ecommerce site for **Rajputi dresses** (poshak, ghagra choli, bandhani & leheriya, odhni, suits) with accounts, guest checkout, QR payments with screenshot upload, private orders, live admin alerts and an admin console. Node 20+ only — **no `npm install` needed**.
+A fast, dependency-free ecommerce site for **girls’ suits & ethnic wear** (anarkali, lehenga choli, sharara, gharara, kurti sets, patiala, indo-western, gowns and more) with accounts, guest checkout, QR payments with screenshot upload, private orders, live admin alerts and an admin console. Node 20+ only — **no `npm install` needed**.
 
 ## Run it
 ```bash

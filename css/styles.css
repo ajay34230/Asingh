@@ -916,3 +916,7 @@ text, p, li { text-wrap: pretty; }
 @media (min-width: 700px) { .footer__in { grid-template-columns: repeat(4, 1fr); } }
 @media (min-width: 1000px) { .footer__in { grid-template-columns: 1.5fr repeat(4, 1fr); } }
 @media print { .prose { max-width: none; } }
+
+/* many categories: two-column style list in the mega menu */
+.mega__in { grid-template-columns: minmax(0, 1.6fr) repeat(2, minmax(0, 1fr)) minmax(0, 1.3fr); }
+.mega__cats ul { columns: 2; column-gap: var(--gap); } .mega__cats li { break-inside: avoid; }

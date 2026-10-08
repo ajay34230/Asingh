@@ -180,7 +180,7 @@ function createApp(opts = {}) {
     if (name === 'shop') {
       const c = catalog.categories.find(x => x.id === u.searchParams.get('cat')), q = u.searchParams.get('q');
       if (q || u.searchParams.get('wishlist')) return { ...noindex, title: 'Search — ' + t.name };
-      const label = c ? c.label : 'All Rajputi dresses';
+      const label = c ? c.label : 'All suits & ethnic wear';
       const demo = catalog.products.find(p => p.published && (!c || p.cat === c.id));
       return { ...base, title: `${label} | ${t.name}`, desc: `Shop ${label.toLowerCase()} at ${t.name}: ${t.heroLead}`, path: 'shop.html' + (c ? '?cat=' + c.id : ''), image: demo ? first(demo) : '', ld: SEO.crumbs(o, [['Home', '/'], ['Shop', 'shop.html']].concat(c ? [[c.label, 'shop.html?cat=' + c.id]] : [])) };
     }
@@ -210,7 +210,7 @@ function createApp(opts = {}) {
     const o = SEO.origin(req), t = catalog.site; let html = Home.renderIndex(tpl('index.html'), catalog);
     const h = t.heroImage ? `/media/s/${t.heroImage.rev}-wide-1920.${t.heroImage.ext}` : 'img/hero-wide-1920.jpg';
     html = html.replace('<div class="grid" id="new-grid"></div>', '<div class="grid" id="new-grid">' + SSR.grid(catalog, catalog.products.filter(p => p.published).sort((a, b) => (b.isNew ? 1 : 0) - (a.isNew ? 1 : 0)), 8) + '</div>');
-    html = SEO.apply(html, { origin: o, verify: t.googleSiteVerification, site: t.name, title: t.name + ' — ' + (t.heroEyebrow || 'Rajputi dresses'), desc: t.heroLead, path: '', image: h, ld: [siteLd(o), { '@context': 'https://schema.org', '@type': 'WebSite', name: t.name, url: o, potentialAction: { '@type': 'SearchAction', target: o + '/shop.html?q={search_term_string}', 'query-input': 'required name=search_term_string' } }] });
+    html = SEO.apply(html, { origin: o, verify: t.googleSiteVerification, site: t.name, title: t.name + ' — ' + (t.heroEyebrow || 'Suits & ethnic wear'), desc: t.heroLead, path: '', image: h, ld: [siteLd(o), { '@context': 'https://schema.org', '@type': 'WebSite', name: t.name, url: o, potentialAction: { '@type': 'SearchAction', target: o + '/shop.html?q={search_term_string}', 'query-input': 'required name=search_term_string' } }] });
     sendHtml(req, res, 200, html);
   };
   route('GET', /^\/(index\.html)?$/, serveHome); route('HEAD', /^\/(index\.html)?$/, serveHome);

@@ -2,7 +2,7 @@
 // missing alt / labels / names, duplicate ids, heading problems and SEO/meta gaps. Needs a running server (:4173).
 import { chromium } from '/opt/node22/lib/node_modules/playwright/index.mjs';
 const B = process.env.BASE || 'http://localhost:4173';
-const pages = ['/', '/shop.html', '/shop.html?cat=poshak', '/product.html?id=maharani-poshak', '/cart.html', '/checkout.html', '/account.html', '/track.html', '/order.html', '/invoice.html', '/admin.html'];
+const pages = ['/', '/shop.html', '/shop.html?cat=rajputi-poshak', '/product.html?id=maharani-poshak', '/cart.html', '/checkout.html', '/account.html', '/track.html', '/order.html', '/invoice.html', '/admin.html'];
 const extra = (process.env.PAGES || '').split(',').filter(Boolean);
 const br = await chromium.launch({ executablePath: '/opt/pw-browsers/chromium-1194/chrome-linux/chrome' });
 const issues = {}; const add = (p, m) => { (issues[p] = issues[p] || new Set()).add(m); };

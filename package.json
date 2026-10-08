@@ -2,7 +2,7 @@
   "name": "asingh-store",
   "version": "1.0.0",
   "private": true,
-  "description": "ASINGH — Rajputi dresses storefront with accounts, QR payments and an admin console. Zero dependencies.",
+  "description": "ASINGH — Girls’ suits & ethnic wear storefront with accounts, QR payments and an admin console. Zero dependencies.",
   "engines": { "node": ">=20" },
   "scripts": {
     "start": "node server/index.js",

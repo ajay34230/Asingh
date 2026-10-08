@@ -20,7 +20,7 @@ for (const [name, w, h, touch] of [['phone', 390, 844, true], ['tablet', 820, 11
   ok(await p.locator('#grid .card').count() === 12, 'shop lists 12');
   if (w < 1100) { await p.click('#filter-open'); await p.waitForTimeout(350); await p.screenshot({ path: `/tmp/shots/f-${name}-filters.png` }); await p.check('input[name=cat][value=poshak]', { force: true }); const t = await p.textContent('#apply'); ok(/Show 4/.test(t), 'apply button previews count: ' + t); await p.click('#apply'); await p.waitForTimeout(300); }
   else { await p.check('input[name=cat][value=poshak]', { force: true }); await p.waitForTimeout(200); }
-  ok(await p.locator('#grid .card').count() === 4, 'filter → 4 poshak'); ok(await p.locator('#applied .pill').count() === 1, 'applied chip shown'); ok(p.url().includes('cat=poshak'), 'URL reflects filter');
+  ok(await p.locator('#grid .card').count() === 1, 'filter → 1 poshak'); ok(await p.locator('#applied .pill').count() === 1, 'applied chip shown'); ok(p.url().includes('cat=rajputi-poshak'), 'URL reflects filter');
   await p.click('#applied [data-clear]'); await p.waitForTimeout(150); ok(await p.locator('#grid .card').count() === 12, 'Clear all resets');
   // quick add
   if (touch) await p.tap('.card:first-child [data-quick]'); else { await p.hover('.card:first-child'); await p.click('.card:first-child [data-quick]'); }

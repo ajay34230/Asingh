@@ -5,7 +5,7 @@ const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&a
 const rs = n => '₹' + Number(n).toLocaleString('en-IN');
 function imgTag(cat, p, w, alt) {
   if (p.images.length) { const r = p.images[0], e = p.imageStore[r], pick = e.ws.indexOf(w) > -1 ? w : e.ws[e.ws.length - 1]; return `<img src="${esc(cat.imgUrl(p, r, pick))}" width="1200" height="1500" alt="${esc(alt)}" decoding="async">`; }
-  if (p.demo) return `<img src="img/${esc(p.id)}-1-${w === 400 ? 400 : 800}.jpg" width="1200" height="1500" alt="${esc(alt)}" decoding="async">`;
+  if (p.demo) return `<img src="img/${esc(p.id)}-1-800.jpg" width="1200" height="1500" alt="${esc(alt)}" decoding="async">`;
   return `<img src="img/placeholder.svg" width="1200" height="1500" alt="${esc(alt)}">`;
 }
 const basePrice = (cat, p) => p.price + cat.stitchAdd(p.stitch.filter(id => cat.stitchOpt(id))[0]);

@@ -309,20 +309,20 @@
       NAV.map(function (n) { return '<li class="nav__item' + (n.xl ? ' nav__item--xl' : '') + '"><a class="nav__link" href="' + n.href + '">' + n.label + '</a></li>'; }).join('') +
       '</ul></nav>' +
       '<div class="header__actions">' +
-      '<button type="button" class="searchpill" data-open="search" aria-label="Search" aria-expanded="false" aria-controls="search">' + icon('search') + '<span class="searchpill__t">Search poshak, ghagra, odhni…</span></button>' +
+      '<button type="button" class="searchpill" data-open="search" aria-label="Search" aria-expanded="false" aria-controls="search">' + icon('search') + '<span class="searchpill__t">Search anarkali, lehenga, sharara…</span></button>' +
       '<a class="icon-btn header__account" href="account.html" data-account aria-label="Account">' + icon('user') + '<span class="avatar" hidden></span></a>' +
       '<a class="icon-btn header__wish" href="shop.html?wishlist=1" aria-label="Wishlist"><span class="icon-btn__ico">' + icon('heart') + '<span class="count" data-wish-count hidden>0</span></span></a>' +
       '<button type="button" class="icon-btn header__cart" data-open="cart" aria-label="Open cart" aria-expanded="false" aria-controls="cart"><span class="icon-btn__ico">' + icon('bag') + '<span class="count" data-cart-count hidden>0</span></span></button>' +
       '<button type="button" class="icon-btn header__menu" data-open="menu" aria-label="Open menu" aria-expanded="false" aria-controls="menu">' + icon('menu') + '</button>' +
       '</div></div>' +
       '<span class="sp" aria-hidden="true"></span><div class="mega" id="mega" hidden><div class="container mega__in">' +
-      '<div><h2 class="mega__h">Shop by category</h2><ul>' + A.CATEGORIES.map(function (c) { return '<li><a href="shop.html?cat=' + c.id + '">' + c.label + '</a></li>'; }).join('') + '<li><a class="mega__all" href="shop.html">View all</a></li></ul></div>' +
+      '<div class="mega__cats"><h2 class="mega__h">Shop by style</h2><ul>' + A.CATEGORIES.map(function (c) { return '<li><a href="shop.html?cat=' + c.id + '">' + c.label + '</a></li>'; }).join('') + '<li><a class="mega__all" href="shop.html">View all</a></li></ul></div>' +
       '<div><h2 class="mega__h">Occasion</h2><ul>' + A.OCCASIONS.map(function (c) { return '<li><a href="shop.html?occ=' + c.id + '">' + c.label + '</a></li>'; }).join('') + '</ul></div>' +
       '<div><h2 class="mega__h">Stitching</h2><ul>' + A.STITCH.map(function (c) { return '<li><a href="shop.html?stitch=' + c.id + '">' + c.label + '</a></li>'; }).join('') + '</ul></div>' +
-      '<a class="mega__feature" href="product.html?id=maharani-poshak">' + picture('maharani-poshak', 1, { sizes: '(min-width:1100px) 22vw, 0px', alt: '' }) + '<span class="mega__cap"><small>The Vivah edit</small>Maharani Bridal Poshak</span></a>' +
+      '<a class="mega__feature" href="product.html?id=rani-sa-anarkali">' + picture('rani-sa-anarkali', 1, { sizes: '(min-width:1100px) 22vw, 0px', alt: '' }) + '<span class="mega__cap"><small>Bestseller</small>Rani Pink Anarkali Suit</span></a>' +
       '</div></div></header>';
     var footer = '<footer class="footer"><div class="container footer__in">' +
-      '<div class="footer__brand"><a class="logo" href="index.html">' + A.BRAND + '</a><p>Authentic Rajputi dresses — poshak, ghagra choli and odhni — made to your measure.</p>' +
+      '<div class="footer__brand"><a class="logo" href="index.html">' + A.BRAND + '</a><p>Girls’ suits &amp; ethnic wear — anarkali, lehenga choli, sharara, kurti sets and more — made to your measure.</p>' +
       '<form class="newsletter" action="#" data-newsletter novalidate><div class="hp" aria-hidden="true"><label>Website <input name="website" tabindex="-1" autocomplete="off"></label></div><label for="nl-email" class="vh">Email address</label><input id="nl-email" type="email" name="email" inputmode="email" autocomplete="email" placeholder="Your email address" required><button class="btn" type="submit">Subscribe</button><p class="newsletter__msg" role="status" aria-live="polite"></p></form></div>' +
       '<details class="footer__col" open><summary>Shop</summary><ul>' + A.CATEGORIES.map(function (c) { return '<li><a href="shop.html?cat=' + c.id + '">' + c.label + '</a></li>'; }).join('') + '</ul></details>' +
       footerCols() +
@@ -331,7 +331,7 @@
     var sheets =
       '<div class="sheet sheet--menu" id="menu" aria-hidden="true"><div class="sheet__backdrop" data-close></div><div class="sheet__panel" aria-label="Menu">' +
       '<div class="sheet__head"><a class="logo" href="index.html">' + A.BRAND + '</a><button type="button" class="icon-btn" data-close aria-label="Close menu">' + icon('close') + '</button></div>' +
-      '<div class="sheet__body"><button type="button" class="searchpill searchpill--wide" data-open="search" aria-label="Search">' + icon('search') + '<span>Search poshak, ghagra, odhni…</span></button>' +
+      '<div class="sheet__body"><button type="button" class="searchpill searchpill--wide" data-open="search" aria-label="Search">' + icon('search') + '<span>Search anarkali, lehenga, sharara…</span></button>' +
       '<ul class="menu"><li><a href="shop.html">Shop all</a></li><li><a href="shop.html?sort=new">New in</a></li>' +
       A.CATEGORIES.map(function (c) { return '<li><a href="shop.html?cat=' + c.id + '">' + c.label + '</a></li>'; }).join('') + '</ul>' +
       '<h2 class="menu__h">Shop by occasion</h2><ul class="pills">' + A.OCCASIONS.map(function (c) { return '<li><a href="shop.html?occ=' + c.id + '">' + c.label + '</a></li>'; }).join('') + '</ul>' +
@@ -399,7 +399,7 @@
       var words = v.toLowerCase().split(/\s+/).filter(Boolean);
       return A.PRODUCTS.filter(function (p) {
         var hay = [p.name, p.fabric, p.cat, p.occ.join(' '), p.colors.map(function (c) { return c.name; }).join(' ')].join(' ').toLowerCase();
-        return words.every(function (w) { w = ({ lehenga: 'ghagra', lehnga: 'ghagra', choli: 'ghagra', dupatta: 'odhni', saree: 'poshak', kurta: 'suit', gotapatti: 'gota' })[w] || w; return hay.indexOf(w.replace(/s$/, '')) > -1; });
+        return words.every(function (w) { w = ({ lehnga: 'lehenga', ghagra: 'ghagra', salwar: 'suit', churidar: 'suit', kurta: 'suit', dupatta: 'dupatta', anarkali: 'anarkali', gotapatti: 'gota' })[w] || w; return hay.indexOf(w.replace(/s$/, '')) > -1; });
       });
     };
     q.addEventListener('input', run); idle();
