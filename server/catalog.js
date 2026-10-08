@@ -38,11 +38,21 @@ class Catalog {
   constructor(db) {
     this.db = db; const D = db.data;
     if (!D.catalog) {
-      D.catalog = { version: 1, categories: A.CATEGORIES.map(c => ({ id: c.id, label: c.label })), site: defaultSite(),
+      D.catalog = { version: 1, suits: 1, categories: A.CATEGORIES.map(c => ({ id: c.id, label: c.label })), site: defaultSite(),
         products: A.PRODUCTS.map(p => Object.assign(clone(p), { published: true, soldOut: false, demo: true, images: [], imageStore: {}, createdAt: Date.now() })) };
       db.save();
     }
-    this.D = D.catalog; this.D.site = merge(defaultSite(), this.D.site); delete this.D.site.stitchAdd;
+    this.D = D.catalog;
+    if (!this.D.suits) {   // one-time: stores that still hold the old Rajputi-only demo catalogue get the new suits & ethnic-wear demo
+      this.D.suits = 1;
+      if (this.D.products.every(p => p.demo) && this.D.categories.some(c => c.id === 'poshak')) {
+        const d = defaultSite(); this.D.categories = A.CATEGORIES.map(c => ({ id: c.id, label: c.label }));
+        this.D.products = A.PRODUCTS.map(p => Object.assign(clone(p), { published: true, soldOut: false, demo: true, images: [], imageStore: {}, createdAt: Date.now() }));
+        ['announcement', 'heroEyebrow', 'heroTitle', 'heroLead', 'heroCta', 'marquee', 'trust', 'occasions', 'story'].forEach(k => { this.D.site[k] = d[k]; });
+      }
+      db.save();
+    }
+    this.D.site = merge(defaultSite(), this.D.site); delete this.D.site.stitchAdd;
     if (Array.isArray(this.D.pages)) Pages.DEFAULT_PAGES.forEach(d => { if (!this.D.pages.some(p => p.slug === d.slug)) this.D.pages.push({ ...d, published: true, system: true, updatedAt: Date.now() }); });
     if (!Array.isArray(this.D.pages)) { this.D.pages = Pages.DEFAULT_PAGES.map(p => ({ ...p, published: true, system: true, updatedAt: Date.now() })); db.save(); }
     fs.mkdirSync(path.join(db.dir, 'media'), { recursive: true, mode: 0o700 });
