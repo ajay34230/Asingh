@@ -444,6 +444,15 @@ console.log('\nService worker behaviour (simulated)');
   ok(await run('https://shop.test/api/orders', 'cors') === 'PASSED_THROUGH' && await run('https://shop.test/admin.html') === 'PASSED_THROUGH' && await run('https://shop.test/account.html?reset=abc') === 'PASSED_THROUGH', 'API, admin and password-reset links are never handled or saved');
   ok(await run('https://shop.test/api/orders', 'cors', 'POST') === 'PASSED_THROUGH' && await run('https://other.example/x.js', 'no-cors') === 'PASSED_THROUGH', 'writes and other websites are left alone'); }
 
+console.log('\nSale banner + product SEO');
+{ ok((await ADM.req('PUT', '/api/admin/site', { offer: { on: true, text: 'Festive sale', code: 'bad code!', until: '' } })).status === 400, 'bad offer code rejected');
+  ok((await ADM.req('PUT', '/api/admin/site', { offer: { on: true, text: 'Festive sale — 15% off', code: 'festive15', until: '2099-12-31' } })).status === 200, 'admin saves the sale banner');
+  const dj3 = (await new Client().req('GET', '/js/data.js')).text; ok(/"offer":\{"on":true,"text":"Festive sale — 15% off","code":"FESTIVE15","until":\d+\}/.test(dj3), 'banner reaches the storefront with the code upper-cased and an end time');
+  ok((await ADM.req('PUT', '/api/admin/site', { offer: { on: true, text: 'x', until: 'not-a-date' } })).status === 400, 'bad end date rejected'); await ADM.req('PUT', '/api/admin/site', { offer: { on: false, text: '' } });
+  const sp = (await ADM.req('POST', '/api/admin/products', { name: 'Seo Suit', cat: 'straight', price: 2600, colors: [{ name: 'Red', hex: '#ff0000' }], stitch: ['unstitched'], seoTitle: 'Buy Seo Suit Online', seoDesc: 'A custom description for search results.' })).json.product;
+  const html = await (await fetch(base + '/product.html?id=' + sp.id)).text(); ok(/<title>Buy Seo Suit Online \|/.test(html) && /A custom description for search results\./.test(html), 'product page uses the owner’s search title and description');
+  await ADM.req('DELETE', '/api/admin/products/' + sp.id); }
+
 console.log('\nAdmin analytics');
 { const an = await ADM.req('GET', '/api/admin/analytics?days=30'); ok(an.status === 200 && an.json.series.length === 30 && an.json.orders >= 2, 'analytics returns a 30-day series and order totals');
   ok(an.json.paidOrders >= 1 && an.json.revenue > 0 && an.json.aov > 0 && an.json.top.length >= 1, 'revenue, average order and top products computed from paid orders');

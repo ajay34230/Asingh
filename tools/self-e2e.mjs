@@ -146,6 +146,12 @@ console.log('\nInstallable app + offline (browser)');
   const ia = await b.newContext({ viewport: { width: 390, height: 844 }, userAgent: 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1' }); const ip = await ia.newPage(); await ip.goto(BASE + '/'); await ip.waitForSelector('.hero'); await ip.click('.header__menu'); await ip.waitForTimeout(400); await ip.click('.sheet--menu [data-install]'); await ip.waitForSelector('#install-help[open]');
   ok(/Add to Home Screen/.test(await ip.locator('#install-help').innerText()), 'on an iPhone it shows the Share → Add to Home Screen steps'); await ia.close(); }
 
+console.log('\nSale banner (browser)');
+{ await call(ad, 'PUT', '/api/admin/site', { offer: { on: true, text: 'Navratri sale', code: 'NAVRATRI15', until: '2099-12-31' } });
+  const o = await page(390, 844); await o.goto(BASE + '/'); await o.waitForSelector('.offer'); ok(/Navratri sale/.test(await o.locator('.offer').innerText()) && /NAVRATRI15/.test(await o.locator('.offer').innerText()), 'banner shows the message and code');
+  ok(/Ends in/.test(await o.locator('.offer__left').innerText()), 'countdown is running'); ok(await o.evaluate(() => document.documentElement.scrollWidth <= innerWidth), 'banner causes no sideways scroll on a phone');
+  await o.click('[data-offer-close]'); ok(await o.locator('.offer').count() === 0, 'visitor can close it'); await call(ad, 'PUT', '/api/admin/site', { offer: { on: false, text: '' } }); }
+
 console.log('\nCookie notice only when Analytics is on');
 await call(ad, 'PUT', '/api/admin/site', { ga4Id: 'G-TEST123456' });
 const v = await page(); await v.goto(BASE + '/'); await v.waitForSelector('.consent', { timeout: 5000 }); ok(true, 'cookie notice appears');

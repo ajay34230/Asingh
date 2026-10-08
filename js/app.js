@@ -312,6 +312,20 @@
   /* ---------- Chrome ---------- */
   var shortLabel = function (l) { return l.length > 13 ? l.split(/[\s&]+/)[0] : l; };
   var NAV = [{ label: 'New In', href: 'shop.html?sort=new' }].concat(A.CATEGORIES.slice(0, 4).map(function (c, i) { return { label: shortLabel(c.label), href: 'shop.html?cat=' + c.id, xl: i > 1 }; }), [{ label: 'Custom Stitching', href: 'shop.html?stitch=custom', xl: true }]);
+  function offerBar() {
+    var o = A.SITE && A.SITE.offer; if (!o || !o.on || !o.text || (o.until && o.until < Date.now())) return '';
+    try { if (sessionStorage.getItem('asingh.offer.x') === o.text) return ''; } catch (e) {}
+    return '<div class="offer" role="region" aria-label="Offer"><span class="offer__t">' + esc(o.text) + '</span>' + (o.code ? '<button type="button" class="offer__code" data-copy-code="' + esc(o.code) + '" aria-label="Copy code ' + esc(o.code) + '">Use code <b>' + esc(o.code) + '</b></button>' : '') + (o.until ? '<span class="offer__left" data-offer-until="' + o.until + '"></span>' : '') + '<button type="button" class="offer__x" data-offer-close aria-label="Close offer">' + icon('close', 'ico--xs') + '</button></div>';
+  }
+  function bindOffer() {
+    var left = $('[data-offer-until]'), bar = $('.offer');
+    function tick() { if (!left) return; var ms = +left.getAttribute('data-offer-until') - Date.now(); if (ms <= 0) { if (bar) bar.remove(); return; } var d = Math.floor(ms / 864e5), h = Math.floor(ms % 864e5 / 36e5), m = Math.floor(ms % 36e5 / 6e4); left.textContent = 'Ends in ' + (d ? d + 'd ' : '') + h + 'h ' + m + 'm'; }
+    tick(); if (left) setInterval(tick, 30000);
+    document.addEventListener('click', function (e) {
+      var c = e.target.closest('[data-copy-code]'); if (c) { var code = c.getAttribute('data-copy-code'); (navigator.clipboard ? navigator.clipboard.writeText(code) : Promise.reject()).then(function () { toast('Code ' + code + ' copied — apply it at checkout'); }, function () { toast('Use code ' + code + ' at checkout'); }); }
+      if (e.target.closest('[data-offer-close]') && bar) { try { sessionStorage.setItem('asingh.offer.x', (A.SITE.offer || {}).text); } catch (x) {} bar.remove(); }
+    });
+  }
   function waButton() {
     var n = A.SITE && A.SITE.whatsapp; if (!n) return '';
     var pr = document.body.getAttribute('data-page') === 'product' && byId[new URLSearchParams(location.search).get('id')];
@@ -341,7 +355,7 @@
     var page = document.body.getAttribute('data-page');
     var sprite = '';
     var header = '<a class="skip" href="#main">Skip to content</a>' +
-      '<p class="announce"><span>' + (A.FREE_SHIP_FROM ? 'Free shipping over ' + money(A.FREE_SHIP_FROM) : 'Free shipping on all orders') + '</span>' + ((A.SITE && A.SITE.announcement) ? '<span class="announce__sep" aria-hidden="true">·</span><span class="announce__opt">' + esc(A.SITE.announcement) + '</span>' : '') + '<span class="announce__sep" aria-hidden="true">·</span><a class="announce__track" href="track.html">Track your order</a><button type="button" class="themebtn" data-theme-toggle aria-label="Change theme"><span class="themebtn__dot" aria-hidden="true"></span><span class="themebtn__t"></span></button><button type="button" class="themebtn langbtn" data-lang-toggle data-no-i18n aria-label="Language: switch between English and Hindi"><span class="langbtn__t">हिन्दी</span></button><button type="button" class="themebtn installbtn" data-install hidden aria-label="Install the app">' + icon('plus', 'ico--xs') + '<span>Install app</span></button></p>' +
+      offerBar() + '<p class="announce"><span>' + (A.FREE_SHIP_FROM ? 'Free shipping over ' + money(A.FREE_SHIP_FROM) : 'Free shipping on all orders') + '</span>' + ((A.SITE && A.SITE.announcement) ? '<span class="announce__sep" aria-hidden="true">·</span><span class="announce__opt">' + esc(A.SITE.announcement) + '</span>' : '') + '<span class="announce__sep" aria-hidden="true">·</span><a class="announce__track" href="track.html">Track your order</a><button type="button" class="themebtn" data-theme-toggle aria-label="Change theme"><span class="themebtn__dot" aria-hidden="true"></span><span class="themebtn__t"></span></button><button type="button" class="themebtn langbtn" data-lang-toggle data-no-i18n aria-label="Language: switch between English and Hindi"><span class="langbtn__t">हिन्दी</span></button><button type="button" class="themebtn installbtn" data-install hidden aria-label="Install the app">' + icon('plus', 'ico--xs') + '<span>Install app</span></button></p>' +
       '<header class="header" id="site-header"><div class="header__bar container">' +
       brandLink() +
       '<nav class="nav" aria-label="Primary"><ul class="nav__list">' +
@@ -666,7 +680,7 @@
 
   document.addEventListener('load', function (e) { if (e.target.tagName === 'IMG') e.target.classList.add('ld'); }, true);
   $$('img').forEach(function (i) { if (i.complete && i.naturalWidth) i.classList.add('ld'); });
-  buildChrome(); Auth.refresh(); bindMega(); bindSearch(); bindCartUI(); bindQuick(); bindNewsletter(); bindHeader(); bindFX(); bindRails(document); reveal(document);
+  buildChrome(); bindOffer(); Auth.refresh(); bindMega(); bindSearch(); bindCartUI(); bindQuick(); bindNewsletter(); bindHeader(); bindFX(); bindRails(document); reveal(document);
   document.documentElement.classList.add('js');
   document.dispatchEvent(new Event('asingh:ready'));
 })(window.ASINGH);

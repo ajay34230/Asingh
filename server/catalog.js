@@ -29,7 +29,7 @@ const defaultSite = () => ({
   stitch: A.STITCH.map(x => ({ id: x.id, label: x.label, note: x.note, eta: x.eta, add: { unstitched: 0, semi: 600, custom: 1800 }[x.id], enabled: true })),
   sizeChart: [['XS', 32, 26, 35], ['S', 34, 28, 37], ['M', 36, 30, 39], ['L', 38, 32, 41], ['XL', 40, 34, 43], ['XXL', 42, 36, 45]].map(r => ({ size: r[0], bust: r[1], waist: r[2], hip: r[3] })),
   contactEmail: '', contactPhone: '', contactAddress: '', contactHours: '',
-  googleSiteVerification: '', ga4Id: '', translations: {}, whatsapp: '', pickupPin: '', pkgKg: 0.8, pkgL: 30, pkgB: 25, pkgH: 6, returnDays: 7, handlingMin: 1, handlingMax: 3, deliveryMin: 3, deliveryMax: 7,
+  googleSiteVerification: '', ga4Id: '', translations: {}, whatsapp: '', offer: { on: false, text: '', code: '', until: 0 }, giftFee: 0, pickupPin: '', pkgKg: 0.8, pkgL: 30, pkgB: 25, pkgH: 6, returnDays: 7, handlingMin: 1, handlingMax: 3, deliveryMin: 3, deliveryMax: 7,
   shipFreeFrom: A.FREE_SHIP_FROM, shipFlat: A.SHIP_FLAT, testimonials: []
 });
 const merge = (d, v) => { const o = { ...d }; Object.keys(v || {}).forEach(k => { o[k] = d[k] && typeof d[k] === 'object' && !Array.isArray(d[k]) && v[k] && typeof v[k] === 'object' && !Array.isArray(v[k]) ? { ...d[k], ...v[k] } : v[k]; }); return o; };
@@ -115,6 +115,7 @@ class Catalog {
     if (!base || b.details !== undefined) out.details = (Array.isArray(b.details) ? b.details : []).map(x => s(x, 200)).filter(Boolean).slice(0, 10);
     ['best', 'isNew', 'published', 'soldOut'].forEach(k => { if (b[k] !== undefined) out[k] = !!b[k]; else if (!base) out[k] = k === 'published'; });
     if (!base || b.stock !== undefined) { const n = b.stock === '' || b.stock == null ? null : Math.round(Number(b.stock)); if (n !== null && !(n >= 0 && n <= 99999)) throw bad('Stock must be a whole number (or blank for unlimited).'); out.stock = n; if (n === 0) out.soldOut = true; }
+    if (!base || b.seoTitle !== undefined) out.seoTitle = s(b.seoTitle, 70); if (!base || b.seoDesc !== undefined) out.seoDesc = s(b.seoDesc, 170);
     if (!base || b.sizeStock !== undefined) {   // optional stock per size, e.g. { S: 3, M: 0 } — sizes not listed are unlimited
       const src = b.sizeStock && typeof b.sizeStock === 'object' ? b.sizeStock : {}, ss = {};
       Object.keys(src).forEach(k => { if (this.sizes.indexOf(k) < 0 || src[k] === '' || src[k] == null) return; const n = Math.round(Number(src[k])); if (!(n >= 0 && n <= 99999)) throw bad('Size stock must be whole numbers (or blank for unlimited).'); ss[k] = n; });
@@ -182,6 +183,9 @@ class Catalog {
       Object.keys(src).forEach(k => { const key = s(k, 300).replace(/\s+/g, ' ').trim(), v = s(src[k], 600); if (key && v && n < 1500) { out[key] = v; n++; } });
       t.translations = out;
     }
+    if (b.offer && typeof b.offer === 'object') { const o = b.offer, text = s(o.text, 110), code = s(o.code, 20).toUpperCase().replace(/\s+/g, ''); let until = 0; if (o.until) { until = Date.parse(String(o.until).slice(0, 10) + 'T23:59:59+05:30'); if (!Number.isFinite(until)) throw bad('Offer end date is not valid.'); }
+      if (code && !/^[A-Z0-9_-]{3,20}$/.test(code)) throw bad('Offer code can only have letters and numbers.'); t.offer = { on: !!o.on && !!text, text, code, until }; }
+    if (b.giftFee !== undefined) { const n = Math.round(Number(b.giftFee) || 0); if (n < 0 || n > 2000) throw bad('Gift-wrap fee must be between ₹0 and ₹2000.'); t.giftFee = n; }
     if (b.pickupPin !== undefined) { const v = String(b.pickupPin).trim(); if (v && !/^[1-9][0-9]{5}$/.test(v)) throw bad('Pickup PIN code should be 6 digits.'); t.pickupPin = v; }
     [['pkgKg', 0.05, 30], ['pkgL', 5, 120], ['pkgB', 5, 120], ['pkgH', 1, 120]].forEach(([k, lo, hi]) => { if (b[k] !== undefined && b[k] !== '') { const n = Number(b[k]); if (!(n >= lo && n <= hi)) throw bad('Parcel size/weight is out of range.'); t[k] = n; } });
     if (b.whatsapp !== undefined) { const d = String(b.whatsapp).replace(/[^\d]/g, ''); if (d && !/^(\d{10}|91\d{10}|\d{11,13})$/.test(d)) throw bad('WhatsApp number should be a 10-digit mobile number (or with country code).'); t.whatsapp = d.length === 10 ? '91' + d : d; }

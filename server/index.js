@@ -424,7 +424,7 @@ function createApp(opts = {}) {
         hasMerchantReturnPolicy: t.returnDays > 0 && !onlyCustom ? { '@type': 'MerchantReturnPolicy', applicableCountry: 'IN', returnPolicyCategory: 'https://schema.org/MerchantReturnFiniteReturnWindow', merchantReturnDays: t.returnDays, returnMethod: 'https://schema.org/ReturnByMail', returnFees: 'https://schema.org/ReturnFeesCustomerResponsibility' } : { '@type': 'MerchantReturnPolicy', applicableCountry: 'IN', returnPolicyCategory: 'https://schema.org/MerchantReturnNotPermitted' } };
       const real = !p.demo && p.rating && p.reviews > 0;   // never publish demo/placeholder ratings as structured data
       const ld = [{ '@context': 'https://schema.org', '@type': 'Product', name: p.name, description: p.blurb || p.name, image: p.images.length ? p.images.map(r => SEO.abs(o, catalog.imgUrl(p, r, 'feed'))) : [img], sku: p.id, mpn: p.id, category: cat && cat.label, material: p.fabric || undefined, color: p.colors.map(c => c.name).join(', '), brand: { '@type': 'Brand', name: t.name }, ...(real ? { aggregateRating: { '@type': 'AggregateRating', ratingValue: p.rating, reviewCount: p.reviews } } : {}), offers: offer }, SEO.crumbs(o, [['Home', '/'], ['Shop', 'shop.html'], [cat ? cat.label : 'Shop', 'shop.html?cat=' + p.cat], [p.name, url]])];
-      return { ...base, title: `${p.name} | ${t.name}`, desc: (p.blurb || p.name) + ` Price ₹${price.toLocaleString('en-IN')}.`, path: url, image: feedImg(p), type: 'product', ld, product: p };
+      return { ...base, title: p.seoTitle ? `${p.seoTitle} | ${t.name}` : `${p.name} | ${t.name}`, desc: p.seoDesc || ((p.blurb || p.name) + ` Price ₹${price.toLocaleString('en-IN')}.`), path: url, image: feedImg(p), type: 'product', ld, product: p };
     }
     return noindex;
   }
