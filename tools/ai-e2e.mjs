@@ -9,7 +9,7 @@ const mock = http.createServer((rq, rs) => { let b = ''; rq.on('data', d => b +=
     : /search filters/.test(sys) ? { occ: ['wedding'] } : /returns the key test/.test(sys) ? {} : { reply: 'Try this lovely piece!', products: ['jodha-gown'] };
   rs.setHeader('content-type', 'application/json'); rs.end(JSON.stringify({ candidates: [{ content: { parts: [{ text: JSON.stringify(out) }] } }] })); }); });
 await new Promise(r => mock.listen(5598, '127.0.0.1', r));
-const srv = spawn('node', ['server/index.js'], { env: { ...process.env, DATA_DIR: DIR, ADMIN_PASSWORD: 'Admin#Pass12345', PORT: String(PORT), GEMINI_BASE: 'http://127.0.0.1:5598/v1beta', GEMINI_API_KEY: '' }, stdio: 'ignore' }); await new Promise(r => setTimeout(r, 2200));
+const srv = spawn('node', ['server/index.js'], { env: { ...process.env, DATA_DIR: DIR, ADMIN_PASSWORD: 'Admin#Pass12345', PORT: String(PORT), GEMINI_BASE: 'http://127.0.0.1:5598/v1beta', GEMINI_API_KEY: '', AI_STARTER_KEY: 'off' }, stdio: 'ignore' }); await new Promise(r => setTimeout(r, 2200));
 let fails = 0; const ok = (c, m) => { console.log((c ? '  ✓ ' : '  ✗ ') + m); if (!c) fails++; };
 const br = await chromium.launch({ executablePath: '/opt/pw-browsers/chromium-1194/chrome-linux/chrome' });
 try {

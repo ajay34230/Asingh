@@ -2,7 +2,7 @@
 import { createRequire } from 'node:module';
 import vm from 'node:vm'; import os from 'node:os'; import fs from 'node:fs'; import path from 'node:path'; import crypto from 'node:crypto';
 const require = createRequire(import.meta.url);
-process.env.ADMIN_PASSWORD = 'correct-horse-battery'; process.env.WEBHOOK_SECRET_GENERIC = 'whsec_test';
+process.env.AI_STARTER_KEY = 'off'; process.env.ADMIN_PASSWORD = 'correct-horse-battery'; process.env.WEBHOOK_SECRET_GENERIC = 'whsec_test';
 const { createApp } = require('./index.js');
 const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'asingh-'));
 const app = createApp({ dataDir: dir, quiet: true, trustProxy: true });

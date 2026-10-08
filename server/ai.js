@@ -5,12 +5,16 @@
 let own = () => ({});   // the owner's key/model saved from the admin panel (set by the server); beats environment variables
 const setProvider = fn => { own = fn; };
 const Assist = require('./assist');
-const KEY = () => (own() || {}).key || process.env.GEMINI_API_KEY || '';
+/* Built-in starter key, used ONLY until the owner saves their own key in Admin (or sets GEMINI_API_KEY on the host).
+   It lives in a public repository, so Google may disable it at any time — replace it in Admin → Store settings → चंद्रवंशी AI. */
+const STARTER_KEY = 'AIzaSyAeo4lsirto7-UJL87mKMRuGT9j5v08GtI';
+const starter = () => (process.env.AI_STARTER_KEY === 'off' ? '' : STARTER_KEY);
+const KEY = () => (own() || {}).key || process.env.GEMINI_API_KEY || starter();
 const enabled = () => !!KEY();
 const model = () => (own() || {}).model || process.env.GEMINI_MODEL || 'gemini-3.5-flash';
 const chosen = () => !!((own() || {}).model || process.env.GEMINI_MODEL);   // owner picked a model → never swap it silently
 const FALLBACK_MODELS = ['gemini-flash-latest', 'gemini-3.5-flash-lite'];
-const keyInfo = () => { const k = KEY(), src = (own() || {}).key ? 'admin' : process.env.GEMINI_API_KEY ? 'server' : ''; return { set: !!k, source: src, masked: k ? k.slice(0, 4) + '…' + k.slice(-4) : '' }; };
+const keyInfo = () => { const k = KEY(), src = (own() || {}).key ? 'admin' : process.env.GEMINI_API_KEY ? 'server' : starter() ? 'starter' : ''; return { set: !!k, source: src, masked: k ? k.slice(0, 4) + '…' + k.slice(-4) : '' }; };
 const base = () => (process.env.GEMINI_BASE || 'https://generativelanguage.googleapis.com/v1beta').replace(/\/$/, '');
 const dailyMax = () => +process.env.AI_DAILY_LIMIT || 400;   // stay inside the free tier; owners can raise it
 const usage = { day: '', n: 0, last: null };
