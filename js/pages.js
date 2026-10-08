@@ -293,9 +293,26 @@
       var set = function (id, v) { var el = document.getElementById(id); if (el && !el.value && v) el.value = v; };
       set('email', u.email); set('name', u.name); set('phone', p.phone); set('line1', p.line1); set('line2', p.line2); set('pin', p.pin); set('city', p.city); set('state', p.state);
     }
+    /* saved addresses: pick one to fill the form, or tick "save" for next time */
+    function savedUI() {
+      var u = U.Auth.user, fields = $('#step-details .fields'); if (!fields) return;
+      var old = $('#saved-wrap'); if (old) old.remove(); var ck = $('#save-wrap'); if (ck) ck.remove();
+      if (!u || u.isGuest) return;
+      var list = u.addresses || [];
+      if (list.length) {
+        var w = document.createElement('div'); w.className = 'field field--wide'; w.id = 'saved-wrap';
+        w.innerHTML = '<label class="field__l" for="saved-addr">Saved addresses</label><select class="input input--select" id="saved-addr"><option value="">Use a new address</option>' + list.map(function (a) { return '<option value="' + esc(a.id) + '">' + esc(a.label + ' — ' + a.name + ', ' + a.line1 + ', ' + a.city + ' ' + a.pin) + '</option>'; }).join('') + '</select>';
+        fields.insertBefore(w, fields.firstChild);
+        $('#saved-addr', w).addEventListener('change', function () {
+          var a = list.filter(function (x) { return x.id === this.value; }.bind(this))[0]; if (!a) return;
+          [['name', a.name], ['phone', a.phone], ['line1', a.line1], ['line2', a.line2], ['pin', a.pin], ['city', a.city], ['state', a.state]].forEach(function (kv) { var el = document.getElementById(kv[0]); if (el) { el.value = kv[1] || ''; el.dispatchEvent(new Event('input', { bubbles: true })); } });
+        });
+      }
+      if (list.length < 6) { var c = document.createElement('label'); c.className = 'check field--wide'; c.id = 'save-wrap'; c.innerHTML = '<input type="checkbox" id="save-addr" checked> <span>Save this address for next time</span>'; fields.appendChild(c); }
+    }
     $('#authnote').addEventListener('click', function (e) { if (e.target.closest('[data-signin]')) U.Auth.ensure().then(function () {}, function () {}); });
-    document.addEventListener('authchange', function () { authNote(); prefill(); });
-    api('GET', '/api/me').then(function (r) { U.Auth.user = r.user; U.Auth.paint(); authNote(); prefill(); }, authNote);
+    document.addEventListener('authchange', function () { authNote(); prefill(); savedUI(); });
+    api('GET', '/api/me').then(function (r) { U.Auth.user = r.user; U.Auth.paint(); authNote(); prefill(); savedUI(); }, authNote);
 
     var RULES = {
       email: { test: function (v) { return /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(v); }, msg: 'Enter a valid email, e.g. name@example.com' },
@@ -352,7 +369,7 @@
       e.preventDefault(); var m = form2.querySelector('[name=pay]:checked'), btn = $('#place'), err = $('#method-err'); err.textContent = '';
       if (!m) { err.textContent = 'Please choose a payment method.'; return; }
       btn.disabled = true; btn.classList.add('is-busy');
-      api('POST', '/api/orders', { items: Cart.items.map(function (i) { return { id: i.id, size: i.size, stitch: i.stitch, color: i.color, note: i.note, qty: i.qty }; }), customer: cust, method: m.value, coupon: Cart.coupon ? Cart.coupon.code : undefined }).then(function (r) { finished = true; Cart.clear(); showQr(r.order); }, function (er) { btn.disabled = false; btn.classList.remove('is-busy'); err.textContent = er.message; });
+      api('POST', '/api/orders', { items: Cart.items.map(function (i) { return { id: i.id, size: i.size, stitch: i.stitch, color: i.color, note: i.note, qty: i.qty }; }), customer: cust, method: m.value, coupon: Cart.coupon ? Cart.coupon.code : undefined }).then(function (r) { finished = true; var sv = $('#save-addr'); if (sv && sv.checked && U.Auth.user && !U.Auth.user.isGuest) api('POST', '/api/me/addresses', { label: 'Home', name: cust.name, phone: cust.phone, line1: cust.line1, line2: cust.line2, pin: cust.pin, city: cust.city, state: cust.state }).then(function (x) { U.Auth.user = x.user; }, function () {}); Cart.clear(); showQr(r.order); }, function (er) { btn.disabled = false; btn.classList.remove('is-busy'); err.textContent = er.message; });
     });
 
     Cart.subscribe(function () {

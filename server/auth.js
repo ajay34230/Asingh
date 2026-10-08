@@ -58,5 +58,5 @@ function limiter(max, windowMs) {
     return arr.length <= max;
   };
 }
-const publicUser = u => u && ({ id: u.id, role: u.role, name: u.name || '', email: u.email || '', isGuest: !!u.isGuest, profile: u.profile || {} });
+const publicUser = u => u && ({ id: u.id, role: u.role, name: u.name || '', email: u.email || '', isGuest: !!u.isGuest, profile: u.profile || {}, addresses: u.addresses || [] });
 module.exports = { Auth, hashPassword, verifyPassword, limiter, publicUser, id };

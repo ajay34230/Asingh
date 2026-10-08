@@ -92,6 +92,17 @@ console.log('\nSize stock and size finder');
   await z.click('.sizefinder summary'); await z.fill('#sf-b', '35'); await z.fill('#sf-w', '29'); await z.waitForTimeout(200); ok(/size M/.test(await z.textContent('#sf-r')), 'size finder suggests M for 35/29 (' + (await z.textContent('#sf-r')).slice(0, 40) + '…)');
   await z.click('#sf-pick'); ok(await z.locator('input[name=size][value=M]').isChecked(), '“Choose this size” selects it'); }
 
+console.log('\nSaved addresses + buy again');
+{ const a = await page(1280, 900); await a.goto(BASE + '/account.html'); await call(a, 'POST', '/api/auth/register', { name: 'Buy Again', email: 'again@example.com', password: 'again-pass-123' });
+  await call(a, 'POST', '/api/me/addresses', { label: 'Home', name: 'Buy Again', phone: '9876543210', line1: '12 MG Road', pin: '560001', city: 'Bengaluru', state: 'Karnataka' });
+  await a.evaluate(() => localStorage.setItem('asingh.cart.v1', JSON.stringify([{ key: 'k', id: 'kota-doria-suit', size: 'M', stitch: 'semi', color: 'Sand', note: '', qty: 1 }])));
+  await a.goto(BASE + '/checkout.html'); await a.waitForSelector('#saved-addr'); await a.selectOption('#saved-addr', { index: 1 }); ok((await a.inputValue('#line1')) === '12 MG Road' && (await a.inputValue('#pin')) === '560001', 'picking a saved address fills the form');
+  ok(await a.locator('#save-addr').count() === 1, '“save this address” option offered');
+  const ord = (await call(a, 'POST', '/api/orders', { items: [{ id: 'kota-doria-suit', size: 'M', stitch: 'semi', color: 'Sand', qty: 2 }], customer: { name: 'Buy Again', email: 'again@example.com', phone: '9876543210', line1: '12 MG Road', pin: '560001', city: 'Bengaluru', state: 'Karnataka' }, method: 'upi_qr' })).json.order;
+  await a.evaluate(() => localStorage.setItem('asingh.cart.v1', '[]')); await a.goto(BASE + '/order.html?id=' + ord.id); await a.waitForSelector('#again'); await a.click('#again'); await a.waitForURL(/cart\.html/); await a.waitForSelector('.line');
+  ok(/Kota Doria/.test(await a.locator('main').innerText()), '“Buy again” puts the same pieces back in the bag');
+  await a.goto(BASE + '/account.html'); await a.click('#tab-p'); ok(await a.locator('.addr').count() === 1, 'account lists the saved address'); }
+
 console.log('\nCookie notice only when Analytics is on');
 await call(ad, 'PUT', '/api/admin/site', { ga4Id: 'G-TEST123456' });
 const v = await page(); await v.goto(BASE + '/'); await v.waitForSelector('.consent', { timeout: 5000 }); ok(true, 'cookie notice appears');

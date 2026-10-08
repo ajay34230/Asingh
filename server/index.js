@@ -182,6 +182,22 @@ function createApp(opts = {}) {
     const e = String((await jsonBody(req)).email || '').trim().toLowerCase(); D.subscribers = D.subscribers.filter(x => x.email !== e); db.save(); send(res, 200, { ok: true });
   });
 
+  /* ---- saved delivery addresses (registered customers, up to 6) ---- */
+  const cleanAddr = b => {
+    const c = (v, n) => String(v == null ? '' : v).trim().slice(0, n), a = { label: c(b.label, 24) || 'Home', name: c(b.name, 80), phone: c(b.phone, 20).replace(/[\s-]/g, ''), line1: c(b.line1, 160), line2: c(b.line2, 160), pin: c(b.pin, 6), city: c(b.city, 60), state: c(b.state, 40) };
+    if (a.name.length < 2) throw fail(400, 'Enter the name for this address.'); if (!/^(\+91)?[6-9][0-9]{9}$/.test(a.phone)) throw fail(400, 'Enter a valid 10-digit mobile number.');
+    if (a.line1.length < 5) throw fail(400, 'Enter the address.'); if (!/^[1-9][0-9]{5}$/.test(a.pin)) throw fail(400, 'Enter a valid 6-digit PIN code.'); if (a.city.length < 2 || !a.state) throw fail(400, 'Enter the city and state.');
+    return a;
+  };
+  const regUser = req => { const u = need(req); if (u.isGuest) throw fail(403, 'Create an account to save addresses.'); u.addresses = u.addresses || []; return u; };
+  route('POST', /^\/api\/me\/addresses$/, async (req, res) => {
+    const u = regUser(req), a = cleanAddr(await jsonBody(req)); if (u.addresses.length >= 6) throw fail(400, 'You can save up to 6 addresses. Delete one first.');
+    if (u.addresses.some(x => ['line1', 'pin', 'name', 'phone'].every(k => x[k] === a[k]))) return send(res, 200, { user: publicUser(u) });   // already saved
+    u.addresses.push({ id: id(5), ...a }); db.save(); send(res, 201, { user: publicUser(u) });
+  });
+  route('PUT', /^\/api\/me\/addresses\/(\w+)$/, async (req, res, m) => { const u = regUser(req), i = u.addresses.findIndex(x => x.id === m[1]); if (i < 0) throw fail(404, 'Address not found'); u.addresses[i] = { id: m[1], ...cleanAddr(await jsonBody(req)) }; db.save(); send(res, 200, { user: publicUser(u) }); });
+  route('DELETE', /^\/api\/me\/addresses\/(\w+)$/, async (req, res, m) => { const u = regUser(req); u.addresses = u.addresses.filter(x => x.id !== m[1]); db.save(); send(res, 200, { user: publicUser(u) }); });
+
   /* orders (private: owner or admin only) */
   /* coupons: preview at checkout (the order itself re-checks everything) */
   route('POST', /^\/api\/coupon$/, async (req, res) => {

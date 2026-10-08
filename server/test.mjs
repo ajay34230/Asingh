@@ -313,6 +313,18 @@ console.log('\nStock per size');
   await A.req('POST', '/api/orders/' + o1.json.order.id + '/cancel', {}); ok((await A.req('POST', '/api/orders', line('M'))).status === 201, 'cancelling gives the size stock back');
   await ADM.req('DELETE', '/api/admin/products/' + sp.id); }
 
+console.log('\nSaved addresses');
+{ const U3 = new Client(); await U3.req('POST', '/api/auth/register', { name: 'Addr Tester', email: 'addr@example.com', password: 'addr-pass-123' });
+  const ad = { label: 'Home', name: 'Addr Tester', phone: '9876543210', line1: '12 MG Road', pin: '560001', city: 'Bengaluru', state: 'Karnataka' };
+  let q = await U3.req('POST', '/api/me/addresses', ad); ok(q.status === 201 && q.json.user.addresses.length === 1, 'registered customer saves an address');
+  ok((await U3.req('POST', '/api/me/addresses', ad)).json.user.addresses.length === 1, 'the same address is not saved twice');
+  ok((await U3.req('POST', '/api/me/addresses', { ...ad, pin: '12' })).status === 400, 'bad PIN rejected');
+  for (let i = 0; i < 5; i++) await U3.req('POST', '/api/me/addresses', { ...ad, line1: 'Flat ' + i + ' Park Street', label: 'Other' }); ok((await U3.req('POST', '/api/me/addresses', { ...ad, line1: 'Seventh place road' })).status === 400, 'limit of 6 addresses');
+  const first = (await U3.req('GET', '/api/me')).json.user.addresses[0]; ok((await U3.req('PUT', '/api/me/addresses/' + first.id, { ...ad, label: 'Work' })).json.user.addresses[0].label === 'Work', 'address can be edited');
+  ok((await U3.req('DELETE', '/api/me/addresses/' + first.id)).json.user.addresses.length === 5, 'address can be deleted');
+  const G2 = new Client(); await G2.req('POST', '/api/auth/guest', {}); ok((await G2.req('POST', '/api/me/addresses', ad)).status === 403, 'guests cannot save addresses');
+  ok(!(await B.req('GET', '/api/me')).json.user || !(await B.req('GET', '/api/me')).json.user.addresses.some(a => a.line1 === '12 MG Road' && a.name === 'Addr Tester'), 'other customers never see them'); }
+
 console.log('\nAdmin analytics');
 { const an = await ADM.req('GET', '/api/admin/analytics?days=30'); ok(an.status === 200 && an.json.series.length === 30 && an.json.orders >= 2, 'analytics returns a 30-day series and order totals');
   ok(an.json.paidOrders >= 1 && an.json.revenue > 0 && an.json.aov > 0 && an.json.top.length >= 1, 'revenue, average order and top products computed from paid orders');

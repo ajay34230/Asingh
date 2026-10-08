@@ -25,13 +25,13 @@
       '<div class="fields"><div class="field"><label class="field__l" for="p-phone">Mobile</label><input class="input" id="p-phone" name="phone" type="tel" inputmode="tel" autocomplete="tel"></div><div class="field"><label class="field__l" for="p-pin">PIN code</label><input class="input" id="p-pin" name="pin" inputmode="numeric" maxlength="6" autocomplete="postal-code"></div>' +
       '<div class="field field--wide"><label class="field__l" for="p-l1">Address</label><input class="input" id="p-l1" name="line1" autocomplete="address-line1"></div><div class="field field--wide"><label class="field__l" for="p-l2">Apartment, landmark</label><input class="input" id="p-l2" name="line2" autocomplete="address-line2"></div>' +
       '<div class="field"><label class="field__l" for="p-city">City</label><input class="input" id="p-city" name="city" autocomplete="address-level2"></div><div class="field"><label class="field__l" for="p-state">State</label><select class="input input--select" id="p-state" name="state" autocomplete="address-level1"><option value="">Select</option>' + STATES.map(function (s) { return '<option>' + s + '</option>'; }).join('') + '</select></div></div>' +
-      '<p class="muted">Saved details pre-fill checkout. Only you can see them.</p><button class="btn btn--lg" type="submit"><span>Save details</span></button></form></section>' +
+      '<p class="muted">Saved details pre-fill checkout. Only you can see them.</p><button class="btn btn--lg" type="submit"><span>Save details</span></button></form>' + addrHtml(u) + '</section>' +
       '<section id="pn-s" role="tabpanel" aria-labelledby="tab-s" hidden>' + securityHtml(u) + '</section>';
     $('#signout').addEventListener('click', function () { Auth.signOut().then(function () { authView(); }); });
     var tabs = $$('[role=tab]', root); tabs.forEach(function (t) { t.addEventListener('click', function () { tabs.forEach(function (x) { var on = x === t; x.setAttribute('aria-selected', on); x.tabIndex = on ? 0 : -1; }); $('#pn-o').hidden = t.id !== 'tab-o'; $('#pn-p').hidden = t.id !== 'tab-p'; $('#pn-s').hidden = t.id !== 'tab-s'; }); });
     var p = u.profile || {}, f = $('#pf'); Object.keys(p).forEach(function (k) { if (f.elements[k]) f.elements[k].value = p[k]; }); if (f.elements.name) f.elements.name.value = u.name || '';
     f.addEventListener('submit', function (e) { e.preventDefault(); var d = { name: f.elements.name ? f.elements.name.value : undefined, profile: {} }; ['phone', 'pin', 'line1', 'line2', 'city', 'state'].forEach(function (k) { d.profile[k] = f.elements[k].value; }); api('PATCH', '/api/me', d).then(function (r) { Auth.user = r.user; Auth.paint(); U.toast('Saved'); }, function (er) { U.toast(er.message); }); });
-    bindSecurity(u);
+    bindSecurity(u); bindAddr();
     if (u.isGuest) Auth.mount($('#up'), { upgradeOnly: true, guest: false, focus: false, onDone: function (nu) { Auth.user = nu; Auth.paint(); U.toast('Account created — your orders are saved'); dash(); } });
     api('GET', '/api/orders').then(function (r) {
       $('#olist').innerHTML = r.orders.length ? r.orders.map(function (o) {
@@ -42,6 +42,25 @@
     }, function (er) { $('#olist').innerHTML = '<p class="field__err">' + esc(er.message) + '</p>'; });
   }
 
+
+
+  /* ---------------- saved addresses ---------------- */
+  function addrHtml(u) {
+    if (u.isGuest) return '<p class="muted">Create an account to save more than one delivery address.</p>';
+    var list = u.addresses || [];
+    return '<section class="addrs" id="addrs" aria-labelledby="addr-h"><h2 class="h3" id="addr-h">Saved addresses <span class="muted">(' + list.length + '/6)</span></h2>' + (list.length ? list.map(function (a) { return '<div class="addr"><address><strong>' + esc(a.label) + ' — ' + esc(a.name) + '</strong>' + esc(a.line1) + (a.line2 ? ', ' + esc(a.line2) : '') + ', ' + esc(a.city) + ', ' + esc(a.state) + ' ' + esc(a.pin) + '<br>' + esc(a.phone) + '</address><button type="button" class="btn btn--ghost btn--sm" data-addr-del="' + esc(a.id) + '">Delete</button></div>'; }).join('') : '<p class="muted">No saved addresses yet. They are saved when you check out, or add one here. Only you can see them.</p>') +
+      (list.length < 6 ? '<details class="sizefinder"><summary>Add an address</summary><form id="af" novalidate><div class="fields"><div class="field"><label class="field__l" for="a-label">Label</label><input class="input" id="a-label" maxlength="24" value="Home"></div><div class="field"><label class="field__l" for="a-name">Full name</label><input class="input" id="a-name" maxlength="80" autocomplete="name"></div><div class="field"><label class="field__l" for="a-phone">Mobile</label><input class="input" id="a-phone" inputmode="tel" autocomplete="tel"></div><div class="field"><label class="field__l" for="a-pin">PIN code</label><input class="input" id="a-pin" inputmode="numeric" maxlength="6" autocomplete="postal-code"></div><div class="field field--wide"><label class="field__l" for="a-l1">Address</label><input class="input" id="a-l1" maxlength="160" autocomplete="address-line1"></div><div class="field field--wide"><label class="field__l" for="a-l2">Apartment, landmark <span class="muted">(optional)</span></label><input class="input" id="a-l2" maxlength="160"></div><div class="field"><label class="field__l" for="a-city">City</label><input class="input" id="a-city" maxlength="60"></div><div class="field"><label class="field__l" for="a-state">State</label><select class="input input--select" id="a-state"><option value="">Select state</option>' + STATES.map(function (x) { return '<option>' + esc(x) + '</option>'; }).join('') + '</select></div></div><p class="field__err" id="a-err" role="alert"></p><button class="btn btn--ghost" type="submit"><span>Save address</span></button></form></details>' : '') + '</section>';
+  }
+  function bindAddr() {
+    $$('[data-addr-del]').forEach(function (b) { b.addEventListener('click', function () { if (confirm('Delete this address?')) api('DELETE', '/api/me/addresses/' + b.getAttribute('data-addr-del')).then(function (r) { Auth.user = r.user; U.toast('Address deleted'); dash(); setTimeout(function () { var t = $('#tab-p'); if (t) t.click(); }, 0); }); }); });
+    var f = $('#af'); if (f) f.addEventListener('submit', function (e) { e.preventDefault(); api('POST', '/api/me/addresses', { label: $('#a-label').value, name: $('#a-name').value, phone: $('#a-phone').value, line1: $('#a-l1').value, line2: $('#a-l2').value, pin: $('#a-pin').value, city: $('#a-city').value, state: $('#a-state').value }).then(function (r) { Auth.user = r.user; U.toast('Address saved'); dash(); setTimeout(function () { var t = $('#tab-p'); if (t) t.click(); }, 0); }, function (er) { $('#a-err').textContent = er.message; }); });
+  }
+  function buyAgain(o) {
+    var added = 0, skipped = 0;
+    o.items.forEach(function (i) { var p = U.byId[i.id]; if (!p || p.soldOut || (p.sizeOut || []).indexOf(i.size) > -1 || !U.stitchById[i.stitch]) { skipped++; return; } U.Cart.add(i.id, { size: i.size, stitch: i.stitch, color: i.color, note: i.note, qty: i.qty }); added++; });
+    if (!added) return U.toast('Sorry — these pieces are not available right now.');
+    U.toast(added + ' item' + (added > 1 ? 's' : '') + ' added to your bag' + (skipped ? ' (' + skipped + ' unavailable)' : '')); setTimeout(function () { location.href = 'cart.html'; }, 700);
+  }
 
   /* ---------------- privacy & security (self-service) ---------------- */
   function securityHtml(u) {
@@ -92,11 +111,12 @@
         '<div id="ordnum"></div><div class="ogrid"><div class="ogrid__main">' + (o.tracking ? '<section class="ocardx" aria-label="Shipment">' + O.trackingCard(o.tracking) + '</section>' : '') + '<section class="ocardx" aria-label="Payment"><div id="paymount"></div></section><section class="ocardx"><h2 class="h3">Progress</h2>' + O.timeline(o) + '</section></div>' +
         '<aside class="ogrid__side"><section class="ocardx"><h2 class="h3">Items</h2>' + O.items(o) + '<dl class="totals"><div><dt>Subtotal</dt><dd>' + money(o.totals.subtotal) + '</dd></div>' + (o.totals.discount ? '<div class="totals__disc"><dt>Discount <small>' + esc(o.totals.coupon || '') + '</small></dt><dd>− ' + money(o.totals.discount) + '</dd></div>' : '') + '<div><dt>Shipping</dt><dd>' + (o.totals.shipping ? money(o.totals.shipping) : 'Free') + '</dd></div><div class="totals__total"><dt>Total</dt><dd>' + money(o.totals.total) + '</dd></div></dl></section>' +
         '<section class="ocardx"><h2 class="h3">Delivery</h2><address>' + esc(c.name) + '<br>' + esc(c.line1) + (c.line2 ? '<br>' + esc(c.line2) : '') + '<br>' + esc(c.city) + ', ' + esc(c.state) + ' ' + esc(c.pin) + '<br>' + esc(c.phone) + '<br>' + esc(c.email) + '</address>' +
-        '<div class="oact"><a class="btn btn--ghost" href="invoice.html?id=' + o.id + '">Bill · Save PDF</a><a class="btn btn--ghost" href="invoice.html?id=' + o.id + '&amp;print=1" target="_blank" rel="noopener">Print</a>' + (due ? '<button type="button" class="btn btn--ghost" id="cancel">Cancel order</button>' : '') + '</div></section>' + requestHtml(o) + '</aside></div>';
+        '<div class="oact"><a class="btn btn--ghost" href="invoice.html?id=' + o.id + '">Bill · Save PDF</a><a class="btn btn--ghost" href="invoice.html?id=' + o.id + '&amp;print=1" target="_blank" rel="noopener">Print</a>' + (due ? '<button type="button" class="btn btn--ghost" id="cancel">Cancel order</button>' : '') + '<button type="button" class="btn btn--ghost" id="again">Buy again</button></div></section>' + requestHtml(o) + '</aside></div>';
       O.numberCard(o, $('#ordnum'), 'Quote this number if you contact us. Anyone tracking it also needs your mobile number.');
       $$('[data-copy]', root).forEach(function (b) { if (!b._c) { b._c = 1; b.addEventListener('click', function () { O.copy(b.getAttribute('data-copy'), b); }); } });
       A.Orders.payPanel(o, $('#paymount'), function (upd) { draw(upd, false); });
       var cx = $('#cancel'); if (cx) cx.addEventListener('click', function () { if (confirm('Cancel this order?')) api('POST', '/api/orders/' + o.id + '/cancel', {}).then(function (r) { draw(r.order, false); }, function (er) { U.toast(er.message); }); });
+      var ag = $('#again'); if (ag) ag.addEventListener('click', function () { buyAgain(o); });
       var rq = $('#rq'); if (rq) rq.addEventListener('submit', function (e) { e.preventDefault(); var b = $('button', rq); b.disabled = true; api('POST', '/api/orders/' + o.id + '/request', { type: rq.elements.rt.value, reason: $('#rq-r').value }).then(function (r) { U.toast('Request sent'); draw(r.order, false); }, function (er) { $('#rq-e').textContent = er.message; b.disabled = false; }); });
       U.reveal(root);
       clearTimeout(timer); if (['delivered', 'cancelled'].indexOf(o.status) < 0) timer = setTimeout(function tick() { if (!document.hidden && !$('.pay__form input[type=file]') && !($('#rq-r') && $('#rq-r').value)) load(false); else timer = setTimeout(tick, 20000); }, 20000);
