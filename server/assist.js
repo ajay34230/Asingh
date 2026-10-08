@@ -20,7 +20,7 @@ function fixWord(w, known) {   // forgive spelling slips ("lehnga", "sharra")
 function intentOf(q) {
   if (/^(hi+|hello+|hey+|namaste|namaskar|good (morning|evening|afternoon)|hlo|helo)\b[\s!.,?]*$/.test(q)) return 'greet';
   if (/^(thanks?|thank you|thx|ok(ay)?|great|nice|good|got it|shukriya|dhanyavad)[\s!.,?]*$/.test(q)) return 'thanks';
-  if (/\b(about (this|the|your)|this (website|site|store|shop)|your (website|site|store|shop)|tell me about|who are you|who r u|what is this|what are you|about us|about you|kaun ho|aap kaun|ye kya hai|yeh kya hai|website ke bare|store ke bare|(website|site|store|shop|brand|company) (ke )?about|about (website|site|store|shop|brand|company)|brand|company|founder|owner|since when|kab se)\b/.test(q)) return 'about';
+  if (/\b(about (this|the|your)|this (website|site|store|shop)|your (website|site|store|shop)|tell me about|who are you|who r u|what is this|what are you|about us|about you|kaun ho|aap kaun|ye kya hai|yeh kya hai|website ke bare|store ke bare|(website|site|store|shop|brand|company) (ke |के )?about|about (website|site|store|shop|brand|company)|brand|company|founder|owner|since when|kab se)\b/.test(q)) return 'about';
   if (/\b(track|tracking|where is my|order status|my order|order kahan|kab aayega|status)\b/.test(q)) return 'track';
   if (/\b(return|exchange|refund|wapas|replace|replacement|change my|money back)\b/.test(q)) return 'return';
   if (/\b(cod|cash on delivery|cash|payment|pay|upi|card|netbanking|gpay|phonepe|paytm|razorpay|emi)\b/.test(q)) return 'payment';
