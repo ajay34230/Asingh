@@ -50,7 +50,7 @@
     if (pr && pr.nimg === 0) return '<picture><img src="img/placeholder.svg" width="1200" height="1500" alt="' + alt + '"' + pri + ' decoding="async"></picture>';
     var c = A.IMGS && (A.IMGS[slug + '-' + n] || A.IMGS[slug + '-1']);
     if (c) {   // photos uploaded by the store owner (one format, up to three widths)
-      var ws = Object.keys(c).map(Number).sort(function (a, b) { return a - b; }), pick = c[800] ? 800 : c[ws[ws.length - 1]];
+      var ws = Object.keys(c).map(Number).sort(function (a, b) { return a - b; }), pick = c[800] || c[ws[ws.length - 1]];
       return '<picture><img src="' + esc(pick) + '" srcset="' + ws.map(function (w) { return esc(c[w]) + ' ' + w + 'w'; }).join(', ') + '" sizes="' + sizes + '" width="1200" height="1500" alt="' + alt + '"' + pri + ' decoding="async"></picture>';
     }
     var W = o.widths || [400, 800, 1200], base = 'img/' + slug + '-' + n + '-';
@@ -309,7 +309,7 @@
   })();
   /* ---------- Chrome ---------- */
   var shortLabel = function (l) { return l.length > 13 ? l.split(/[\s&]+/)[0] : l; };
-  var NAV = [{ label: 'New In', href: 'shop.html?sort=new' }].concat(A.CATEGORIES.slice(0, 4).map(function (c, i) { return { label: shortLabel(c.label), href: 'shop.html?cat=' + c.id, xl: i > 2 }; }), [{ label: 'Custom Stitching', href: 'shop.html?stitch=custom', xl: true }]);
+  var NAV = [{ label: 'New In', href: 'shop.html?sort=new' }].concat(A.CATEGORIES.slice(0, 4).map(function (c, i) { return { label: shortLabel(c.label), href: 'shop.html?cat=' + c.id, xl: i > 1 }; }), [{ label: 'Custom Stitching', href: 'shop.html?stitch=custom', xl: true }]);
   function footerCols() {
     var pg = A.PAGES || [], link = function (p) { return '<li><a href="' + esc(p.slug) + '.html">' + esc(p.title) + '</a></li>'; };
     var help = pg.filter(function (p) { return p.group === 'help'; }).map(link).join('');
@@ -337,7 +337,7 @@
       NAV.map(function (n) { return '<li class="nav__item' + (n.xl ? ' nav__item--xl' : '') + '"><a class="nav__link" href="' + n.href + '">' + n.label + '</a></li>'; }).join('') +
       '</ul></nav>' +
       '<div class="header__actions">' +
-      '<button type="button" class="searchpill" data-open="search" aria-label="Search" aria-expanded="false" aria-controls="search">' + icon('search') + '<span class="searchpill__t">Search anarkali, lehenga, sharara…</span></button>' +
+      '<button type="button" class="searchpill" data-open="search" aria-label="Search" aria-expanded="false" aria-controls="search">' + icon('search') + '<span class="searchpill__t">Search suits…</span></button>' +
       '<a class="icon-btn header__account" href="account.html" data-account aria-label="Account">' + icon('user') + '<span class="avatar" hidden></span></a>' +
       '<a class="icon-btn header__wish" href="shop.html?wishlist=1" aria-label="Wishlist"><span class="icon-btn__ico">' + icon('heart') + '<span class="count" data-wish-count hidden>0</span></span></a>' +
       '<button type="button" class="icon-btn header__cart" data-open="cart" aria-label="Open cart" aria-expanded="false" aria-controls="cart"><span class="icon-btn__ico">' + icon('bag') + '<span class="count" data-cart-count hidden>0</span></span></button>' +
@@ -359,7 +359,7 @@
     var sheets =
       '<div class="sheet sheet--menu" id="menu" aria-hidden="true"><div class="sheet__backdrop" data-close></div><div class="sheet__panel" aria-label="Menu">' +
       '<div class="sheet__head"><a class="logo" href="index.html">' + A.BRAND + '</a><button type="button" class="icon-btn" data-close aria-label="Close menu">' + icon('close') + '</button></div>' +
-      '<div class="sheet__body"><button type="button" class="searchpill searchpill--wide" data-open="search" aria-label="Search">' + icon('search') + '<span>Search anarkali, lehenga, sharara…</span></button>' +
+      '<div class="sheet__body"><button type="button" class="searchpill searchpill--wide" data-open="search" aria-label="Search">' + icon('search') + '<span>Search suits…</span></button>' +
       '<ul class="menu"><li><a href="shop.html">Shop all</a></li><li><a href="shop.html?sort=new">New in</a></li>' +
       A.CATEGORIES.map(function (c) { return '<li><a href="shop.html?cat=' + c.id + '">' + c.label + '</a></li>'; }).join('') + '</ul>' +
       '<h2 class="menu__h">Shop by occasion</h2><ul class="pills">' + A.OCCASIONS.map(function (c) { return '<li><a href="shop.html?occ=' + c.id + '">' + c.label + '</a></li>'; }).join('') + '</ul>' +

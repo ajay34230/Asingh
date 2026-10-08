@@ -18,6 +18,8 @@ Storefront: `/` · Track an order: `/track.html` · Account & orders: `/account.
 | `DATA_DIR` | where orders, users and uploaded screenshots live (default `./data`, git-ignored, **back it up**) |
 | `COOKIE_SECURE=1` | force `Secure` cookies (auto when `X-Forwarded-Proto: https`) |
 | `TRUST_PROXY=1` | trust `X-Forwarded-For` for rate limiting when behind a reverse proxy |
+| `SITE_URL` | Your public address, e.g. `https://asingh.onrender.com` (used in sitemap, Google feed, emails) |
+| `RESEND_API_KEY` + `MAIL_FROM` | Optional: send order/status/password-reset emails through [Resend](https://resend.com) (free tier). Without them the store works and sends no email |
 | `ADMIN_WEBHOOK_URL` | HTTPS webhook (Slack/Discord-style `{text}`) for admin alerts |
 | `WEBHOOK_SECRET_<PROVIDER>` | enables payment webhooks for that provider (see below) |
 
@@ -104,6 +106,15 @@ Hero with drifting gold ornaments, shimmering key phrase and pointer parallax (a
 `node tools/e2e.mjs` — guest checkout → QR upload → live admin alert → verification → privacy (needs a fresh server: `DATA_DIR=/tmp/x ADMIN_PASSWORD='Admin#Pass12345' PORT=4173 node server/index.js`).
 `node tools/flows.mjs` — drives menu, search, filters, quick add, PDP validation, cart and the full checkout on phone/tablet/desktop.
 (These expect the server on :4173 and Playwright's Chromium.)
+
+## Store features (v8)
+**Catalogue:** 17 styles — Anarkali Suit, Lehenga Choli, Sharara Set, Gharara Set, Kurti & Palazzo, Kurti & Skirt, Chaniya Choli, Rajputi Poshak, Ghagra Choli, Angrakha Dress, Peplum Suit, Patiala Suit, Straight Suit, A-Line Dress, Frock / Anarkali Frock, Indo-Western Dress, Ethnic Gown. Admin can rename, add or remove styles (Store settings → Categories).
+
+**Customers:** sign up / sign in / guest, forgot-password (emailed link, or admin-generated link), order tracking, cancel before payment, *request* cancellation after payment, return/exchange requests after delivery (within your return window), verified reviews (shown after you approve), discount codes, change password/email, sign out other devices, download my data, delete my account, unsubscribe.
+
+**Admin:** Overview with go-live checklist, Orders (+CSV export), **Analytics** (revenue, order funnel, top products, live pipeline), Products (photos, stock), Offers (discount codes), Reviews, Customers (reset link, delete), Home page, Pages, Inbox, Store settings (delivery/returns, Google IDs, backup), Payment & QR, Alerts, Admins & login.
+
+**Google:** product/organization/breadcrumb structured data, sitemap + robots, Search Console verification field, Google Merchant Center feed at `/feeds/google-merchant.xml` (real products only), Analytics (GA4) loaded only after the visitor accepts a cookie notice, privacy/returns/shipping policy pages. Before sharing the link, complete the checklist on the admin Overview and review each policy page (they are templates, not legal advice).
 
 ## Known placeholders
 Catalogue, reviews, contact details and imagery are sample content (replace the drawn illustrations with real photography using the same file names). Verified in Chromium only; spot-check Safari, Firefox and Samsung Internet on real devices.
