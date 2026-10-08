@@ -260,7 +260,7 @@ console.log('\nPassword reset');
   ok((await new Client().req('POST', '/api/auth/login', { email: 'rhea@example.com', password: 'rhea-new-pass-1' })).status === 200, 'new password works'); }
 
 console.log('\nExports');
-{ const c = await ADM.req('GET', '/api/admin/orders.csv'); ok(c.status === 200 && /^﻿"Order"/.test(c.text) && c.text.split('\r\n').length > 2, 'admin downloads orders as CSV');
+{ const c = await ADM.req('GET', '/api/admin/orders.csv'); ok(c.status === 200 && /^.?"Order","Date"/.test(c.text) && c.text.split('\r\n').length > 2, 'admin downloads orders as CSV');
   ok((await A.req('GET', '/api/admin/orders.csv')).status === 404 && (await A.req('GET', '/api/admin/backup')).status === 404, 'customers cannot export or back up');
   const bk = await ADM.req('GET', '/api/admin/backup'); ok(bk.status === 200 && Array.isArray(bk.json.orders) && bk.json.sessions.length === 0, 'backup file contains data but no login sessions'); }
 
