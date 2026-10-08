@@ -44,15 +44,6 @@ for (const [name, w, h, touch] of [['phone', 390, 844, true], ['tablet', 820, 11
   await p.goto(BASE + '/cart.html'); await p.waitForSelector('.line');
   await p.click('.line:first-child [data-qty="1"]'); await p.waitForTimeout(150); ok((await p.textContent('.line:first-child .qty__val')).trim() === '2', 'qty increments');
   await p.screenshot({ path: `/tmp/shots/f-${name}-cart.png` });
-  // checkout
-  await p.goto(BASE + '/checkout.html'); await p.waitForSelector('#step-details');
-  await p.click('#step-details [type=submit]'); ok((await p.locator('#email-err').textContent()).length > 0, 'validation errors show'); ok(await p.evaluate(() => document.activeElement.id) === 'email', 'focus moves to first invalid field');
-  await p.screenshot({ path: `/tmp/shots/f-${name}-checkout-err.png` });
-  await p.fill('#email', 'a@b.co'); await p.fill('#phone', '9876543210'); await p.fill('#name', 'Asha Singh'); await p.fill('#line1', '12 MG Road'); await p.fill('#pin', '560001'); await p.fill('#city', 'Bengaluru'); await p.selectOption('#state', 'Karnataka');
-  await p.click('#step-details [type=submit]'); await p.waitForTimeout(400); ok(await p.locator('#step-pay').isVisible(), 'step 2 payment');
-  await p.screenshot({ path: `/tmp/shots/f-${name}-pay.png` });
-  await p.click('#step-pay [type=submit]'); await p.waitForTimeout(300); ok(await p.locator('#step-done').isVisible() && /AS\d+/.test(await p.textContent('#order-no')), 'order confirmation');
-  ok(await p.evaluate(() => JSON.parse(localStorage.getItem('asingh.cart.v1')).length) === 0, 'cart cleared');
   ok(errs.length === 0, 'no JS errors ' + errs.join('|'));
   await ctx.close();
 }

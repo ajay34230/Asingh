@@ -11,19 +11,21 @@
 <link rel="stylesheet" href="css/styles.css">
 <script src="js/data.js" defer></script>
 <script src="js/app.js" defer></script>
+<script src="js/orders.js" defer></script>
 <script src="js/pages.js" defer></script>
 </head>
 <body data-page="checkout">
 <div id="page">
 <main id="main"><div class="container checkout">
   <h1 class="vh">Checkout</h1>
-  <ol class="progress" aria-label="Checkout progress"><li aria-current="step"><span class="progress__n">1</span><span class="progress__t">Details</span></li><li><span class="progress__n">2</span><span class="progress__t">Payment</span></li><li><span class="progress__n">3</span><span class="progress__t">Done</span></li></ol>
+  <ol class="progress" aria-label="Checkout progress"><li aria-current="step"><span class="progress__n">1</span><span class="progress__t">Details</span></li><li><span class="progress__n">2</span><span class="progress__t">Payment</span></li><li><span class="progress__n">3</span><span class="progress__t">Pay</span></li><li><span class="progress__n">4</span><span class="progress__t">Done</span></li></ol>
   <div id="co-empty" hidden><div class="empty"><p class="empty__title">Your bag is empty</p><a class="btn" href="shop.html">Start shopping</a></div></div>
   <div class="checkout__grid" id="co-main">
     <aside class="checkout__aside" aria-label="Order summary"><details class="summary" id="summary" open><summary><span>Order summary <small id="sum-count"></small></span><strong id="sum-total"></strong></summary><div id="order-lines"></div></details></aside>
     <div class="checkout__main">
       <form id="step-details" novalidate autocomplete="on">
         <h2 class="h3">Contact &amp; delivery</h2>
+        <p class="authnote" id="authnote" role="status"></p>
         <div class="fields">
           <div class="field"><label class="field__l" for="email">Email</label><input class="input" id="email" type="email" name="email" inputmode="email" autocomplete="email" autocapitalize="off" spellcheck="false" required aria-describedby="email-err"><p class="field__err" id="email-err" aria-live="polite"></p></div>
           <div class="field"><label class="field__l" for="phone">Mobile number</label><input class="input" id="phone" type="tel" name="phone" inputmode="tel" autocomplete="tel" required aria-describedby="phone-err"><p class="field__err" id="phone-err" aria-live="polite"></p></div>
@@ -37,20 +39,16 @@
         <p class="field__err field__err--form" id="form-err" role="alert"></p>
         <button class="btn btn--block btn--lg" type="submit">Continue to payment</button>
       </form>
-      <form id="step-pay" novalidate hidden>
-        <h2 class="h3">Payment</h2>
+      <form id="step-method" novalidate hidden>
+        <h2 class="h3">Choose how to pay</h2>
         <p class="muted">Delivering to <span id="ship-to"></span> · <button type="button" class="link" id="back-1">Edit</button></p>
-        <fieldset class="paymethods"><legend class="vh">Payment method</legend>
-          <label class="paymethod"><input type="radio" name="pay" value="upi" checked><span><strong>UPI</strong><small>Google Pay, PhonePe, Paytm and more</small></span></label>
-          <label class="paymethod"><input type="radio" name="pay" value="card"><span><strong>Credit / debit card</strong><small>Visa, Mastercard, RuPay, Amex</small></span></label>
-          <label class="paymethod"><input type="radio" name="pay" value="netbanking"><span><strong>Net banking</strong><small>All major Indian banks</small></span></label>
-          <label class="paymethod"><input type="radio" name="pay" value="cod"><span><strong>Cash on delivery</strong><small>Pay when your order arrives</small></span></label>
-        </fieldset>
-        <p class="muted" id="pay-note" role="status">You’ll be taken to our secure payment partner to complete this payment.</p>
-        <button class="btn btn--block btn--lg" type="submit">Pay <span id="pay-total"></span> securely</button>
-        <p class="secure"><svg class="ico ico--xs" viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="5" y="10.5" width="14" height="9.5" rx="2"/><path d="M8 10.5V8a4 4 0 0 1 8 0v2.5"/></svg> Demo checkout — no real payment is taken in this build.</p>
+        <fieldset class="paymethods" id="methods"><legend class="vh">Payment method</legend></fieldset>
+        <p class="field__err field__err--form" id="method-err" role="alert"></p>
+        <button class="btn btn--block btn--lg" type="submit" id="place"><span>Place order &amp; show payment QR</span></button>
+        <p class="secure"><svg class="ico ico--xs" viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="5" y="10.5" width="14" height="9.5" rx="2"/><path d="M8 10.5V8a4 4 0 0 1 8 0v2.5"/></svg> Your order and screenshot are visible only to you and the store team.</p>
       </form>
-      <section id="step-done" hidden><h2 class="h2">Thank you — your order is placed</h2><p>Order <strong id="order-no"></strong>. A confirmation will be sent to <strong id="order-email"></strong>.</p><a class="btn btn--lg" href="index.html">Continue shopping</a></section>
+      <section id="step-qr" hidden><h2 class="h3">Scan, pay &amp; upload</h2><p class="muted">Order <strong id="qr-no"></strong> is reserved for you. Complete the payment below.</p><div id="qr-mount"></div></section>
+      <section id="step-done" hidden><span class="done__ico" aria-hidden="true"></span><h2 class="h2">Thank you — payment proof received</h2><p>Order <strong id="order-no"></strong> is under review. We’ll verify your payment shortly and update the status on your order page.</p><div class="done__cta"><a class="btn btn--lg" id="track" href="account.html">Track my order</a><a class="btn btn--ghost btn--lg" href="shop.html">Continue shopping</a></div></section>
     </div>
   </div>
 </div></main>

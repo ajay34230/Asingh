@@ -1,5 +1,6 @@
 /* Catalogue data — Rajputi dresses only. Replace with your real catalogue / API. */
-window.ASINGH = window.ASINGH || {};
+var __root = typeof window !== 'undefined' ? window : globalThis;
+__root.ASINGH = __root.ASINGH || {};
 (function (A) {
   A.BRAND = 'ASINGH';
   A.FREE_SHIP_FROM = 15000;
@@ -56,4 +57,5 @@ window.ASINGH = window.ASINGH || {};
     { who: 'Anjali K.', city: 'Jodhpur', stars: 5, title: 'Wore it for Gangaur', body: 'So many compliments. The leheriya colours are rich and true to the listing. Delivery was a day early.' },
     { who: 'Meenal R.', city: 'Mumbai', stars: 4, title: 'Lovely, slightly long', body: 'Gorgeous piece. I’d suggest sharing your height with the custom stitching notes — the team adjusted it quickly.' }
   ];
-})(window.ASINGH);
+})(__root.ASINGH);
+if (typeof module !== 'undefined' && module.exports) module.exports = __root.ASINGH; // server re-uses this catalogue to price orders

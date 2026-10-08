@@ -1,0 +1,72 @@
+/* Account area + order tracking pages. */
+(function (A) {
+  'use strict';
+  var U = A.U, $ = U.$, $$ = U.$$, esc = U.esc, money = U.money, api = U.api, Auth = U.Auth, O = A.Orders;
+  var page = document.body.getAttribute('data-page');
+  var STATES = ['Andhra Pradesh', 'Assam', 'Bihar', 'Chandigarh', 'Chhattisgarh', 'Delhi', 'Goa', 'Gujarat', 'Haryana', 'Himachal Pradesh', 'Jharkhand', 'Karnataka', 'Kerala', 'Madhya Pradesh', 'Maharashtra', 'Odisha', 'Punjab', 'Rajasthan', 'Tamil Nadu', 'Telangana', 'Uttar Pradesh', 'Uttarakhand', 'West Bengal'];
+  var root = $('#acct') || $('#orderpg');
+
+  /* ---------------- account ---------------- */
+  function authView() {
+    document.title = 'Sign in — ' + A.BRAND;
+    root.innerHTML = '<section class="authpage"><div class="authpage__art" aria-hidden="true">' + U.picture('maharani-poshak', 3, { sizes: '(min-width:1000px) 40vw, 0px', alt: '' }) + '<div class="authpage__cap"><p class="eyebrow eyebrow--light">Rajputana, delivered</p><p class="authpage__q">Every poshak is made for you — and every order stays private to you.</p><ul><li>' + U.icon('check', 'ico--xs') + ' Guest checkout, no details needed</li><li>' + U.icon('check', 'ico--xs') + ' Track every order in one place</li><li>' + U.icon('check', 'ico--xs') + ' Upload payment proof securely</li></ul></div></div>' +
+      '<div class="authpage__form"><h1 class="h1">Welcome</h1><p class="muted">Sign in, create an account, or continue as a guest.</p><div id="am"></div></div></section>';
+    Auth.mount($('#am'), { focus: false, onDone: function (u) { Auth.user = u; Auth.paint(); U.toast(u.isGuest ? 'Continuing as guest' : 'Welcome, ' + (u.name || 'back')); dash(); } });
+  }
+  function dash() {
+    var u = Auth.user; document.title = 'My account — ' + A.BRAND;
+    var ini = ((u.isGuest ? 'G' : (u.name || u.email || '?').trim().charAt(0)) || '?').toUpperCase();
+    root.innerHTML = '<header class="acct__head"><span class="avatar avatar--lg" aria-hidden="true">' + esc(ini) + '</span><div><h1 class="h1">' + (u.isGuest ? 'Guest account' : 'Namaste, ' + esc((u.name || '').split(' ')[0] || 'there')) + '</h1><p class="muted">' + (u.isGuest ? 'Orders are saved on this device.' : esc(u.email)) + (u.role === 'admin' ? ' · <strong>Admin</strong>' : '') + '</p></div><button type="button" class="btn btn--ghost" id="signout">Sign out</button></header>' +
+      (u.role === 'admin' ? '<a class="admincard" href="admin.html"><span>' + U.icon('lock') + '</span><span><strong>Open the admin console</strong><small>Orders, payment QR, alerts</small></span>' + U.icon('right') + '</a>' : '') +
+      (u.isGuest ? '<section class="upgrade"><div><h2 class="h3">Keep your orders safe</h2><p class="muted">Create a free account and every order you’ve placed as a guest moves into it.</p></div><div id="up"></div></section>' : '') +
+      '<div class="tabs tabs--page" role="tablist"><button role="tab" id="tab-o" aria-selected="true" aria-controls="pn-o">My orders</button><button role="tab" id="tab-p" aria-selected="false" aria-controls="pn-p" tabindex="-1">Profile &amp; address</button></div>' +
+      '<section id="pn-o" role="tabpanel" aria-labelledby="tab-o"><div id="olist" aria-live="polite"><div class="skel skel--card"></div><div class="skel skel--card"></div></div></section>' +
+      '<section id="pn-p" role="tabpanel" aria-labelledby="tab-p" hidden><form class="profile" id="pf" novalidate>' + (u.isGuest ? '' : '<div class="field"><label class="field__l" for="p-name">Full name</label><input class="input" id="p-name" name="name" autocomplete="name"></div>') +
+      '<div class="fields"><div class="field"><label class="field__l" for="p-phone">Mobile</label><input class="input" id="p-phone" name="phone" type="tel" inputmode="tel" autocomplete="tel"></div><div class="field"><label class="field__l" for="p-pin">PIN code</label><input class="input" id="p-pin" name="pin" inputmode="numeric" maxlength="6" autocomplete="postal-code"></div>' +
+      '<div class="field field--wide"><label class="field__l" for="p-l1">Address</label><input class="input" id="p-l1" name="line1" autocomplete="address-line1"></div><div class="field field--wide"><label class="field__l" for="p-l2">Apartment, landmark</label><input class="input" id="p-l2" name="line2" autocomplete="address-line2"></div>' +
+      '<div class="field"><label class="field__l" for="p-city">City</label><input class="input" id="p-city" name="city" autocomplete="address-level2"></div><div class="field"><label class="field__l" for="p-state">State</label><select class="input input--select" id="p-state" name="state" autocomplete="address-level1"><option value="">Select</option>' + STATES.map(function (s) { return '<option>' + s + '</option>'; }).join('') + '</select></div></div>' +
+      '<p class="muted">Saved details pre-fill checkout. Only you can see them.</p><button class="btn btn--lg" type="submit"><span>Save details</span></button></form></section>';
+    $('#signout').addEventListener('click', function () { Auth.signOut().then(function () { authView(); }); });
+    var tabs = $$('[role=tab]', root); tabs.forEach(function (t) { t.addEventListener('click', function () { tabs.forEach(function (x) { var on = x === t; x.setAttribute('aria-selected', on); x.tabIndex = on ? 0 : -1; }); $('#pn-o').hidden = t.id !== 'tab-o'; $('#pn-p').hidden = t.id !== 'tab-p'; }); });
+    var p = u.profile || {}, f = $('#pf'); Object.keys(p).forEach(function (k) { if (f.elements[k]) f.elements[k].value = p[k]; }); if (f.elements.name) f.elements.name.value = u.name || '';
+    f.addEventListener('submit', function (e) { e.preventDefault(); var d = { name: f.elements.name ? f.elements.name.value : undefined, profile: {} }; ['phone', 'pin', 'line1', 'line2', 'city', 'state'].forEach(function (k) { d.profile[k] = f.elements[k].value; }); api('PATCH', '/api/me', d).then(function (r) { Auth.user = r.user; Auth.paint(); U.toast('Saved'); }, function (er) { U.toast(er.message); }); });
+    if (u.isGuest) Auth.mount($('#up'), { upgradeOnly: true, guest: false, focus: false, onDone: function (nu) { Auth.user = nu; Auth.paint(); U.toast('Account created — your orders are saved'); dash(); } });
+    api('GET', '/api/orders').then(function (r) {
+      $('#olist').innerHTML = r.orders.length ? r.orders.map(function (o) {
+        var due = o.status === 'awaiting_payment' || o.status === 'payment_rejected';
+        return '<a class="ocard" href="order.html?id=' + o.id + '"><span class="ocard__imgs">' + o.items.slice(0, 3).map(function (i) { return '<span>' + U.picture(i.id, 1, { sizes: '56px', alt: '' }) + '</span>'; }).join('') + '</span><span class="ocard__t"><strong>' + esc(o.number) + '</strong><small>' + O.fmtDate(o.createdAt) + ' · ' + o.items.length + ' item' + (o.items.length > 1 ? 's' : '') + '</small></span>' + O.chip(o.status) + '<span class="ocard__p">' + money(o.totals.total) + '</span><span class="ocard__go ' + (due ? 'is-due' : '') + '">' + (due ? 'Pay now' : 'View') + U.icon('right', 'ico--xs') + '</span></a>';
+      }).join('') : '<div class="empty"><p class="empty__title">No orders yet</p><p>When you place an order it will appear here.</p><a class="btn" href="shop.html">Start shopping</a></div>';
+      U.reveal($('#olist'));
+    }, function (er) { $('#olist').innerHTML = '<p class="field__err">' + esc(er.message) + '</p>'; });
+  }
+
+  /* ---------------- single order ---------------- */
+  function orderView() {
+    var id = new URLSearchParams(location.search).get('id'), timer;
+    if (!id) { root.innerHTML = '<div class="empty"><p class="empty__title">No order selected</p><a class="btn" href="account.html">My orders</a></div>'; return; }
+    function load(first) {
+      api('GET', '/api/orders/' + id).then(function (r) { draw(r.order, first); }, function (er) {
+        root.innerHTML = '<div class="empty"><p class="empty__title">' + (er.status === 401 ? 'Please sign in to view this order' : 'We couldn’t find that order') + '</p><p>Orders are private — you can only open your own.</p><a class="btn" href="account.html">' + (er.status === 401 ? 'Sign in' : 'My orders') + '</a></div>';
+      });
+    }
+    function draw(o, first) {
+      document.title = 'Order ' + o.number + ' — ' + A.BRAND; var c = o.customer, due = o.status === 'awaiting_payment' || o.status === 'payment_rejected';
+      var keep = $('#paymount') && $('#paymount').firstChild && due && !first;
+      root.innerHTML = '<nav class="crumbs" aria-label="Breadcrumb"><ol><li><a href="account.html">My orders</a></li><li aria-current="page">' + esc(o.number) + '</li></ol></nav>' +
+        '<header class="ohead"><div><p class="eyebrow">Order</p><h1 class="h1">' + esc(o.number) + '</h1><p class="muted">Placed ' + O.fmtDate(o.createdAt) + '</p></div>' + O.chip(o.status) + '</header>' +
+        '<div class="ogrid"><div class="ogrid__main"><section class="ocardx" aria-label="Payment"><div id="paymount"></div></section><section class="ocardx"><h2 class="h3">Progress</h2>' + O.timeline(o) + '</section></div>' +
+        '<aside class="ogrid__side"><section class="ocardx"><h2 class="h3">Items</h2>' + O.items(o) + '<dl class="totals"><div><dt>Subtotal</dt><dd>' + money(o.totals.subtotal) + '</dd></div><div><dt>Shipping</dt><dd>' + (o.totals.shipping ? money(o.totals.shipping) : 'Free') + '</dd></div><div class="totals__total"><dt>Total</dt><dd>' + money(o.totals.total) + '</dd></div></dl></section>' +
+        '<section class="ocardx"><h2 class="h3">Delivery</h2><address>' + esc(c.name) + '<br>' + esc(c.line1) + (c.line2 ? '<br>' + esc(c.line2) : '') + '<br>' + esc(c.city) + ', ' + esc(c.state) + ' ' + esc(c.pin) + '<br>' + esc(c.phone) + '<br>' + esc(c.email) + '</address>' +
+        '<div class="oact"><button type="button" class="btn btn--ghost" id="print">Print invoice</button>' + (due ? '<button type="button" class="btn btn--ghost" id="cancel">Cancel order</button>' : '') + '</div></section></aside></div>';
+      A.Orders.payPanel(o, $('#paymount'), function (upd) { draw(upd, false); });
+      var pr = $('#print'); if (pr) pr.addEventListener('click', function () { window.print(); });
+      var cx = $('#cancel'); if (cx) cx.addEventListener('click', function () { if (confirm('Cancel this order?')) api('POST', '/api/orders/' + o.id + '/cancel', {}).then(function (r) { draw(r.order, false); }, function (er) { U.toast(er.message); }); });
+      U.reveal(root);
+      clearTimeout(timer); if (['delivered', 'cancelled'].indexOf(o.status) < 0) timer = setTimeout(function tick() { if (!document.hidden && !$('.pay__form input[type=file]')) load(false); else timer = setTimeout(tick, 20000); }, 20000);
+    }
+    Auth.refresh().then(function (u) { if (!u) { root.innerHTML = '<div class="empty"><p class="empty__title">Please sign in to view this order</p><p>Orders are private to the person who placed them.</p><button class="btn" id="si">Sign in</button></div>'; $('#si').addEventListener('click', function () { Auth.ensure().then(function () { load(true); }, function () {}); }); } else load(true); });
+  }
+
+  if (page === 'account') Auth.refresh().then(function (u) { if (u) dash(); else authView(); });
+  else if (page === 'order') orderView();
+})(window.ASINGH);

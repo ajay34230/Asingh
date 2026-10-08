@@ -1,9 +1,51 @@
 # ASINGH — Rajputi dresses storefront
 
-A dependency-free, device-adaptive ecommerce front end (static HTML/CSS/JS) for **Rajputi dresses only** — poshak, ghagra choli, bandhani & leheriya, odhni and Rajputi suits (gota patti, zardozi, shisha work):
-home, shop (filters), product, cart/bag drawer, and a 3-step checkout.
+A fast, dependency-free ecommerce site for **Rajputi dresses** (poshak, ghagra choli, bandhani & leheriya, odhni, suits) with accounts, guest checkout, QR payments with screenshot upload, private orders, live admin alerts and an admin console. Node 20+ only — **no `npm install` needed**.
 
-Run it: `npx http-server -p 4173` (or any static server) → http://localhost:4173
+## Run it
+```bash
+npm start                      # http://localhost:3000
+# first run prints a one-time admin password. Or choose your own:
+ADMIN_EMAIL=you@example.com ADMIN_PASSWORD='a-long-passphrase' npm start
+npm test                       # 70+ server/privacy tests
+```
+Storefront: `/` · Account & orders: `/account.html` · Admin console: `/admin.html`
+
+| Env var | Purpose |
+|---|---|
+| `PORT`, `HOST` | listen address (default `3000`, `0.0.0.0`) |
+| `ADMIN_EMAIL`, `ADMIN_PASSWORD` | create the admin on first run (otherwise a random password is printed once) |
+| `DATA_DIR` | where orders, users and uploaded screenshots live (default `./data`, git-ignored, **back it up**) |
+| `COOKIE_SECURE=1` | force `Secure` cookies (auto when `X-Forwarded-Proto: https`) |
+| `TRUST_PROXY=1` | trust `X-Forwarded-For` for rate limiting when behind a reverse proxy |
+| `ADMIN_WEBHOOK_URL` | HTTPS webhook (Slack/Discord-style `{text}`) for admin alerts |
+| `WEBHOOK_SECRET_<PROVIDER>` | enables payment webhooks for that provider (see below) |
+
+## Sign-in options
+Sign in · Create account · **Continue as guest (no details at all)**. A guest who later creates an account keeps their orders. Passwords use scrypt; sessions are random 256-bit tokens in `HttpOnly; SameSite=Lax` cookies; login/register are rate-limited.
+
+## Payments (today: UPI QR + screenshot)
+1. Buyer enters delivery details → picks **UPI / QR** → the order is created and the **QR, exact amount, UPI ID (copy) and “Open my UPI app” deep link** are shown.
+2. Buyer uploads a payment screenshot (compressed in the browser, upload progress, optional UTR). Order moves to *Payment under review*.
+3. Admin is alerted instantly, opens the order, sees the screenshot, and **verifies or rejects** (with a note the buyer sees; they can re-upload).
+4. Admin moves the order through *Being crafted → Shipped → Delivered*; the buyer tracks it live.
+
+**Admin → Payment & QR** lets you upload/replace your QR, set the payee name, UPI ID and the instructions buyers see. Until you upload one, buyers see a clearly-labelled *Demo QR*.
+
+### Adding a payment gateway later (no storefront changes)
+- `server/payments.js`: flip a method to `enabled: true` in `METHODS`; add an entry to `ADAPTERS` that verifies the provider's signature and maps its payload to `{ orderNumber, status: 'paid'|'failed', reference, amount }`.
+- Set `WEBHOOK_SECRET_<PROVIDER>` and point the provider at `POST /api/webhooks/<provider>`.
+- A verified *paid* event marks the order paid (idempotent, amount-checked) and alerts the admin. A working `generic` adapter (HMAC-SHA256 of the raw body in `X-Signature`) and a Razorpay-style skeleton are included — **verify the skeleton against the provider's current docs before enabling**.
+
+## Admin alerts
+New order / screenshot uploaded / payment confirmed / cancelled → **instant toast + bell + chime in the console** (Server-Sent Events), **browser notifications** when the tab is in the background, tab-title badge, a stored alert history, and an optional **HTTPS webhook** (Admin → Alerts, or `ADMIN_WEBHOOK_URL`). Hosts that resolve to private IPs are refused (SSRF guard).
+
+## Privacy & security model
+- Orders and screenshots are visible **only to the customer who placed them and the admin**; everyone else gets `404`. Screenshots are stored outside the web root with random names (mode 600), validated by magic bytes (JPG/PNG/WebP only), and served only through an authorised endpoint with `nosniff` and a sandbox CSP.
+- Prices are recomputed on the server from the catalogue — client prices are ignored.
+- CSRF: every state-changing call needs `X-Requested-With` and a same-origin `Origin`. Strict CSP (no inline scripts), `X-Frame-Options: DENY`, static allow-list (server code, data and tools are never served).
+- Limits: JSON 200 KB, uploads 6 MB, per-IP/per-user rate limits.
+- **Known limits of this build:** JSON-file storage (single server process; swap `server/db.js` for SQLite/Postgres to scale), no email verification or password-reset email (needs an email provider), no social login. Serve it behind HTTPS.
 
 ## How it adapts (not "shrunk desktop")
 | Area | Phone | Tablet | Desktop / ultrawide |
@@ -32,8 +74,9 @@ Hero with drifting gold ornaments, shimmering key phrase and pointer parallax (a
 ## QA tooling
 `node tools/qa.mjs` — loads every page at 19 widths (280→3840) plus landscape phone/tablet sizes and checks horizontal overflow, header collisions, touch-target size, tiny text and broken images.
 `node tools/weight.mjs` — page weight at phone / desktop / 4K.
+`node tools/e2e.mjs` — guest checkout → QR upload → live admin alert → verification → privacy (needs a fresh server: `DATA_DIR=/tmp/x ADMIN_PASSWORD='Admin#Pass12345' PORT=4173 node server/index.js`).
 `node tools/flows.mjs` — drives menu, search, filters, quick add, PDP validation, cart and the full checkout on phone/tablet/desktop.
-(Both expect a server on :4173 and Playwright's Chromium.)
+(These expect the server on :4173 and Playwright's Chromium.)
 
 ## Known placeholders
-Catalogue, reviews, contact details and imagery are sample content. Checkout is a demo — it takes no payment; wire a gateway (UPI/cards/netbanking) and a real account system before launch. Verified in Chromium only; Safari/Firefox/Samsung Internet should be spot-checked on real devices.
+Catalogue, reviews, contact details and imagery are sample content (replace the drawn illustrations with real photography using the same file names). Verified in Chromium only; spot-check Safari, Firefox and Samsung Internet on real devices.

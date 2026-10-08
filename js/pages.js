@@ -1,7 +1,7 @@
 /* Page modules: home, shop, product, cart, checkout. */
 (function () {
   'use strict';
-  var A = window.ASINGH, U = A.U, $ = U.$, $$ = U.$$, money = U.money, esc = U.esc, Cart = U.Cart, Sheet = U.Sheet, byId = U.byId, sById = U.stitchById;
+  var A = window.ASINGH, U = A.U, api = U.api, $ = U.$, $$ = U.$$, money = U.money, esc = U.esc, Cart = U.Cart, Sheet = U.Sheet, byId = U.byId, sById = U.stitchById;
   var page = document.body.getAttribute('data-page');
   var mqChange = function (mq, f) { mq.addEventListener ? mq.addEventListener('change', f) : mq.addListener(f); };
 
@@ -101,6 +101,7 @@
       else if (!filtersEl.classList.contains('is-open')) filtersEl.setAttribute('aria-hidden', 'true');
       $$('.fgroup', form).forEach(function (d) { if (inline) d.open = true; });
     }
+    form.addEventListener('submit', function (e) { e.preventDefault(); });
     form.addEventListener('change', function () { if (U.mqDesktop.matches) commit(readForm()); else preview(); });
     sortEl.addEventListener('change', function () { commit(readForm()); });
     applyBtn.addEventListener('click', function () { commit(readForm()); Sheet.close('filters'); });
@@ -215,67 +216,102 @@
   /* ================= CHECKOUT ================= */
   var STATES = ['Andhra Pradesh', 'Assam', 'Bihar', 'Chandigarh', 'Chhattisgarh', 'Delhi', 'Goa', 'Gujarat', 'Haryana', 'Himachal Pradesh', 'Jharkhand', 'Karnataka', 'Kerala', 'Madhya Pradesh', 'Maharashtra', 'Odisha', 'Punjab', 'Rajasthan', 'Tamil Nadu', 'Telangana', 'Uttar Pradesh', 'Uttarakhand', 'West Bengal'];
   function checkout() {
-    var form1 = $('#step-details'), form2 = $('#step-pay'), done = $('#step-done'), steps = $$('.progress li'), sum = $('#summary');
-    var order = $('#order-lines');
+    var form1 = $('#step-details'), form2 = $('#step-method'), qr = $('#step-qr'), done = $('#step-done'), steps = $$('.progress li'), sum = $('#summary'), order = $('#order-lines');
     $('#state').insertAdjacentHTML('beforeend', STATES.map(function (s) { return '<option>' + s + '</option>'; }).join(''));
+    var finished = false, placed = null, cust = null;
     function renderSummary() {
       var n = Cart.count();
       order.innerHTML = '<ul class="lines lines--mini">' + Cart.items.map(function (i) {
         var p = byId[i.id];
         return '<li class="line line--mini"><a class="line__img" href="product.html?id=' + p.id + '" tabindex="-1" aria-hidden="true">' + U.picture(p.id, 1, { sizes: '72px', alt: '' }) + '<span class="line__qty">' + i.qty + '</span></a><div class="line__info"><p class="line__name">' + esc(p.name) + '</p><p class="line__meta">Size ' + esc(i.size) + ' · ' + esc(sById[i.stitch].label) + '</p></div><span class="line__price">' + money(Cart.unit(i) * i.qty) + '</span></li>';
       }).join('') + '</ul>' + U.totalsHTML();
-      $('#sum-total').textContent = money(Cart.total()); $('#pay-total').textContent = money(Cart.total());
-      $('#sum-count').textContent = n + ' item' + (n === 1 ? '' : 's');
+      $('#sum-total').textContent = money(Cart.total()); $('#sum-count').textContent = n + ' item' + (n === 1 ? '' : 's');
     }
-    var finished = false;
-    Cart.subscribe(function () { if (finished) return; if (!Cart.items.length) { $('#co-empty').hidden = false; $('#co-main').hidden = true; } else { $('#co-empty').hidden = true; $('#co-main').hidden = false; renderSummary(); } });
-    var syncSum = function () { sum.open = U.mqDesktop.matches || window.matchMedia('(min-width: 900px)').matches; };
+    function renderPlacedSummary(o) {
+      order.innerHTML = '<ul class="lines lines--mini">' + o.items.map(function (i) { return '<li class="line line--mini"><a class="line__img" href="product.html?id=' + i.id + '" tabindex="-1" aria-hidden="true">' + U.picture(i.id, 1, { sizes: '72px', alt: '' }) + '<span class="line__qty">' + i.qty + '</span></a><div class="line__info"><p class="line__name">' + esc(i.name) + '</p><p class="line__meta">Size ' + esc(i.size) + ' · ' + esc(i.stitchLabel) + '</p></div><span class="line__price">' + money(i.unit * i.qty) + '</span></li>'; }).join('') + '</ul>' +
+        '<dl class="totals"><div><dt>Subtotal</dt><dd>' + money(o.totals.subtotal) + '</dd></div><div><dt>Shipping</dt><dd>' + (o.totals.shipping ? money(o.totals.shipping) : 'Free') + '</dd></div><div class="totals__total"><dt>Total</dt><dd>' + money(o.totals.total) + '</dd></div></dl>';
+      $('#sum-total').textContent = money(o.totals.total); $('#sum-count').textContent = o.items.length + ' item' + (o.items.length === 1 ? '' : 's');
+    }
+    var syncSum = function () { sum.open = window.matchMedia('(min-width: 900px)').matches; };
     syncSum(); mqChange(window.matchMedia('(min-width: 900px)'), syncSum);
+
+    /* signed-in / guest note + prefill */
+    function authNote() {
+      var u = U.Auth.user, n = $('#authnote');
+      n.innerHTML = u ? (u.isGuest ? 'Checking out as a <strong>guest</strong> — no account needed. <button type="button" class="link" data-signin>Sign in instead</button>' : 'Signed in as <strong>' + esc(u.name || u.email) + '</strong>.') : 'Have an account? <button type="button" class="link" data-signin>Sign in</button> for faster checkout — or just continue as a guest, no details needed.';
+    }
+    function prefill() {
+      var u = U.Auth.user; if (!u) return; var p = u.profile || {};
+      var set = function (id, v) { var el = document.getElementById(id); if (el && !el.value && v) el.value = v; };
+      set('email', u.email); set('name', u.name); set('phone', p.phone); set('line1', p.line1); set('line2', p.line2); set('pin', p.pin); set('city', p.city); set('state', p.state);
+    }
+    $('#authnote').addEventListener('click', function (e) { if (e.target.closest('[data-signin]')) U.Auth.ensure().then(function () {}, function () {}); });
+    document.addEventListener('authchange', function () { authNote(); prefill(); });
+    api('GET', '/api/me').then(function (r) { U.Auth.user = r.user; U.Auth.paint(); authNote(); prefill(); }, authNote);
 
     var RULES = {
       email: { test: function (v) { return /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(v); }, msg: 'Enter a valid email, e.g. name@example.com' },
-      phone: { test: function (v) { return /^(\+91[\s-]?)?[6-9][0-9]{9}$/.test(v.replace(/\s|-/g, '')) || /^(\+91)?[6-9][0-9]{9}$/.test(v.replace(/\s|-/g, '')); }, msg: 'Enter a 10-digit mobile number' },
+      phone: { test: function (v) { return /^(\+91)?[6-9][0-9]{9}$/.test(v.replace(/\s|-/g, '')); }, msg: 'Enter a 10-digit mobile number' },
       name: { test: function (v) { return v.trim().length >= 2; }, msg: 'Enter your full name' },
       line1: { test: function (v) { return v.trim().length >= 5; }, msg: 'Enter your house, building and street' },
       pin: { test: function (v) { return /^[1-9][0-9]{5}$/.test(v); }, msg: 'Enter a valid 6-digit PIN code' },
       city: { test: function (v) { return v.trim().length >= 2; }, msg: 'Enter your city' },
       state: { test: function (v) { return !!v; }, msg: 'Choose your state' }
     };
-    function check(inp) {
-      var r = RULES[inp.name]; if (!r) return true;
-      var ok = r.test(inp.value.trim()), err = document.getElementById(inp.id + '-err');
-      inp.setAttribute('aria-invalid', ok ? 'false' : 'true'); err.textContent = ok ? '' : r.msg; return ok;
-    }
+    function check(inp) { var r = RULES[inp.name]; if (!r) return true; var ok = r.test(inp.value.trim()), err = document.getElementById(inp.id + '-err'); inp.setAttribute('aria-invalid', ok ? 'false' : 'true'); err.textContent = ok ? '' : r.msg; return ok; }
     form1.addEventListener('focusout', function (e) { if (e.target.name && RULES[e.target.name] && e.target.value) check(e.target); });
     form1.addEventListener('input', function (e) { if (e.target.getAttribute('aria-invalid') === 'true') check(e.target); });
+
+    function go(n) {
+      form1.hidden = n !== 1; form2.hidden = n !== 2; qr.hidden = n !== 3; done.hidden = n !== 4;
+      steps.forEach(function (s, i) { s.classList.toggle('is-done', i + 1 < n); if (i + 1 === n) s.setAttribute('aria-current', 'step'); else s.removeAttribute('aria-current'); });
+      if (n === 4) confetti();
+      var h = (n === 1 ? form1 : n === 2 ? form2 : n === 3 ? qr : done).querySelector('h2'); h.setAttribute('tabindex', '-1'); h.focus({ preventScroll: true });
+      window.scrollTo({ top: Math.max(0, $('.progress').getBoundingClientRect().top + window.scrollY - 80), behavior: U.reduceMotion.matches ? 'auto' : 'smooth' });
+    }
     function confetti() {
       if (U.reduceMotion.matches) return;
-      var box = document.createElement('div'); box.className = 'confetti'; box.setAttribute('aria-hidden', 'true');
-      var cols = ['#e9c46a', '#c23a6e', '#e8913a', '#1d6b5a', '#7a1f3d'];
+      var box = document.createElement('div'); box.className = 'confetti'; box.setAttribute('aria-hidden', 'true'); var cols = ['#e9c46a', '#c23a6e', '#e8913a', '#1d6b5a', '#7a1f3d'];
       for (var i = 0; i < 36; i++) { var s = document.createElement('i'); s.style.cssText = '--x:' + (Math.random() * 100).toFixed(1) + 'vw;--d:' + (Math.random() * .6).toFixed(2) + 's;--t:' + (2.2 + Math.random() * 1.6).toFixed(2) + 's;--r:' + Math.round(Math.random() * 720 - 360) + 'deg;--s:' + (7 + Math.random() * 7).toFixed(0) + 'px;background:' + cols[i % 5]; box.appendChild(s); }
       document.body.appendChild(box); setTimeout(function () { box.remove(); }, 4500);
     }
-    function go(n) {
-      form1.hidden = n !== 1; form2.hidden = n !== 2; done.hidden = n !== 3;
-      steps.forEach(function (s, i) { s.classList.toggle('is-done', i + 1 < n); if (i + 1 === n) s.setAttribute('aria-current', 'step'); else s.removeAttribute('aria-current'); });
-      if (n === 3) confetti();
-      $('.checkout__aside').hidden = n === 3; var h = (n === 1 ? form1 : n === 2 ? form2 : done).querySelector('h2'); h.setAttribute('tabindex', '-1'); h.focus({ preventScroll: true });
-      window.scrollTo({ top: Math.max(0, $('.progress').getBoundingClientRect().top + window.scrollY - 80), behavior: U.reduceMotion.matches ? 'auto' : 'smooth' });
+    function showQr(o) {
+      placed = o; finished = true; U.store.set('asingh.pending', o.id); renderPlacedSummary(o);
+      $('#qr-no').textContent = o.number; $('#track').href = 'order.html?id=' + o.id;
+      A.Orders.payPanel(o, $('#qr-mount'), function (upd) { placed = upd; if (upd.status === 'payment_review') { U.store.set('asingh.pending', null); $('#order-no').textContent = upd.number; go(4); } });
+      go(3);
     }
+
     form1.addEventListener('submit', function (e) {
       e.preventDefault();
       var bad = $$('input[name],select[name]', form1).filter(function (i) { return !check(i); });
       if (bad.length) { $('#form-err').textContent = 'Please fix ' + bad.length + ' field' + (bad.length > 1 ? 's' : '') + ' to continue.'; bad[0].focus(); return; }
-      $('#form-err').textContent = ''; $('#ship-to').textContent = [$('#name').value, $('#line1').value, $('#city').value + ' ' + $('#pin').value].join(', '); go(2);
+      $('#form-err').textContent = '';
+      U.Auth.ensure().then(function () {
+        cust = { name: $('#name').value.trim(), email: $('#email').value.trim(), phone: $('#phone').value.trim(), line1: $('#line1').value.trim(), line2: $('#line2').value.trim(), pin: $('#pin').value.trim(), city: $('#city').value.trim(), state: $('#state').value };
+        $('#ship-to').textContent = [cust.name, cust.line1, cust.city + ' ' + cust.pin].join(', '); go(2);
+      }, function () { $('#form-err').textContent = 'Please choose how you’d like to continue — sign in, create an account, or continue as a guest.'; });
     });
     $('#back-1').addEventListener('click', function () { go(1); });
-    form2.addEventListener('submit', function (e) {
-      e.preventDefault();
-      var no = 'AS' + Date.now().toString().slice(-8);
-      $('#order-no').textContent = no; $('#order-email').textContent = $('#email').value;
-      finished = true; Cart.clear(); go(3);
+
+    /* payment methods come from the server — adding a gateway later needs no change here */
+    A.Orders.config().then(function (cfg) {
+      $('#methods').insertAdjacentHTML('beforeend', cfg.methods.map(function (m, i) {
+        return '<label class="paymethod' + (m.enabled ? '' : ' is-off') + '"><input type="radio" name="pay" value="' + m.id + '"' + (m.enabled && i === 0 ? ' checked' : '') + (m.enabled ? '' : ' disabled') + '><span><strong>' + esc(m.label) + (m.enabled ? '' : ' <em class="soon">Soon</em>') + '</strong><small>' + esc(m.note) + '</small></span></label>';
+      }).join(''));
     });
-    $$('.paymethod input', form2).forEach(function (i) { i.addEventListener('change', function () { $('#pay-note').textContent = i.value === 'cod' ? 'Pay in cash or by UPI when your order arrives.' : 'You’ll be taken to our secure payment partner to complete this payment.'; }); });
+    form2.addEventListener('submit', function (e) {
+      e.preventDefault(); var m = form2.querySelector('[name=pay]:checked'), btn = $('#place'), err = $('#method-err'); err.textContent = '';
+      if (!m) { err.textContent = 'Please choose a payment method.'; return; }
+      btn.disabled = true; btn.classList.add('is-busy');
+      api('POST', '/api/orders', { items: Cart.items.map(function (i) { return { id: i.id, size: i.size, stitch: i.stitch, color: i.color, note: i.note, qty: i.qty }; }), customer: cust, method: m.value }).then(function (r) { finished = true; Cart.clear(); showQr(r.order); }, function (er) { btn.disabled = false; btn.classList.remove('is-busy'); err.textContent = er.message; });
+    });
+
+    Cart.subscribe(function () {
+      if (finished) return;
+      if (!Cart.items.length) { /* maybe resuming an unpaid order */ var pid = U.store.get('asingh.pending', null); if (pid) { api('GET', '/api/orders/' + pid).then(function (r) { if (r.order.status === 'awaiting_payment' || r.order.status === 'payment_rejected') { $('#co-empty').hidden = true; $('#co-main').hidden = false; showQr(r.order); } else { $('#co-empty').hidden = false; $('#co-main').hidden = true; } }, function () { $('#co-empty').hidden = false; $('#co-main').hidden = true; }); } else { $('#co-empty').hidden = false; $('#co-main').hidden = true; } }
+      else { $('#co-empty').hidden = true; $('#co-main').hidden = false; renderSummary(); }
+    });
   }
 
   ({ home: home, shop: shop, product: product, cart: cartPage, checkout: checkout }[page] || function () {})();

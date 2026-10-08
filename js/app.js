@@ -52,7 +52,7 @@
     return '<picture><source type="image/avif" srcset="' + ss('avif') + '" sizes="' + sizes + '">' +
       '<source type="image/webp" srcset="' + ss('webp') + '" sizes="' + sizes + '">' +
       '<img src="' + base + '800.jpg" width="' + (o.w || 1200) + '" height="' + (o.h || 1500) + '" alt=""' + esc(o.alt || '') + '"' +
-      (o.eager ? ' fetchpriority="high"' : ' loading="lazy"') + ' decoding="async" onload="this.classList.add(\'ld\')"></picture>';
+      (o.eager ? ' fetchpriority="high"' : ' loading="lazy"') + ' decoding="async"></picture>';
   }
 
   /* ---------- Stores ---------- */
@@ -207,6 +207,73 @@
     return '<div class="empty"><p class="empty__title">Your bag is empty</p><p>Discover handcrafted pieces made to be treasured.</p><a class="btn" href="shop.html">Start shopping</a></div>';
   }
 
+/* ---------- API + accounts ---------- */
+  function api(method, url, body) {
+    var o = { method: method, credentials: 'same-origin', headers: { 'X-Requested-With': 'asingh' } };
+    if (body !== undefined) { o.headers['Content-Type'] = 'application/json'; o.body = JSON.stringify(body); }
+    return fetch(url, o).then(function (r) { return r.json().catch(function () { return {}; }).then(function (j) { if (!r.ok) { var e = new Error(j.error || 'Something went wrong'); e.status = r.status; throw e; } return j; }); });
+  }
+  function upload(url, form, onProgress) {   // XHR gives real upload progress
+    return new Promise(function (resolve, reject) {
+      var x = new XMLHttpRequest(); x.open('POST', url); x.withCredentials = true; x.setRequestHeader('X-Requested-With', 'asingh');
+      if (x.upload && onProgress) x.upload.onprogress = function (e) { if (e.lengthComputable) onProgress(e.loaded / e.total); };
+      x.onload = function () { var j = {}; try { j = JSON.parse(x.responseText); } catch (e) { /* ignore */ } if (x.status >= 200 && x.status < 300) resolve(j); else { var er = new Error(j.error || 'Upload failed'); er.status = x.status; reject(er); } };
+      x.onerror = function () { reject(new Error('Network error — please check your connection and try again.')); };
+      x.send(form);
+    });
+  }
+  var Auth = { user: null, waiting: null };
+  Auth.refresh = function () { return api('GET', '/api/me').then(function (r) { Auth.user = r.user; Auth.paint(); return r.user; }, function () { Auth.user = null; Auth.paint(); return null; }); };
+  Auth.paint = function () {
+    var u = Auth.user, a = $('.header__account'); if (!a) return;
+    var av = $('.avatar', a); if (av) { av.hidden = !u; av.textContent = u ? ((u.isGuest ? 'G' : (u.name || u.email || '?').trim().charAt(0).toUpperCase()) || '?') : ''; }
+    a.setAttribute('aria-label', u ? (u.isGuest ? 'Guest account and orders' : 'Account of ' + (u.name || u.email)) : 'Sign in or create account');
+    document.documentElement.classList.toggle('is-auth', !!u);
+  };
+  Auth.ensure = function () {
+    if (Auth.user) return Promise.resolve(Auth.user);
+    return new Promise(function (resolve, reject) { Auth.waiting = { resolve: resolve, reject: reject }; Sheet.open('auth'); });
+  };
+  Auth.done = function (u) { var w = Auth.waiting; Auth.waiting = null; Auth.user = u; Auth.paint(); Sheet.close('auth'); toast(u.isGuest ? 'Continuing as guest' : 'Welcome, ' + (u.name || 'back')); if (w) w.resolve(u); document.dispatchEvent(new CustomEvent('authchange', { detail: u })); };
+  Auth.signOut = function () { return api('POST', '/api/auth/logout', {}).then(function () { Auth.user = null; Auth.paint(); document.dispatchEvent(new CustomEvent('authchange', { detail: null })); }); };
+  function strength(pw) { var s = 0; if (pw.length >= 8) s++; if (pw.length >= 12) s++; if (/[a-z]/.test(pw) && /[A-Z]/.test(pw)) s++; if (/\d/.test(pw) && /[^\w]/.test(pw) || /\d.*[a-z]|[a-z].*\d/i.test(pw) && pw.length >= 10) s++; return Math.min(4, s); }
+  Auth.mount = function (el, o) {
+    o = o || {}; var upOnly = !!o.upgradeOnly;
+    el.innerHTML = '<div class="authbox">' +
+      (upOnly ? '' : '<div class="tabs" role="tablist" aria-label="Sign in or create account"><button type="button" role="tab" id="t-in" aria-selected="true" aria-controls="p-in">Sign in</button><button type="button" role="tab" id="t-up" aria-selected="false" aria-controls="p-up" tabindex="-1">Create account</button></div>') +
+      (upOnly ? '' : '<form class="aform" id="p-in" role="tabpanel" aria-labelledby="t-in" novalidate data-auth="in">' +
+        '<div class="field"><label class="field__l" for="ai-email">Email</label><input class="input" id="ai-email" name="email" type="email" autocomplete="username" inputmode="email" autocapitalize="off" required></div>' +
+        '<div class="field"><label class="field__l" for="ai-pw">Password</label><div class="pw"><input class="input" id="ai-pw" name="password" type="password" autocomplete="current-password" required><button type="button" class="pw__t" aria-label="Show password" data-pw>Show</button></div></div>' +
+        '<button class="btn btn--block btn--lg" type="submit"><span>Sign in</span></button></form>') +
+      '<form class="aform" id="p-up" role="tabpanel" aria-labelledby="t-up" novalidate data-auth="up"' + (upOnly ? '' : ' hidden') + '>' +
+        (upOnly ? '<p class="aform__lead">Create a free account to keep your orders safe and track them from any device.</p>' : '') +
+        '<div class="field"><label class="field__l" for="au-name">Full name</label><input class="input" id="au-name" name="name" autocomplete="name" required></div>' +
+        '<div class="field"><label class="field__l" for="au-email">Email</label><input class="input" id="au-email" name="email" type="email" autocomplete="email" inputmode="email" autocapitalize="off" required></div>' +
+        '<div class="field"><label class="field__l" for="au-pw">Password <span class="muted">(8+ characters)</span></label><div class="pw"><input class="input" id="au-pw" name="password" type="password" autocomplete="new-password" minlength="8" required><button type="button" class="pw__t" aria-label="Show password" data-pw>Show</button></div><div class="meter-pw" aria-hidden="true"><span></span></div></div>' +
+        '<button class="btn btn--block btn--lg" type="submit"><span>Create account</span></button></form>' +
+      (o.guest === false ? '' : '<div class="or"><span>or</span></div><button type="button" class="btn btn--ghost btn--block guestbtn" data-guest><span>Continue as guest</span><small>No details needed</small></button>') +
+      '<p class="auth__msg" role="alert" aria-live="assertive"></p><p class="auth__fine">' + icon('lock', 'ico--xs') + ' Your details stay private. Only you and the store team can see your orders.</p></div>';
+    var msg = $('.auth__msg', el), tabs = $$('[role=tab]', el);
+    function show(w) { tabs.forEach(function (t) { var on = t.id === 't-' + w; t.setAttribute('aria-selected', on); t.tabIndex = on ? 0 : -1; }); $$('.aform', el).forEach(function (f) { f.hidden = f.id !== 'p-' + w; }); msg.textContent = ''; var f = $('#p-' + w + ' input', el); if (f && o.focus !== false) f.focus({ preventScroll: true }); }
+    tabs.forEach(function (t) { t.addEventListener('click', function () { show(t.id.slice(2)); }); t.addEventListener('keydown', function (e) { if (e.key === 'ArrowRight' || e.key === 'ArrowLeft') { var n = tabs[t === tabs[0] ? 1 : 0]; n.click(); n.focus(); } }); });
+    $$('[data-pw]', el).forEach(function (b) { b.addEventListener('click', function () { var i = b.previousElementSibling, sh = i.type === 'password'; i.type = sh ? 'text' : 'password'; b.textContent = sh ? 'Hide' : 'Show'; b.setAttribute('aria-label', sh ? 'Hide password' : 'Show password'); }); });
+    var up = $('#au-pw', el); if (up) up.addEventListener('input', function () { var m = $('.meter-pw span', el), s = strength(up.value); m.style.width = s * 25 + '%'; m.style.background = ['#c0392b', '#c0392b', '#e8913a', '#c9a227', '#1f6b45'][s]; });
+    function busy(f, on) { var b = $('[type=submit]', f); b.disabled = on; b.classList.toggle('is-busy', on); }
+    $$('.aform', el).forEach(function (f) {
+      f.addEventListener('submit', function (e) {
+        e.preventDefault(); msg.textContent = ''; var d = {}; new FormData(f).forEach(function (v, k) { d[k] = v; });
+        var up = f.getAttribute('data-auth') === 'up'; if (!d.email || !/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(d.email)) { msg.textContent = 'Enter a valid email address.'; $('[name=email]', f).focus(); return; }
+        if (!d.password || (up && d.password.length < 8)) { msg.textContent = up ? 'Password must be at least 8 characters.' : 'Enter your password.'; $('[name=password]', f).focus(); return; }
+        busy(f, true); api('POST', up ? '/api/auth/register' : '/api/auth/login', d).then(function (r) { busy(f, false); (o.onDone || Auth.done)(r.user); }, function (er) { busy(f, false); msg.textContent = er.message; });
+      });
+    });
+    var g = $('[data-guest]', el); if (g) g.addEventListener('click', function () { g.disabled = true; api('POST', '/api/auth/guest', {}).then(function (r) { g.disabled = false; (o.onDone || Auth.done)(r.user); }, function (er) { g.disabled = false; msg.textContent = er.message; }); });
+    if (o.tab === 'up') show('up');
+  };
+  document.addEventListener('sheetopen', function (e) { if (e.detail === 'auth') { var m = $('#auth-mount'); if (m && !m.firstChild) Auth.mount(m, {}); else { var f = $('#auth-mount input'); if (f) f.focus({ preventScroll: true }); } } });
+  document.addEventListener('sheetclose', function (e) { if (e.detail === 'auth' && Auth.waiting) { Auth.waiting.reject(new Error('cancelled')); Auth.waiting = null; } });
+  document.addEventListener('click', function (e) { var a = e.target.closest('[data-account]'); if (a && !Auth.user) { e.preventDefault(); Sheet.close('menu'); setTimeout(function () { Sheet.open('auth', a); }, 60); } });
+
   /* ---------- Chrome ---------- */
   var NAV = [
     { label: 'New In', href: 'shop.html?sort=new' },
@@ -229,7 +296,7 @@
       '</ul></nav>' +
       '<div class="header__actions">' +
       '<button type="button" class="searchpill" data-open="search" aria-label="Search" aria-expanded="false" aria-controls="search">' + icon('search') + '<span class="searchpill__t">Search poshak, ghagra, odhni…</span></button>' +
-      '<button type="button" class="icon-btn header__account" data-open="account" aria-label="Account" aria-expanded="false" aria-controls="account">' + icon('user') + '</button>' +
+      '<a class="icon-btn header__account" href="account.html" data-account aria-label="Account">' + icon('user') + '<span class="avatar" hidden></span></a>' +
       '<a class="icon-btn header__wish" href="shop.html?wishlist=1" aria-label="Wishlist"><span class="icon-btn__ico">' + icon('heart') + '<span class="count" data-wish-count hidden>0</span></span></a>' +
       '<button type="button" class="icon-btn header__cart" data-open="cart" aria-label="Open cart" aria-expanded="false" aria-controls="cart"><span class="icon-btn__ico">' + icon('bag') + '<span class="count" data-cart-count hidden>0</span></span></button>' +
       '<button type="button" class="icon-btn header__menu" data-open="menu" aria-label="Open menu" aria-expanded="false" aria-controls="menu">' + icon('menu') + '</button>' +
@@ -254,7 +321,7 @@
       '<ul class="menu"><li><a href="shop.html">Shop all</a></li><li><a href="shop.html?sort=new">New in</a></li>' +
       A.CATEGORIES.map(function (c) { return '<li><a href="shop.html?cat=' + c.id + '">' + c.label + '</a></li>'; }).join('') + '</ul>' +
       '<h2 class="menu__h">Shop by occasion</h2><ul class="pills">' + A.OCCASIONS.map(function (c) { return '<li><a href="shop.html?occ=' + c.id + '">' + c.label + '</a></li>'; }).join('') + '</ul>' +
-      '<ul class="menu menu--sub"><li><a href="shop.html?stitch=custom">Custom stitching</a></li><li><a href="shop.html?wishlist=1">Wishlist</a></li><li><a href="#account" data-open="account">Account</a></li></ul></div></div></div>' +
+      '<ul class="menu menu--sub"><li><a href="shop.html?stitch=custom">Custom stitching</a></li><li><a href="shop.html?wishlist=1">Wishlist</a></li><li><a href="account.html" data-account>Account &amp; orders</a></li></ul></div></div></div>' +
       '<div class="sheet sheet--search" id="search" aria-hidden="true"><div class="sheet__backdrop" data-close></div><div class="sheet__panel" aria-label="Search">' +
       '<form class="searchform" action="shop.html" role="search"><label class="vh" for="q">Search products</label>' + icon('search') +
       '<input id="q" name="q" type="search" inputmode="search" enterkeyhint="search" autocomplete="off" placeholder="Search poshak, ghagra, bandhani…" data-autofocus>' +
@@ -272,11 +339,9 @@
       '<div class="tablewrap" tabindex="0" role="region" aria-label="Size chart"><table class="sizes"><thead><tr><th scope="col">Size</th><th scope="col">Bust</th><th scope="col">Waist</th><th scope="col">Hip</th></tr></thead><tbody>' +
       [['XS', 32, 26, 35], ['S', 34, 28, 37], ['M', 36, 30, 39], ['L', 38, 32, 41], ['XL', 40, 34, 43], ['XXL', 42, 36, 45]].map(function (r) { return '<tr><th scope="row">' + r[0] + '</th><td>' + r[1] + '</td><td>' + r[2] + '</td><td>' + r[3] + '</td></tr>'; }).join('') +
       '</tbody></table></div></div></div></div>' +
- '<div class="sheet sheet--quick" id="account" aria-hidden="true"><div class="sheet__backdrop" data-close></div><div class="sheet__panel" aria-label="Account">' +
-      '<div class="sheet__head"><h2 class="sheet__title">Sign in</h2><button type="button" class="icon-btn" data-close aria-label="Close">' + icon('close') + '</button></div>' +
-      '<form class="sheet__body" data-account novalidate><div class="field"><label class="field__l" for="acc-email">Email</label><input class="input" id="acc-email" type="email" name="email" inputmode="email" autocomplete="username" required></div>' +
-      '<div class="field"><label class="field__l" for="acc-pass">Password</label><input class="input" id="acc-pass" type="password" name="password" autocomplete="current-password" required></div>' +
-      '<button class="btn btn--block btn--lg" type="submit">Sign in</button><p class="newsletter__msg" role="status" aria-live="polite"></p></form></div></div>' +
+ '<div class="sheet sheet--quick sheet--auth" id="auth" aria-hidden="true"><div class="sheet__backdrop" data-close></div><div class="sheet__panel" aria-label="Sign in">' +
+      '<div class="sheet__head"><h2 class="sheet__title">Welcome to ' + A.BRAND + '</h2><button type="button" class="icon-btn" data-close aria-label="Close">' + icon('close') + '</button></div>' +
+      '<div class="sheet__body" id="auth-mount"></div></div></div>' +
       '<button type="button" class="totop" id="totop" aria-label="Back to top">' + icon('chev') + '</button><div class="toast" id="toast" role="status" aria-live="polite"></div>';
     var pg = $('#page');
     pg.insertAdjacentHTML('afterbegin', header);
@@ -388,10 +453,6 @@
 
   function bindNewsletter() {
     document.addEventListener('submit', function (e) {
-      var f = e.target.closest('[data-account]'); if (!f) return; e.preventDefault();
-      f.querySelector('.newsletter__msg').textContent = 'Accounts aren’t connected in this build yet — you can check out as a guest.';
-    });
-    document.addEventListener('submit', function (e) {
       var f = e.target.closest('[data-newsletter]'); if (!f) return; e.preventDefault();
       var i = f.querySelector('input'), m = f.querySelector('.newsletter__msg');
       if (!i.checkValidity()) { m.textContent = 'Please enter a valid email address.'; i.setAttribute('aria-invalid', 'true'); i.focus(); return; }
@@ -479,10 +540,11 @@
     warmed[a.href] = 1; var l = document.createElement('link'); l.rel = 'prefetch'; l.href = a.href; document.head.appendChild(l);
   }
   document.addEventListener('pointerover', warm, { passive: true }); document.addEventListener('touchstart', warm, { passive: true });
-  A.U = { reveal: reveal, fly: fly, $: $, $$: $$, money: money, esc: esc, picture: picture, icon: icon, stars: stars, priceHTML: priceHTML, card: card, sizeRadios: sizeRadios, stitchRadios: stitchRadios, line: line, totalsHTML: totalsHTML, shipMeter: shipMeter, emptyCart: emptyCart, byId: byId, stitchById: stitchById, Cart: Cart, Sheet: Sheet, toast: toast, afterAdd: afterAdd, bindRails: bindRails, store: store, mqDesktop: mqDesktop, mqSmall: mqSmall, reduceMotion: reduceMotion };
+  A.U = { api: api, upload: upload, Auth: Auth, reveal: reveal, fly: fly, $: $, $$: $$, money: money, esc: esc, picture: picture, icon: icon, stars: stars, priceHTML: priceHTML, card: card, sizeRadios: sizeRadios, stitchRadios: stitchRadios, line: line, totalsHTML: totalsHTML, shipMeter: shipMeter, emptyCart: emptyCart, byId: byId, stitchById: stitchById, Cart: Cart, Sheet: Sheet, toast: toast, afterAdd: afterAdd, bindRails: bindRails, store: store, mqDesktop: mqDesktop, mqSmall: mqSmall, reduceMotion: reduceMotion };
 
+  document.addEventListener('load', function (e) { if (e.target.tagName === 'IMG') e.target.classList.add('ld'); }, true);
   $$('img').forEach(function (i) { if (i.complete && i.naturalWidth) i.classList.add('ld'); });
-  buildChrome(); bindMega(); bindSearch(); bindCartUI(); bindQuick(); bindNewsletter(); bindHeader(); bindFX(); bindRails(document); reveal(document);
+  buildChrome(); Auth.refresh(); bindMega(); bindSearch(); bindCartUI(); bindQuick(); bindNewsletter(); bindHeader(); bindFX(); bindRails(document); reveal(document);
   document.documentElement.classList.add('js');
   document.dispatchEvent(new Event('asingh:ready'));
 })(window.ASINGH);

@@ -7,7 +7,7 @@ const BASE = process.env.BASE || 'http://localhost:4173';
 const widths = [280, 320, 360, 375, 390, 414, 480, 600, 768, 820, 912, 1024, 1280, 1366, 1440, 1600, 1920, 2560, 3840];
 const heights = { 280: 653, 320: 568, 360: 740, 375: 667, 390: 844, 414: 896, 480: 854, 600: 960, 768: 1024, 820: 1180, 912: 1368, 1024: 768, 1280: 800, 1366: 768, 1440: 900, 1600: 900, 1920: 1080, 2560: 1440, 3840: 2160 };
 const extra = [[667, 375], [844, 390], [932, 430], [1024, 768], [1180, 820], [1366, 1024], [653, 280], [960, 600], [1024, 600], [540, 720], [884, 1104], [1280, 720], [2560, 1080], [3440, 1440], [5120, 1440]]; // landscape phones/tablets
-const pages = ['index.html', 'shop.html?cat=poshak', 'product.html?id=maharani-poshak', 'cart.html', 'checkout.html'];
+const pages = ['index.html', 'shop.html?cat=poshak', 'product.html?id=maharani-poshak', 'cart.html', 'checkout.html', 'account.html', 'admin.html'];
 const shots = process.argv.includes('--shots');
 const only = (process.argv.find(a => a.startsWith('--only=')) || '').slice(7);
 const vps = [...widths.map(w => [w, heights[w]]), ...extra];
@@ -51,7 +51,7 @@ for (const [w, h] of vps) {
       // text size
       document.querySelectorAll('p,li,span,a,button,label,small,dd,dt,summary').forEach(el => { if (!vis(el) || !el.childNodes.length) return; const t = [...el.childNodes].some(n => n.nodeType === 3 && n.textContent.trim()); if (t && parseFloat(getComputedStyle(el).fontSize) < 12) out.push(`tiny-text ${el.tagName} ${getComputedStyle(el).fontSize} "${el.textContent.trim().slice(0, 20)}"`); });
       // broken images
-      document.querySelectorAll('img').forEach(i => { if (i.closest('.sheet:not(.is-open):not(.sheet--filters),[hidden]')) return; if (i.complete && i.naturalWidth === 0 && i.currentSrc) out.push('broken-img ' + i.currentSrc); });
+      document.querySelectorAll('img').forEach(i => { if (i.closest('.sheet:not(.is-open):not(.sheet--filters),[hidden]') || i.offsetParent === null) return; if (i.complete && i.naturalWidth === 0 && i.currentSrc) out.push('broken-img ' + i.currentSrc); });
       // header overlap: nav/actions don't collide
       const bar = document.querySelector('.header__bar'); if (bar) { const kids = [...bar.children].filter(vis).map(k => k.getBoundingClientRect()); for (let i = 0; i < kids.length - 1; i++) if (kids[i].right > kids[i + 1].left + 1) out.push('header-collision ' + i); }
       // content max width
