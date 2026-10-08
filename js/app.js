@@ -329,7 +329,7 @@
     var page = document.body.getAttribute('data-page');
     var sprite = '';
     var header = '<a class="skip" href="#main">Skip to content</a>' +
-      '<p class="announce"><span>' + (A.FREE_SHIP_FROM ? 'Free shipping over ' + money(A.FREE_SHIP_FROM) : 'Free shipping on all orders') + '</span>' + ((A.SITE && A.SITE.announcement) ? '<span class="announce__sep" aria-hidden="true">·</span><span class="announce__opt">' + esc(A.SITE.announcement) + '</span>' : '') + '<span class="announce__sep" aria-hidden="true">·</span><a class="announce__track" href="track.html">Track your order</a><button type="button" class="themebtn" data-theme-toggle aria-label="Change theme"><span class="themebtn__dot" aria-hidden="true"></span><span class="themebtn__t"></span></button></p>' +
+      '<p class="announce"><span>' + (A.FREE_SHIP_FROM ? 'Free shipping over ' + money(A.FREE_SHIP_FROM) : 'Free shipping on all orders') + '</span>' + ((A.SITE && A.SITE.announcement) ? '<span class="announce__sep" aria-hidden="true">·</span><span class="announce__opt">' + esc(A.SITE.announcement) + '</span>' : '') + '<span class="announce__sep" aria-hidden="true">·</span><a class="announce__track" href="track.html">Track your order</a><button type="button" class="themebtn" data-theme-toggle aria-label="Change theme"><span class="themebtn__dot" aria-hidden="true"></span><span class="themebtn__t"></span></button><button type="button" class="themebtn langbtn" data-lang-toggle data-no-i18n aria-label="Language: switch between English and Hindi"><span class="langbtn__t">हिन्दी</span></button></p>' +
       '<header class="header" id="site-header"><div class="header__bar container">' +
       '<a class="logo" href="index.html" aria-label="' + A.BRAND + ' home">' + A.BRAND + '</a>' +
       '<nav class="nav" aria-label="Primary"><ul class="nav__list">' +
@@ -362,6 +362,7 @@
       '<div class="sheet__body"><button type="button" class="searchpill searchpill--wide" data-open="search" aria-label="Search">' + icon('search') + '<span>Search suits…</span></button>' +
       '<ul class="menu"><li><a href="shop.html">Shop all</a></li><li><a href="shop.html?sort=new">New in</a></li>' +
       A.CATEGORIES.map(function (c) { return '<li><a href="shop.html?cat=' + c.id + '">' + c.label + '</a></li>'; }).join('') + '</ul>' +
+      '<h2 class="menu__h">Language · भाषा</h2><div class="themepick" role="group" aria-label="Language" data-no-i18n><button type="button" data-lang-set="en">English</button><button type="button" data-lang-set="hi">हिन्दी</button></div>' +
       '<h2 class="menu__h">Theme</h2><div class="themepick" role="group" aria-label="Theme"><button type="button" data-theme-set="royal"><i class="tsw tsw--royal"></i>Royal</button><button type="button" data-theme-set="bloom"><i class="tsw tsw--bloom"></i>Bloom</button></div>' +
       '<h2 class="menu__h">Shop by occasion</h2><ul class="pills">' + A.OCCASIONS.map(function (c) { return '<li><a href="shop.html?occ=' + c.id + '">' + c.label + '</a></li>'; }).join('') + '</ul>' +
       '<ul class="menu menu--sub"><li><a href="track.html">Track your order</a></li><li><a href="shop.html?stitch=custom">Custom stitching</a></li><li><a href="shop.html?wishlist=1">Wishlist</a></li><li><a href="account.html" data-account>Account &amp; orders</a></li></ul></div></div></div>' +
@@ -594,7 +595,12 @@
     document.addEventListener('click', function (e) {
       var tg = e.target.closest('[data-theme-toggle]'); if (tg) { T.toggle(tg); return; }
       var st = e.target.closest('[data-theme-set]'); if (st) T.set(st.getAttribute('data-theme-set'), st);
+      var L = window.ASINGH.Lang; if (!L) return;
+      var lt = e.target.closest('[data-lang-toggle]'); if (lt) L.set(L.get() === 'hi' ? 'en' : 'hi');
+      var ls = e.target.closest('[data-lang-set]'); if (ls) L.set(ls.getAttribute('data-lang-set'));
     });
+    function paintLang() { var L = window.ASINGH.Lang; if (!L) return; var l = L.get(); $$('.langbtn__t').forEach(function (e) { e.textContent = l === 'hi' ? 'English' : 'हिन्दी'; }); $$('[data-lang-set]').forEach(function (b) { b.setAttribute('aria-pressed', b.getAttribute('data-lang-set') === l); }); }
+    document.addEventListener('asingh:lang', paintLang); document.addEventListener('asingh:ready', paintLang); setTimeout(paintLang, 50);
     document.addEventListener('asingh:theme', paint); document.addEventListener('asingh:ready', paint); paint(); setTimeout(paint, 0);
   })();
 

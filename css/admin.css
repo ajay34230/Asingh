@@ -97,3 +97,4 @@
 
 .orow--static { cursor: default; } .adm__req { border-left: 3px solid var(--gold, #c9a45c); } .btn--sm { min-height: 36px; padding: 0 12px; font-size: .85rem; }
 .orow--wrap { align-items: flex-start; flex-wrap: wrap; } .orow--wrap .orow__t small { white-space: normal; }
+.hirows { display: grid; gap: 10px; } .hirow { display: grid; gap: 4px; } .hirow__en { font-size: .88rem; color: var(--ink-2); } @media (min-width: 900px) { .hirow { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); align-items: center; gap: 14px; } }

@@ -326,11 +326,12 @@ function createApp(opts = {}) {
   const serveCms = async (req, res, m) => {
     const p = catalog.page(m[1]); if (!p || !p.published) return serve404(req, res);
     const o = SEO.origin(req), t = catalog.site; let html = tpl('page.html'), extra = '';
-    const body = Pages.render(p.body, catalog.pageVars());
+    const hi = /(?:^|;\s*)as_lang=hi\b/.test(req.headers.cookie || '') && p.bodyHi, pTitle = hi && p.titleHi ? p.titleHi : p.title;
+    const body = Pages.render(hi ? p.bodyHi : p.body, catalog.pageVars());
     if (p.slug === 'contact') extra = '<section class="contactform" aria-labelledby="cf-h"><h2 id="cf-h" class="h3">Send us a message</h2><form id="contact-form" novalidate><div class="fields"><div class="field"><label class="field__l" for="c-name">Your name</label><input class="input" id="c-name" name="name" autocomplete="name" maxlength="80" required></div><div class="field"><label class="field__l" for="c-email">Email</label><input class="input" id="c-email" name="email" type="email" inputmode="email" autocomplete="email" maxlength="120" required></div><div class="field"><label class="field__l" for="c-phone">Mobile <span class="muted">(optional)</span></label><input class="input" id="c-phone" name="phone" type="tel" inputmode="tel" autocomplete="tel" maxlength="20"></div><div class="field field--wide"><label class="field__l" for="c-msg">How can we help?</label><textarea class="input" id="c-msg" name="message" rows="5" maxlength="2000" required></textarea></div></div><div class="hp" aria-hidden="true"><label>Website <input name="website" tabindex="-1" autocomplete="off"></label></div><p class="field__err" id="c-err" role="alert"></p><button class="btn btn--lg" type="submit"><span>Send message</span></button><p class="muted" id="c-ok" role="status"></p></form></section>';
     html = SEO.apply(html, { origin: o, site: t.name, title: `${p.title} | ${t.name}`, desc: Pages.plain(Pages.render(p.body, catalog.pageVars()).replace(/<[^>]+>/g, ' '), 160) || p.title, path: p.slug + '.html', verify: t.googleSiteVerification, ld: SEO.crumbs(o, [['Home', '/'], [p.title, p.slug + '.html']]) });
-    html = html.replace('<!--@crumb-->', SEO.esc(p.title)).replace('<!--@h1-->', SEO.esc(p.title)).replace('<!--@body-->', body).replace('<!--@extra-->', extra);
-    sendHtml(req, res, 200, html);
+    html = html.replace('<!--@crumb-->', SEO.esc(pTitle)).replace('<!--@h1-->', SEO.esc(pTitle)).replace('<!--@body-->', body).replace('<!--@extra-->', extra);
+    sendHtml(req, res, 200, html, { Vary: 'Accept-Encoding, Cookie' });
   };
   route('GET', /^\/([a-z0-9-]{2,40})\.html$/, serveCms); route('HEAD', /^\/([a-z0-9-]{2,40})\.html$/, serveCms);
   function serve404(req, res) { const o = SEO.origin(req); sendHtml(req, res, 404, SEO.apply(tpl('404.html'), { origin: o, site: catalog.site.name, title: 'Page not found — ' + catalog.site.name, desc: 'Page not found', noindex: true, path: '' })); }

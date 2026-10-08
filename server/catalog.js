@@ -29,7 +29,7 @@ const defaultSite = () => ({
   stitch: A.STITCH.map(x => ({ id: x.id, label: x.label, note: x.note, eta: x.eta, add: { unstitched: 0, semi: 600, custom: 1800 }[x.id], enabled: true })),
   sizeChart: [['XS', 32, 26, 35], ['S', 34, 28, 37], ['M', 36, 30, 39], ['L', 38, 32, 41], ['XL', 40, 34, 43], ['XXL', 42, 36, 45]].map(r => ({ size: r[0], bust: r[1], waist: r[2], hip: r[3] })),
   contactEmail: '', contactPhone: '', contactAddress: '', contactHours: '',
-  googleSiteVerification: '', ga4Id: '', returnDays: 7, handlingMin: 1, handlingMax: 3, deliveryMin: 3, deliveryMax: 7,
+  googleSiteVerification: '', ga4Id: '', translations: {}, returnDays: 7, handlingMin: 1, handlingMax: 3, deliveryMin: 3, deliveryMax: 7,
   shipFreeFrom: A.FREE_SHIP_FROM, shipFlat: A.SHIP_FLAT, testimonials: []
 });
 const merge = (d, v) => { const o = { ...d }; Object.keys(v || {}).forEach(k => { o[k] = d[k] && typeof d[k] === 'object' && !Array.isArray(d[k]) && v[k] && typeof v[k] === 'object' && !Array.isArray(v[k]) ? { ...d[k], ...v[k] } : v[k]; }); return o; };
@@ -53,7 +53,11 @@ class Catalog {
       db.save();
     }
     this.D.site = merge(defaultSite(), this.D.site); delete this.D.site.stitchAdd;
-    if (Array.isArray(this.D.pages)) Pages.DEFAULT_PAGES.forEach(d => { if (!this.D.pages.some(p => p.slug === d.slug)) this.D.pages.push({ ...d, published: true, system: true, updatedAt: Date.now() }); });
+    if (Array.isArray(this.D.pages)) Pages.DEFAULT_PAGES.forEach(d => {
+      const ex = this.D.pages.find(p => p.slug === d.slug);
+      if (!ex) this.D.pages.push({ ...d, published: true, system: true, updatedAt: Date.now() });
+      else if (ex.system && ex.bodyHi === undefined && d.bodyHi) { ex.titleHi = d.titleHi; ex.bodyHi = d.bodyHi; }   // Hindi versions for stores created before Hindi existed
+    });
     if (!Array.isArray(this.D.pages)) { this.D.pages = Pages.DEFAULT_PAGES.map(p => ({ ...p, published: true, system: true, updatedAt: Date.now() })); db.save(); }
     fs.mkdirSync(path.join(db.dir, 'media'), { recursive: true, mode: 0o700 });
   }
@@ -134,9 +138,10 @@ class Catalog {
     b = b || {}; let p = slug ? this.page(slug) : null; if (slug && !p) throw Object.assign(new Error('Page not found'), { status: 404 });
     const title = s(b.title !== undefined ? b.title : p && p.title, 80); if (title.length < 2) throw bad('Give the page a title.');
     const body = b.body !== undefined ? String(b.body).slice(0, 20000) : p ? p.body : '';
+    const titleHi = b.titleHi !== undefined ? s(b.titleHi, 80) : (p && p.titleHi) || '', bodyHi = b.bodyHi !== undefined ? String(b.bodyHi).slice(0, 20000) : (p && p.bodyHi) || '';
     const group = ['help', 'legal', 'none'].indexOf(b.group) > -1 ? b.group : p ? p.group : 'help';
     if (!p) { let sl = slug2(b.slug || title), n = 2; if (['index', 'shop', 'product', 'cart', 'checkout', 'account', 'track', 'order', 'invoice', 'admin', 'page', '404', 'sitemap'].indexOf(sl) > -1) sl += '-page'; const base = sl; while (this.page(sl)) sl = base + '-' + n++; p = { slug: sl, system: false }; this.D.pages.push(p); }
-    Object.assign(p, { title, body, group, reviewed: true, published: b.published === undefined ? (p.published !== false) : !!b.published, updatedAt: Date.now() }); this.touch(); return p;
+    Object.assign(p, { title, body, titleHi, bodyHi, group, reviewed: true, published: b.published === undefined ? (p.published !== false) : !!b.published, updatedAt: Date.now() }); this.touch(); return p;
   }
   removePage(slug) { const p = this.page(slug); if (!p) throw Object.assign(new Error('Page not found'), { status: 404 }); if (slug === 'contact') throw bad('The contact page can be hidden but not deleted.'); this.D.pages = this.D.pages.filter(x => x !== p); this.touch(); }
   /* ---- categories & site ---- */
@@ -154,6 +159,11 @@ class Catalog {
     const money = (k, max, label) => { if (b[k] !== undefined) { const v = Math.round(Number(b[k])); if (!(v >= 0 && v <= max)) throw bad(label + ' is not valid.'); t[k] = v; } };
     money('shipFreeFrom', 1e6, 'Free-shipping amount'); money('shipFlat', 1e4, 'Shipping fee'); money('returnDays', 90, 'Return window'); ['handlingMin', 'handlingMax', 'deliveryMin', 'deliveryMax'].forEach(k => money(k, 60, 'Delivery days'));
     if (t.handlingMax < t.handlingMin || t.deliveryMax < t.deliveryMin) throw bad('Maximum days can’t be smaller than minimum days.');
+    if (b.translations !== undefined) {   // owner's own Hindi: { "English text": "हिन्दी" }
+      const src = b.translations && typeof b.translations === 'object' ? b.translations : {}, out = {}; let n = 0;
+      Object.keys(src).forEach(k => { const key = s(k, 300).replace(/\s+/g, ' ').trim(), v = s(src[k], 600); if (key && v && n < 1500) { out[key] = v; n++; } });
+      t.translations = out;
+    }
     if (b.googleSiteVerification !== undefined) { const v = s(b.googleSiteVerification, 100); if (v && !/^[\w-]{8,100}$/.test(v)) throw bad('Search Console code should be the long code from Google (letters, numbers, - and _ only).'); t.googleSiteVerification = v; }
     if (b.ga4Id !== undefined) { const v = s(b.ga4Id, 20).toUpperCase(); if (v && !/^G-[A-Z0-9]{6,14}$/.test(v)) throw bad('Google Analytics ID looks like G-XXXXXXXXXX.'); t.ga4Id = v; }
     if (b.sections && typeof b.sections === 'object') Object.keys(t.sections).forEach(k => { if (b.sections[k] !== undefined) t.sections[k] = !!b.sections[k]; });
@@ -203,7 +213,7 @@ class Catalog {
   }
   overlay() {
     const t = this.site, st = t.stitch.filter(x => x.enabled).map(x => ({ id: x.id, label: x.label, note: x.note, eta: x.eta, add: x.add }));
-    const data = { PRODUCTS: this.D.products.filter(p => p.published).map(p => this.publicProduct(p)), CATEGORIES: this.categories, STITCH: st, FREE_SHIP_FROM: t.shipFreeFrom, SHIP_FLAT: t.shipFlat, BRAND: t.name, OCCASIONS: t.occasions.map(o => ({ id: o.id, label: o.label })), SIZES: this.sizes, SIZECHART: t.sizeChart, SITE: Object.assign({}, t, { heroImage: t.heroImage }), IMGS: this.imgs(), PAGES: this.D.pages.filter(p => p.published && p.group !== 'none').map(p => ({ slug: p.slug, title: p.title, group: p.group })), REVIEWS: t.testimonials.map(x => ({ who: x.name, city: x.city, stars: x.stars, title: '', body: x.text })) };
+    const data = { PRODUCTS: this.D.products.filter(p => p.published).map(p => this.publicProduct(p)), CATEGORIES: this.categories, STITCH: st, FREE_SHIP_FROM: t.shipFreeFrom, SHIP_FLAT: t.shipFlat, BRAND: t.name, OCCASIONS: t.occasions.map(o => ({ id: o.id, label: o.label })), SIZES: this.sizes, SIZECHART: t.sizeChart, SITE: Object.assign({}, t, { heroImage: t.heroImage }), IMGS: this.imgs(), PAGES: this.D.pages.filter(p => p.published && p.group !== 'none').map(p => ({ slug: p.slug, title: p.title, titleHi: p.titleHi || '', group: p.group })), REVIEWS: t.testimonials.map(x => ({ who: x.name, city: x.city, stars: x.stars, title: '', body: x.text })) };
     return `\n/* generated from the live catalogue */\n(function(A){var d=${JSON.stringify(data).replace(/</g, '\\u003c')};for(var k in d)A[k]=d[k];})(ASINGH);\n`;
   }
 }

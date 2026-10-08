@@ -246,12 +246,13 @@
       '<form class="adm__db pform" id="pgf" novalidate>' + F('g-title', 'Title', I('g-title', p.title, { max: 80 })) +
       '<div class="adm__two3">' + F('g-group', 'Show in footer', '<select class="input input--select" id="g-group">' + [['help', 'Help links'], ['legal', 'Policies'], ['none', 'Don’t show']].map(function (o) { return '<option value="' + o[0] + '"' + (p.group === o[0] ? ' selected' : '') + '>' + o[1] + '</option>'; }).join('') + '</select>') + '<div class="field"><span class="field__l">Visibility</span>' + SW('g-pub', 'Published', p.published) + '</div></div>' +
       F('g-body', 'Page text', T('g-body', p.body, 16, 20000), 'Formatting: <code># Heading</code> · <code>## Sub-heading</code> · <code>**bold**</code> · <code>*italic*</code> · <code>- list item</code> · <code>1. numbered</code> · <code>[link text](url)</code> · <code>---</code> line. Fill-ins: <code>{{name}}</code> <code>{{email}}</code> <code>{{phone}}</code> <code>{{hours}}</code> <code>{{address}}</code> (from Store settings).') +
+      '<details class="adm__trk"' + (p.bodyHi ? ' open' : '') + '><summary>हिन्दी version (shown when a visitor picks Hindi)</summary>' + F('g-title-hi', 'Title in Hindi', I('g-title-hi', p.titleHi || '', { max: 80 })) + F('g-body-hi', 'Page text in Hindi', T('g-body-hi', p.bodyHi || '', 12, 20000), 'Same formatting as above. Leave empty to show the English text.') + '</details>' +
       '<div class="adm__row"><button type="button" class="btn btn--ghost" id="g-prev">Preview</button></div><div id="g-pv" class="prose__body pvbox" hidden></div>' +
       '<p class="field__err" id="g-err" role="alert"></p><div class="adm__row"><button class="btn btn--lg btn--grow" type="submit" id="g-save"><span>' + (isNew ? 'Add page' : 'Save page') + '</span></button></div>' +
       (isNew || p.slug === 'contact' ? '' : '<section><h3>Danger zone</h3><button type="button" class="btn btn--ghost adm__del" id="g-del">Delete this page…</button></section>') + '</form>');
     $('#g-prev').addEventListener('click', function () { api('POST', '/api/admin/pages/preview', { body: val('g-body') }).then(function (r) { var b = $('#g-pv'); b.hidden = false; b.innerHTML = r.html; }); });
     $('#pgf').addEventListener('submit', function (e) {
-      e.preventDefault(); var b = $('#g-save'); b.disabled = true; b.classList.add('is-busy'); var body = { title: val('g-title'), group: val('g-group'), published: chk('g-pub'), body: val('g-body') };
+      e.preventDefault(); var b = $('#g-save'); b.disabled = true; b.classList.add('is-busy'); var body = { title: val('g-title'), group: val('g-group'), published: chk('g-pub'), body: val('g-body'), titleHi: val('g-title-hi'), bodyHi: val('g-body-hi') };
       (isNew ? api('POST', '/api/admin/pages', body) : api('PUT', '/api/admin/pages/' + p.slug, body)).then(function () { toast('Page saved'); ADM.closeDrawer(); V.pages(); }, function (er) { b.disabled = false; b.classList.remove('is-busy'); $('#g-err').textContent = er.message; });
     });
     var d = $('#g-del'); if (d) d.addEventListener('click', function () { if (confirm('Delete the page “' + p.title + '”?')) api('DELETE', '/api/admin/pages/' + p.slug).then(function () { toast('Page deleted'); ADM.closeDrawer(); V.pages(); }, function (er) { toast(er.message, 'bad'); }); });
@@ -329,6 +330,35 @@
       var v = view('<p class="muted">Only customers whose order was delivered can review. Approve a review to show it on the product page; it then updates the product’s star rating.</p>' + (r.reviews.length ? '<div class="adm__list">' + r.reviews.map(function (x) { return '<div class="orow orow--static orow--wrap"><span class="orow__t"><strong>' + '★'.repeat(x.stars) + ' ' + esc(x.title || '') + '</strong><small>' + esc(x.body) + '</small><small>' + esc(x.who) + ' on ' + esc(x.product) + ' · <b>' + x.state + '</b></small></span>' + (x.state === 'approved' ? '<button class="btn btn--ghost btn--sm" data-rs="hidden" data-id="' + x.id + '">Hide</button>' : '<button class="btn btn--sm" data-rs="approved" data-id="' + x.id + '">Approve</button>') + '<button class="btn btn--ghost btn--sm adm__del" data-rd="' + x.id + '">Delete</button></div>'; }).join('') + '</div>' : '<p class="muted pad">No reviews yet.</p>'));
       $$('[data-rs]', v).forEach(function (b) { b.addEventListener('click', function () { api('PATCH', '/api/admin/reviews/' + b.getAttribute('data-id'), { state: b.getAttribute('data-rs') }).then(function () { V.reviews(); }); }); });
       $$('[data-rd]', v).forEach(function (b) { b.addEventListener('click', function () { if (confirm('Delete this review?')) api('DELETE', '/api/admin/reviews/' + b.getAttribute('data-rd')).then(function () { V.reviews(); }); }); });
+    });
+  };
+
+  /* ---- Hindi: the owner's own translations for products, categories, texts ---- */
+  V.hindi = function () {
+    var live = ADM.guard();
+    load().then(function () {
+      if (!live()) return;
+      var t = cat.site, own = t.translations || {}, seen = {}, rows = [];
+      var add = function (en, group) { en = String(en || '').replace(/\s+/g, ' ').trim(); if (!en || seen[en] || !/[A-Za-z]{2}/.test(en)) return; seen[en] = 1; rows.push({ en: en, group: group }); };
+      ['name', 'announcement', 'heroEyebrow', 'heroTitle', 'heroLead', 'heroCta'].forEach(function (k) { add(t[k], 'Store & home page'); });
+      (t.marquee || []).forEach(function (x) { add(x, 'Store & home page'); });
+      (t.trust || []).forEach(function (x) { add(x.title, 'Store & home page'); add(x.sub, 'Store & home page'); });
+      (t.occasions || []).forEach(function (x) { add(x.label, 'Store & home page'); add(x.sub, 'Store & home page'); });
+      if (t.story) { add(t.story.eyebrow, 'Store & home page'); add(t.story.title, 'Store & home page'); add(t.story.cta, 'Store & home page'); (t.story.steps || []).forEach(function (x) { add(x.title, 'Store & home page'); add(x.text, 'Store & home page'); }); }
+      cat.categories.forEach(function (c) { add(c.label, 'Categories'); });
+      cat.products.forEach(function (p) { add(p.name, 'Products'); (p.fabric || '').split(' · ').forEach(function (x) { add(x, 'Products'); }); add(p.fabric, 'Products'); add(p.blurb, 'Products'); (p.colors || []).forEach(function (c) { add(c.name, 'Products'); }); (p.inc || []).forEach(function (x) { add(x, 'Products'); }); (p.details || []).forEach(function (x) { add(x, 'Products'); }); add(p.badge, 'Products'); });
+      var builtin = (window.ASINGH && window.ASINGH.I18N && window.ASINGH.I18N.hi) || {};
+      var groups = ['Store & home page', 'Categories', 'Products'], html = '';
+      groups.forEach(function (g) {
+        var list = rows.filter(function (r) { return r.group === g; }); if (!list.length) return;
+        html += '<section class="adm__card"><h2>' + g + '</h2><div class="hirows">' + list.map(function (r, i) { var v = own[r.en] || builtin[r.en] || ''; return '<div class="hirow"><label class="hirow__en" for="hi-' + g.charAt(0) + i + '">' + esc(r.en) + '</label><input class="input" lang="hi" id="hi-' + g.charAt(0) + i + '" data-en="' + esc(r.en) + '" value="' + esc(v) + '" placeholder="हिन्दी में लिखें…"></div>'; }).join('') + '</div></section>';
+      });
+      var v = view('<p class="muted">Customers who choose <strong>हिन्दी</strong> see these translations instead of your English text. Built-in words (menus, buttons, standard product terms) are already translated — anything you change here overrides them. Anything left empty stays in English. Policy pages have their own Hindi box inside Pages.</p><form id="hif" novalidate class="adm__stack">' + html + '<p class="field__err" id="himsg" role="alert"></p><div class="adm__savebar"><button class="btn btn--lg" type="submit" id="hisave"><span>Save translations</span></button></div></form>');
+      $('#hif').addEventListener('submit', function (e) {
+        e.preventDefault(); var out = {}; $$('input[data-en]', v).forEach(function (i) { var h = i.value.trim(); if (h && h !== (builtin[i.getAttribute('data-en')] || '')) out[i.getAttribute('data-en')] = h; });
+        Object.keys(own).forEach(function (k) { if (!seen[k] && own[k]) out[k] = own[k]; });   // keep translations of texts not shown above
+        api('PUT', '/api/admin/site', { translations: out }).then(function () { $('#himsg').textContent = ''; toast('Translations saved'); }, function (er) { $('#himsg').textContent = er.message; });
+      });
     });
   };
 })();

@@ -276,6 +276,17 @@ console.log('\nVerified reviews');
   const rid = (await ADM.req('GET', '/api/admin/reviews')).json.reviews[0].id; ok((await ADM.req('PATCH', '/api/admin/reviews/' + rid, { state: 'approved' })).status === 200, 'admin approves');
   g = await new Client().req('GET', '/api/products/' + pidr + '/reviews'); ok(g.json.reviews.length === 1 && g.json.reviews[0].who === 'Isha V.', 'public sees it with first name + initial only'); }
 
+console.log('\nHindi');
+{ const cms = async (cookie) => (await fetch(base + '/faq.html', { headers: cookie ? { cookie } : {} })).text();
+  const en = await cms(), hi = await cms('as_lang=hi'); ok(/How do I place an order\?/.test(en) && !/ऑर्डर कैसे करूँ/.test(en), 'policy/help pages stay English by default');
+  ok(/ऑर्डर कैसे करूँ/.test(hi) && /lang|<html/.test(hi), 'Hindi cookie serves the Hindi version of the page');
+  r = await ADM.req('PUT', '/api/admin/site', { translations: { 'Test Kota Poshak': 'टेस्ट कोटा पोशाक', '': 'x' } }); ok(r.status === 200, 'admin saves own translations');
+  const dj2 = await new Client().req('GET', '/js/data.js'); ok(/टेस्ट कोटा पोशाक/.test(dj2.text) && /"titleHi"/.test(dj2.text), 'storefront receives owner translations and Hindi page titles');
+  r = await ADM.req('PUT', '/api/admin/pages/about', { titleHi: 'हमारी कहानी', bodyHi: 'नमस्ते {{name}}' }); ok(r.status === 200 && r.json.page.titleHi === 'हमारी कहानी', 'admin edits a page’s Hindi version');
+  ok(/नमस्ते/.test(await cms2('about.html')), 'edited Hindi page is served'); await ADM.req('PUT', '/api/admin/site', { translations: {} });
+  ok((await (await fetch(base + '/js/i18n-hi.js')).text()).length > 20000, 'Hindi dictionary file is served'); }
+async function cms2(path) { return (await fetch(base + '/' + path, { headers: { cookie: 'as_lang=hi' } })).text(); }
+
 console.log('\nAdmin analytics');
 { const an = await ADM.req('GET', '/api/admin/analytics?days=30'); ok(an.status === 200 && an.json.series.length === 30 && an.json.orders >= 2, 'analytics returns a 30-day series and order totals');
   ok(an.json.paidOrders >= 1 && an.json.revenue > 0 && an.json.aov > 0 && an.json.top.length >= 1, 'revenue, average order and top products computed from paid orders');

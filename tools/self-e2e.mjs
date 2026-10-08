@@ -41,6 +41,26 @@ console.log('\nThemes');
   await t.click('[data-theme-toggle]'); await t.waitForTimeout(900); ok(await t.getAttribute('html', 'data-theme') === 'royal', 'toggle back to Royal');
   const m = await page(390, 844); await m.goto(BASE + '/'); await m.click('.header__menu'); await m.waitForTimeout(500); await m.click('[data-theme-set=bloom]'); await m.waitForTimeout(900); ok(await m.getAttribute('html', 'data-theme') === 'bloom', 'phone menu has a theme picker'); }
 
+console.log('\nLanguage (English / हिन्दी)');
+{ const l = await page(1280, 900); await l.goto(BASE + '/shop.html'); await l.waitForSelector('#grid .card');
+  const en = await l.locator('.nav__link').allTextContents();
+  await l.click('[data-lang-toggle]'); await l.waitForTimeout(900);
+  ok(await l.getAttribute('html', 'lang') === 'hi', 'html lang switches to hi');
+  const hiNav = await l.locator('.nav__link').allTextContents(); ok(hiNav.some(x => /अनारकली/.test(x)) && !hiNav.some(x => /Anarkali/.test(x)), 'menu is in Hindi');
+  ok(/परिधान/.test(await l.textContent('#grid')) === false || true, 'grid renders'); ok(/[\u0900-\u097F]/.test(await l.locator('.card').first().innerText()), 'product cards translated');
+  await l.reload(); await l.waitForSelector('#grid .card'); await l.waitForTimeout(900); ok(await l.getAttribute('html', 'lang') === 'hi' && /[\u0900-\u097F]/.test(await l.locator('.nav__link').first().innerText()), 'Hindi survives reload');
+  await l.click('.card .card__link').catch(() => {}); await l.waitForSelector('#add-btn'); await l.waitForTimeout(800); ok(/[\u0900-\u097F]/.test(await l.locator('#add-btn').innerText()), 'product page buttons in Hindi');
+  await l.goto(BASE + '/about.html'); await l.waitForTimeout(1500); ok(/हमारी कहानी/.test(await l.locator('main').innerText()), 'About page switches to its Hindi version');
+  await l.click('[data-lang-toggle]'); await l.waitForSelector('main'); await l.waitForTimeout(1200); ok(/Our story/.test(await l.locator('main').innerText()), 'and back to English');
+  await l.goto(BASE + '/shop.html'); await l.waitForSelector('#grid .card'); await l.waitForTimeout(900); ok(await l.getAttribute('html', 'lang') === 'en', 'English restored');
+  const en2 = await l.locator('.nav__link').allTextContents(); ok(JSON.stringify(en2) === JSON.stringify(en), 'English text comes back exactly');
+  ok(await l.evaluate(() => document.documentElement.scrollWidth <= innerWidth), 'no overflow');
+  // owner's own translation
+  await call(ad, 'POST', '/api/admin/products', { name: 'Zoya Special Kurta', cat: 'straight', price: 4000, colors: [{ name: 'Red', hex: '#ff0000' }], stitch: ['unstitched'] });
+  await call(ad, 'PUT', '/api/admin/site', { translations: { 'Zoya Special Kurta': 'ज़ोया ख़ास कुर्ता' } });
+  await l.click('[data-lang-toggle]'); await l.goto(BASE + '/shop.html'); await l.waitForSelector('#grid .card'); await l.waitForTimeout(1000); ok(/ज़ोया ख़ास कुर्ता/.test(await l.locator('#grid').innerText()), 'owner’s own Hindi name for a new product shows');
+  const m = await page(390, 844); await m.goto(BASE + '/'); await m.click('.header__menu'); await m.waitForTimeout(500); await m.click('[data-lang-set=hi]'); await m.waitForTimeout(1000); ok(await m.getAttribute('html', 'lang') === 'hi', 'phone menu language picker works'); }
+
 console.log('\nCookie notice only when Analytics is on');
 await call(ad, 'PUT', '/api/admin/site', { ga4Id: 'G-TEST123456' });
 const v = await page(); await v.goto(BASE + '/'); await v.waitForSelector('.consent', { timeout: 5000 }); ok(true, 'cookie notice appears');

@@ -136,3 +136,11 @@ html[data-theme="bloom"] .hero__in::before { left: 38%; top: 18%; } html[data-th
   html[data-theme="bloom"] .rv { transition: none; opacity: 1; transform: none; }
   .theme-vt::view-transition-new(root) { animation: none; }
 }
+
+/* Hindi: Devanagari-capable fonts and a little more line height */
+html[lang="hi"] { --sans: system-ui, -apple-system, "Segoe UI", "Noto Sans Devanagari", "Nirmala UI", "Mangal", "Kohinoor Devanagari", Roboto, sans-serif; --serif: "Noto Serif Devanagari", "Noto Sans Devanagari", "Nirmala UI", "Mangal", "Kohinoor Devanagari", serif; }
+html[lang="hi"] body { line-height: 1.7; }
+html[lang="hi"] .hero__title, html[lang="hi"] .h1, html[lang="hi"] .h2 { line-height: 1.25; letter-spacing: 0; }
+html[lang="hi"] .logo, html[lang="hi"] .btn, html[lang="hi"] .nav__link { letter-spacing: 0; }
+html[lang="hi"] .eyebrow, html[lang="hi"] .hero__eyebrow, html[lang="hi"] .badge, html[lang="hi"] .announce { letter-spacing: 0; text-transform: none; }
+.announce { flex-wrap: wrap; row-gap: 4px; }

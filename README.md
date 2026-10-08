@@ -116,5 +116,8 @@ Hero with drifting gold ornaments, shimmering key phrase and pointer parallax (a
 
 **Google:** product/organization/breadcrumb structured data, sitemap + robots, Search Console verification field, Google Merchant Center feed at `/feeds/google-merchant.xml` (real products only), Analytics (GA4) loaded only after the visitor accepts a cookie notice, privacy/returns/shipping policy pages. Before sharing the link, complete the checklist on the admin Overview and review each policy page (they are templates, not legal advice).
 
+## Languages (English / हिन्दी) and themes
+Visitors switch language and theme from the top bar (or Menu on phones); the choice is remembered. Hindi is applied in place from a built-in dictionary (`js/i18n-hi.js`, downloaded only when Hindi is chosen). **To add or change anything**: Admin → **Hindi** lists your product names, categories, hero and home texts with a box for the Hindi version of each (anything you leave empty stays English); policy/help pages have a Hindi box inside Pages. Store name, contact details and all other texts are editable in the admin as before. Themes: **Royal** (wine & gold) and **Bloom** (pastel, animated).
+
 ## Known placeholders
 Catalogue, reviews, contact details and imagery are sample content (replace the drawn illustrations with real photography using the same file names). Verified in Chromium only; spot-check Safari, Firefox and Samsung Internet on real devices.
