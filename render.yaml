@@ -1,0 +1,21 @@
+# Render Blueprint — one-click demo deploy on the free web service.
+# NOTE: the free tier has no permanent disk, so orders/uploads are wiped on restart. Use for demos only.
+services:
+  - type: web
+    name: asingh
+    runtime: node
+    plan: free
+    branch: claude/extreme-responsive-design-t9g7mk
+    buildCommand: echo "nothing to build"
+    startCommand: npm start
+    healthCheckPath: /api/config
+    autoDeploy: true
+    envVars:
+      - key: COOKIE_SECURE
+        value: "1"
+      - key: TRUST_PROXY
+        value: "1"
+      - key: ADMIN_EMAIL
+        value: admin@asingh.local
+      - key: ADMIN_PASSWORD
+        generateValue: true
