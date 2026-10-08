@@ -96,6 +96,49 @@ function createApp(opts = {}) {
     db.save(); send(res, 200, { user: publicUser(u) });
   });
 
+  /* ---- customer self-service: password, sign out everywhere, data export, delete account ---- */
+  const IN_PROGRESS = ['payment_review', 'paid', 'processing', 'shipped'];
+  const eraseUser = u => {   // removes the person; orders are kept for accounting but stripped of contact details
+    D.orders.filter(o => o.userId === u.id).forEach(o => {
+      dropOrder(o); o.proof = null; o.userId = 'deleted'; o.customer = { name: 'Deleted customer', email: '', phone: '', line1: '', line2: '', pin: '', city: o.customer.city, state: o.customer.state }; o.tracking = null;
+    });
+    D.notifications = D.notifications.filter(n => !n.orderId || D.orders.some(o => o.id === n.orderId && o.userId !== 'deleted'));
+    if (u.email) D.subscribers = D.subscribers.filter(x => x.email !== u.email);
+    D.sessions = D.sessions.filter(x => x.uid !== u.id); auth.bySid = new Map(D.sessions.map(x => [x.h, x]));
+    D.users = D.users.filter(x => x !== u); db.save();
+  };
+  route('POST', /^\/api\/me\/password$/, async (req, res) => {
+    const u = need(req); if (u.isGuest || u.role === 'admin') throw fail(400, 'Not available for this account.'); if (!authLimit(ip(req))) throw fail(429, 'Too many attempts. Try again in a few minutes.');
+    const b = await jsonBody(req); if (!verifyPassword(String(b.current || ''), u.passHash)) throw fail(401, 'Current password is incorrect.');
+    const np = String(b.next || ''); if (np.length < 8 || np.length > 128) throw fail(400, 'New password must be 8–128 characters.');
+    u.passHash = hashPassword(np); db.save(); auth.revokeOthers(u, req); send(res, 200, { ok: true });
+  });
+  route('POST', /^\/api\/me\/email$/, async (req, res) => {
+    const u = need(req); if (u.isGuest || u.role === 'admin') throw fail(400, 'Not available for this account.'); if (!authLimit(ip(req))) throw fail(429, 'Too many attempts. Try again in a few minutes.');
+    const b = await jsonBody(req), email = String(b.email || '').trim().toLowerCase().slice(0, 120);
+    if (!verifyPassword(String(b.password || ''), u.passHash)) throw fail(401, 'Password is incorrect.');
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(email)) throw fail(400, 'Enter a valid email address.');
+    if (D.users.some(x => x.email === email && x !== u)) throw fail(409, 'That email is already in use.');
+    u.email = email; db.save(); send(res, 200, { user: publicUser(u) });
+  });
+  route('POST', /^\/api\/me\/signout-all$/, async (req, res) => { const u = need(req); auth.revokeOthers(u, req); send(res, 200, { ok: true }); });
+  route('GET', /^\/api\/me\/export$/, async (req, res) => {
+    const u = need(req), out = { exportedAt: new Date().toISOString(), account: { name: u.name, email: u.email, guest: !!u.isGuest, createdAt: new Date(u.createdAt).toISOString(), savedDetails: u.profile || {} },
+      newsletter: !!D.subscribers.find(x => x.email === u.email), orders: D.orders.filter(o => o.userId === u.id).map(o => Orders.view(o, false)) };
+    res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8', 'Content-Disposition': 'attachment; filename="my-asingh-data.json"', 'Cache-Control': 'no-store', ...headersFor(false) }); res.end(JSON.stringify(out, null, 2));
+  });
+  route('DELETE', /^\/api\/me$/, async (req, res) => {
+    const u = need(req); if (u.role === 'admin') throw fail(400, 'Admin accounts are removed from Admins & login.'); if (!authLimit(ip(req))) throw fail(429, 'Too many attempts. Try again in a few minutes.');
+    const b = await jsonBody(req); if (!u.isGuest && !verifyPassword(String(b.password || ''), u.passHash)) throw fail(401, 'Password is incorrect.');
+    const open = D.orders.filter(o => o.userId === u.id && (IN_PROGRESS.indexOf(o.status) > -1 || (o.request && o.request.state === 'pending')));
+    if (open.length) throw fail(409, 'You have ' + open.length + ' order' + (open.length > 1 ? 's' : '') + ' still in progress (' + open.slice(0, 3).map(o => o.number).join(', ') + '). Please wait until delivery, or cancel first.');
+    eraseUser(u); auth.logout(req, res); send(res, 200, { ok: true });
+  });
+  route('POST', /^\/api\/newsletter\/unsubscribe$/, async (req, res) => {
+    if (!guestLimit(ip(req))) throw fail(429, 'Too many attempts. Try again in a few minutes.');
+    const e = String((await jsonBody(req)).email || '').trim().toLowerCase(); D.subscribers = D.subscribers.filter(x => x.email !== e); db.save(); send(res, 200, { ok: true });
+  });
+
   /* orders (private: owner or admin only) */
   route('POST', /^\/api\/orders$/, async (req, res) => {
     const u = need(req); if (!orderLimit(u.id)) throw fail(429, 'Too many orders. Please try again later.');
@@ -112,6 +155,22 @@ function createApp(opts = {}) {
     const u = need(req), o = findOrder(m[1], u); if (o.userId !== u.id) throw fail(404, 'Order not found');
     if (['awaiting_payment', 'payment_rejected'].indexOf(o.status) < 0) throw fail(409, 'This order can no longer be cancelled here. Please contact us.');
     Orders.transition(db, o, 'cancelled', 'Cancelled by customer', 'customer'); notifier.push('order_cancelled', o, 'Order cancelled ' + o.number, o.customer.name); send(res, 200, { order: Orders.view(o, false) });
+  });
+  /* after payment: customer asks to cancel; after delivery: asks to return/exchange — admin decides */
+  route('POST', /^\/api\/orders\/([\w-]+)\/request$/, async (req, res, m) => {
+    const u = need(req), o = findOrder(m[1], u); if (o.userId !== u.id) throw fail(404, 'Order not found');
+    const b = await jsonBody(req), type = String(b.type || ''), reason = String(b.reason || '').trim().slice(0, 400);
+    if (o.request && o.request.state === 'pending') throw fail(409, 'You already have a request waiting for us.');
+    if (reason.length < 5) throw fail(400, 'Please tell us briefly why.');
+    if (type === 'cancel') { if (['paid', 'processing'].indexOf(o.status) < 0) throw fail(409, 'This order can’t be cancelled now.'); }
+    else if (type === 'return' || type === 'exchange') {
+      if (o.status !== 'delivered') throw fail(409, 'Returns open after delivery.');
+      if (o.items.every(i => i.stitch === 'custom')) throw fail(409, 'Custom-stitched pieces can’t be returned — contact us for alterations.');
+      const at = (o.timeline.slice().reverse().find(t => t.status === 'delivered') || { at: o.updatedAt }).at, days = catalog.site.returnDays || 0;
+      if (!days || Date.now() > at + days * 864e5) throw fail(409, 'The ' + days + '-day return window has passed.');
+    } else throw fail(400, 'Unknown request.');
+    o.request = { type, reason, state: 'pending', at: Date.now() }; o.timeline.push({ at: Date.now(), status: o.status, note: (type === 'cancel' ? 'Cancellation' : type === 'return' ? 'Return' : 'Exchange') + ' requested: ' + reason, by: 'customer' }); o.updatedAt = Date.now(); db.save();
+    notifier.push('order_request', o, (type[0].toUpperCase() + type.slice(1)) + ' request ' + o.number, o.customer.name + ': ' + reason); send(res, 200, { order: Orders.view(o, false) });
   });
   route('POST', /^\/api\/orders\/([\w-]+)\/proof$/, async (req, res, m) => {
     const u = need(req), o = findOrder(m[1], u); if (o.userId !== u.id) throw fail(404, 'Order not found');
@@ -232,6 +291,19 @@ function createApp(opts = {}) {
     const body = '<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n' + u.map(x => `<url><loc>${SEO.esc(SEO.abs(o, x[0]))}</loc><priority>${x[1]}</priority></url>`).join('\n') + '\n</urlset>\n';
     res.writeHead(200, { 'Content-Type': 'application/xml; charset=utf-8', 'Cache-Control': 'public, max-age=3600' }); res.end(body);
   });
+  /* Google Merchant Center product feed (Free listings). Real products only — demo items are never listed. */
+  route('GET', /^\/feeds\/google-merchant\.xml$/, async (req, res) => {
+    const o = SEO.origin(req), t = catalog.site, x = v => String(v == null ? '' : v).replace(/[<>&"']/g, c => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;', '"': '&quot;', "'": '&apos;' })[c]), inr = n => Number(n).toFixed(2) + ' INR';
+    const items = catalog.products.filter(p => p.published && !p.demo && p.images.length).map(p => {
+      const cat = catalog.categories.find(c => c.id === p.cat), price = SSR.basePrice(catalog, p), was = p.was && p.was > price ? p.was : 0, free = price >= t.shipFreeFrom;
+      return `<item><g:id>${x(p.id)}</g:id><g:title>${x(p.name.slice(0, 150))}</g:title><g:description>${x((p.blurb || p.name).slice(0, 4900))}</g:description><g:link>${x(SEO.abs(o, 'product.html?id=' + p.id))}</g:link><g:image_link>${x(SEO.abs(o, feedImg(p)))}</g:image_link>` +
+        p.images.slice(1, 6).map(r => `<g:additional_image_link>${x(SEO.abs(o, catalog.imgUrl(p, r, 'feed')))}</g:additional_image_link>`).join('') +
+        `<g:availability>${p.soldOut ? 'out_of_stock' : 'in_stock'}</g:availability><g:price>${inr(was || price)}</g:price>${was ? `<g:sale_price>${inr(price)}</g:sale_price>` : ''}<g:brand>${x(t.name)}</g:brand><g:condition>new</g:condition><g:identifier_exists>no</g:identifier_exists><g:gender>female</g:gender><g:age_group>adult</g:age_group>` +
+        (p.colors[0] ? `<g:color>${x(p.colors.map(c => c.name).join('/').slice(0, 100))}</g:color>` : '') + (p.fabric ? `<g:material>${x(p.fabric.slice(0, 100))}</g:material>` : '') + `<g:product_type>${x('Apparel > ' + (cat ? cat.label : 'Suits'))}</g:product_type><g:google_product_category>Apparel &amp; Accessories &gt; Clothing</g:google_product_category><g:shipping><g:country>IN</g:country><g:service>Standard</g:service><g:price>${inr(free ? 0 : t.shipFlat)}</g:price></g:shipping></item>`;
+    });
+    res.writeHead(200, { 'Content-Type': 'application/xml; charset=utf-8', 'Cache-Control': 'public, max-age=900' });
+    res.end(`<?xml version="1.0" encoding="UTF-8"?><rss xmlns:g="http://base.google.com/ns/1.0" version="2.0"><channel><title>${x(t.name)}</title><link>${x(o)}</link><description>${x(t.name)} product feed</description>${items.join('')}</channel></rss>`);
+  });
   route('GET', /^\/robots\.txt$/, async (req, res) => { const o = SEO.origin(req); res.writeHead(200, { 'Content-Type': 'text/plain; charset=utf-8', 'Cache-Control': 'public, max-age=3600' }); res.end(`User-agent: *\nAllow: /\nDisallow: /api/\nDisallow: /admin.html\nDisallow: /account.html\nDisallow: /order.html\nDisallow: /invoice.html\nDisallow: /cart.html\nDisallow: /checkout.html\nSitemap: ${o}/sitemap.xml\n`); });
   route('GET', /^\/manifest\.webmanifest$/, async (req, res) => { const t = catalog.site; res.writeHead(200, { 'Content-Type': 'application/manifest+json', 'Cache-Control': 'public, max-age=3600' }); res.end(JSON.stringify({ name: t.name, short_name: t.name.slice(0, 12), description: t.heroLead, start_url: '/', display: 'standalone', background_color: '#faf6ef', theme_color: '#5b1530', lang: 'en-IN', icons: [{ src: '/img/icons/icon-192.png', sizes: '192x192', type: 'image/png' }, { src: '/img/icons/icon-512.png', sizes: '512x512', type: 'image/png' }, { src: '/img/icons/icon-maskable-512.png', sizes: '512x512', type: 'image/png', purpose: 'maskable' }] })); });
   route('GET', /^\/media\/s\/([A-Za-z0-9_]{6,12})-(wide|tall)-(480|800|1080|1280|1920|2560)\.(webp|jpg|png)$/, async (req, res, m) => {
@@ -314,7 +386,7 @@ function createApp(opts = {}) {
   route('GET', /^\/api\/admin\/summary$/, async (req, res) => {
     need(req, 'admin'); const c = {}; Object.keys(Orders.STATUS).forEach(k => c[k] = 0); D.orders.forEach(o => c[o.status]++);
     const rev = D.orders.filter(o => ['paid', 'processing', 'shipped', 'delivered'].indexOf(o.status) > -1).reduce((a, o) => a + o.totals.total, 0);
-    send(res, 200, { unreadMessages: D.messages.filter(m => !m.read).length, subscribers: D.subscribers.length, products: catalog.products.length, demoProducts: catalog.products.filter(p => p.demo).length, counts: c, revenue: rev, orders: D.orders.length, customers: D.users.filter(u => u.role === 'customer' && !u.isGuest).length, guests: D.users.filter(u => u.isGuest).length, unread: D.notifications.filter(n => !n.read).length, qrIsDemo: !D.settings.qrFile, upiSet: !!D.settings.upiId });
+    send(res, 200, { unreadMessages: D.messages.filter(m => !m.read).length, subscribers: D.subscribers.length, products: catalog.products.length, demoProducts: catalog.products.filter(p => p.demo).length, counts: c, revenue: rev, orders: D.orders.length, customers: D.users.filter(u => u.role === 'customer' && !u.isGuest).length, guests: D.users.filter(u => u.isGuest).length, unread: D.notifications.filter(n => !n.read).length, qrIsDemo: !D.settings.qrFile, upiSet: !!D.settings.upiId, contactSet: !!(catalog.site.contactEmail && catalog.site.contactPhone && catalog.site.contactAddress), unreviewedPages: catalog.pages.filter(p => p.published && !p.reviewed).length, realProducts: catalog.products.filter(p => !p.demo && p.published && p.images.length).length, https: !!(SEO.origin(req) || '').startsWith('https'), feedUrl: SEO.origin(req) + '/feeds/google-merchant.xml', googleSet: !!catalog.site.googleSiteVerification, gaSet: !!catalog.site.ga4Id });
   });
   /* analytics: sales, funnel and top products over the last N days (default 30) */
   route('GET', /^\/api\/admin\/analytics$/, async (req, res) => {
@@ -336,6 +408,13 @@ function createApp(opts = {}) {
       top: Object.values(prod).sort((a, b) => b.qty - a.qty).slice(0, 6), cities: Object.entries(city).sort((a, b) => b[1] - a[1]).slice(0, 5).map(e => ({ city: e[0], orders: e[1] })),
       pipeline: D.orders.filter(o => ['payment_review', 'paid', 'processing', 'shipped'].indexOf(o.status) > -1).sort((a, b) => a.updatedAt - b.updatedAt).slice(0, 8).map(o => Orders.view(o, true)) });
   });
+  route('GET', /^\/api\/admin\/customers$/, async (req, res) => {
+    need(req, 'admin'); const cnt = {}; D.orders.forEach(o => { const c = cnt[o.userId] || (cnt[o.userId] = { n: 0, spent: 0 }); c.n++; if (['paid', 'processing', 'shipped', 'delivered'].indexOf(o.status) > -1) c.spent += o.totals.total; });
+    send(res, 200, { customers: D.users.filter(u => u.role === 'customer').sort((a, b) => b.createdAt - a.createdAt).slice(0, 500).map(u => ({ id: u.id, name: u.name, email: u.email, guest: !!u.isGuest, createdAt: u.createdAt, orders: (cnt[u.id] || {}).n || 0, spent: (cnt[u.id] || {}).spent || 0 })) });
+  });
+  route('DELETE', /^\/api\/admin\/customers\/([\w-]+)$/, async (req, res, m) => {
+    need(req, 'admin'); const u = D.users.find(x => x.id === m[1] && x.role === 'customer'); if (!u) throw fail(404, 'Customer not found'); eraseUser(u); send(res, 200, { ok: true });
+  });
   route('GET', /^\/api\/admin\/orders$/, async (req, res) => {
     need(req, 'admin'); const q = new URL(req.url, 'http://x').searchParams, st = q.get('status'), s = (q.get('q') || '').toLowerCase();
     send(res, 200, { orders: D.orders.filter(o => (!st || o.status === st) && (!s || (o.number + ' ' + Orders.normNumber(o.number) + ' ' + o.customer.name + ' ' + o.customer.email + ' ' + o.customer.phone + ' ' + (o.proof && o.proof.utr || '')).toLowerCase().includes(s))).slice(0, 300).map(o => Orders.view(o, true)) });
@@ -349,6 +428,11 @@ function createApp(opts = {}) {
       if ((Orders.ADMIN_NEXT[o.status] || []).indexOf(b.status) < 0) throw fail(409, 'Invalid status change.');
       if (b.tracking !== undefined) o.tracking = Orders.cleanTracking(b.tracking);
       Orders.transition(db, o, b.status, note, 'admin');
+    }
+    else if (b.action === 'request') {
+      const r = o.request; if (!r || r.state !== 'pending') throw fail(409, 'No pending request.'); const ok = b.decision === 'approve'; r.state = ok ? 'approved' : 'declined'; r.note = note; r.decidedAt = Date.now();
+      if (ok && r.type === 'cancel') Orders.transition(db, o, 'cancelled', note || 'Cancellation approved — refund will be sent to your payment account', 'admin');
+      else { o.updatedAt = Date.now(); o.timeline.push({ at: o.updatedAt, status: o.status, note: (ok ? r.type + ' approved. ' : r.type + ' declined. ') + note, by: 'admin' }); db.save(); }
     }
     else if (b.action === 'tracking') { o.tracking = Orders.cleanTracking(b.tracking); o.updatedAt = Date.now(); o.timeline.push({ at: o.updatedAt, status: o.status, note: o.tracking ? 'Tracking details updated' : 'Tracking details removed', by: 'admin' }); db.save(); }
     else throw fail(400, 'Unknown action');

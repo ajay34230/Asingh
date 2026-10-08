@@ -201,6 +201,36 @@ console.log('\nStatic allow-list');
 for (const p of ['/server/index.js', '/data/db.json', '/package.json', '/.gitignore', '/tools/qa.mjs', '/../server/db.js', '/%2e%2e/package.json', '/js/../package.json']) { const s = (await fetch(base + p)).status; ok(s === 404 || s === 400, `${p} not served (${s})`); }
 ok((await fetch(base + '/index.html')).status === 200 && (await fetch(base + '/css/styles.css')).status === 200 && (await fetch(base + '/img/hero-tall-480.avif')).status === 200, 'site files served');
 
+console.log('\nCustomer self-service');
+{ const U = new Client(); let q = await U.req('POST', '/api/auth/register', { name: 'Neha Rao', email: 'neha@example.com', password: 'neha-pass-123' }); ok(q.status === 201, 'register for self-service tests');
+  q = await U.req('POST', '/api/orders', { items: cart, customer: { ...cust, email: 'neha@example.com' }, method: 'upi_qr' }); const nid = q.json.order.id;
+  ok((await U.req('POST', '/api/orders/' + nid + '/request', { type: 'cancel', reason: 'changed my mind' })).status === 409, 'cancel request not allowed before payment (use instant cancel)');
+  await ADM.req('PATCH', '/api/admin/orders/' + nid, { action: 'verify' });
+  ok((await U.req('POST', '/api/orders/' + nid + '/request', { type: 'cancel', reason: 'x' })).status === 400, 'a reason is required');
+  q = await U.req('POST', '/api/orders/' + nid + '/request', { type: 'cancel', reason: 'Ordered the wrong size' }); ok(q.status === 200 && q.json.order.request.state === 'pending', 'paid order: customer requests cancellation');
+  ok((await U.req('POST', '/api/orders/' + nid + '/request', { type: 'cancel', reason: 'again please' })).status === 409, 'only one pending request at a time');
+  ok((await U.req('DELETE', '/api/me', { password: 'neha-pass-123' })).status === 409, 'account deletion blocked while an order is in progress');
+  ok((await B.req('POST', '/api/orders/' + nid + '/request', { type: 'cancel', reason: 'not my order at all' })).status === 404, 'other customers cannot touch it');
+  q = await ADM.req('PATCH', '/api/admin/orders/' + nid, { action: 'request', decision: 'approve', note: 'Refund in 3 days' }); ok(q.json.order.status === 'cancelled' && q.json.order.request.state === 'approved', 'admin approves → order cancelled');
+  ok((await U.req('POST', '/api/me/password', { current: 'wrong-pass', next: 'brand-new-pass1' })).status === 401, 'password change needs the current password');
+  ok((await U.req('POST', '/api/me/password', { current: 'neha-pass-123', next: 'brand-new-pass1' })).status === 200, 'password changed');
+  const exp = await U.req('GET', '/api/me/export'); ok(exp.status === 200 && /neha@example.com/.test(exp.text) && exp.json.orders.length === 1, 'customer downloads their own data');
+  ok((await U.req('DELETE', '/api/me', { password: 'nope-nope-1' })).status === 401, 'deleting the account needs the password');
+  const lst = await ADM.req('GET', '/api/admin/customers'); ok(lst.json.customers.some(c => c.email === 'neha@example.com' && c.orders === 1), 'admin sees the customer list');
+  ok((await U.req('DELETE', '/api/me', { password: 'brand-new-pass1' })).status === 200, 'account deleted');
+  ok((await U.req('GET', '/api/me')).json.user === null, 'signed out after deletion');
+  ok((await new Client().req('POST', '/api/auth/login', { email: 'neha@example.com', password: 'brand-new-pass1' })).status === 401, 'deleted account cannot sign in');
+  const after = (await ADM.req('GET', '/api/admin/orders')).json.orders.find(o => o.id === nid); ok(after && after.customer.email === '' && after.customer.phone === '' && after.customer.line1 === '', 'order kept for accounting but contact details erased');
+  const sub = new Client(); await sub.req('POST', '/api/newsletter', { email: 'bye@example.com' }); ok((await sub.req('POST', '/api/newsletter/unsubscribe', { email: 'bye@example.com' })).status === 200 && !(await ADM.req('GET', '/api/admin/subscribers')).json.subscribers.some(x => x.email === 'bye@example.com'), 'newsletter unsubscribe works'); }
+
+console.log('\nGoogle readiness');
+{ let f = await new Client().req('GET', '/feeds/google-merchant.xml'); ok(f.status === 200 && /xmlns:g=/.test(f.text) && !/<g:id>jaipur-bandhani/.test(f.text), 'merchant feed exists and lists no demo products');
+  r = await ADM.req('PUT', '/api/admin/site', { ga4Id: 'G-ABC1234567', googleSiteVerification: 'abcDEF123456_-xyz', returnDays: 10 }); ok(r.status === 200, 'admin saves Google IDs and return window');
+  const pg = await new Client().req('GET', '/'); ok(/google-site-verification/.test(pg.text), 'verification meta rendered'); 
+  const hp = await fetch(base + '/'); ok(/googletagmanager/.test(hp.headers.get('content-security-policy')), 'CSP allows Google only once an Analytics ID is set');
+  r = await ADM.req('PUT', '/api/admin/site', { ga4Id: 'bad id' }); ok(r.status === 400, 'bad Analytics ID rejected'); await ADM.req('PUT', '/api/admin/site', { ga4Id: '', googleSiteVerification: '' }); 
+  const hp2 = await fetch(base + '/'); ok(!/googletagmanager/.test(hp2.headers.get('content-security-policy')), 'CSP back to strict when Analytics is off'); }
+
 console.log('\nAdmin analytics');
 { const an = await ADM.req('GET', '/api/admin/analytics?days=30'); ok(an.status === 200 && an.json.series.length === 30 && an.json.orders >= 2, 'analytics returns a 30-day series and order totals');
   ok(an.json.paidOrders >= 1 && an.json.revenue > 0 && an.json.aov > 0 && an.json.top.length >= 1, 'revenue, average order and top products computed from paid orders');

@@ -96,10 +96,13 @@ Only to process and deliver your order, verify payment, contact you about it, an
 Only you (when signed in or tracking with your order number and mobile number) and our store team. Payment screenshots are stored privately.
 
 ## Cookies
-We use one essential cookie to keep you signed in or remember your guest session. We do not use advertising cookies.
+We use one essential cookie to keep you signed in or remember your guest session. If we enable Google Analytics, it loads only after you press “Accept” on the cookie notice, and you can change your mind any time with “Cookie settings” in the footer. We do not use advertising cookies or sell your data.
+
+## How long we keep it
+Order records are kept for accounting and tax purposes. When you delete your account we erase your name, email, phone and address from them. Newsletter details are removed when you unsubscribe or delete your account.
 
 ## Your choices
-You can ask us to delete your data, or delete your account from your account page. Write to {{email}}.
+You can download your data, change your password and email, sign out of other devices, unsubscribe, or delete your account yourself under **My account → Privacy & security**. You can also write to {{email}}.
 
 *This is a starting template, not legal advice — please review it with a professional before launch.*` },
   { slug: 'terms', title: 'Terms & conditions', group: 'legal', body: `## Orders

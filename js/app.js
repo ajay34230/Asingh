@@ -279,6 +279,25 @@
   document.addEventListener('sheetclose', function (e) { if (e.detail === 'auth' && Auth.waiting) { Auth.waiting.reject(new Error('cancelled')); Auth.waiting = null; } });
   document.addEventListener('click', function (e) { var a = e.target.closest('[data-account]'); if (a && !Auth.user) { e.preventDefault(); Sheet.close('menu'); setTimeout(function () { Sheet.open('auth', a); }, 60); } });
 
+
+  /* ---------- Cookie notice + Google Analytics (loads only after "Accept") ---------- */
+  (function () {
+    var id = A.SITE && A.SITE.ga4Id; if (!id) return;
+    var KEY = 'asingh.consent', get = function () { try { return localStorage.getItem(KEY); } catch (e) { return null; } }, set = function (v) { try { localStorage.setItem(KEY, v); } catch (e) {} };
+    function loadGA() {
+      if (window.__ga) return; window.__ga = 1; window.dataLayer = window.dataLayer || []; window.gtag = function () { window.dataLayer.push(arguments); };
+      gtag('js', new Date()); gtag('config', id, { anonymize_ip: true });
+      var sc = document.createElement('script'); sc.async = true; sc.src = 'https://www.googletagmanager.com/gtag/js?id=' + encodeURIComponent(id); document.head.appendChild(sc);
+    }
+    function banner() {
+      var b = document.createElement('div'); b.className = 'consent'; b.setAttribute('role', 'dialog'); b.setAttribute('aria-label', 'Cookie notice');
+      b.innerHTML = '<p>We use one essential cookie to keep you signed in. With your OK we also use Google Analytics to learn which pages help shoppers. <a href="privacy-policy.html">Privacy policy</a></p><div class="consent__b"><button type="button" class="btn btn--ghost" data-c="no">Decline</button><button type="button" class="btn" data-c="yes">Accept</button></div>';
+      b.addEventListener('click', function (e) { var c = e.target.closest('[data-c]'); if (!c) return; set(c.getAttribute('data-c')); b.remove(); if (c.getAttribute('data-c') === 'yes') loadGA(); });
+      document.body.appendChild(b);
+    }
+    document.addEventListener('click', function (e) { if (e.target.closest('[data-cookie-settings]')) { e.preventDefault(); var o = document.querySelector('.consent'); if (o) o.remove(); try { localStorage.removeItem(KEY); } catch (x) {} window.__ga = window.__ga; banner(); } });
+    var v = get(); if (v === 'yes') loadGA(); else if (!v) setTimeout(banner, 1200);
+  })();
   /* ---------- Chrome ---------- */
   var shortLabel = function (l) { return l.length > 13 ? l.split(/[\s&]+/)[0] : l; };
   var NAV = [{ label: 'New In', href: 'shop.html?sort=new' }].concat(A.CATEGORIES.slice(0, 4).map(function (c, i) { return { label: shortLabel(c.label), href: 'shop.html?cat=' + c.id, xl: i > 2 }; }), [{ label: 'Custom Stitching', href: 'shop.html?stitch=custom', xl: true }]);
@@ -286,7 +305,7 @@
     var pg = A.PAGES || [], link = function (p) { return '<li><a href="' + esc(p.slug) + '.html">' + esc(p.title) + '</a></li>'; };
     var help = pg.filter(function (p) { return p.group === 'help'; }).map(link).join('');
     var legal = pg.filter(function (p) { return p.group === 'legal'; }).map(link).join('');
-    return '<details class="footer__col" open><summary>Help</summary><ul>' + help + '<li><a href="track.html">Track your order</a></li><li><a href="#size-guide" data-size-guide>Size guide</a></li></ul></details>' +
+    return '<details class="footer__col" open><summary>Help</summary><ul>' + help + '<li><a href="track.html">Track your order</a></li><li><a href="#size-guide" data-size-guide>Size guide</a></li>' + (A.SITE && A.SITE.ga4Id ? '<li><a href="#cookies" data-cookie-settings>Cookie settings</a></li>' : '') + '</ul></details>' +
       (legal ? '<details class="footer__col" open><summary>Policies</summary><ul>' + legal + '</ul></details>' : '');
   }
   function contactItems() {

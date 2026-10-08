@@ -94,3 +94,5 @@
 .toplist li { display: grid; grid-template-columns: 1fr auto; gap: 2px 10px; } .toplist small { grid-column: 1 / -1; color: var(--ink-2); }
 .pipe__r { width: 100%; display: grid; grid-template-columns: 1fr auto; gap: 8px; text-align: left; padding: 10px 12px; border: 1px solid var(--line); border-radius: 12px; background: var(--surface); color: inherit; font: inherit; cursor: pointer; } .pipe__r:hover { border-color: var(--wine, #6b1d3a); }
 .pipe__s { font-size: .82rem; color: var(--ink-2); } .steps { grid-column: 1 / -1; display: grid; grid-template-columns: repeat(5, 1fr); gap: 4px; } .steps i { height: 6px; border-radius: 99px; background: var(--line); } .steps i.on { background: var(--wine, #6b1d3a); }
+
+.orow--static { cursor: default; } .adm__req { border-left: 3px solid var(--gold, #c9a45c); } .btn--sm { min-height: 36px; padding: 0 12px; font-size: .85rem; }
