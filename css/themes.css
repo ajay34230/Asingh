@@ -146,3 +146,4 @@ html[lang="hi"] .eyebrow, html[lang="hi"] .hero__eyebrow, html[lang="hi"] .badge
 .announce { flex-wrap: wrap; row-gap: 4px; }
 html[data-theme="bloom"] .logo__s { color: var(--gold); }
 html[data-theme="bloom"] .logo__mark { box-shadow: 0 0 0 2px #fff, 0 8px 18px -6px rgba(109,61,242,.55); }
+html[data-theme="bloom"] .logo__mark { box-shadow: none; border-radius: 0; }

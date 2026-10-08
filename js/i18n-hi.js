@@ -671,7 +671,6 @@
       [new RegExp("^Only (\\d+) left$"), "सिर्फ़ $1 बचे हैं"],
       [new RegExp("^Free shipping over (₹[\\d,]+)\\.?$"), "$1 से ऊपर मुफ़्त शिपिंग"],
       [new RegExp("^UPI payment QR code for (.+)$"), "$1 का UPI भुगतान QR कोड"],
-      [new RegExp("^Free shipping over (₹[\\d,]+)\\. Easy (\\d+)-day returns on unstitched pieces\\.$"), "$1 से ऊपर मुफ़्त शिपिंग। बिना सिले परिधानों पर आसान $2 दिन का रिटर्न।"],
-      [new RegExp("^(.+) — (.+)$"), "$1 — $2"]
+      [new RegExp("^Free shipping over (₹[\\d,]+)\\. Easy (\\d+)-day returns on unstitched pieces\\.$"), "$1 से ऊपर मुफ़्त शिपिंग। बिना सिले परिधानों पर आसान $2 दिन का रिटर्न।"]
     ] };
-})(window.चंद्रवंशी = window.चंद्रवंशी || {});
+})(window.ASINGH = window.ASINGH || {});

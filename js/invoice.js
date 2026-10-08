@@ -31,7 +31,7 @@
   function render(o, inv) {
     var c = o.customer, tone = TONE[o.status], paid = isPaid(o.status);
     document.title = 'Bill ' + o.number + ' — ' + (inv.name || 'चंद्रवंशी');
-    doc.innerHTML = '<header class="inv__head"><div><img class="inv__logo" src="img/brand/mark-96.webp" width="56" height="56" alt=""><div class="inv__brand">' + esc(inv.name || 'चंद्रवंशी') + '</div><div class="inv__seller">' + esc([inv.address, inv.gstin ? 'GSTIN: ' + inv.gstin : '', inv.contact].filter(Boolean).join('\n')) + '</div></div>' +
+    doc.innerHTML = '<header class="inv__head"><div><img class="inv__logo" src="img/brand/logo-128.webp" width="72" height="72" alt=""><div class="inv__brand">' + esc(inv.name || 'चंद्रवंशी') + '</div><div class="inv__seller">' + esc([inv.address, inv.gstin ? 'GSTIN: ' + inv.gstin : '', inv.contact].filter(Boolean).join('\n')) + '</div></div>' +
       '<div class="inv__meta"><h1>Order bill</h1><div class="inv__no">' + esc(o.number) + '</div><p>' + d0(o.createdAt) + '</p><span class="stamp stamp--' + (paid ? 'good' : tone) + '">' + PAYLINE[o.status] + '</span></div></header>' +
       '<section class="inv__cols"><div><h2>Bill to / ship to</h2><address><strong>' + esc(c.name) + '</strong><br>' + esc(c.line1) + (c.line2 ? ', ' + esc(c.line2) : '') + '<br>' + esc(c.city) + ', ' + esc(c.state) + ' ' + esc(c.pin) + '<br>' + esc(c.phone) + '<br>' + esc(c.email) + '</address></div>' +
       '<div><h2>Order</h2><p>Status: <strong>' + esc(o.statusLabel) + '</strong></p><p>Payment: UPI / QR</p>' + (o.proof && o.proof.utr ? '<p>UTR: <strong>' + esc(o.proof.utr) + '</strong></p>' : '') + '<p>Updated: ' + dt(o.updatedAt) + '</p></div></section>' +

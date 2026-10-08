@@ -950,3 +950,10 @@ text, p, li { text-wrap: pretty; }
 @media (min-width: 1000px) { .footer__in { grid-template-columns: 1.3fr 1.5fr 1fr 1fr 1.1fr; } }
 @media (min-width: 700px) { .footer__col--cats ul { display: block; } .footer__col--cats li { display: block; } }
 .footer__brand .logo__mark { display: none; } .footer__brand form { flex-wrap: wrap; } .footer__brand form .input { min-width: 150px; flex: 1 1 150px; }
+
+/* the logo is shown whole — never cropped or rounded */
+.logo__mark { width: 56px; height: 56px; border-radius: 0; box-shadow: none; object-fit: contain; }
+.logo:hover .logo__mark { transform: scale(1.05); }
+.footer__logo { border-radius: 0; box-shadow: 0 10px 24px -16px rgba(91,21,48,.5); width: 150px; height: 150px; }
+@media (max-width: 479.98px) { .logo__mark { width: 46px; height: 46px; } }
+@media (max-width: 359.98px) { .logo__mark { width: 40px; height: 40px; } }

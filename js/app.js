@@ -312,7 +312,7 @@
   var NAV = [{ label: 'New In', href: 'shop.html?sort=new' }].concat(A.CATEGORIES.slice(0, 4).map(function (c, i) { return { label: shortLabel(c.label), href: 'shop.html?cat=' + c.id, xl: i > 1 }; }), [{ label: 'Custom Stitching', href: 'shop.html?stitch=custom', xl: true }]);
   function brandLink() {
     var tag = (A.SITE && A.SITE.tagline !== undefined ? A.SITE.tagline : A.TAGLINE) || '';
-    return '<a class="logo" href="index.html" aria-label="' + esc(A.BRAND) + ' home"><img class="logo__mark" src="img/brand/mark-96.webp" width="44" height="44" alt="" decoding="async"><span class="logo__t"><span class="logo__n">' + esc(A.BRAND) + '</span>' + (tag ? '<small class="logo__s" data-no-i18n>' + esc(tag) + '</small>' : '') + '</span></a>';
+    return '<a class="logo" href="index.html" aria-label="' + esc(A.BRAND) + ' home"><img class="logo__mark" src="img/brand/logo-128.webp" width="56" height="56" alt="" decoding="async"><span class="logo__t"><span class="logo__n">' + esc(A.BRAND) + '</span>' + (tag ? '<small class="logo__s" data-no-i18n>' + esc(tag) + '</small>' : '') + '</span></a>';
   }
   function footerCols() {
     var pg = A.PAGES || [], link = function (p) { return '<li><a href="' + esc(p.slug) + '.html">' + esc(p.title) + '</a></li>'; };
@@ -354,7 +354,7 @@
       '<a class="mega__feature" href="product.html?id=rani-sa-anarkali">' + picture('rani-sa-anarkali', 1, { sizes: '(min-width:1100px) 22vw, 0px', alt: '' }) + '<span class="mega__cap"><small>Bestseller</small>Rani Pink Anarkali Suit</span></a>' +
       '</div></div></header>';
     var footer = '<footer class="footer"><div class="container footer__in">' +
-      '<div class="footer__brand"><img class="footer__logo" src="img/brand/logo-400.webp" width="132" height="132" alt="' + esc(A.BRAND) + ' logo" loading="lazy" decoding="async">' + brandLink() + '<p>Girls’ suits &amp; ethnic wear — anarkali, lehenga choli, sharara, kurti sets and more — made to your measure.</p>' +
+      '<div class="footer__brand"><img class="footer__logo" src="img/brand/logo-400.webp" width="150" height="150" alt="' + esc(A.BRAND) + ' logo" loading="lazy" decoding="async">' + brandLink() + '<p>Girls’ suits &amp; ethnic wear — anarkali, lehenga choli, sharara, kurti sets and more — made to your measure.</p>' +
       '<form class="newsletter" action="#" data-newsletter novalidate><div class="hp" aria-hidden="true"><label>Website <input name="website" tabindex="-1" autocomplete="off"></label></div><label for="nl-email" class="vh">Email address</label><input id="nl-email" type="email" name="email" inputmode="email" autocomplete="email" placeholder="Your email address" required><button class="btn" type="submit">Subscribe</button><p class="newsletter__msg" role="status" aria-live="polite"></p></form></div>' +
       '<details class="footer__col footer__col--cats" open><summary>Shop</summary><ul>' + A.CATEGORIES.map(function (c) { return '<li><a href="shop.html?cat=' + c.id + '">' + c.label + '</a></li>'; }).join('') + '</ul></details>' +
       footerCols() +

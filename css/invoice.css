@@ -31,3 +31,4 @@ td { padding: 10px 6px; border-bottom: 1px solid var(--line); vertical-align: to
 @media print { body { background: #fff; } .noprint { display: none !important; } .sheet { margin: 0; padding: 0; box-shadow: none; max-width: none; border-radius: 0; } th.hide, td.hide { display: table-cell !important; } .inv__meta { text-align: right !important; } }
 
 .inv__logo { width: 56px; height: 56px; border-radius: 50%; margin-bottom: 6px; display: block; } .inv__brand { font-family: "Noto Serif Devanagari", "Nirmala UI", "Mangal", Georgia, serif; letter-spacing: 0; }
+.inv__logo { width: 72px; height: 72px; border-radius: 0; }

@@ -168,7 +168,7 @@ function createApp(opts = {}) {
   route('GET', /^\/api\/me\/export$/, async (req, res) => {
     const u = need(req), out = { exportedAt: new Date().toISOString(), account: { name: u.name, email: u.email, guest: !!u.isGuest, createdAt: new Date(u.createdAt).toISOString(), savedDetails: u.profile || {} },
       newsletter: !!D.subscribers.find(x => x.email === u.email), orders: D.orders.filter(o => o.userId === u.id).map(o => Orders.view(o, false)) };
-    res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8', 'Content-Disposition': 'attachment; filename="my-asingh-data.json"', 'Cache-Control': 'no-store', ...headersFor(false) }); res.end(JSON.stringify(out, null, 2));
+    res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8', 'Content-Disposition': 'attachment; filename="my-chandravanshi-data.json"', 'Cache-Control': 'no-store', ...headersFor(false) }); res.end(JSON.stringify(out, null, 2));
   });
   route('DELETE', /^\/api\/me$/, async (req, res) => {
     const u = need(req); if (u.role === 'admin') throw fail(400, 'Admin accounts are removed from Admins & login.'); if (!authLimit(ip(req))) throw fail(429, 'Too many attempts. Try again in a few minutes.');
@@ -477,11 +477,11 @@ function createApp(opts = {}) {
     need(req, 'admin'); const q = v => { v = String(v == null ? '' : v); if (/^[=+\-@\t\r]/.test(v)) v = "'" + v; return '"' + v.replace(/"/g, '""') + '"'; };
     const head = ['Order', 'Date', 'Status', 'Customer', 'Phone', 'Email', 'Address', 'City', 'State', 'PIN', 'Items', 'Subtotal', 'Discount', 'Coupon', 'Shipping', 'Total', 'UTR', 'Courier', 'Tracking ID'];
     const rows = D.orders.map(o => [o.number, new Date(o.createdAt).toISOString(), Orders.STATUS[o.status], o.customer.name, o.customer.phone, o.customer.email, [o.customer.line1, o.customer.line2].filter(Boolean).join(', '), o.customer.city, o.customer.state, o.customer.pin, o.items.map(i => `${i.name} (${i.color}, ${i.size}, ${i.stitchLabel}) x${i.qty}`).join('; '), o.totals.subtotal, o.totals.discount || 0, o.totals.coupon || '', o.totals.shipping, o.totals.total, (o.proof && o.proof.utr) || '', (o.tracking && o.tracking.courier) || '', (o.tracking && o.tracking.id) || '']);
-    res.writeHead(200, { 'Content-Type': 'text/csv; charset=utf-8', 'Content-Disposition': 'attachment; filename="asingh-orders.csv"', 'Cache-Control': 'no-store' }); res.end('﻿' + [head].concat(rows).map(r => r.map(q).join(',')).join('\r\n'));
+    res.writeHead(200, { 'Content-Type': 'text/csv; charset=utf-8', 'Content-Disposition': 'attachment; filename="chandravanshi-orders.csv"', 'Cache-Control': 'no-store' }); res.end('﻿' + [head].concat(rows).map(r => r.map(q).join(',')).join('\r\n'));
   });
   route('GET', /^\/api\/admin\/backup$/, async (req, res) => {
     need(req, 'admin'); const copy = { ...D, sessions: [], resets: [] };
-    res.writeHead(200, { 'Content-Type': 'application/json', 'Content-Disposition': 'attachment; filename="asingh-backup-' + new Date().toISOString().slice(0, 10) + '.json"', 'Cache-Control': 'no-store' }); res.end(JSON.stringify(copy));
+    res.writeHead(200, { 'Content-Type': 'application/json', 'Content-Disposition': 'attachment; filename="chandravanshi-backup-' + new Date().toISOString().slice(0, 10) + '.json"', 'Cache-Control': 'no-store' }); res.end(JSON.stringify(copy));
   });
   route('GET', /^\/api\/admin\/customers$/, async (req, res) => {
     need(req, 'admin'); const cnt = {}; D.orders.forEach(o => { const c = cnt[o.userId] || (cnt[o.userId] = { n: 0, spent: 0 }); c.n++; if (['paid', 'processing', 'shipped', 'delivered'].indexOf(o.status) > -1) c.spent += o.totals.total; });
