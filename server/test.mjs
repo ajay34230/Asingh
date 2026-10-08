@@ -440,7 +440,7 @@ console.log('\nService worker behaviour (simulated)');
   const sandbox = { self: { addEventListener: (t, f) => { handlers[t] = f; }, skipWaiting: async () => {}, clients: { claim: async () => {} } }, location: { origin: 'https://shop.test' }, caches, fetch: async () => { throw new Error('offline'); }, URL, Promise, console }; vm.createContext(sandbox); vm.runInContext(src, sandbox);
   const run = async (url, mode = 'navigate', method = 'GET') => { let out; handlers.fetch({ request: { url, method, mode }, respondWith: p => { out = p; } }); return out === undefined ? 'PASSED_THROUGH' : await out; };
   ok(await run('https://shop.test/faq.html') === 'OFFLINE_PAGE', 'offline + page never opened → the offline page');
-  store['cv-v1-pages'] = new Map([['https://shop.test/shop.html', 'SAVED_SHOP']]); ok(await run('https://shop.test/shop.html') === 'SAVED_SHOP', 'offline + page opened before → the saved copy');
+  store['cv-v2-pages'] = new Map([['https://shop.test/shop.html', 'SAVED_SHOP']]); ok(await run('https://shop.test/shop.html') === 'SAVED_SHOP', 'offline + page opened before → the saved copy');
   ok(await run('https://shop.test/api/orders', 'cors') === 'PASSED_THROUGH' && await run('https://shop.test/admin.html') === 'PASSED_THROUGH' && await run('https://shop.test/account.html?reset=abc') === 'PASSED_THROUGH', 'API, admin and password-reset links are never handled or saved');
   ok(await run('https://shop.test/api/orders', 'cors', 'POST') === 'PASSED_THROUGH' && await run('https://other.example/x.js', 'no-cors') === 'PASSED_THROUGH', 'writes and other websites are left alone'); }
 

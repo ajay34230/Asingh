@@ -1,9 +1,10 @@
 /* Service worker: makes the store installable and lets visited pages open offline.
    - pages: network first, falling back to the last copy, then to /offline.html
-   - styles, scripts, images: show the saved copy at once and refresh it in the background
+   - styles and scripts: network first (so a new release shows up on the very next visit), saved copy when offline
+   - images: show the saved copy at once and refresh it in the background
    - data.js (catalogue): network first, saved copy when offline
    - orders, accounts, the admin console and every /api/ call are NEVER stored. */
-const VERSION = 'cv-v1', SHELL = VERSION + '-shell', PAGES = VERSION + '-pages', ASSETS = VERSION + '-assets';
+const VERSION = 'cv-v2', SHELL = VERSION + '-shell', PAGES = VERSION + '-pages', ASSETS = VERSION + '-assets';
 const PRECACHE = ['/offline.html', '/css/styles.css', '/css/themes.css', '/js/app.js', '/js/theme.js', '/js/i18n.js', '/img/icons/icon-192.png', '/img/brand/logo-128.webp'];
 const NEVER = /^\/(api|admin|media\/qr|feeds|sitemap|robots)|\/(admin|invoice|order)\.html$|reset=|\/sw\.js$/;
 
@@ -22,6 +23,10 @@ self.addEventListener('fetch', e => {
   }
   if (url.pathname === '/js/data.js') {
     e.respondWith(fetch(req).then(res => { if (res.ok) { const copy = res.clone(); caches.open(ASSETS).then(c => c.put(req, copy)); } return res; }).catch(() => caches.match(req)));
+    return;
+  }
+  if (/\.(css|js)$/.test(url.pathname)) {
+    e.respondWith(fetch(req).then(res => { if (res.ok) { const copy = res.clone(); caches.open(ASSETS).then(c => c.put(req, copy)).then(() => trim(ASSETS, 160)); } return res; }).catch(() => caches.match(req)));
     return;
   }
   if (/\.(css|js|png|jpe?g|webp|avif|svg|woff2?)$/.test(url.pathname) || url.pathname.startsWith('/media/p/') || url.pathname.startsWith('/media/s/')) {
