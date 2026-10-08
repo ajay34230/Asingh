@@ -29,7 +29,7 @@ const defaultSite = () => ({
   stitch: A.STITCH.map(x => ({ id: x.id, label: x.label, note: x.note, eta: x.eta, add: { unstitched: 0, semi: 600, custom: 1800 }[x.id], enabled: true })),
   sizeChart: [['XS', 32, 26, 35], ['S', 34, 28, 37], ['M', 36, 30, 39], ['L', 38, 32, 41], ['XL', 40, 34, 43], ['XXL', 42, 36, 45]].map(r => ({ size: r[0], bust: r[1], waist: r[2], hip: r[3] })),
   contactEmail: '', contactPhone: '', contactAddress: '', contactHours: '',
-  googleSiteVerification: '', ga4Id: '', translations: {}, whatsapp: '', aiChat: true, offer: { on: false, text: '', code: '', until: 0 }, giftFee: 0, pickupPin: '', pkgKg: 0.8, pkgL: 30, pkgB: 25, pkgH: 6, returnDays: 7, handlingMin: 1, handlingMax: 3, deliveryMin: 3, deliveryMax: 7,
+  googleSiteVerification: '', ga4Id: '', translations: {}, textEdits: {}, whatsapp: '', aiChat: true, offer: { on: false, text: '', code: '', until: 0 }, giftFee: 0, pickupPin: '', pkgKg: 0.8, pkgL: 30, pkgB: 25, pkgH: 6, returnDays: 7, handlingMin: 1, handlingMax: 3, deliveryMin: 3, deliveryMax: 7,
   shipFreeFrom: A.FREE_SHIP_FROM, shipFlat: A.SHIP_FLAT, testimonials: []
 });
 const merge = (d, v) => { const o = { ...d }; Object.keys(v || {}).forEach(k => { o[k] = d[k] && typeof d[k] === 'object' && !Array.isArray(d[k]) && v[k] && typeof v[k] === 'object' && !Array.isArray(v[k]) ? { ...d[k], ...v[k] } : v[k]; }); return o; };
@@ -183,6 +183,14 @@ class Catalog {
     const missing = this.D.products.filter(p => !seen.has(p.cat)); if (missing.length) throw bad(`Move or delete these products first: ${missing.slice(0, 3).map(p => p.name).join(', ')}${missing.length > 3 ? '…' : ''}`);
     this.D.categories = out; this.touch();
   }
+  /* change (or restore) one piece of wording: lang 'en' edits the English text, 'hi' sets its Hindi */
+  setText(lang, from, to) {
+    const key = s(from, 300).replace(/\s+/g, ' ').trim(), val = s(to, 600); if (!key) throw bad('Nothing to change.');
+    const t = this.D.site, map = lang === 'hi' ? (t.translations = t.translations || {}) : (t.textEdits = t.textEdits || {});
+    if (!val || (lang !== 'hi' && val === key)) delete map[key];
+    else { if (!(key in map) && Object.keys(map).length >= 1500) throw bad('You have reached the limit of 1,500 edited texts. Remove some first.'); map[key] = val; }
+    this.touch(); return map;
+  }
   setSite(b) {
     b = b || {}; const t = this.D.site, st = (k, n) => { if (b[k] !== undefined) t[k] = s(b[k], n); };
     [['name', 40], ['tagline', 40], ['announcement', 90], ['heroEyebrow', 50], ['heroTitle', 120], ['heroLead', 240], ['heroCta', 30], ['contactEmail', 120], ['contactPhone', 30], ['contactAddress', 200], ['contactHours', 60]].forEach(x => st(x[0], x[1]));
@@ -199,6 +207,11 @@ class Catalog {
     if (b.offer && typeof b.offer === 'object') { const o = b.offer, text = s(o.text, 110), code = s(o.code, 20).toUpperCase().replace(/\s+/g, ''); let until = 0; if (o.until) { until = Date.parse(String(o.until).slice(0, 10) + 'T23:59:59+05:30'); if (!Number.isFinite(until)) throw bad('Offer end date is not valid.'); }
       if (code && !/^[A-Z0-9_-]{3,20}$/.test(code)) throw bad('Offer code can only have letters and numbers.'); t.offer = { on: !!o.on && !!text, text, code, until }; }
     if (b.aiChat !== undefined) t.aiChat = !!b.aiChat;
+    if (b.textEdits !== undefined) {   // owner's own wording for any English text on the site: { "original": "new wording" }
+      const src = b.textEdits && typeof b.textEdits === 'object' ? b.textEdits : {}, out = {}; let n = 0;
+      Object.keys(src).forEach(k => { const key = s(k, 300).replace(/\s+/g, ' ').trim(), v = s(src[k], 600); if (key && v && v !== key && n < 1500) { out[key] = v; n++; } });
+      t.textEdits = out;
+    }
     if (b.giftFee !== undefined) { const n = Math.round(Number(b.giftFee) || 0); if (n < 0 || n > 2000) throw bad('Gift-wrap fee must be between ₹0 and ₹2000.'); t.giftFee = n; }
     if (b.pickupPin !== undefined) { const v = String(b.pickupPin).trim(); if (v && !/^[1-9][0-9]{5}$/.test(v)) throw bad('Pickup PIN code should be 6 digits.'); t.pickupPin = v; }
     [['pkgKg', 0.05, 30], ['pkgL', 5, 120], ['pkgB', 5, 120], ['pkgH', 1, 120]].forEach(([k, lo, hi]) => { if (b[k] !== undefined && b[k] !== '') { const n = Number(b[k]); if (!(n >= lo && n <= hi)) throw bad('Parcel size/weight is out of range.'); t[k] = n; } });

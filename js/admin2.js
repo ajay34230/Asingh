@@ -240,8 +240,11 @@
         '<section class="adm__card"><h2>Policies <span class="muted">(product page &amp; bills)</span></h2>' + F('t-ret', 'Returns', T('t-ret', t.policies.returns, 3, 600)) + F('t-shp', 'Shipping notes — optional', T('t-shp', t.policies.shipping, 2, 600)) + '</section>' +
         '<section class="adm__card"><h2>Sale banner</h2><p class="muted">A strip across the top of every page with a live countdown. Great for festivals.</p><label class="check"><input type="checkbox" id="of-on"' + (t.offer && t.offer.on ? ' checked' : '') + '> <span><strong>Show the banner</strong></span></label><div class="adm__two3">' + F('of-text', 'Message', I('of-text', (t.offer || {}).text || '', { max: 110, ph: 'Navratri sale — flat 15% off' })) + F('of-code', 'Discount code to show — optional', I('of-code', (t.offer || {}).code || '', { max: 20, ph: 'NAVRATRI15' }), 'Create the code under Offers first') + F('of-until', 'Ends on — optional', I('of-until', (t.offer || {}).until ? new Date(t.offer.until).toISOString().slice(0, 10) : '', { type: 'date' }), 'Shows “ends in 2d 4h”. The banner disappears after this date.') + '</div></section>' +
         '<section class="adm__card"><h2>Gift wrap</h2><div class="adm__two3">' + F('t-gift', 'Gift-wrap fee (₹)', I('t-gift', t.giftFee || 0, { mode: 'numeric' }), '0 = not offered. Customers can add wrapping and a message at checkout.') + '</div></section>' +
-        '<section class="adm__card"><h2>AI assistant &amp; writing helper</h2><p id="ai-state"><strong>Checking…</strong></p>' + SW('t-aichat', 'Show the “Ask us” shopper assistant', t.aiChat !== false, 'Works even without AI: it answers delivery, returns and sizes from your settings and suggests products.') +
-        '<p class="muted">The free way to switch on real AI: get a free key at <strong>aistudio.google.com</strong> (Google Gemini), then on your server set <code>GEMINI_API_KEY</code> and restart. It powers (1) the writing helper in every product, (2) smarter shopper answers in Hindi/English, (3) understanding sentence-style searches. Free plans have daily limits — when they run out, shoppers still get the free answers. Optional: <code>GEMINI_MODEL</code>, <code>AI_DAILY_LIMIT</code> (default 400 requests a day). Never type customers’ phone numbers or addresses into AI tools.</p></section>' +
+        '<section class="adm__card"><h2>चंद्रवंशी AI — key &amp; settings</h2><p id="ai-state"><strong>Checking…</strong></p>' +
+        '<div class="adm__two3">' + F('ai-key', 'Gemini API key', '<input class="input" id="ai-key" type="password" autocomplete="off" spellcheck="false" placeholder="Paste a new key to change it" maxlength="90">', 'Free key: aistudio.google.com → “Get API key”. It is stored on your server only and never shown to shoppers.') + F('ai-model', 'Model (optional)', I('ai-model', '', { max: 60, ph: 'gemini-2.5-flash' }), 'Leave blank for the default.') + '</div>' +
+        '<div class="adm__row"><button type="button" class="btn btn--sm" id="ai-save"><span>Save key</span></button><button type="button" class="btn btn--ghost btn--sm" id="ai-test"><span>Test connection</span></button><button type="button" class="btn btn--ghost btn--sm adm__del" id="ai-clear"><span>Remove saved key</span></button></div><p class="field__err" id="ai-keyerr" role="alert"></p>' +
+        SW('t-aichat', 'Show the “चंद्रवंशी AI” icon to shoppers', t.aiChat !== false, 'Works even without a key: it answers delivery, returns and sizes from your settings and suggests products. With a key it also understands free-form questions in Hindi/English and powers the product writing helper and your admin guide.') +
+        '<p class="muted">Free plans have daily limits (this site stops at <code>AI_DAILY_LIMIT</code>, default 400/day) — after that, shoppers still get the free answers. Never type customers’ phone numbers or addresses into AI tools.</p></section>' +
         '<section class="adm__card"><h2>Automatic WhatsApp order messages</h2><p id="wa-api-state"><strong>Checking…</strong></p><p class="muted">Customers get a WhatsApp message when their order is placed, paid, shipped, delivered or cancelled. This uses the WhatsApp Business Cloud API (Meta). Steps: create a Meta Business app → add a WhatsApp number → create and get approved a message template named <code>order_update</code> with the body <em>Hello {{1}}, your order {{2}} {{3}}</em> → on your server set <code>WHATSAPP_TOKEN</code> and <code>WHATSAPP_PHONE_ID</code>, then restart. Until then, use the “WhatsApp customer” button on any order to send the same message yourself.</p></section>' +
         '<section class="adm__card"><h2>Courier (Shiprocket) &amp; parcel</h2><p class="muted">Connect Shiprocket to check PIN codes live and create labels from an order. Set <code>SHIPROCKET_EMAIL</code> and <code>SHIPROCKET_PASSWORD</code> (an API user) on your server. These values describe the usual parcel.</p><div class="adm__two3">' + F('t-ppin', 'Pickup PIN code', I('t-ppin', t.pickupPin, { max: 6, mode: 'numeric' }), 'Where parcels are collected') + F('t-pkg', 'Parcel weight (kg)', I('t-pkg', t.pkgKg, { mode: 'decimal' })) + F('t-pl', 'Length (cm)', I('t-pl', t.pkgL, { mode: 'numeric' })) + F('t-pb', 'Breadth (cm)', I('t-pb', t.pkgB, { mode: 'numeric' })) + F('t-ph', 'Height (cm)', I('t-ph', t.pkgH, { mode: 'numeric' })) + '</div></section>' +
         '<section class="adm__card"><h2>Delivery &amp; returns <span class="muted">(shown to customers and Google)</span></h2><div class="adm__two3">' + F('t-retd', 'Return window (days)', I('t-retd', t.returnDays, { mode: 'numeric' }), '0 = no returns') + F('t-hmin', 'Dispatch: min days', I('t-hmin', t.handlingMin, { mode: 'numeric' })) + F('t-hmax', 'Dispatch: max days', I('t-hmax', t.handlingMax, { mode: 'numeric' })) + F('t-dmin', 'Delivery: min days', I('t-dmin', t.deliveryMin, { mode: 'numeric' })) + F('t-dmax', 'Delivery: max days', I('t-dmax', t.deliveryMax, { mode: 'numeric' })) + '</div></section>' +
@@ -251,7 +254,12 @@
         '<form id="cf2" novalidate class="adm__card"><h2>Categories</h2><p class="muted">Used for the menu, shop filters and your products. A category can only be removed once it has no products.</p>' + rowsHTML('c-rows', cat.categories, [{ k: 'label', label: 'Category name', max: 30, w: 4 }, { k: 'id', label: 'id', max: 30, w: 0 }], 12, '+ Add category') + '<p class="field__err" id="cmsg" role="alert"></p><button class="btn btn--lg" type="submit"><span>Save categories</span></button></form>' +
         '<section class="adm__card"><h2>Backup</h2><p class="muted">Download everything (products, orders, customers, settings) as one file. Photos and payment screenshots are stored separately on the server — keep a copy of your data folder too. Do this weekly.</p><a class="btn btn--ghost" href="/api/admin/backup" download>Download backup</a></section>' +
         '<section class="adm__card adm__card--danger"><h2>Going live</h2><p class="muted">Clear the demo content before opening to customers.</p><div class="adm__row"><button class="btn btn--ghost adm__del" id="cd2"' + (cat.demoCount ? '' : ' disabled') + '>Remove ' + cat.demoCount + ' demo products &amp; sample reviews</button><button class="btn btn--ghost adm__del" id="co">Delete ALL orders…</button></div><p class="muted">“Delete all orders” removes every order and payment screenshot — use it only to clear test orders.</p></section></div>');
-      api('GET', '/api/admin/ai').then(function (ai) { var e = $('#ai-state'); if (e) e.innerHTML = ai.enabled ? '<strong style="color:var(--ok)">● Connected</strong> (' + esc(ai.model) + ') · used today: ' + ai.usedToday + ' of ' + ai.dailyLimit : '<strong>Not connected yet</strong> — the free answers are on.'; });
+      function aiPaint(ai) { var e = $('#ai-state'); if (e) e.innerHTML = ai.enabled ? '<strong style="color:var(--ok)">● Connected</strong> · key ' + esc(ai.key.masked) + ' (' + (ai.key.source === 'admin' ? 'saved here' : 'from the server settings') + ') · ' + esc(ai.model) + ' · used today: ' + ai.usedToday + ' of ' + ai.dailyLimit : '<strong>Not connected yet</strong> — the free answers are on. Paste a key below.'; }
+      api('GET', '/api/admin/ai').then(aiPaint);
+      function aiKeyCall(body, done) { $('#ai-keyerr').textContent = ''; api('PUT', '/api/admin/ai/key', body).then(function (st) { $('#ai-key').value = ''; aiPaint(st); toast(done); }, function (e) { $('#ai-keyerr').textContent = e.message; }); }
+      $('#ai-save').addEventListener('click', function () { var b = {}; if ($('#ai-key').value.trim()) b.key = $('#ai-key').value; if ($('#ai-model').value.trim() !== '') b.model = $('#ai-model').value; if (!Object.keys(b).length) { $('#ai-keyerr').textContent = 'Paste a key first.'; return; } aiKeyCall(b, 'Saved'); });
+      $('#ai-clear').addEventListener('click', function () { if (confirm('Remove the saved key? The AI will switch to free answers.')) aiKeyCall({ key: '', model: '' }, 'Key removed'); });
+      $('#ai-test').addEventListener('click', function () { var b = $('#ai-test'); $('#ai-keyerr').textContent = ''; b.disabled = true; api('POST', '/api/admin/ai/test', {}).then(function (r) { aiPaint(r.status); toast('Connected — the key works'); }, function (e) { $('#ai-keyerr').textContent = e.message; }).then(function () { b.disabled = false; }); });
       api('GET', '/api/admin/summary').then(function (sm) { var e = $('#wa-api-state'); if (e) e.innerHTML = sm.whatsappApi ? '<strong style="color:var(--ok)">● Connected.</strong> Automatic messages are on.' : '<strong>Not connected yet.</strong>'; });
       var sf = $('#sf'); bindRows(document); $$('input[readonly]').forEach(function (e) { e.addEventListener('focus', function () { e.select(); }); });
 
@@ -392,6 +400,26 @@
   };
 
   /* ---- Hindi: the owner's own translations for products, categories, texts ---- */
+  /* ---------- Words on the site: edit any text from the live pages, or review / undo the edits here ---------- */
+  V.texts = function () {
+    var live = ADM.guard();
+    load().then(function () {
+      if (!live()) return;
+      var ed = cat.site.textEdits || {}, keys = Object.keys(ed).sort();
+      var rows = keys.length ? keys.map(function (k, i) { return '<div class="hirow"><label class="hirow__en" for="tx-' + i + '">' + esc(k) + '</label><input class="input" id="tx-' + i + '" data-from="' + esc(k) + '" value="' + esc(ed[k]) + '" maxlength="600"><button type="button" class="btn btn--ghost btn--sm" data-restore="' + i + '">Restore original</button></div>'; }).join('') : '<p class="muted pad">Nothing changed yet. Words you change on the live site will be listed here.</p>';
+      var v = view('<section class="adm__card adm__card--hi"><h2>Change any word on your website</h2><ol class="adm__steps"><li>Press the button below — your website opens in <strong>edit mode</strong>.</li><li><strong>Tap any word or line</strong> (headings, buttons, menus, footer, checkout…).</li><li>Type the new wording and press <strong>Save</strong>. Everyone sees it straight away.</li></ol><p><a class="btn" href="index.html?edit=1" target="_blank" rel="noopener"><span>Open my website in edit mode</span></a></p><p class="muted">Tip: on any page, the blue <strong>✎ Edit words on this page</strong> button does the same. To edit Hindi, switch the website to हिन्दी first. To hide a whole section of the home page, use “Hide this section” in edit mode. Product names and prices are changed in <a href="#/products">Products</a>; pages like About are in <a href="#/pages">Pages</a>.</p></section>' +
+        '<section class="adm__card"><h2>Words you have changed <span class="muted">(English)</span></h2><div class="hirows" id="tx-rows">' + rows + '</div></section>');
+      v.addEventListener('click', function (e) {
+        var b = e.target.closest('[data-restore]'); if (!b) return; var inp = $('#tx-' + b.getAttribute('data-restore'));
+        api('PUT', '/api/admin/textedit', { lang: 'en', from: inp.getAttribute('data-from'), to: '' }).then(function () { toast('Restored'); V.texts(); }, function (er) { toast(er.message); });
+      });
+      v.addEventListener('change', function (e) {
+        var inp = e.target.closest('input[data-from]'); if (!inp) return;
+        api('PUT', '/api/admin/textedit', { lang: 'en', from: inp.getAttribute('data-from'), to: inp.value.trim() }).then(function () { toast('Saved'); }, function (er) { toast(er.message); });
+      });
+    });
+  };
+
   V.hindi = function () {
     var live = ADM.guard();
     load().then(function () {
@@ -437,4 +465,43 @@
       view('<p class="muted">Signed-in customers who filled their bag but did not order. After 2 hours they get one reminder email (if email is set up). You can also nudge them on WhatsApp.</p>' + (c.length ? '<div class="adm__list">' + c.map(function (x) { var link = wa(x.phone, 'Hello ' + (x.name || '') + '! You left ' + x.items.map(function (i) { return i.name; }).slice(0, 2).join(', ') + ' in your bag at ' + location.host + '. Need any help with size or stitching? Complete your order here: ' + location.origin + '/cart.html'); return '<div class="orow orow--static orow--wrap"><span class="orow__t"><strong>' + esc(x.name || x.email) + ' · ' + money(x.value) + '</strong><small>' + x.items.map(function (i) { return esc(i.name) + ' ×' + i.qty + (i.size ? ' (' + esc(i.size) + ')' : ''); }).join(', ') + '</small><small>' + esc(x.email) + ' · ' + new Date(x.at).toLocaleString('en-IN') + ' · ' + (x.emailed ? 'reminder emailed' : x.reminded ? 'reminder due (email not set up)' : 'not reminded yet') + '</small></span>' + (link ? '<a class="btn btn--sm" href="' + esc(link) + '" target="_blank" rel="noopener">WhatsApp</a>' : '') + '</div>'; }).join('') + '</div>' : '<p class="muted pad">No abandoned bags right now.</p>'));
     });
   };
+
+  /* ---------- "Ask AI" guide: explains where to click and can propose changes the owner confirms ---------- */
+  (function () {
+    var box, log, input, hist = [], busy = false, started = false;
+    var LABEL = {}; (ADM.nav || []).forEach(function (n) { LABEL[n[0]] = n[1]; });
+    function say(role, text, actions) {
+      var d = document.createElement('div'); d.className = 'aig__m aig__m--' + role; var p = document.createElement('p'); p.textContent = text; d.appendChild(p);
+      (actions || []).forEach(function (a) { var b = document.createElement('button'); b.type = 'button'; b.className = 'btn btn--sm' + (a.ghost ? ' btn--ghost' : ''); b.innerHTML = '<span></span>'; b.firstChild.textContent = a.label; b.addEventListener('click', function () { a.run(b); }); d.appendChild(b); });
+      log.appendChild(d); log.scrollTop = log.scrollHeight; return d;
+    }
+    function reload() { window.dispatchEvent(new HashChangeEvent('hashchange')); }
+    function actionsFor(r) {
+      var out = [];
+      if (r.goto) out.push({ label: 'Open ' + (LABEL[r.goto] || r.goto), run: function () { location.hash = '#/' + r.goto; if (innerWidth < 800) box.hidden = true; } });
+      (r.changes || []).forEach(function (c) {
+        var v = String(c.value), short = v.length > 50 ? v.slice(0, 50) + '…' : v;
+        out.push({ label: 'Apply: ' + c.label + ' → “' + short + '”', run: function (b) { var o = {}; o[c.field] = c.value; b.disabled = true; api('PUT', '/api/admin/site', o).then(function () { b.firstChild.textContent = '✓ Done'; toast('Changed — ' + c.label); reload(); }, function (e) { b.disabled = false; toast(e.message); }); } });
+      });
+      if (r.textEdit) out.push({ label: 'Apply wording change → “' + r.textEdit.to.slice(0, 40) + '”', run: function (b) { b.disabled = true; api('PUT', '/api/admin/textedit', { lang: 'en', from: r.textEdit.from, to: r.textEdit.to }).then(function () { b.firstChild.textContent = '✓ Done'; toast('Wording changed'); }, function (e) { b.disabled = false; toast(e.message); }); } });
+      return out;
+    }
+    function ask(text) {
+      text = String(text || '').trim(); if (!text || busy) return; var ch = log.querySelector('.aig__chips'); if (ch) ch.remove();
+      hist.push({ role: 'user', content: text }); say('me', text); input.value = ''; busy = true;
+      var w = say('bot', '…');
+      api('POST', '/api/admin/ai/guide', { messages: hist.slice(-10), view: (location.hash.match(/^#\/(\w+)/) || [])[1] || 'overview' }).then(function (r) { w.remove(); hist.push({ role: 'assistant', content: r.reply }); say('bot', r.reply, actionsFor(r)); }, function (e) { w.remove(); hist.pop(); say('bot', e.message || 'Sorry, something went wrong.'); }).then(function () { busy = false; input.focus(); });
+    }
+    function build() {
+      var fab = document.createElement('button'); fab.type = 'button'; fab.className = 'aig__fab'; fab.setAttribute('aria-expanded', 'false'); fab.innerHTML = '✨ <span>Ask AI</span>';
+      box = document.createElement('div'); box.className = 'aig'; box.hidden = true; box.setAttribute('role', 'dialog'); box.setAttribute('aria-label', 'AI guide');
+      box.innerHTML = '<div class="aig__h"><strong>✨ AI guide</strong><button type="button" class="adm__icon" data-x aria-label="Close">×</button></div><div class="aig__log" role="log" aria-live="polite"></div><form class="aig__f" novalidate><label class="vh" for="aig-in">What do you want to do?</label><input class="input" id="aig-in" maxlength="400" autocomplete="off" placeholder="e.g. change the banner text"><button class="btn" type="submit"><span>Ask</span></button></form>';
+      document.body.appendChild(fab); document.body.appendChild(box); log = box.querySelector('.aig__log'); input = box.querySelector('input');
+      fab.addEventListener('click', function () { box.hidden = !box.hidden; fab.setAttribute('aria-expanded', String(!box.hidden)); if (!box.hidden) { if (!started) { started = true; say('bot', 'Hi! Tell me what you want to change on your website and I’ll show you exactly where — and I can make simple text changes for you after you confirm.'); var c = document.createElement('div'); c.className = 'aig__chips'; ['Change the banner text', 'Add a new product', 'Create a coupon', 'Change a word on the website', 'Update my phone number'].forEach(function (q) { var b = document.createElement('button'); b.type = 'button'; b.className = 'pill'; b.textContent = q; b.addEventListener('click', function () { ask(q); }); c.appendChild(b); }); log.appendChild(c); } input.focus(); } });
+      box.addEventListener('click', function (e) { if (e.target.closest('[data-x]')) { box.hidden = true; fab.setAttribute('aria-expanded', 'false'); fab.focus(); } });
+      box.querySelector('form').addEventListener('submit', function (e) { e.preventDefault(); ask(input.value); });
+      box.addEventListener('keydown', function (e) { if (e.key === 'Escape') { box.hidden = true; fab.focus(); } });
+    }
+    var t = setInterval(function () { if (ADM.me && ADM.me()) { clearInterval(t); build(); } }, 600);
+  })();
 })();

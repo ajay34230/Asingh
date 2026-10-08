@@ -1,4 +1,4 @@
-/* Shopper assistant ("Ask us"). Loaded on first tap. Talks to /api/ai/chat — Gemini when the owner has connected it,
+/* Shopper assistant (चंद्रवंशी AI). Loaded on first tap. Talks to /api/ai/chat — Gemini when the owner has connected it,
    otherwise free store-policy answers + product search. Never sends names, addresses or payment details. */
 (function () {
   'use strict';
@@ -26,7 +26,7 @@
   function render() {
     log.innerHTML = '';
     if (!history.length) {
-      bubble('bot', A.BRAND ? 'Namaste! Ask me about suits, sizes, delivery or returns — I’ll help you find the right piece.' : 'Namaste! How can I help?');
+      bubble('bot', 'Namaste! I’m चंद्रवंशी AI. Ask me about suits, sizes, delivery or returns — I’ll help you find the right piece.');
       var c = document.createElement('div'); c.className = 'chat__chips'; c.innerHTML = STARTERS.map(function (s) { return '<button type="button" class="pill" data-q="' + esc(s) + '">' + esc(s) + '</button>'; }).join(''); log.appendChild(c);
     } else history.forEach(function (m) { bubble(m.role === 'assistant' ? 'bot' : 'me', m.content, m.products); });
   }
@@ -42,8 +42,8 @@
     }).then(function () { busy = false; sendBtn.disabled = false; input.focus(); });
   }
   function build() {
-    root = document.createElement('div'); root.className = 'chat'; root.setAttribute('role', 'dialog'); root.setAttribute('aria-label', 'Shopping assistant'); root.hidden = true;
-    root.innerHTML = '<div class="chat__head"><strong>' + icon('spark', 'ico--xs') + ' <span>Ask us</span></strong><button type="button" class="icon-btn" data-chat-close aria-label="Close assistant">' + icon('close') + '</button></div>' +
+    root = document.createElement('div'); root.className = 'chat'; root.setAttribute('role', 'dialog'); root.setAttribute('aria-label', 'चंद्रवंशी AI shopping assistant'); root.hidden = true;
+    root.innerHTML = '<div class="chat__head"><strong>' + icon('spark', 'ico--xs') + ' <span data-no-i18n>चंद्रवंशी AI</span></strong><button type="button" class="icon-btn" data-chat-close aria-label="Close assistant">' + icon('close') + '</button></div>' +
       '<div class="chat__log" role="log" aria-live="polite" aria-label="Conversation"></div>' +
       '<form class="chat__form" novalidate><label class="vh" for="chat-in">Your question</label><input id="chat-in" class="input" maxlength="500" autocomplete="off" enterkeyhint="send" placeholder="Type your question…"><button class="btn" type="submit"><span>Send</span></button></form>' +
       '<p class="chat__fine">Automated assistant — it can make mistakes. Please don’t share phone numbers or payment details here.</p>';

@@ -253,8 +253,20 @@
   }
   var Auth = { user: null, waiting: null };
   Auth.refresh = function () { return api('GET', '/api/me').then(function (r) { Auth.user = r.user; Auth.paint(); if (r.user && !r.user.isGuest) document.dispatchEvent(new Event('authchange')); return r.user; }, function () { Auth.user = null; Auth.paint(); return null; }); };
+  function startEditor() {
+    var go = function () { window.ASINGH_EDITOR.start(); };
+    if (window.ASINGH_EDITOR) return go();
+    var sc = document.createElement('script'); sc.src = 'js/editor.js'; sc.onload = go; document.head.appendChild(sc);
+  }
+  function adminLauncher(u) {   // owners get an "Edit text" button on the real site
+    var ad = !!(u && u.role === 'admin' && document.body.getAttribute('data-page') !== 'admin'), b = document.getElementById('editbtn');
+    if (ad && !b) {
+      b = document.createElement('button'); b.id = 'editbtn'; b.type = 'button'; b.className = 'editbtn'; b.setAttribute('data-no-i18n', ''); b.textContent = '✎ Edit words on this page'; document.body.appendChild(b);
+      b.addEventListener('click', startEditor); if (/[?&]edit=1\b/.test(location.search)) startEditor();
+    } else if (!ad && b) b.remove();
+  }
   Auth.paint = function () {
-    var u = Auth.user, a = $('.header__account'); if (!a) return;
+    var u = Auth.user, a = $('.header__account'); adminLauncher(u); if (!a) return;
     var av = $('.avatar', a); if (av) { av.hidden = !u; av.textContent = u ? ((u.isGuest ? 'G' : (u.name || u.email || '?').trim().charAt(0).toUpperCase()) || '?') : ''; }
     a.setAttribute('aria-label', u ? (u.isGuest ? 'Guest account and orders' : 'Account of ' + (u.name || u.email)) : 'Sign in or create account');
     document.documentElement.classList.toggle('is-auth', !!u);
@@ -351,10 +363,48 @@
     var msg = 'Hello ' + A.BRAND + (pr ? ', I have a question about “' + pr.name + '” ' + location.href : ', I need some help.');
     return '<a class="wa" href="https://wa.me/' + n + '?text=' + encodeURIComponent(msg) + '" target="_blank" rel="noopener" aria-label="Chat on WhatsApp"><svg viewBox="0 0 32 32" width="28" height="28" fill="currentColor" aria-hidden="true"><path d="M16 3C9.4 3 4 8.3 4 14.9c0 2.6.9 5.1 2.4 7.1L4.7 28l6.2-1.6c1.9 1 4 1.5 6.1 1.5 6.6 0 12-5.3 12-11.9S22.600 3 16 3zm0 21.400c-1.900 0-3.800-.5-5.400-1.500l-.4-.2-3.700 1 1-3.600-.2-.4c-1.100-1.600-1.600-3.400-1.600-5.300C5.700 9.600 10.300 5 16 5s10.300 4.600 10.300 10.300S21.700 24.400 16 24.400zm5.600-7.700c-.3-.2-1.800-.9-2.100-1-.3-.1-.5-.2-.7.200-.2.300-.8 1-.9 1.200-.2.200-.3.200-.6.100-.3-.2-1.300-.5-2.500-1.500-.9-.8-1.500-1.800-1.700-2.100-.2-.3 0-.5.100-.6l.5-.5c.1-.2.200-.3.300-.5.100-.2.100-.4 0-.5-.1-.2-.7-1.700-1-2.300-.3-.6-.5-.5-.7-.5h-.6c-.2 0-.5.100-.8.400-.3.300-1.100 1.100-1.100 2.600s1.100 3 1.300 3.200c.2.200 2.200 3.400 5.300 4.700 3.100 1.300 3.100.9 3.600.8.600-.1 1.800-.7 2.100-1.400.3-.7.300-1.300.2-1.400-.1-.1-.3-.2-.6-.4z"/></svg></a>';
   }
+  /* चंद्रवंशी AI — a small icon the shopper can drag anywhere; the × hides it and the choice is remembered */
+  var AIK = 'asingh.ai.hidden', AIP = 'asingh.ai.pos';
+  function aiHidden() { try { return localStorage.getItem(AIK) === '1'; } catch (e) { return false; } }
   function aiButton() {
     if (A.SITE && A.SITE.aiChat === false) return '';
-    return '<button type="button" class="aibtn" id="aibtn" aria-haspopup="dialog" aria-expanded="false">' + icon('spark', 'ico--xs') + '<span>Ask us</span></button>';
+    return (aiHidden() ? '' : aiMarkup());
   }
+  function aiMarkup() {
+    return '<div class="aiwrap" id="aiwrap" data-no-i18n><button type="button" class="aibtn" id="aibtn" aria-haspopup="dialog" aria-expanded="false" aria-label="चंद्रवंशी AI assistant — drag to move"><svg viewBox="0 0 48 48" width="34" height="34" aria-hidden="true"><defs><linearGradient id="aig" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#ffe8a3"/><stop offset="1" stop-color="#e0a93b"/></linearGradient></defs><path d="M24 5l3.4 9.6L37 18l-9.6 3.4L24 31l-3.4-9.6L11 18l9.6-3.4z" fill="url(#aig)"/><path d="M37 28l1.6 4.4L43 34l-4.4 1.6L37 40l-1.6-4.4L31 34l4.4-1.6z" fill="#fff" opacity=".9"/><path d="M12 30l1.1 3L16 34l-2.9 1.1L12 38l-1.1-2.9L8 34l2.9-1z" fill="#fff" opacity=".7"/></svg><span class="aibtn__t">AI</span></button>' +
+      '<button type="button" class="aix" id="aix" aria-label="Hide the AI assistant icon">×</button><span class="aitip" id="aitip" role="note">चंद्रवंशी AI</span></div>';
+  }
+  function aiPlace() {
+    var w = document.getElementById('aiwrap'); if (!w) return;
+    var pos; try { pos = JSON.parse(localStorage.getItem(AIP) || 'null'); } catch (e) { pos = null; }
+    if (!pos) { w.style.left = ''; w.style.top = ''; w.style.bottom = ''; return; }
+    var r = w.getBoundingClientRect(), x = Math.min(Math.max(8, pos.x), innerWidth - (r.width || 60) - 8), y = Math.min(Math.max(8, pos.y), innerHeight - (r.height || 60) - 8);
+    w.style.left = x + 'px'; w.style.top = y + 'px'; w.style.bottom = 'auto';
+  }
+  function aiDrag() {
+    var w = document.getElementById('aiwrap'); if (!w) return;
+    var btn = document.getElementById('aibtn'), sx, sy, ox, oy, moved = false, down = false;
+    btn.addEventListener('pointerdown', function (e) { if (e.button > 0) return; down = true; moved = false; sx = e.clientX; sy = e.clientY; var r = w.getBoundingClientRect(); ox = r.left; oy = r.top; try { btn.setPointerCapture(e.pointerId); } catch (x) {} });
+    btn.addEventListener('pointermove', function (e) {
+      if (!down) return; var dx = e.clientX - sx, dy = e.clientY - sy; if (!moved && Math.hypot(dx, dy) < 7) return; moved = true; w.classList.add('is-drag');
+      var r = w.getBoundingClientRect(); w.style.left = Math.min(Math.max(8, ox + dx), innerWidth - r.width - 8) + 'px'; w.style.top = Math.min(Math.max(8, oy + dy), innerHeight - r.height - 8) + 'px'; w.style.bottom = 'auto';
+    });
+    function end() { if (!down) return; down = false; w.classList.remove('is-drag'); if (moved) { var r = w.getBoundingClientRect(); try { localStorage.setItem(AIP, JSON.stringify({ x: r.left, y: r.top })); } catch (e) {} setTimeout(function () { moved = false; }, 60); } }
+    btn.addEventListener('pointerup', end); btn.addEventListener('pointercancel', end);
+    btn.addEventListener('click', function (e) { if (moved) { e.preventDefault(); e.stopImmediatePropagation(); } }, true);
+    btn.addEventListener('keydown', function (e) {   // keyboard users can move it too
+      var d = { ArrowLeft: [-24, 0], ArrowRight: [24, 0], ArrowUp: [0, -24], ArrowDown: [0, 24] }[e.key]; if (!d) return; e.preventDefault();
+      var r = w.getBoundingClientRect(); w.style.left = Math.min(Math.max(8, r.left + d[0]), innerWidth - r.width - 8) + 'px'; w.style.top = Math.min(Math.max(8, r.top + d[1]), innerHeight - r.height - 8) + 'px'; w.style.bottom = 'auto';
+      try { var q = w.getBoundingClientRect(); localStorage.setItem(AIP, JSON.stringify({ x: q.left, y: q.top })); } catch (x) {}
+    });
+    document.getElementById('aix').addEventListener('click', function () { try { localStorage.setItem(AIK, '1'); } catch (e) {} w.remove(); var s = document.querySelector('[data-ai-show]'); if (s) s.hidden = false; toast('Assistant hidden. You can bring it back from the footer.'); });
+    window.addEventListener('resize', aiPlace); aiPlace();
+    var tip = document.getElementById('aitip'); try { if (!sessionStorage.getItem('asingh.ai.tip')) { sessionStorage.setItem('asingh.ai.tip', '1'); w.classList.add('show-tip'); setTimeout(function () { w.classList.remove('show-tip'); }, 5000); } } catch (e) {}
+  }
+  document.addEventListener('click', function (e) {
+    var s = e.target.closest('[data-ai-show]'); if (!s) return; try { localStorage.removeItem(AIK); } catch (x) {}
+    s.hidden = true; if (!document.getElementById('aiwrap')) { document.body.insertAdjacentHTML('beforeend', aiMarkup()); aiDrag(); } toast('चंद्रवंशी AI is back');
+  });
   document.addEventListener('click', function (e) {
     var b = e.target.closest('#aibtn,[data-ask]'); if (!b) return; e.preventDefault();
     var go = function () { window.ASINGH_CHAT.open(b.getAttribute('data-ask') || ''); };
@@ -384,7 +434,7 @@
     var page = document.body.getAttribute('data-page');
     var sprite = '';
     var header = '<a class="skip" href="#main">Skip to content</a>' +
-      offerBar() + '<p class="announce"><span>' + (A.FREE_SHIP_FROM ? 'Free shipping over ' + money(A.FREE_SHIP_FROM) : 'Free shipping on all orders') + '</span>' + ((A.SITE && A.SITE.announcement) ? '<span class="announce__sep" aria-hidden="true">·</span><span class="announce__opt">' + esc(A.SITE.announcement) + '</span>' : '') + '<span class="announce__sep" aria-hidden="true">·</span><a class="announce__track" href="track.html">Track your order</a><button type="button" class="themebtn" data-theme-toggle aria-label="Change theme"><span class="themebtn__dot" aria-hidden="true"></span><span class="themebtn__t"></span></button><button type="button" class="themebtn langbtn" data-lang-toggle data-no-i18n aria-label="Language: switch between English and Hindi"><span class="langbtn__t">हिन्दी</span></button><button type="button" class="themebtn installbtn" data-install hidden aria-label="Install the app">' + icon('plus', 'ico--xs') + '<span>Install app</span></button></p>' +
+      offerBar() + '<p class="announce"><span>' + (A.FREE_SHIP_FROM ? 'Free shipping over ' + money(A.FREE_SHIP_FROM) : 'Free shipping on all orders') + '</span>' + ((A.SITE && A.SITE.announcement) ? '<span class="announce__sep" aria-hidden="true">·</span><span class="announce__opt">' + esc(A.SITE.announcement) + '</span>' : '') + '<span class="announce__sep" aria-hidden="true">·</span><a class="announce__track" href="track.html">Track your order</a><span class="announce__ctl"><button type="button" class="themebtn" data-theme-toggle aria-label="Change theme"><span class="themebtn__dot" aria-hidden="true"></span><span class="themebtn__t"></span></button><button type="button" class="themebtn langbtn" data-lang-toggle data-no-i18n aria-label="Language: switch between English and Hindi"><span class="langbtn__t">हिन्दी</span></button><button type="button" class="themebtn installbtn" data-install hidden aria-label="Install the app">' + icon('plus', 'ico--xs') + '<span>Install app</span></button></span></p>' +
       '<header class="header" id="site-header"><div class="header__bar container">' +
       brandLink() +
       '<nav class="nav" aria-label="Primary"><ul class="nav__list">' +
@@ -410,7 +460,7 @@
       '<details class="footer__col footer__col--cats" open><summary>Shop</summary><ul>' + A.CATEGORIES.map(function (c) { return '<li><a href="shop.html?cat=' + c.id + '">' + c.label + '</a></li>'; }).join('') + '</ul></details>' +
       footerCols() +
       '<details class="footer__col" open><summary>Contact</summary><ul>' + contactItems() + '</ul></details>' +
-      '</div><p class="footer__legal container">© ' + new Date().getFullYear() + ' ' + A.BRAND + '. All rights reserved.</p></footer>';
+      '</div><p class="footer__legal container">© ' + new Date().getFullYear() + ' ' + A.BRAND + '. All rights reserved. <button type="button" class="link" data-ai-show' + (aiHidden() && !(A.SITE && A.SITE.aiChat === false) ? '' : ' hidden') + '>Show AI assistant</button></p></footer>';
     var sheets =
       '<div class="sheet sheet--menu" id="menu" aria-hidden="true"><div class="sheet__backdrop" data-close></div><div class="sheet__panel" aria-label="Menu">' +
       '<div class="sheet__head">' + brandLink() + '<button type="button" class="icon-btn" data-close aria-label="Close menu">' + icon('close') + '</button></div>' +
@@ -447,7 +497,7 @@
     pg.insertAdjacentHTML('afterbegin', header);
     var sk = $('.skip'); if (sk) sk.addEventListener('click', function (ev) { ev.preventDefault(); var m = $('#main'); if (m) { m.setAttribute('tabindex', '-1'); m.focus(); m.scrollIntoView(); } });
     pg.insertAdjacentHTML('beforeend', footer);
-    pg.insertAdjacentHTML('afterend', sheets);
+    pg.insertAdjacentHTML('afterend', sheets); aiDrag();
     // Footer accordions: open on larger screens, collapsed on small ones.
     var syncFooter = function () { $$('.footer__col').forEach(function (d) { if (mqSmall.matches) d.removeAttribute('open'); else d.setAttribute('open', ''); }); };
     syncFooter(); (mqSmall.addEventListener ? mqSmall.addEventListener('change', syncFooter) : mqSmall.addListener(syncFooter));

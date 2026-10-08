@@ -2,7 +2,7 @@
    store owner's own translations (Admin → Hindi) for products, categories and other custom text. English is the source. */
 (function (A) {
   'use strict';
-  var KEY = 'asingh.lang', root = document.documentElement, HI = {}, PAT = [], OWN = {};
+  var KEY = 'asingh.lang', root = document.documentElement, HI = {}, PAT = [], OWN = {}, EDITS = {}, hasEdits = false;
   var SKIP = { SCRIPT: 1, STYLE: 1, TEXTAREA: 1, NOSCRIPT: 1, CODE: 1 }, ATTRS = ['placeholder', 'aria-label', 'title', 'alt'];
   var orig = new WeakMap();   // text node -> English text
   var lang = 'en', obs = null, busy = false;
@@ -22,13 +22,14 @@
     }
     return null;
   }
+  function xf(s) { var k = norm(s), h = lang === 'hi' ? lookup(s) : null; return h != null ? h : (k && EDITS[k] ? EDITS[k] : null); }   // what a piece of English text should show right now
   function tr(s) { if (lang !== 'hi') return s; var h = lookup(s); return h == null ? s : h; }
 
   function doText(n) {
     var p = n.parentNode; if (!p || SKIP[p.nodeName] || (p.closest && p.closest('[data-no-i18n]'))) return;
     var cur = n.nodeValue, saved = orig.get(n);
     if (saved !== undefined && norm(cur) === norm(saved.hi)) return;                  // already our translation
-    var h = lookup(cur); if (h == null) { orig.delete(n); return; }
+    var h = xf(cur); if (h == null) { orig.delete(n); return; }
     var lead = /^\s*/.exec(cur)[0], trail = /\s*$/.exec(cur)[0];
     orig.set(n, { en: cur, hi: h }); n.nodeValue = lead + h + trail;
   }
@@ -36,8 +37,8 @@
     if (!el.getAttribute || (el.closest && el.closest('[data-no-i18n]'))) return;
     ATTRS.forEach(function (a) {
       var v = el.getAttribute(a); if (!v) return; var key = 'data-en-' + a, saved = el.getAttribute(key);
-      if (saved !== null && norm(v) === norm(lookup(saved) || saved)) return;
-      var h = lookup(v); if (h == null) return; if (saved === null) el.setAttribute(key, v); el.setAttribute(a, h);
+      if (saved !== null && norm(v) === norm(xf(saved) || saved)) return;
+      var h = xf(v); if (h == null) return; if (saved === null) el.setAttribute(key, v); el.setAttribute(a, h);
     });
   }
   function walk(node) {
@@ -62,7 +63,7 @@
   }
   function start() {
     if (obs) return; obs = new MutationObserver(function (muts) {
-      if (busy || lang !== 'hi') return; busy = true;
+      if (busy || (lang !== 'hi' && !hasEdits)) return; busy = true;
       try { muts.forEach(function (m) { if (m.type === 'childList') m.addedNodes.forEach(walk); else if (m.type === 'characterData') doText(m.target); else if (m.type === 'attributes') doAttrs(m.target); }); title(); } finally { busy = false; }
     });
     obs.observe(document.body, { childList: true, subtree: true, characterData: true, attributes: true, attributeFilter: ATTRS });
@@ -71,8 +72,8 @@
     lang = l === 'hi' ? 'hi' : 'en'; root.setAttribute('lang', lang === 'hi' ? 'hi' : 'en'); root.setAttribute('data-lang', lang);
     try { document.cookie = 'as_lang=' + lang + '; Path=/; Max-Age=31536000; SameSite=Lax'; } catch (e) {}
     if (!document.body) return;
-    busy = true; try { if (lang === 'hi') { walk(document.body); } else restore(document.body); title(); } finally { busy = false; }
-    if (lang === 'hi') start();
+    busy = true; try { restore(document.body); if (lang === 'hi' || hasEdits) walk(document.body); title(); } finally { busy = false; }
+    if (lang === 'hi' || hasEdits) start();
     document.dispatchEvent(new CustomEvent('asingh:lang', { detail: lang }));
   }
   function dict(cb) {   // the Hindi dictionary is only downloaded when Hindi is chosen
@@ -81,18 +82,19 @@
   function get() { try { var l = localStorage.getItem(KEY); if (l === 'hi' || l === 'en') return l; } catch (e) {} return 'en'; }
   function set(l) { try { localStorage.setItem(KEY, l); } catch (e) {} if (document.body.hasAttribute('data-cms')) { document.cookie = 'as_lang=' + l + '; Path=/; Max-Age=31536000; SameSite=Lax'; location.reload(); return; } if (l === 'hi') dict(function () { apply('hi'); }); else apply(l); }
   function load() {
-    var site = A.SITE || {}; OWN = {}; var t = site.translations || {}; Object.keys(t).forEach(function (k) { if (t[k]) OWN[norm(k)] = t[k]; });
+    var site = A.SITE || {}; OWN = {}; EDITS = {}; var te = site.textEdits || {}; Object.keys(te).forEach(function (k) { if (te[k]) EDITS[norm(k)] = te[k]; }); hasEdits = Object.keys(EDITS).length > 0;
+    var t = site.translations || {}; Object.keys(t).forEach(function (k) { if (t[k]) OWN[norm(k)] = t[k]; });
     (A.PAGES || []).forEach(function (p) { if (p.titleHi) OWN[norm(p.title)] = p.titleHi; });
     HI = (A.I18N && A.I18N.hi) || {}; PAT = (A.I18N && A.I18N.pat) || [];
   }
-  A.Lang = { get: get, set: set, tr: tr, lookup: lookup, norm: norm, builtin: function () { return HI; } };
+  A.Lang = { source: function (n) { var o = orig.get(n); return o ? o.en : n.nodeValue; }, refresh: function () { load(); apply(lang); }, mode: function () { return lang; }, get: get, set: set, tr: tr, lookup: lookup, norm: norm, builtin: function () { return HI; } };
   root.setAttribute('lang', 'en');
   function init() {
     load();
     if (document.body.hasAttribute('data-cms')) {   // server renders the page text in the language of the cookie — keep it in step with the saved choice
       var ck = /(?:^|;\s*)as_lang=hi\b/.test(document.cookie) ? 'hi' : 'en';
       if (ck !== get()) { document.cookie = 'as_lang=' + get() + '; Path=/; Max-Age=31536000; SameSite=Lax'; location.reload(); return; }
-    } if (get() === 'hi') dict(function () { apply('hi'); }); else { root.setAttribute('data-lang', 'en'); document.cookie = 'as_lang=en; Path=/; Max-Age=31536000; SameSite=Lax'; } }
+    } if (get() === 'hi') dict(function () { apply('hi'); }); else { root.setAttribute('data-lang', 'en'); document.cookie = 'as_lang=en; Path=/; Max-Age=31536000; SameSite=Lax'; if (hasEdits) apply('en'); } }
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', function () { setTimeout(init, 0); }); else setTimeout(init, 0);
   document.addEventListener('asingh:ready', function () { load(); if (get() === 'hi' && A.I18N) apply('hi'); });
 })(window.ASINGH = window.ASINGH || {});

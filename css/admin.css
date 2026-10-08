@@ -101,3 +101,17 @@
 .adm__logo, .adm__brand { letter-spacing: 0 !important; font-family: "Noto Serif Devanagari", "Nirmala UI", "Mangal", Georgia, serif; }
 .sizestock { display: flex; flex-wrap: wrap; gap: 8px; margin: 6px 0; } .sizestock__i { display: grid; gap: 2px; width: 68px; text-align: center; font-size: .82rem; }
 .ptile__c { position: absolute; left: 4px; right: 4px; bottom: 4px; width: calc(100% - 8px); font-size: .72rem; padding: 2px 4px; border-radius: 6px; border: 1px solid var(--line); background: var(--surface); }
+
+.adm__steps { margin: 0 0 14px; padding-left: 1.3em; display: grid; gap: 8px; font-size: 1.02rem; }
+
+/* AI guide */
+.aig__fab { position: fixed; z-index: 60; right: 16px; bottom: calc(16px + env(safe-area-inset-bottom, 0px)); min-height: 48px; padding: 0 18px; border: 0; border-radius: 999px; background: #7a1f3d; color: #fff; font: inherit; font-weight: 600; cursor: pointer; box-shadow: 0 12px 28px -8px rgba(0,0,0,.45); }
+.aig { position: fixed; z-index: 61; right: 12px; bottom: calc(76px + env(safe-area-inset-bottom, 0px)); width: min(400px, calc(100vw - 24px)); height: min(560px, calc(100dvh - 100px)); display: flex; flex-direction: column; background: var(--surface, #fff); color: var(--ink, #1c1417); border: 1px solid var(--line, #ddd); border-radius: 16px; box-shadow: 0 24px 60px -16px rgba(0,0,0,.5); }
+.aig[hidden] { display: none; }
+.aig__h { display: flex; justify-content: space-between; align-items: center; padding: 8px 8px 8px 14px; border-bottom: 1px solid var(--line, #ddd); }
+.aig__log { flex: 1; overflow-y: auto; padding: 12px; display: flex; flex-direction: column; gap: 10px; }
+.aig__m { max-width: 92%; padding: 10px 12px; border-radius: 14px; font-size: .92rem; line-height: 1.5; display: grid; gap: 8px; justify-items: start; }
+.aig__m p { margin: 0; white-space: pre-wrap; overflow-wrap: anywhere; }
+.aig__m--bot { align-self: flex-start; background: var(--bg-2, #f2ebdf); } .aig__m--me { align-self: flex-end; background: #7a1f3d; color: #fff; }
+.aig__chips { display: flex; flex-wrap: wrap; gap: 8px; }
+.aig__f { display: flex; gap: 8px; padding: 10px; border-top: 1px solid var(--line, #ddd); }

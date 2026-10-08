@@ -37,7 +37,7 @@
   }
 
   /* ------------ shell ------------ */
-  var NAV = [['overview', 'Overview', 'home'], ['orders', 'Orders', 'box'], ['analytics', 'Analytics', 'chart'], ['products', 'Products', 'tag'], ['home', 'Home page', 'layout'], ['pages', 'Pages', 'doc'], ['hindi', 'Hindi (हिन्दी)', 'doc'], ['store', 'Store settings', 'gear'], ['offers', 'Offers', 'tag'], ['reviews', 'Reviews', 'check'], ['customers', 'Customers', 'users'], ['abandoned', 'Abandoned bags', 'box'], ['waitlist', 'Waitlist', 'bell'], ['inbox', 'Inbox', 'mail'], ['payment', 'Payment & QR', 'qr'], ['alerts', 'Alerts', 'bell'], ['security', 'Admins & login', 'lock']];
+  var NAV = [['overview', 'Overview', 'home'], ['orders', 'Orders', 'box'], ['analytics', 'Analytics', 'chart'], ['products', 'Products', 'tag'], ['home', 'Home page', 'layout'], ['texts', 'Edit any words', 'doc'], ['pages', 'Pages', 'doc'], ['hindi', 'Hindi (हिन्दी)', 'doc'], ['store', 'Store settings', 'gear'], ['offers', 'Offers', 'tag'], ['reviews', 'Reviews', 'check'], ['customers', 'Customers', 'users'], ['abandoned', 'Abandoned bags', 'box'], ['waitlist', 'Waitlist', 'bell'], ['inbox', 'Inbox', 'mail'], ['payment', 'Payment & QR', 'qr'], ['alerts', 'Alerts', 'bell'], ['security', 'Admins & login', 'lock']];
   function consoleView() {
     app.innerHTML = '<div class="adm__shell"><aside class="adm__nav"><a class="adm__brand" href="index.html" title="View storefront">चंद्रवंशी <small>Admin</small></a><nav aria-label="Admin">' + NAV.map(function (n) { return '<a href="#/' + n[0] + '" data-v="' + n[0] + '">' + ico(n[2]) + '<span>' + n[1] + '</span><b class="adm__badge" data-b="' + n[0] + '" hidden></b></a>'; }).join('') + '</nav><button class="adm__out" id="so">' + ico('out') + '<span>Sign out</span></button></aside>' +
       '<div class="adm__main"><header class="adm__top"><h1 id="vt">Overview</h1><div class="adm__tools"><span class="live" id="live" title="Live alerts"><i></i><em>Connecting…</em></span><button class="adm__icon" id="snd" aria-pressed="' + sound + '" aria-label="Alert sound">' + (sound ? '🔔' : '🔕') + '</button><button class="adm__icon adm__bell" id="bell" aria-label="Notifications" aria-expanded="false">' + ico('bell') + '<b class="adm__badge" id="bb" hidden>0</b></button></div></header><main id="view" tabindex="-1"></main></div>' +
@@ -193,6 +193,6 @@
   }
   function securityView() { ADM.views.security2(); }
 
-  var ADM = window.ADM = { $: $, $$: $$, esc: esc, money: money, api: api, toast: toast, ico: ico, view: view, showDrawer: showDrawer, closeDrawer: closeDrawer, refreshBadges: refreshBadges, me: function () { return me; }, setMe: function (u) { me = u; }, views: {}, openOrder: openOrder, guard: guard };
+  var ADM = window.ADM = { $: $, $$: $$, esc: esc, money: money, api: api, toast: toast, ico: ico, view: view, showDrawer: showDrawer, closeDrawer: closeDrawer, refreshBadges: refreshBadges, me: function () { return me; }, setMe: function (u) { me = u; }, views: {}, nav: NAV, openOrder: openOrder, guard: guard };
   api('GET', '/api/me').then(function (r) { if (r.user && r.user.role === 'admin') { me = r.user; consoleView(); } else loginView(r.user ? 'You are signed in as a customer. Sign in with the admin account to continue.' : ''); }, function () { loginView('Can’t reach the server.'); });
 })();

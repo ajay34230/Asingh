@@ -512,6 +512,39 @@ console.log('\nAI helpers (Gemini free tier + free fallbacks)');
   ok((await ADM.req('PUT', '/api/admin/site', { aiChat: false })).status === 200 && (await chatQ(C, 'hello')).status === 404, 'owner can switch the shopper assistant off'); await ADM.req('PUT', '/api/admin/site', { aiChat: true });
   delete process.env.GEMINI_API_KEY; delete process.env.GEMINI_BASE; mock.close(); }
 
+console.log('\nAdmin AI key, guide & editable words');
+{ const http2 = (await import('node:http')).default, seen = []; let mode = 'ok';
+  const mock = http2.createServer((rq, rs) => { let b = ''; rq.on('data', d => b += d); rq.on('end', () => { seen.push({ key: rq.headers['x-goog-api-key'], body: b }); if (mode === 'badkey') { rs.statusCode = 403; return rs.end('{}'); }
+    const sys = (JSON.parse(b || '{}').systemInstruction || { parts: [{ text: '' }] }).parts[0].text; const out = /admin panel/.test(sys) ? { reply: 'I can change that for you.', goto: 'home', changes: [{ field: 'heroTitle', value: 'Festive Edit' }, { field: 'adminPassword', value: 'hack' }, { field: 'announcement', value: 'x'.repeat(900) }], textEdit: { from: 'Shop the collection', to: 'Shop now' } } : { ok: true };
+    rs.setHeader('content-type', 'application/json'); rs.end(JSON.stringify({ candidates: [{ content: { parts: [{ text: JSON.stringify(out) }] } }] })); }); });
+  await new Promise(r2 => mock.listen(0, '127.0.0.1', r2)); process.env.GEMINI_BASE = 'http://127.0.0.1:' + mock.address().port + '/v1beta'; delete process.env.GEMINI_API_KEY;
+  const C = new Client(); await C.req('POST', '/api/auth/guest', {});
+  ok((await ADM.req('PUT', '/api/admin/ai/key', { key: 'bad key!' })).status === 400, 'a malformed API key is rejected');
+  ok((await A.req('PUT', '/api/admin/ai/key', { key: 'AIzaSyFAKEFAKEFAKEFAKEFAKEFAKE12345' })).status === 404, 'customers cannot set the key');
+  let r = await ADM.req('PUT', '/api/admin/ai/key', { key: 'AIzaSyFAKEFAKEFAKEFAKEFAKEFAKE12345', model: 'gemini-2.5-flash' });
+  ok(r.status === 200 && r.json.enabled && r.json.key.source === 'admin' && r.json.key.masked === 'AIza…2345' && !JSON.stringify(r.json).includes('FAKEFAKE'), 'owner saves a key from the admin panel; only a masked version comes back');
+  ok(!JSON.stringify((await ADM.req('GET', '/api/admin/settings')).json).includes('FAKEFAKE') && !(await ADM.req('GET', '/api/admin/backup')).text.includes('FAKEFAKE') && !(await C.req('GET', '/js/data.js')).text.includes('FAKEFAKE'), 'the key never appears in settings, backups or the public catalogue');
+  r = await ADM.req('POST', '/api/admin/ai/test', {}); ok(r.status === 200 && r.json.ok && seen[seen.length - 1].key === 'AIzaSyFAKEFAKEFAKEFAKEFAKEFAKE12345', '“Test connection” calls Gemini with the saved key');
+  mode = 'badkey'; r = await ADM.req('POST', '/api/admin/ai/test', {}); ok(r.status === 400 && /API key/.test(r.json.error), 'a rejected key gives a clear message'); mode = 'ok';
+  r = await ADM.req('POST', '/api/admin/ai/guide', { messages: [{ role: 'user', content: 'change the hero title to Festive Edit' }], view: 'overview' });
+  ok(r.status === 200 && r.json.ai && r.json.goto === 'home' && r.json.changes.length === 2 && r.json.changes[0].field === 'heroTitle' && r.json.changes.every(c => c.field !== 'adminPassword') && r.json.changes[1].value.length <= 400 && r.json.textEdit.to === 'Shop now', 'guide proposes only whitelisted, length-limited changes (nothing is applied by itself)');
+  ok((await ADM.req('GET', '/api/admin/catalog')).json.site.heroTitle !== 'Festive Edit', 'proposals do not change the site until the owner confirms');
+  ok((await A.req('POST', '/api/admin/ai/guide', { messages: [{ role: 'user', content: 'hi' }] })).status === 404 && (await new Client().req('POST', '/api/admin/ai/guide', { messages: [] })).status === 401, 'only admins can use the guide');
+  ok((await ADM.req('POST', '/api/admin/ai/guide', { messages: [] })).status === 400, 'empty guide question rejected');
+  ok((await ADM.req('PUT', '/api/admin/ai/key', { key: '' })).json.enabled === false, 'owner can remove the saved key');
+  r = await ADM.req('POST', '/api/admin/ai/guide', { messages: [{ role: 'user', content: 'how do I add a new product?' }] }); ok(r.json.ai === false && r.json.goto === 'products' && /Products/.test(r.json.reply), 'without a key the guide still points to the right admin section');
+  r = await ADM.req('POST', '/api/admin/ai/guide', { messages: [{ role: 'user', content: 'I want to change a word in the footer' }] }); ok(r.json.goto === 'texts', 'wording questions point to “Edit any words”');
+  mock.close(); delete process.env.GEMINI_BASE;
+  /* editable words */
+  const sbx = async () => { const sb = {}; vm.createContext(sb); vm.runInContext((await new Client().req('GET', '/js/data.js')).text, sb); return sb.ASINGH.SITE; };
+  r = await ADM.req('PUT', '/api/admin/textedit', { lang: 'en', from: 'Shop the collection', to: 'Shop now' }); ok(r.status === 200 && r.json.textEdits['Shop the collection'] === 'Shop now', 'owner changes any English word site-wide');
+  ok((await sbx()).textEdits['Shop the collection'] === 'Shop now', 'shoppers receive the new wording immediately');
+  ok((await ADM.req('PUT', '/api/admin/textedit', { lang: 'hi', from: 'Shop the collection', to: 'अभी खरीदें' })).json.translations['Shop the collection'] === 'अभी खरीदें', 'the same word can be given its own Hindi wording');
+  ok((await A.req('PUT', '/api/admin/textedit', { lang: 'en', from: 'a', to: 'b' })).status === 404 && (await new Client().req('PUT', '/api/admin/textedit', { lang: 'en', from: 'a', to: 'b' })).status === 401, 'only admins can change wording');
+  ok((await ADM.req('PUT', '/api/admin/textedit', { lang: 'en', from: '   ', to: 'x' })).status === 400, 'empty source rejected');
+  ok(!('Shop the collection' in (await ADM.req('PUT', '/api/admin/textedit', { lang: 'en', from: 'Shop the collection', to: '' })).json.textEdits) && !('Shop the collection' in (await ADM.req('PUT', '/api/admin/textedit', { lang: 'hi', from: 'Shop the collection', to: '' })).json.translations), 'restore original removes the edits');
+  ok((await ADM.req('PUT', '/api/admin/textedit', { lang: 'en', from: 'Same', to: 'Same' })).json.textEdits.Same === undefined, 'saving identical text is not stored as an edit'); }
+
 console.log('\nLimited-time price drop');
 { const pid0 = 'jaipur-bandhani', cp = async () => (await ADM.req('GET', '/api/admin/catalog')).json.products.find(x => x.id === pid0), pub = async () => { const sb = {}; vm.createContext(sb); vm.runInContext((await new Client().req('GET', '/js/data.js')).text, sb); return sb.ASINGH.PRODUCTS.find(x => x.id === pid0); };
   const reg = (await cp()).price, H = 36e5, now = Date.now();

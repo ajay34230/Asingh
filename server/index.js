@@ -24,6 +24,7 @@ function createApp(opts = {}) {
   const catalog = new Catalog(db);
   D.settings = Object.assign({ payeeName: 'चंद्रवंशी', upiId: '', instructions: 'Scan the QR with any UPI app, pay the exact amount, then upload a screenshot of the payment on the next screen.', webhookUrl: '', qrFile: '', qrV: 0, invoice: { name: 'चंद्रवंशी', address: '', gstin: '', contact: '' } }, D.settings);
   D.settings.invoice = Object.assign({ name: 'चंद्रवंशी', address: '', gstin: '', contact: '' }, D.settings.invoice);
+  AI.setProvider(() => ({ key: D.settings.aiKey, model: D.settings.aiModel }));
   const trackLimit = limiter(20, 10 * 60e3), authLimit = limiter(12, 10 * 60e3), guestLimit = limiter(60, 10 * 60e3), orderLimit = limiter(20, 3600e3), uploadLimit = limiter(15, 3600e3), emailLimit = limiter(8, 15 * 60e3);
 
   /* ---- admin bootstrap: never ships with a default password ---- */
@@ -311,6 +312,21 @@ function createApp(opts = {}) {
     send(res, 200, await AI.smartSearch(catalog, new URL(req.url, 'http://x').searchParams.get('q')));
   });
   route('GET', /^\/api\/admin\/ai$/, async (req, res) => { need(req, 'admin'); send(res, 200, AI.status()); });
+  route('PUT', /^\/api\/admin\/ai\/key$/, async (req, res) => {
+    need(req, 'admin'); const b = await jsonBody(req), st = D.settings;
+    if (b.key !== undefined) { const k = String(b.key).trim(); if (k && !/^[A-Za-z0-9_-]{20,90}$/.test(k)) throw fail(400, 'That does not look like an API key. Copy the whole key from Google AI Studio (letters, numbers, - and _ only).'); if (k) st.aiKey = k; else delete st.aiKey; }
+    if (b.model !== undefined) { const m = String(b.model).trim(); if (m && !/^[\w.-]{3,60}$/.test(m)) throw fail(400, 'Model name looks wrong. Leave it blank to use the default.'); if (m) st.aiModel = m; else delete st.aiModel; }
+    db.save(); send(res, 200, AI.status());
+  });
+  route('POST', /^\/api\/admin\/ai\/test$/, async (req, res) => {
+    need(req, 'admin'); if (!AI.enabled()) throw fail(400, 'Add an API key first.');
+    if (!aiWriteLimit(ip(req))) throw fail(429, 'Too many AI requests this hour.');
+    try { const out = await AI.gen({ system: 'Reply with JSON only.', contents: [{ role: 'user', parts: [{ text: 'Return {"ok":true}' }] }], maxTokens: 30, temperature: 0 }); send(res, 200, { ok: !!out, status: AI.status() }); } catch (e) { throw fail(e.code === 'limit' ? 429 : 400, e.message); }
+  });
+  route('POST', /^\/api\/admin\/ai\/guide$/, async (req, res) => {
+    need(req, 'admin'); if (!aiWriteLimit(ip(req))) throw fail(429, 'Too many AI requests this hour.');
+    const b = await jsonBody(req); try { send(res, 200, await AI.guide(catalog, b.messages, b.view)); } catch (e) { if (e.code === 'bad') throw fail(400, e.message); throw e; }
+  });
   route('POST', /^\/api\/admin\/ai\/describe$/, async (req, res) => {
     need(req, 'admin'); if (!AI.enabled()) throw fail(400, 'AI is not connected yet. Add GEMINI_API_KEY on your host (see the AI card in Store settings).');
     if (!aiWriteLimit(ip(req))) throw fail(429, 'Too many AI requests this hour.');
@@ -573,6 +589,7 @@ function createApp(opts = {}) {
     const q = new URL(req.url, 'http://x').searchParams, data = await readBody(req, 1.6e6); const t = sniffImage(data); if (!t) throw fail(400, 'Please upload a JPG, PNG or WebP photo.');
     catalog.addImage(p, q.get('rev') || '', q.get('w') === 'feed' ? 'feed' : parseInt(q.get('w'), 10), t.ext, data); send(res, 200, { product: adminProduct(p) });
   });
+  route('PUT', /^\/api\/admin\/textedit$/, async (req, res) => { need(req, 'admin'); const b = await jsonBody(req); catalog.setText(b.lang === 'hi' ? 'hi' : 'en', b.from, b.to); send(res, 200, { textEdits: catalog.site.textEdits, translations: catalog.site.translations }); });
   route('PUT', /^\/api\/admin\/categories$/, async (req, res) => { need(req, 'admin'); catalog.setCategories((await jsonBody(req)).categories); send(res, 200, { categories: catalog.categories }); });
   route('PUT', /^\/api\/admin\/site$/, async (req, res) => { need(req, 'admin'); catalog.setSite(await jsonBody(req)); send(res, 200, { site: catalog.site }); });
   route('POST', /^\/api\/admin\/hero-image$/, async (req, res) => {
@@ -632,7 +649,7 @@ function createApp(opts = {}) {
     res.writeHead(200, { 'Content-Type': 'text/csv; charset=utf-8', 'Content-Disposition': 'attachment; filename="chandravanshi-orders.csv"', 'Cache-Control': 'no-store' }); res.end('﻿' + [head].concat(rows).map(r => r.map(q).join(',')).join('\r\n'));
   });
   route('GET', /^\/api\/admin\/backup$/, async (req, res) => {
-    need(req, 'admin'); const copy = { ...D, sessions: [], resets: [] };
+    need(req, 'admin'); const copy = { ...D, sessions: [], resets: [], settings: { ...D.settings, aiKey: undefined } };
     res.writeHead(200, { 'Content-Type': 'application/json', 'Content-Disposition': 'attachment; filename="chandravanshi-backup-' + new Date().toISOString().slice(0, 10) + '.json"', 'Cache-Control': 'no-store' }); res.end(JSON.stringify(copy));
   });
   route('GET', /^\/api\/admin\/customers$/, async (req, res) => {
