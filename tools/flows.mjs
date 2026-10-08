@@ -17,11 +17,11 @@ for (const [name, w, h, touch] of [['phone', 390, 844, true], ['tablet', 820, 11
   ok(await p.locator('.result').count() >= 2, 'search suggests anarkali'); await p.screenshot({ path: `/tmp/shots/f-${name}-search.png` }); await p.keyboard.press('Escape'); await p.waitForTimeout(300);
   // shop filters
   await p.goto(BASE + '/shop.html'); await p.waitForSelector('#grid .card');
-  ok(await p.locator('#grid .card').count() === 17, 'shop lists 17');
-  if (w < 1100) { await p.click('#filter-open'); await p.waitForTimeout(350); await p.screenshot({ path: `/tmp/shots/f-${name}-filters.png` }); await p.check('input[name=cat][value=rajputi-poshak]', { force: true }); const t = await p.textContent('#apply'); ok(/Show 1/.test(t), 'apply button previews count: ' + t); await p.click('#apply'); await p.waitForTimeout(300); }
-  else { await p.check('input[name=cat][value=rajputi-poshak]', { force: true }); await p.waitForTimeout(200); }
-  ok(await p.locator('#grid .card').count() === 1, 'filter → 1 poshak'); ok(await p.locator('#applied .pill').count() === 1, 'applied chip shown'); ok(p.url().includes('cat=rajputi-poshak'), 'URL reflects filter');
-  await p.click('#applied [data-clear]'); await p.waitForTimeout(150); ok(await p.locator('#grid .card').count() === 17, 'Clear all resets');
+  ok(await p.locator('#grid .card').count() === 16, 'shop lists 16');
+  if (w < 1100) { await p.click('#filter-open'); await p.waitForTimeout(350); await p.screenshot({ path: `/tmp/shots/f-${name}-filters.png` }); await p.locator('input[name=cat][value=gown]').evaluate(e => e.click()); const t = await p.textContent('#apply'); ok(/Show 1/.test(t), 'apply button previews count: ' + t); await p.click('#apply'); await p.waitForTimeout(300); }
+  else { await p.locator('input[name=cat][value=gown]').evaluate(e => e.click()); await p.waitForTimeout(200); }
+  ok(await p.locator('#grid .card').count() === 1, 'filter → 1 gown'); ok(await p.locator('#applied .pill').count() === 1, 'applied chip shown'); ok(p.url().includes('cat=gown'), 'URL reflects filter');
+  await p.click('#applied [data-clear]'); await p.waitForTimeout(150); ok(await p.locator('#grid .card').count() === 16, 'Clear all resets');
   // quick add
   if (touch) await p.tap('.card:first-child [data-quick]'); else { await p.hover('.card:first-child'); await p.click('.card:first-child [data-quick]'); }
   await p.waitForTimeout(350); await p.click('#quick-form [type=submit]'); ok(await p.locator('#quick-form .field__err').first().isVisible(), 'quick add requires size');
@@ -35,7 +35,7 @@ for (const [name, w, h, touch] of [['phone', 390, 844, true], ['tablet', 820, 11
   ok(await p.locator('#size-err').isVisible(), 'PDP blocks add without size');
   await p.check('input[name=size][value=S]', { force: true }); await p.check('input[name=stitch][value=semi]', { force: true });
   ok((await p.textContent('#pdp-price')).includes('22,400'), 'price follows stitching (22,400)');
-  await p.fill('#pin', '400001'); await p.click('#pin-check'); ok(/Delivery to 400001/.test(await p.textContent('#ship-msg')), 'pin check estimates delivery');
+  await p.fill('#pin', '400001'); await p.click('#pin-check'); await p.waitForFunction(() => /Delivery to 400001/.test(document.querySelector('#ship-msg')?.textContent || ''), null, { timeout: 5000 }).catch(() => {}); ok(/Delivery to 400001/.test(await p.textContent('#ship-msg')), 'pin check estimates delivery');
   await p.evaluate(() => document.querySelector('#add-btn').click()); await p.waitForTimeout(500);
   ok(await p.evaluate(() => JSON.parse(localStorage.getItem('asingh.cart.v1')).length) === 2, 'PDP add works'); await p.keyboard.press('Escape'); await p.waitForTimeout(300);
   await p.click('[data-zoom="1"]'); await p.waitForTimeout(300); ok(await p.locator('#lightbox.is-open').count() === 1, 'zoom lightbox opens'); await p.keyboard.press('Escape'); await p.waitForTimeout(250);

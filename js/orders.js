@@ -7,7 +7,14 @@
   var STEPS = [['paid', 'Payment verified'], ['processing', 'Being crafted'], ['shipped', 'Shipped'], ['delivered', 'Delivered']];
   var fmtDate = function (t) { return new Date(t).toLocaleString('en-IN', { day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit' }); };
   var chip = function (s) { return '<span class="chip-s chip-s--' + TONE[s] + '">' + (LABEL[s] || s) + '</span>'; };
-  var cfgP = null; function config() { return cfgP || (cfgP = api('GET', '/api/config')); }
+  var cfgP = null;   /* The owner may also want the payment screenshot on WhatsApp: a one-tap link with the order number pre-filled. */
+  function waProof(o) {
+    var n = window.ASINGH && window.ASINGH.SITE && window.ASINGH.SITE.whatsapp; if (!n) return '';
+    var shown = String(n).replace(/^91(\d{10})$/, '+91 $1');
+    var msg = 'Hello, I have paid for order ' + o.number + ' (' + U.money(o.totals.total) + '). Sending my payment screenshot here.';
+    return '<p class="pay__wa"><a class="btn btn--ghost btn--block" href="https://wa.me/' + n + '?text=' + encodeURIComponent(msg) + '" target="_blank" rel="noopener">Also send the screenshot on WhatsApp' + (shown ? ' <span class="pay__num">· ' + esc(shown) + '</span>' : '') + '</a><small class="muted">Please send the same payment screenshot to this WhatsApp number too, so we can confirm your order faster.</small></p>';
+  }
+  function config() { return cfgP || (cfgP = api('GET', '/api/config')); }
 
   /* Downscale big phone screenshots in the browser so uploads are fast on slow networks. */
   function compress(file) {
@@ -73,7 +80,7 @@
         return;
       }
       if (!needs) {
-        mount.innerHTML = '<div class="payok pay--' + TONE[o.status] + '"><span class="payok__ico" aria-hidden="true">' + U.icon(o.status === 'payment_review' ? 'ret' : 'check') + '</span><div><strong>' + (o.status === 'payment_review' ? 'Screenshot received — we’re verifying your payment' : o.status === 'cancelled' ? 'This order was cancelled' : 'Payment verified — thank you!') + '</strong><p class="muted">' + (o.status === 'payment_review' ? 'This usually takes a short while during store hours. You’ll see the status change here.' : o.status === 'cancelled' ? '' : 'Our artisans will start on your order.') + '</p></div>' + proofImg + '</div>';
+        mount.innerHTML = '<div class="payok pay--' + TONE[o.status] + '"><span class="payok__ico" aria-hidden="true">' + U.icon(o.status === 'payment_review' ? 'ret' : 'check') + '</span><div><strong>' + (o.status === 'payment_review' ? 'Screenshot received — we’re verifying your payment' : o.status === 'cancelled' ? 'This order was cancelled' : 'Payment verified — thank you!') + '</strong><p class="muted">' + (o.status === 'payment_review' ? 'This usually takes a short while during store hours. You’ll see the status change here.' : o.status === 'cancelled' ? '' : 'Our artisans will start on your order.') + '</p></div>' + proofImg + '</div>' + (o.status === 'payment_review' ? waProof(o) : '');
         return;
       }
       mount.innerHTML = '<div class="pay">' +
@@ -88,7 +95,7 @@
         '<label class="drop" data-drop><input type="file" name="file" accept="image/jpeg,image/png,image/webp" required><span class="drop__ico" aria-hidden="true">' + U.icon('plus') + '</span><span class="drop__t"><strong>Tap to choose</strong> or drop an image here<small>JPG, PNG or WebP · up to 6 MB</small></span><img class="drop__prev" alt="" hidden></label>' +
         '<div class="field"><label class="field__l" for="utr">Transaction / UTR number <span class="muted">(optional, helps us verify faster)</span></label><input class="input" id="utr" name="utr" inputmode="text" autocomplete="off" autocapitalize="characters" maxlength="30" placeholder="e.g. 4123 4567 8901"></div>' +
         '<div class="bar" hidden><span></span></div><p class="field__err" role="alert"></p>' +
-        '<button class="btn btn--block btn--lg" type="submit"><span>Submit payment proof</span></button></form></div></div></div>';
+        '<button class="btn btn--block btn--lg" type="submit"><span>Submit payment proof</span></button></form>' + waProof(o) + '</div></div></div>';
       bind(upi);
     }
     function bind() {

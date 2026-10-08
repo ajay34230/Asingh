@@ -38,7 +38,7 @@ class Catalog {
   constructor(db) {
     this.db = db; const D = db.data;
     if (!D.catalog) {
-      D.catalog = { version: 1, suits: 1, brandV: 1, categories: A.CATEGORIES.map(c => ({ id: c.id, label: c.label })), site: defaultSite(),
+      D.catalog = { version: 1, suits: 1, brandV: 1, noRajputi: 1, categories: A.CATEGORIES.map(c => ({ id: c.id, label: c.label })), site: defaultSite(),
         products: A.PRODUCTS.map(p => Object.assign(clone(p), { published: true, soldOut: false, demo: true, images: [], imageStore: {}, createdAt: Date.now() })) };
       db.save();
     }
@@ -50,6 +50,12 @@ class Catalog {
         this.D.products = A.PRODUCTS.map(p => Object.assign(clone(p), { published: true, soldOut: false, demo: true, images: [], imageStore: {}, createdAt: Date.now() }));
         ['announcement', 'heroEyebrow', 'heroTitle', 'heroLead', 'heroCta', 'marquee', 'trust', 'occasions', 'story'].forEach(k => { this.D.site[k] = d[k]; });
       }
+      db.save();
+    }
+    if (!this.D.noRajputi) {   // one-time: drop the Rajputi Poshak style (demo item + empty category) from stores created earlier
+      this.D.noRajputi = 1;
+      this.D.products = this.D.products.filter(p => !(p.demo && (p.id === 'maharani-poshak' || p.cat === 'rajputi-poshak')));
+      if (!this.D.products.some(p => p.cat === 'rajputi-poshak')) this.D.categories = this.D.categories.filter(c => c.id !== 'rajputi-poshak');
       db.save();
     }
     if (!this.D.brandV) {   // one-time rebrand of stores created under the old name

@@ -577,7 +577,7 @@ picture img.ld { animation: fade .6s both; }
 .reveal-on .rv.card, .reveal-on .rv.tile { transform: translateY(34px) scale(.97); }
 .reveal-on .rv.card.is-in, .reveal-on .rv.tile.is-in { transform: none; }
 
-/* ornament that draws itself under section titles (Rajputana diamond rule) */
+/* ornament that draws itself under section titles */
 .section__head .h2::after, .story__head .h1::after { content: ""; display: block; width: 72px; height: 10px; margin-top: 12px; transform-origin: left; background: linear-gradient(90deg, var(--gold) 0 40%, transparent 40% 46%, var(--gold) 46% 52%, transparent 52% 58%, var(--gold) 58% 100%); clip-path: polygon(0 40%, 40% 40%, 43% 0, 46% 40%, 52% 40%, 55% 0, 58% 40%, 100% 40%, 100% 60%, 58% 60%, 55% 100%, 52% 60%, 46% 60%, 43% 100%, 40% 60%, 0 60%); }
 .reveal-on .section__head.rv:not(.is-in) .h2::after, .reveal-on .story__head.rv:not(.is-in) .h1::after { transform: scaleX(0); }
 .reveal-on .section__head.rv.is-in .h2::after, .reveal-on .story__head.rv.is-in .h1::after { animation: draw .9s .25s cubic-bezier(.2,.7,.2,1) both; }
@@ -981,3 +981,5 @@ body[data-page="product"] .wa { bottom: calc(96px + var(--safe-b)); } body[data-
 .addrs { display: grid; gap: 12px; margin: 14px 0; max-width: 720px; } .addr { display: grid; grid-template-columns: 1fr auto; gap: 8px; padding: 14px 16px; border: 1px solid var(--line); border-radius: 14px; background: var(--surface); } .addr address { font-style: normal; color: var(--ink-2); font-size: .94rem; } .addr strong { display: block; }
 .sw--out .sw__dot { opacity: .35; position: relative; } .sw--out .sw__dot::after { content: ""; position: absolute; inset: 0; background: linear-gradient(135deg, transparent 46%, var(--ink-2) 47% 53%, transparent 54%); border-radius: 50%; } .sw--out input { cursor: not-allowed; }
 .notify { margin-top: 14px; border: 1px dashed var(--line); border-radius: 14px; padding: 8px 14px; } .notify summary { cursor: pointer; font-weight: 600; min-height: 40px; display: flex; align-items: center; } .notify form { display: grid; gap: 10px; padding-bottom: 10px; } .hp { position: absolute; left: -9999px; width: 1px; height: 1px; opacity: 0; }
+
+.pay__wa { margin: 1rem 0 0; display: grid; gap: .4rem; } .pay__wa small { font-size: .78rem; line-height: 1.45; }

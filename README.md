@@ -90,7 +90,7 @@ Also: `clamp()` fluid type/spacing, `srcset`/`sizes` with AVIF → WebP → JPEG
 ## Files
 - `index.html shop.html product.html cart.html checkout.html`
 - `css/styles.css`, `js/data.js` (catalogue), `js/app.js` (shared chrome, cart, sheets), `js/pages.js` (page logic)
-- `img/` demo garment illustrations (poshak, ghagra, suit, odhni — drawn by `tools/gen_images.py`) — **replace with real photography** (keep the `name-{n}-{400|800|1200}.{avif,webp,jpg}` naming or regenerate via `python3 tools/gen_images.py`)
+- `img/` demo garment illustrations (ghagra, suit, gown, dupatta — drawn by `tools/gen_images.py`) — **replace with real photography** (keep the `name-{n}-{400|800|1200}.{avif,webp,jpg}` naming or regenerate via `python3 tools/gen_images.py`)
 
 ## Motion & performance
 - Animation is transform/opacity only, CSS-first: staged hero entrance, scroll reveals (one shared `IntersectionObserver`), self-drawing diamond rule under headings, image fade-ins, card hover zoom, button light-sweep, heart pop, cart-count bump, add-to-bag "fly to cart", staggered menu/mega-menu, cross-page fade (View Transitions) and scroll-linked parallax where supported. Everything switches off under `prefers-reduced-motion`.
@@ -108,7 +108,7 @@ Hero with drifting gold ornaments, shimmering key phrase and pointer parallax (a
 (These expect the server on :4173 and Playwright's Chromium.)
 
 ## Store features (v8)
-**Catalogue:** 17 styles — Anarkali Suit, Lehenga Choli, Sharara Set, Gharara Set, Kurti & Palazzo, Kurti & Skirt, Chaniya Choli, Rajputi Poshak, Ghagra Choli, Angrakha Dress, Peplum Suit, Patiala Suit, Straight Suit, A-Line Dress, Frock / Anarkali Frock, Indo-Western Dress, Ethnic Gown. Admin can rename, add or remove styles (Store settings → Categories).
+**Catalogue:** 16 styles — Anarkali Suit, Lehenga Choli, Sharara Set, Gharara Set, Kurti & Palazzo, Kurti & Skirt, Chaniya Choli, Ghagra Choli, Angrakha Dress, Peplum Suit, Patiala Suit, Straight Suit, A-Line Dress, Frock / Anarkali Frock, Indo-Western Dress, Ethnic Gown. Admin can rename, add or remove styles (Store settings → Categories).
 
 **Customers:** sign up / sign in / guest, forgot-password (emailed link, or admin-generated link), order tracking, cancel before payment, *request* cancellation after payment, return/exchange requests after delivery (within your return window), verified reviews (shown after you approve), discount codes, change password/email, sign out other devices, download my data, delete my account, unsubscribe.
 

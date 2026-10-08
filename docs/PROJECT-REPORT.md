@@ -16,7 +16,7 @@ Branch: `claude/extreme-responsive-design-t9g7mk`.
 | 8 | Final QA | See below |
 | 9 | Customer self-service | Cancel, request cancel, change password/email, sign out other devices, download data, delete account, unsubscribe |
 | 10 | Google compliance | Merchant feed, Search Console field, GA4 only after cookie consent, policy pages, go-live checklist |
-| 11 | Catalogue pivot | 17 styles, 17 demo products with images |
+| 11 | Catalogue pivot | 16 styles, 16 demo products with images |
 | 12 | Themes | Royal + Bloom, with switcher |
 | 13–15 | Phases | Responsive + accessibility reruns; shop paging + recently viewed; packing slip |
 Also: Hindi/English switch (+ admin Hindi editor), brand logo shown whole, order prefix CV-.

@@ -413,7 +413,7 @@
       '<ul class="menu menu--sub"><li><a href="track.html">Track your order</a></li><li><a href="shop.html?stitch=custom">Custom stitching</a></li><li><a href="shop.html?wishlist=1">Wishlist</a></li><li><a href="account.html" data-account>Account &amp; orders</a></li></ul></div></div></div>' +
       '<div class="sheet sheet--search" id="search" aria-hidden="true"><div class="sheet__backdrop" data-close></div><div class="sheet__panel" aria-label="Search">' +
       '<form class="searchform" action="shop.html" role="search"><label class="vh" for="q">Search products</label>' + icon('search') +
-      '<input id="q" name="q" type="search" inputmode="search" enterkeyhint="search" autocomplete="off" placeholder="Search poshak, ghagra, bandhani…" data-autofocus>' +
+      '<input id="q" name="q" type="search" inputmode="search" enterkeyhint="search" autocomplete="off" placeholder="Search anarkali, lehenga, sharara…" data-autofocus>' +
       '<button type="button" class="icon-btn" data-close aria-label="Close search">' + icon('close') + '</button></form>' +
       '<div class="sheet__body" id="search-out" aria-live="polite"></div></div></div>' +
       '<div class="sheet sheet--cart" id="cart" aria-hidden="true"><div class="sheet__backdrop" data-close></div><div class="sheet__panel" aria-label="Shopping bag">' +
@@ -459,7 +459,7 @@
 
   function bindSearch() {
     var q = $('#q'), out = $('#search-out');
-    var popular = ['Bridal poshak', 'Bandhani', 'Leheriya', 'Gota patti'];
+    var popular = ['Anarkali', 'Lehenga choli', 'Sharara', 'Gown'];
     function idle() {
       out.innerHTML = '<h2 class="menu__h">Popular searches</h2><ul class="pills">' + popular.map(function (s) { return '<li><a href="shop.html?q=' + encodeURIComponent(s) + '">' + s + '</a></li>'; }).join('') + '</ul>';
     }
@@ -468,7 +468,7 @@
       var r = A.search(v).slice(0, 6);
       out.innerHTML = r.length ? '<ul class="results">' + r.map(function (p) {
         return '<li><a class="result" href="product.html?id=' + p.id + '"><span class="result__img">' + picture(p.id, 1, { sizes: '72px', alt: '' }) + '</span><span class="result__t"><strong>' + esc(p.name) + '</strong><span>' + esc(p.fabric) + ' · ' + money(p.price) + '</span></span></a></li>';
-      }).join('') + '</ul><a class="btn btn--ghost result__all" href="shop.html?q=' + encodeURIComponent(v) + '">See all results</a>' : '<p class="empty__sub">No matches for “' + esc(q.value.trim()) + '”. Try “poshak” or “bandhani”.</p>';
+      }).join('') + '</ul><a class="btn btn--ghost result__all" href="shop.html?q=' + encodeURIComponent(v) + '">See all results</a>' : '<p class="empty__sub">No matches for “' + esc(q.value.trim()) + '”. Try “anarkali” or “lehenga”.</p>';
     }
     A.search = function (v) {
       var words = v.toLowerCase().split(/\s+/).filter(Boolean);

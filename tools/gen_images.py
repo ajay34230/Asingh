@@ -1,4 +1,4 @@
-"""Draws the demo catalogue imagery: stylised 'ghost mannequin' Indian ethnic girls' garments (poshak, ghagra-choli,
+"""Draws the demo catalogue imagery: stylised 'ghost mannequin' Indian ethnic girls' garments (flared gowns, ghagra-choli,
 suit, gown) with gota-patti, bandhani, leheriya, mirror-work and zardozi surfaces, plus hero art.
 Output: AVIF + WebP at several widths, one JPEG fallback. Run: python3 tools/gen_images.py
 These are illustrative placeholders — replace with real photography (same file names)."""
@@ -155,18 +155,18 @@ def draw_garment(spec, dark=False):
     pal = [rgb(c) for c in spec.get("pal", [])]
     cv = backdrop(base, dark=dark); shadow(cv)
     ghw = ghagra_hw(Y)
-    if kind in ("poshak", "ghagra"):
+    if kind in ("flare", "ghagra"):
         gm = ghagra_mask(); sh = folds(600, ghw, 5.5) * (.80 + .20 * smooth((Y - 640) / 160))
         paint(cv, gm, surface(base, acc, pat, sh, 1.0, pal))
-        for y0, y1, c, al in ((1190, 1325, acc, .93), (1160, 1172, acc, .8), (1060, 1068, acc, .6) if kind == "poshak" else (0, 0, acc, 0)):
+        for y0, y1, c, al in ((1190, 1325, acc, .93), (1160, 1172, acc, .8), (1060, 1068, acc, .6) if kind == "flare" else (0, 0, acc, 0)):
             if al: paint(cv, band(gm, y0, y1), c[None, None, :] * (.78 + .22 * sh[..., None]), al)
         gb = band(gm, 1205, 1310); _, ga = pat_gota(acc, .55); paint(cv, gb * ga, (acc * .55)[None, None, :], .75)
         sx = Image.new("L", (W, H), 0); d = ImageDraw.Draw(sx)   # scalloped hem trim
         for i in range(-12, 13): x = 600 + i * 46; d.ellipse([x - 22, 1318, x + 22, 1362], fill=255)
         sc = np.asarray(sx.filter(ImageFilter.GaussianBlur(.8)), np.float32) / 255
         paint(cv, sc * gm * 0 + sc * (Y > 1318), acc[None, None, :] * .92, .0)
-        cm = choli_mask(560 if kind == "poshak" else 520); csh = (.86 + .14 * np.cos((X - 600) / 40)) * (.92 + .08 * smooth((Y - 300) / 300))
-        cbase = base if kind == "poshak" else b2
+        cm = choli_mask(560 if kind == "flare" else 520); csh = (.86 + .14 * np.cos((X - 600) / 40)) * (.92 + .08 * smooth((Y - 300) / 300))
+        cbase = base if kind == "flare" else b2
         paint(cv, cm, surface(cbase, acc, "gota" if pat != "gota" else "zardozi", csh, .62))
         for y0, y1 in ((296, 306), (540, 575)): paint(cv, band(cm * ((np.abs(X - 600) > 190) if y0 > 500 else 1), y0, y1), acc[None, None, :], .95)
         paint(cv, poly_mask(bez((665, 285), (650, 380), (550, 380), (535, 285)) + [(535, 285), (665, 285)]) * .0, acc, 0)
@@ -181,7 +181,7 @@ def draw_garment(spec, dark=False):
         paint(cv, band(km, 965, 1010), acc[None, None, :], .95); paint(cv, band(km * ((np.abs(X - 600) > 190)), 690, 715), acc[None, None, :], .95)
         nk = poly_mask(bez((660, 288), (646, 372), (554, 372), (540, 288)) + [(540, 288)]); paint(cv, nk, base[None, None, :] * .42 + rgb('#2a1a14')[None, None, :] * .3, 1)
     # odhni / dupatta drape
-    sm_, c, nrm, w = sash(70, 165 if kind == "poshak" else 120)
+    sm_, c, nrm, w = sash(70, 165 if kind == "flare" else 120)
     osh = .86 + .14 * np.sin((X * .7 + Y) / 38)
     paint(cv, sm_, od[None, None, :] * osh[..., None], .9)
     em = Image.new("L", (W, H), 0); dd = ImageDraw.Draw(em)
@@ -226,8 +226,7 @@ def detail_view(spec, seed):
 
 # ---------- catalogue (slug, kind, colours, pattern) ----------
 SPECS = {
- "maharani-poshak":  dict(kind="poshak", base="#7a1f3d", acc="#e9c46a", b2="#7a1f3d", odhni="#c9486e", pat="zardozi"),
- "jodha-gown":       dict(kind="poshak", base="#14463c", acc="#e3c06a", b2="#14463c", odhni="#a8352b", pat="gota"),
+ "jodha-gown":       dict(kind="flare", base="#14463c", acc="#e3c06a", b2="#14463c", odhni="#a8352b", pat="gota"),
  "gangaur-chaniya":  dict(kind="ghagra", base="#c4572b", acc="#f4dca0", b2="#7a1f3d", odhni="#e8a33b", pat="leheriya", pal=["#c4572b", "#e8a33b", "#7a1f3d", "#f2d489"]),
  "teej-lehenga":     dict(kind="ghagra", base="#c23a6e", acc="#f6e3b4", b2="#1d6b5a", odhni="#1d6b5a", pat="leheriya", pal=["#c23a6e", "#f09a3a", "#1d6b5a", "#f6e3b4"]),
  "jaipur-bandhani":  dict(kind="ghagra", base="#a8281f", acc="#f7ecd2", b2="#7b1d17", odhni="#e9b44a", pat="bandhani"),
@@ -235,13 +234,13 @@ SPECS = {
  "kota-doria-suit":  dict(kind="suit", base="#e4cfa8", acc="#8a5a3c", b2="#c9a26e", odhni="#b5532f", pat="doria"),
  "mewar-patiala":    dict(kind="suit", base="#2c3a6b", acc="#e8c875", b2="#1f2b52", odhni="#d98b3a", pat="gota"),
  "udaipur-gharara":  dict(kind="ghagra", base="#3d2a6b", acc="#f0d9a6", b2="#d98b3a", odhni="#c23a6e", pat="mirror"),
- "rani-sa-anarkali": dict(kind="poshak", base="#d6457f", acc="#f6e3b4", b2="#d6457f", odhni="#fff1d6", pat="gota"),
+ "rani-sa-anarkali": dict(kind="flare", base="#d6457f", acc="#f6e3b4", b2="#d6457f", odhni="#fff1d6", pat="gota"),
  "pushkar-kurti-palazzo": dict(kind="suit", base="#e8913a", acc="#fff1d6", b2="#e8913a", odhni="#7a1f3d", pat="leheriya", pal=["#e8913a", "#c23a6e", "#1d6b5a", "#f7e3a0"]),
  "kesariya-angrakha": dict(kind="suit", base="#e0902a", acc="#7a1f3d", b2="#e0902a", odhni="#b0243a", pat="zardozi"),
  "gulab-peplum":     dict(kind="suit", base="#d98b9c", acc="#f6e3b4", b2="#b85a74", odhni="#7a1f3d", pat="gota"),
  "nila-kurti-skirt": dict(kind="ghagra", base="#1f5a8a", acc="#f0d9a6", b2="#173f63", odhni="#e9b44a", pat="bandhani"),
  "sabz-a-line":      dict(kind="suit", base="#2f6b4f", acc="#f4dca0", b2="#1e4a36", odhni="#d6457f", pat="doria"),
- "mehndi-frock":     dict(kind="poshak", base="#6f8f3a", acc="#f6e3b4", b2="#6f8f3a", odhni="#d98b3a", pat="gota"),
+ "mehndi-frock":     dict(kind="flare", base="#6f8f3a", acc="#f6e3b4", b2="#6f8f3a", odhni="#d98b3a", pat="gota"),
  "aaina-indo-western": dict(kind="suit", base="#1d6b6b", acc="#f0d9a6", b2="#134848", odhni="#c23a6e", pat="mirror"),
 }
 
@@ -273,9 +272,9 @@ def hero():
             sub = a[ys - y0:ye - y0, xs - x0:xe - x0]; ff = f[ys - y0:ye - y0, xs - x0:xe - x0]
             c[ys:ye, xs:xe] = c[ys:ye, xs:xe] * (1 - ff) + sub * ff
         rng = np.random.default_rng(3); return Image.fromarray(np.clip(c + rng.normal(0, 2, (h, w, 1)), 0, 255).astype(np.uint8))
-    wide = scene(2560, 1280, [(1580, 90, .78, "jodha-gown"), (2060, 150, .82, "maharani-poshak"), (2480, 260, .66, "rani-sa-anarkali")])
+    wide = scene(2560, 1280, [(1580, 90, .78, "jodha-gown"), (2060, 150, .82, "teej-lehenga"), (2480, 260, .66, "rani-sa-anarkali")])
     save(wide, "hero-wide", [1280, 1920, 2560, 3840], .5, 1920)
-    tall = scene(1080, 1350, [(540, 8, .6, "maharani-poshak")])
+    tall = scene(1080, 1350, [(540, 8, .6, "teej-lehenga")])
     save(tall, "hero-tall", [480, 800, 1080], 1.25, 800)
 
 if __name__ == "__main__":
@@ -288,8 +287,8 @@ if __name__ == "__main__":
         for i, im in enumerate(ims):
             if not isinstance(im, Image.Image): im = finish(im, None)
             save(im, f"{slug}-{i + 1}", [400, 800, 1200], H / W, 800)
-        if slug in ("maharani-poshak", "gangaur-chaniya", "jaipur-bandhani", "mewar-patiala") :
-            sq = ims[0].crop((0, 160, W, 1360)); k = ["maharani-poshak", "gangaur-chaniya", "jaipur-bandhani", "mewar-patiala"].index(slug) + 1
+        if slug in ("jodha-gown", "gangaur-chaniya", "jaipur-bandhani", "mewar-patiala") :
+            sq = ims[0].crop((0, 160, W, 1360)); k = ["jodha-gown", "gangaur-chaniya", "jaipur-bandhani", "mewar-patiala"].index(slug) + 1
             save(sq, f"collection-{k}", [400, 800], 1.0, 800)
     if not only: hero()
     print("done")

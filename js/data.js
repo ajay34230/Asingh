@@ -20,7 +20,6 @@ __root.ASINGH = __root.ASINGH || {};
     { id: 'kurti-palazzo', label: 'Kurti & Palazzo' },
     { id: 'kurti-skirt', label: 'Kurti & Skirt' },
     { id: 'chaniya-choli', label: 'Chaniya Choli' },
-    { id: 'rajputi-poshak', label: 'Rajputi Poshak' },
     { id: 'ghagra-choli', label: 'Ghagra Choli' },
     { id: 'angrakha', label: 'Angrakha Dress' },
     { id: 'peplum', label: 'Peplum Suit' },
@@ -49,12 +48,10 @@ __root.ASINGH = __root.ASINGH || {};
     lehenga: ['Lehenga with can-can (4–5 m flare)', 'Choli / blouse with embroidered sleeves', 'Dupatta (2.5 m) with finished border'],
     suit: ['Kurta / kameez (2.5 m)', 'Bottom — salwar, palazzo or churidar (2.5 m)', 'Dupatta (2.2 m)'],
     set2: ['Kurti (2.5 m)', 'Matching bottom (2.5 m)'],
-    dress: ['Dress with lining (3 m)', 'Matching dupatta or belt'],
-    poshak: ['Ghagra with can-can (6 m flare)', 'Kanchli (blouse) with embroidered sleeves', 'Odhni (2.5 m) with gota-patti border', 'Matching dori & tassels']
+    dress: ['Dress with lining (3 m)', 'Matching dupatta or belt']
   };
   var care = 'Dry clean recommended for embroidered pieces. Colours may vary slightly by screen.';
   A.PRODUCTS = [
-    { id: 'maharani-poshak', name: 'Maharani Gota-Patti Bridal Poshak', cat: 'rajputi-poshak', occ: ['wedding'], fabric: 'Pure georgette · zardozi', price: 38900, was: 46500, badge: 'Bestseller', best: true, isNew: false, rating: 4.9, reviews: 128, colors: [c('Mulberry', '#7a1f3d'), c('Rani', '#c9486e')], inc: inc.poshak, stitch: ['unstitched', 'semi', 'custom'], blurb: 'A bridal Rajputi poshak in mulberry georgette with dense zardozi and gota-patti — the full six-metre flare.', details: ['Pure georgette with zardozi', 'Gota-patti border', 'Odhni included', 'Lined throughout', care] },
     { id: 'jodha-gown', name: 'Jodha Emerald Velvet Ethnic Gown', cat: 'gown', occ: ['wedding', 'party'], fabric: 'Velvet · gota patti', price: 42500, was: null, badge: 'Limited', best: true, isNew: true, rating: 4.9, reviews: 64, colors: [c('Emerald', '#14463c'), c('Wine', '#7a1f3d')], inc: inc.dress, stitch: ['unstitched', 'semi', 'custom'], blurb: 'A floor-length velvet ethnic gown with gota-patti detailing and a sweeping hem, made for receptions and evening events.', details: ['Velvet with gota patti', 'Full-length with train', 'Concealed side zip', 'Lined', care] },
     { id: 'gangaur-chaniya', name: 'Gangaur Leheriya Chaniya Choli', cat: 'chaniya-choli', occ: ['festive', 'sangeet'], fabric: 'Chiffon · leheriya', price: 17400, was: null, badge: 'New', best: true, isNew: true, rating: 4.8, reviews: 76, colors: [c('Sunset', '#c4572b'), c('Teal', '#1d6b5a')], inc: inc.lehenga, stitch: ['unstitched', 'semi', 'custom'], blurb: 'A colourful chaniya choli in hand-dyed leheriya — the perfect Navratri and garba outfit.', details: ['Chiffon leheriya', 'Mirror-work choli', 'Dupatta with border', 'Twirl-friendly flare', care] },
     { id: 'teej-lehenga', name: 'Teej Rani-Pink Leheriya Lehenga Choli', cat: 'lehenga-choli', occ: ['festive', 'wedding'], fabric: 'Georgette · leheriya', price: 15600, was: 18200, badge: 'Sale', best: true, isNew: false, rating: 4.8, reviews: 93, colors: [c('Rani Pink', '#c23a6e'), c('Peacock', '#1d6b5a')], inc: inc.lehenga, stitch: ['unstitched', 'semi', 'custom'], blurb: 'A rani-pink lehenga choli in fluid leheriya georgette with a contrast dupatta.', details: ['Georgette leheriya', 'Embroidered choli', 'Contrast dupatta', 'Can-can included', care] },

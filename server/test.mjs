@@ -143,26 +143,26 @@ ok((await ADM.req('GET', '/api/admin/summary')).status === 200, 'current admin s
 
 console.log('\nAdmin manages the catalogue');
 const jpg = Buffer.concat([Buffer.from([0xff, 0xd8, 0xff, 0xe0]), crypto.randomBytes(400)]);
-ok((await A.req('POST', '/api/admin/products', { name: 'X', cat: 'rajputi-poshak', price: 100, colors: [{ name: 'Red', hex: '#ff0000' }], stitch: ['unstitched'] })).status === 404, 'customers cannot add products');
+ok((await A.req('POST', '/api/admin/products', { name: 'X', cat: 'gown', price: 100, colors: [{ name: 'Red', hex: '#ff0000' }], stitch: ['unstitched'] })).status === 404, 'customers cannot add products');
 ok((await ADM.req('GET', '/api/admin/catalog')).json.products.length >= 12, 'admin sees the full catalogue');
-r = await ADM.req('POST', '/api/admin/products', { name: 'Test Kota Poshak', cat: 'rajputi-poshak', price: 12500, was: 15000, fabric: 'Kota doria', colors: [{ name: 'Rose', hex: '#d98b8b' }], stitch: ['unstitched', 'custom'], occ: ['wedding'], blurb: 'Hello', inc: ['Ghagra'], details: ['Hand made'] });
-ok(r.status === 201 && r.json.product.id === 'test-kota-poshak' && r.json.product.published === true, 'admin creates a product');
+r = await ADM.req('POST', '/api/admin/products', { name: 'Test Kota Suit', cat: 'gown', price: 12500, was: 15000, fabric: 'Kota doria', colors: [{ name: 'Rose', hex: '#d98b8b' }], stitch: ['unstitched', 'custom'], occ: ['wedding'], blurb: 'Hello', inc: ['Ghagra'], details: ['Hand made'] });
+ok(r.status === 201 && r.json.product.id === 'test-kota-suit' && r.json.product.published === true, 'admin creates a product');
 const pid = r.json.product.id;
-ok((await ADM.req('POST', '/api/admin/products', { name: 'Bad', cat: 'rajputi-poshak', price: -5, colors: [{ name: 'R', hex: '#fff' }], stitch: ['unstitched'] })).status === 400, 'bad price / colour code rejected');
+ok((await ADM.req('POST', '/api/admin/products', { name: 'Bad', cat: 'gown', price: -5, colors: [{ name: 'R', hex: '#fff' }], stitch: ['unstitched'] })).status === 400, 'bad price / colour code rejected');
 ok((await ADM.req('POST', '/api/admin/products', { name: 'Bad2', cat: 'nope', price: 5, colors: [{ name: 'R', hex: '#ffffff' }], stitch: ['unstitched'] })).status === 400, 'unknown category rejected');
 const u = (rev, w, data) => ADM.req('POST', `/api/admin/products/${pid}/image?rev=${rev}&w=${w}`, data, { 'content-type': 'application/octet-stream' });
 ok((await u('abc123', 800, Buffer.from('<svg onload=1>'.padEnd(40)))).status === 400, 'non-image photo rejected');
 ok((await u('abc123', 400, jpg)).status === 200 && (await u('abc123', 800, jpg)).status === 200 && (await u('abc123', 1200, jpg)).status === 200, 'admin uploads a photo in 3 sizes');
 r = await new Client().req('GET', `/media/p/${pid}/abc123-800.jpg`); ok(r.status === 200 && /immutable/.test(r.headers.get('cache-control')) && r.headers.get('content-type') === 'image/jpeg', 'photo served publicly with long cache');
 ok((await new Client().req('GET', `/media/p/${pid}/../../db.json`)).status === 404 && (await new Client().req('GET', `/media/p/..%2f..%2fdb/abc123-800.jpg`)).status === 404, 'media route cannot be traversed');
-let dj = await new Client().req('GET', '/js/data.js'); ok(/Test Kota Poshak/.test(dj.text) && /abc123-800\.jpg/.test(dj.text) && /ASINGH\.PRODUCTS|A\[k\]=d\[k\]/.test(dj.text), 'storefront data.js now includes the new product + its photo');
+let dj = await new Client().req('GET', '/js/data.js'); ok(/Test Kota Suit/.test(dj.text) && /abc123-800\.jpg/.test(dj.text) && /ASINGH\.PRODUCTS|A\[k\]=d\[k\]/.test(dj.text), 'storefront data.js now includes the new product + its photo');
 ok((await new Client().req('GET', '/js/data.js', undefined, { 'if-none-match': dj.headers.get('etag') })).status === 304, 'data.js is cacheable by ETag');
 r = await A.req('POST', '/api/orders', { items: [{ id: pid, size: 'M', stitch: 'custom', color: 'Rose', qty: 2 }], customer: cust, method: 'upi_qr' }); ok(r.status === 201 && r.json.order.totals.subtotal === (12500 + 1800) * 2, 'orders price the new product from the live catalogue: ' + r.json.order?.totals.subtotal);
 ok(/abc123-400\.jpg/.test(JSON.stringify(r.json)), 'order keeps a snapshot of the product photo');
 await ADM.req('PUT', '/api/admin/products/' + pid, { price: 9000, soldOut: true });
 ok((await A.req('POST', '/api/orders', { items: [{ id: pid, size: 'M', stitch: 'unstitched' }], customer: cust, method: 'upi_qr' })).status === 400, 'sold-out product cannot be ordered');
 await ADM.req('PUT', '/api/admin/products/' + pid, { soldOut: false, published: false });
-ok(!/Test Kota Poshak/.test((await new Client().req('GET', '/js/data.js')).text), 'hidden products disappear from the storefront');
+ok(!/Test Kota Suit/.test((await new Client().req('GET', '/js/data.js')).text), 'hidden products disappear from the storefront');
 ok((await A.req('POST', '/api/orders', { items: [{ id: pid, size: 'M', stitch: 'unstitched' }], customer: cust, method: 'upi_qr' })).status === 400, 'hidden product cannot be ordered');
 await ADM.req('PUT', '/api/admin/products/' + pid, { published: true, price: 9000 });
 r = await A.req('POST', '/api/orders', { items: [{ id: pid, size: 'M', stitch: 'unstitched' }], customer: cust, method: 'upi_qr' }); ok(r.json.order.totals.subtotal === 9000, 'price change applies to new orders immediately');
@@ -170,7 +170,7 @@ ok((await ADM.req('PUT', '/api/admin/site', { shipFreeFrom: 5000, shipFlat: 99, 
 dj = await new Client().req('GET', '/js/data.js'); ok(/care@asingh\.example/.test(dj.text) && /"FREE_SHIP_FROM":5000/.test(dj.text) && /Hello \*world\*/.test(dj.text), 'storefront gets the new contact details, shipping rule and hero text');
 r = await A.req('POST', '/api/orders', { items: [{ id: pid, size: 'M', stitch: 'custom' }], customer: cust, method: 'upi_qr' }); ok(r.json.order.totals.subtotal === 9000 + 2500 && r.json.order.totals.shipping === 0, 'shipping + stitching charges follow the admin settings');
 ok((await ADM.req('PUT', '/api/admin/categories', { categories: [{ label: 'Only One' }] })).status === 400, 'cannot delete categories that still hold products');
-ok((await ADM.req('PUT', '/api/admin/categories', { categories: [...(await ADM.req('GET', '/api/admin/catalog')).json.categories, { label: 'Kids Poshak' }] })).status === 200, 'admin adds a category');
+ok((await ADM.req('PUT', '/api/admin/categories', { categories: [...(await ADM.req('GET', '/api/admin/catalog')).json.categories, { label: 'Kids Frock' }] })).status === 200, 'admin adds a category');
 ok((await ADM.req('PUT', '/api/admin/products/' + pid, { images: [] })).json.product.images.length === 0 && (await new Client().req('GET', `/media/p/${pid}/abc123-800.jpg`)).status === 404, 'removing a photo deletes the file');
 console.log('\nAdmin settings & QR');
 ok((await ADM.req('PUT', '/api/admin/settings', { upiId: 'not-valid' })).status === 400, 'invalid UPI id rejected');
@@ -280,7 +280,7 @@ console.log('\nHindi');
 { const cms = async (cookie) => (await fetch(base + '/faq.html', { headers: cookie ? { cookie } : {} })).text();
   const en = await cms(), hi = await cms('as_lang=hi'); ok(/How do I place an order\?/.test(en) && !/ऑर्डर कैसे करूँ/.test(en), 'policy/help pages stay English by default');
   ok(/ऑर्डर कैसे करूँ/.test(hi) && /lang|<html/.test(hi), 'Hindi cookie serves the Hindi version of the page');
-  r = await ADM.req('PUT', '/api/admin/site', { translations: { 'Test Kota Poshak': 'टेस्ट कोटा पोशाक', '': 'x' } }); ok(r.status === 200, 'admin saves own translations');
+  r = await ADM.req('PUT', '/api/admin/site', { translations: { 'Test Kota Suit': 'टेस्ट कोटा पोशाक', '': 'x' } }); ok(r.status === 200, 'admin saves own translations');
   const dj2 = await new Client().req('GET', '/js/data.js'); ok(/टेस्ट कोटा पोशाक/.test(dj2.text) && /"titleHi"/.test(dj2.text), 'storefront receives owner translations and Hindi page titles');
   r = await ADM.req('PUT', '/api/admin/pages/about', { titleHi: 'हमारी कहानी', bodyHi: 'नमस्ते {{name}}' }); ok(r.status === 200 && r.json.page.titleHi === 'हमारी कहानी', 'admin edits a page’s Hindi version');
   ok(/नमस्ते/.test(await cms2('about.html')), 'edited Hindi page is served'); await ADM.req('PUT', '/api/admin/site', { translations: {} });
@@ -485,7 +485,7 @@ console.log('\nLimited-time price drop');
 
 console.log('\nGoing live: clear demo content');
 r = await ADM.req('POST', '/api/admin/catalog/clear-demo', {}); ok(r.json.removed >= 12, 'admin clears all demo products in one click (' + r.json.removed + ')');
-{ const sb = {}; vm.createContext(sb); vm.runInContext((await new Client().req('GET', '/js/data.js')).text, sb); ok(sb.ASINGH.PRODUCTS.length === 1 && sb.ASINGH.PRODUCTS[0].name === 'Test Kota Poshak' && sb.ASINGH.REVIEWS.length === 0, 'storefront now shows only the owner’s products and no sample reviews'); }
+{ const sb = {}; vm.createContext(sb); vm.runInContext((await new Client().req('GET', '/js/data.js')).text, sb); ok(sb.ASINGH.PRODUCTS.length === 1 && sb.ASINGH.PRODUCTS[0].name === 'Test Kota Suit' && sb.ASINGH.REVIEWS.length === 0, 'storefront now shows only the owner’s products and no sample reviews'); }
 ok((await A.req('GET', '/api/orders/' + oid)).json.order.items[0].name.length > 3, 'past orders keep their item details after products are deleted');
 ok((await ADM.req('DELETE', '/api/admin/products/' + pid)).status === 200 && (await ADM.req('GET', '/api/admin/catalog')).json.products.length === 0, 'admin deletes a product');
 
