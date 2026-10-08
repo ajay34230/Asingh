@@ -168,7 +168,12 @@
       var d = Math.floor(ms / 864e5), h = Math.floor(ms % 864e5 / 36e5), m = Math.floor(ms % 36e5 / 6e4), sec = Math.floor(ms % 6e4 / 1e3);
       el.textContent = d ? d + 'd ' + h + 'h ' + m + 'm' : (h ? h + 'h ' : '') + m + 'm ' + (sec < 10 ? '0' : '') + sec + 's';
     });
-    if (over && !window.__cdReload) { window.__cdReload = 1; setTimeout(function () { location.reload(); }, 1500); }
+    if (over && !window.__cdReload) {
+      window.__cdReload = 1;
+      var last = 0; try { last = +sessionStorage.getItem('as_cd') || 0; } catch (e) {}
+      if (now - last > 20000) { try { sessionStorage.setItem('as_cd', String(now)); } catch (e) {} setTimeout(function () { location.reload(); }, 1200); }
+      else document.querySelectorAll('[data-cd]').forEach(function (el) { if (+el.getAttribute('data-cd') <= now && el.parentNode) el.parentNode.textContent = 'This limited-time price has ended.'; });
+    }
   }
   setInterval(tickCd, 1000); document.addEventListener('DOMContentLoaded', tickCd);
   function card(p, o) {
