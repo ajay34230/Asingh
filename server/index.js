@@ -9,6 +9,7 @@ const { Notifier } = require('./notify');
 const Pay = require('./payments');
 const Orders = require('./orders');
 const Mail = require('./mail');
+const Ship = require('./shiprocket');
 const Static = require('./static');
 const { Catalog } = require('./catalog');
 const Home = require('./home');
@@ -199,8 +200,8 @@ function createApp(opts = {}) {
     if (u.addresses.some(x => ['line1', 'pin', 'name', 'phone'].every(k => x[k] === a[k]))) return send(res, 200, { user: publicUser(u) });   // already saved
     u.addresses.push({ id: id(5), ...a }); db.save(); send(res, 201, { user: publicUser(u) });
   });
-  route('PUT', /^\/api\/me\/addresses\/(\w+)$/, async (req, res, m) => { const u = regUser(req), i = u.addresses.findIndex(x => x.id === m[1]); if (i < 0) throw fail(404, 'Address not found'); u.addresses[i] = { id: m[1], ...cleanAddr(await jsonBody(req)) }; db.save(); send(res, 200, { user: publicUser(u) }); });
-  route('DELETE', /^\/api\/me\/addresses\/(\w+)$/, async (req, res, m) => { const u = regUser(req); u.addresses = u.addresses.filter(x => x.id !== m[1]); db.save(); send(res, 200, { user: publicUser(u) }); });
+  route('PUT', /^\/api\/me\/addresses\/([\w-]+)$/, async (req, res, m) => { const u = regUser(req), i = u.addresses.findIndex(x => x.id === m[1]); if (i < 0) throw fail(404, 'Address not found'); u.addresses[i] = { id: m[1], ...cleanAddr(await jsonBody(req)) }; db.save(); send(res, 200, { user: publicUser(u) }); });
+  route('DELETE', /^\/api\/me\/addresses\/([\w-]+)$/, async (req, res, m) => { const u = regUser(req); u.addresses = u.addresses.filter(x => x.id !== m[1]); db.save(); send(res, 200, { user: publicUser(u) }); });
 
   /* orders (private: owner or admin only) */
   /* coupons: preview at checkout (the order itself re-checks everything) */
@@ -242,6 +243,37 @@ function createApp(opts = {}) {
     Orders.transition(db, o, 'paid', 'Paid online (Razorpay) · ' + o.payment.id, 'gateway'); notifier.push('payment_confirmed', o, 'Online payment ' + o.number, `${o.customer.name} · ${money(o.totals.total)} paid by Razorpay`);
     send(res, 200, { order: Orders.view(o, false) });
   });
+  /* ---- delivery check for a PIN code: live from Shiprocket when connected, otherwise just validates ---- */
+  const pinCache = new Map(), pinLimit = limiter(60, 10 * 60e3);
+  route('GET', /^\/api\/pincheck$/, async (req, res) => {
+    if (!pinLimit(ip(req))) throw fail(429, 'Too many checks. Please wait a few minutes.');
+    const pin = String(new URL(req.url, 'http://x').searchParams.get('pin') || ''); if (!/^[1-9][0-9]{5}$/.test(pin)) throw fail(400, 'Enter a valid 6-digit PIN code.');
+    const t = catalog.site; if (!Ship.enabled() || !t.pickupPin) return send(res, 200, { serviceable: true, live: false });
+    const hit = pinCache.get(pin); if (hit && Date.now() - hit.at < 36e5) return send(res, 200, hit.v);
+    let v; try { v = { ...(await Ship.serviceability({ from: t.pickupPin, to: pin, weight: t.pkgKg, cod: false })), live: true }; } catch (e) { return send(res, 200, { serviceable: true, live: false }); }   // never block a sale because the courier API is down
+    pinCache.set(pin, { at: Date.now(), v }); if (pinCache.size > 2000) pinCache.clear(); send(res, 200, v);
+  });
+  /* ---- admin: create the courier shipment (AWB + label) from an order ---- */
+  route('POST', /^\/api\/admin\/orders\/([\w-]+)\/shipment$/, async (req, res, m) => {
+    need(req, 'admin'); const o = D.orders.find(x => x.id === m[1]); if (!o) throw fail(404, 'Order not found'); if (!Ship.enabled()) throw fail(400, 'Shiprocket is not connected. Set SHIPROCKET_EMAIL and SHIPROCKET_PASSWORD on the server.');
+    if (['paid', 'processing'].indexOf(o.status) < 0) throw fail(409, 'Create the shipment once the order is paid / being prepared.'); if (o.shipment) throw fail(409, 'A shipment already exists for this order.');
+    const t = catalog.site; let r; try { r = await Ship.createShipment(o, { kg: t.pkgKg, l: t.pkgL, b: t.pkgB, h: t.pkgH }, t); } catch (e) { throw fail(502, e.message); }
+    o.shipment = { provider: 'shiprocket', shipmentId: r.shipmentId, awb: r.awb, labelUrl: r.labelUrl, at: Date.now() }; o.tracking = Orders.cleanTracking({ courier: r.courier, id: r.awb, url: r.trackUrl });
+    o.updatedAt = Date.now(); o.timeline.push({ at: o.updatedAt, status: o.status, note: 'Shipment created · ' + r.courier + ' · AWB ' + r.awb, by: 'admin' }); db.save(); send(res, 200, { order: Orders.view(o, true) });
+  });
+  route('GET', /^\/api\/admin\/orders\/([\w-]+)\/live-tracking$/, async (req, res, m) => {
+    need(req, 'admin'); const o = D.orders.find(x => x.id === m[1]); if (!o || !o.tracking || !o.tracking.id) throw fail(404, 'No tracking number on this order.'); if (!Ship.enabled()) throw fail(400, 'Shiprocket is not connected.');
+    try { send(res, 200, await Ship.track(o.tracking.id)); } catch (e) { throw fail(502, e.message); }
+  });
+  /* Shiprocket → us: courier status updates (set the webhook in Shiprocket → Settings → API → Webhooks with the token as x-api-key) */
+  route('POST', /^\/api\/webhooks\/shiprocket$/, async (req, res) => {
+    const given = Buffer.from(String(req.headers['x-api-key'] || '')), want = Buffer.from(process.env.SHIPROCKET_WEBHOOK_TOKEN || ''), tokenOk = want.length > 0 && given.length === want.length && crypto.timingSafeEqual(given, want);
+    if (!tokenOk) throw fail(401, 'Bad token'); const ev = await jsonBody(req), awb = String(ev.awb || ev.awb_code || ''), o = awb && D.orders.find(x => x.tracking && x.tracking.id === awb); if (!o) return send(res, 202, { ignored: true });
+    const st = String(ev.current_status || ev.shipment_status || ''), next = Ship.mapStatus(st), rank = { paid: 1, processing: 2, shipped: 3, delivered: 4 };
+    if (next && rank[next] > (rank[o.status] || 0)) Orders.transition(db, o, next, 'Courier: ' + st, 'courier'); else if (st) { o.updatedAt = Date.now(); o.timeline.push({ at: o.updatedAt, status: o.status, note: 'Courier: ' + st, by: 'courier' }); db.save(); }
+    send(res, 200, { ok: true });
+  });
+
   /* after payment: customer asks to cancel; after delivery: asks to return/exchange — admin decides */
   route('POST', /^\/api\/orders\/([\w-]+)\/request$/, async (req, res, m) => {
     const u = need(req), o = findOrder(m[1], u); if (o.userId !== u.id) throw fail(404, 'Order not found');
@@ -473,7 +505,7 @@ function createApp(opts = {}) {
   route('GET', /^\/api\/admin\/summary$/, async (req, res) => {
     need(req, 'admin'); const c = {}; Object.keys(Orders.STATUS).forEach(k => c[k] = 0); D.orders.forEach(o => c[o.status]++);
     const rev = D.orders.filter(o => ['paid', 'processing', 'shipped', 'delivered'].indexOf(o.status) > -1).reduce((a, o) => a + o.totals.total, 0);
-    send(res, 200, { unreadMessages: D.messages.filter(m => !m.read).length, subscribers: D.subscribers.length, products: catalog.products.length, demoProducts: catalog.products.filter(p => p.demo).length, counts: c, revenue: rev, orders: D.orders.length, customers: D.users.filter(u => u.role === 'customer' && !u.isGuest).length, guests: D.users.filter(u => u.isGuest).length, unread: D.notifications.filter(n => !n.read).length, qrIsDemo: !D.settings.qrFile, upiSet: !!D.settings.upiId, contactSet: !!(catalog.site.contactEmail && catalog.site.contactPhone && catalog.site.contactAddress), unreviewedPages: catalog.pages.filter(p => p.published && !p.reviewed).length, realProducts: catalog.products.filter(p => !p.demo && p.published && p.images.length).length, https: !!(SEO.origin(req) || '').startsWith('https'), feedUrl: SEO.origin(req) + '/feeds/google-merchant.xml', googleSet: !!catalog.site.googleSiteVerification, gaSet: !!catalog.site.ga4Id });
+    send(res, 200, { unreadMessages: D.messages.filter(m => !m.read).length, subscribers: D.subscribers.length, products: catalog.products.length, demoProducts: catalog.products.filter(p => p.demo).length, counts: c, revenue: rev, orders: D.orders.length, customers: D.users.filter(u => u.role === 'customer' && !u.isGuest).length, guests: D.users.filter(u => u.isGuest).length, unread: D.notifications.filter(n => !n.read).length, qrIsDemo: !D.settings.qrFile, upiSet: !!D.settings.upiId, shiprocket: Ship.enabled(), contactSet: !!(catalog.site.contactEmail && catalog.site.contactPhone && catalog.site.contactAddress), unreviewedPages: catalog.pages.filter(p => p.published && !p.reviewed).length, realProducts: catalog.products.filter(p => !p.demo && p.published && p.images.length).length, https: !!(SEO.origin(req) || '').startsWith('https'), feedUrl: SEO.origin(req) + '/feeds/google-merchant.xml', googleSet: !!catalog.site.googleSiteVerification, gaSet: !!catalog.site.ga4Id });
   });
   /* analytics: sales, funnel and top products over the last N days (default 30) */
   route('GET', /^\/api\/admin\/analytics$/, async (req, res) => {
@@ -550,7 +582,7 @@ function createApp(opts = {}) {
     else throw fail(400, 'Unknown action');
     send(res, 200, { order: Orders.view(o, true) });
   });
-  route('GET', /^\/api\/admin\/settings$/, async (req, res) => { need(req, 'admin'); const s = D.settings; send(res, 200, { invoice: s.invoice, payeeName: s.payeeName, upiId: s.upiId, instructions: s.instructions, webhookUrl: s.webhookUrl, qrUrl: '/media/qr?v=' + s.qrV, qrIsDemo: !s.qrFile, envWebhook: !!process.env.ADMIN_WEBHOOK_URL, cod: { enabled: !!(s.cod && s.cod.enabled), fee: (s.cod && s.cod.fee) || 0, max: (s.cod && s.cod.max) || 0 }, razorpay: { on: Pay.razorpayOn(), webhookUrl: '/api/webhooks/razorpay', webhookReady: !!process.env.WEBHOOK_SECRET_RAZORPAY } }); });
+  route('GET', /^\/api\/admin\/settings$/, async (req, res) => { need(req, 'admin'); const s = D.settings; send(res, 200, { invoice: s.invoice, payeeName: s.payeeName, upiId: s.upiId, instructions: s.instructions, webhookUrl: s.webhookUrl, qrUrl: '/media/qr?v=' + s.qrV, qrIsDemo: !s.qrFile, envWebhook: !!process.env.ADMIN_WEBHOOK_URL, cod: { enabled: !!(s.cod && s.cod.enabled), fee: (s.cod && s.cod.fee) || 0, max: (s.cod && s.cod.max) || 0 }, shiprocket: Ship.enabled(), razorpay: { on: Pay.razorpayOn(), webhookUrl: '/api/webhooks/razorpay', webhookReady: !!process.env.WEBHOOK_SECRET_RAZORPAY } }); });
   route('PUT', /^\/api\/admin\/settings$/, async (req, res) => {
     need(req, 'admin'); const b = await jsonBody(req), s = D.settings;
     if (b.upiId !== undefined) { const v = String(b.upiId).trim().slice(0, 80); if (v && !/^[\w.\-]{2,}@[\w.\-]{2,}$/.test(v)) throw fail(400, 'UPI ID should look like name@bank.'); s.upiId = v; }

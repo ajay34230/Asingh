@@ -347,6 +347,34 @@ console.log('\nCash on delivery + online payment (mock Razorpay)');
   delete process.env.RAZORPAY_KEY_ID; delete process.env.RAZORPAY_KEY_SECRET; delete process.env.RAZORPAY_BASE; mock.close(); ok(!/razorpay/.test((await fetch(base + '/')).headers.get('content-security-policy')), 'CSP back to strict without it');
   await ADM.req('PUT', '/api/admin/settings', { cod: { enabled: false, fee: 0, max: 0 } }); }
 
+console.log('\nShiprocket (mock courier API)');
+{ const C = new Client(); await C.req('POST', '/api/auth/guest', {});
+  ok((await new Client().req('GET', '/api/pincheck?pin=560001')).json.live === false, 'PIN check works (not live) before the courier is connected');
+  ok((await new Client().req('GET', '/api/pincheck?pin=12')).status === 400, 'bad PIN rejected');
+  const http2 = (await import('node:http')).default, seen = []; const mock = http2.createServer((rq, rs) => { let b = ''; rq.on('data', d => b += d); rq.on('end', () => { seen.push(rq.method + ' ' + rq.url.split('?')[0]); rs.setHeader('content-type', 'application/json'); const u = rq.url;
+    if (u.includes('/auth/login')) return rs.end(JSON.stringify({ token: 'TOK' })); if (rq.headers.authorization !== 'Bearer TOK') { rs.statusCode = 401; return rs.end('{}'); }
+    if (u.includes('serviceability')) return rs.end(JSON.stringify({ data: { available_courier_companies: u.includes('delivery_postcode=999999') ? [] : [{ estimated_delivery_days: '3', cod: 1 }, { estimated_delivery_days: '5', cod: 0 }] } }));
+    if (u.includes('orders/create/adhoc')) return rs.end(JSON.stringify({ order_id: 11, shipment_id: 22 })); if (u.includes('assign/awb')) return rs.end(JSON.stringify({ response: { data: { awb_code: 'AWB123', courier_name: 'Delhivery' } } }));
+    if (u.includes('generate/label')) return rs.end(JSON.stringify({ label_url: 'https://example.com/label.pdf' })); if (u.includes('track/awb')) return rs.end(JSON.stringify({ tracking_data: { shipment_status_text: 'In Transit', shipment_track_activities: [{ date: '2026-10-08', activity: 'Picked up', location: 'Jaipur' }] } })); rs.end('{}'); }); }); await new Promise(r => mock.listen(0, r));
+  process.env.SHIPROCKET_EMAIL = 'a@b.co'; process.env.SHIPROCKET_PASSWORD = 'pw'; process.env.SHIPROCKET_BASE = 'http://127.0.0.1:' + mock.address().port; process.env.SHIPROCKET_WEBHOOK_TOKEN = 'whtoken';
+  ok((await ADM.req('PUT', '/api/admin/site', { pickupPin: '302001', pkgKg: 0.9 })).status === 200, 'admin saves pickup PIN and parcel weight');
+  ok((await ADM.req('PUT', '/api/admin/site', { pickupPin: '12' })).status === 400, 'bad pickup PIN rejected');
+  let pc = (await new Client().req('GET', '/api/pincheck?pin=560001')).json; ok(pc.live === true && pc.serviceable === true && pc.minDays === 3 && pc.cod === true, 'live PIN check: serviceable, fastest 3 days, COD available');
+  ok((await new Client().req('GET', '/api/pincheck?pin=999999')).json.serviceable === false, 'live PIN check reports an unserviceable PIN');
+  const o = (await C.req('POST', '/api/orders', { items: cart, customer: cust, method: 'upi_qr' })).json.order;
+  ok((await ADM.req('POST', '/api/admin/orders/' + o.id + '/shipment', {})).status === 409, 'cannot ship an unpaid order');
+  await ADM.req('PATCH', '/api/admin/orders/' + o.id, { action: 'verify' });
+  const sh = await ADM.req('POST', '/api/admin/orders/' + o.id + '/shipment', {}); ok(sh.status === 200 && sh.json.order.tracking.id === 'AWB123' && sh.json.order.tracking.courier === 'Delhivery' && sh.json.order.shipment.labelUrl === 'https://example.com/label.pdf', 'shipment created: courier, AWB and label saved on the order');
+  ok((await ADM.req('POST', '/api/admin/orders/' + o.id + '/shipment', {})).status === 409, 'a second shipment is refused');
+  ok((await C.req('POST', '/api/admin/orders/' + o.id + '/shipment', {})).status === 404, 'customers cannot create shipments');
+  ok((await ADM.req('GET', '/api/admin/orders/' + o.id + '/live-tracking')).json.status === 'In Transit', 'live courier status can be fetched');
+  const hook = (tok, body) => fetch(base + '/api/webhooks/shiprocket', { method: 'POST', headers: { 'content-type': 'application/json', 'x-api-key': tok }, body: JSON.stringify(body) });
+  ok((await hook('wrong', { awb: 'AWB123', current_status: 'DELIVERED' })).status === 401, 'courier webhook needs the right token');
+  await hook('whtoken', { awb: 'AWB123', current_status: 'IN TRANSIT' }); let cur = (await C.req('GET', '/api/orders/' + o.id)).json.order; ok(cur.status === 'shipped', 'courier “in transit” moves the order to shipped');
+  await hook('whtoken', { awb: 'AWB123', current_status: 'DELIVERED' }); cur = (await C.req('GET', '/api/orders/' + o.id)).json.order; ok(cur.status === 'delivered', 'courier “delivered” marks it delivered');
+  await hook('whtoken', { awb: 'AWB123', current_status: 'IN TRANSIT' }); cur = (await C.req('GET', '/api/orders/' + o.id)).json.order; ok(cur.status === 'delivered', 'a late older update cannot move it backwards');
+  delete process.env.SHIPROCKET_EMAIL; delete process.env.SHIPROCKET_PASSWORD; delete process.env.SHIPROCKET_BASE; delete process.env.SHIPROCKET_WEBHOOK_TOKEN; mock.close(); await ADM.req('PUT', '/api/admin/site', { pickupPin: '' }); }
+
 console.log('\nAdmin analytics');
 { const an = await ADM.req('GET', '/api/admin/analytics?days=30'); ok(an.status === 200 && an.json.series.length === 30 && an.json.orders >= 2, 'analytics returns a 30-day series and order totals');
   ok(an.json.paidOrders >= 1 && an.json.revenue > 0 && an.json.aov > 0 && an.json.top.length >= 1, 'revenue, average order and top products computed from paid orders');

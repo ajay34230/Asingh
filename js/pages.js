@@ -193,7 +193,12 @@
       if (!/^[1-9][0-9]{5}$/.test(pin.value)) { pin.setAttribute('aria-invalid', 'true'); msg.removeAttribute('data-ok'); msg.textContent = 'Please enter a valid 6-digit PIN code.'; return; }
       pin.removeAttribute('aria-invalid');
       var r = { unstitched: [5, 8], semi: [7, 11], custom: [13, 19] }[curStitch().id], f = function (d) { var t = new Date(); t.setDate(t.getDate() + d); return t.toLocaleDateString('en-IN', { day: 'numeric', month: 'short' }); };
-      msg.setAttribute('data-ok', '1'); msg.textContent = 'Delivery to ' + pin.value + ' between ' + f(r[0]) + ' – ' + f(r[1]) + '.';
+      msg.setAttribute('data-ok', '1'); msg.textContent = 'Checking…'; var want = pin.value;
+      api('GET', '/api/pincheck?pin=' + encodeURIComponent(want)).then(function (c) {
+        if (pin.value !== want) return;
+        if (c.serviceable === false) { msg.removeAttribute('data-ok'); msg.textContent = 'Sorry — we can’t deliver to ' + want + ' yet. Please message us on WhatsApp and we’ll try to help.'; return; }
+        msg.textContent = 'Delivery to ' + want + ' between ' + f(r[0]) + ' – ' + f(r[1]) + '.' + (c.live && c.cod ? ' Cash on delivery available.' : '');
+      }, function () { msg.textContent = 'Delivery to ' + want + ' between ' + f(r[0]) + ' – ' + f(r[1]) + '.'; });
     }
     $('#pin-check').addEventListener('click', checkPin);
     $('#pin').addEventListener('keydown', function (e) { if (e.key === 'Enter') { e.preventDefault(); checkPin(); } });
