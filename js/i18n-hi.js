@@ -667,6 +667,10 @@
 "Order confirmed — pay on delivery": "ऑर्डर पक्का — डिलीवरी पर भुगतान करें",
 "Payment received — thank you!": "भुगतान मिल गया — धन्यवाद!",
 "Pay by QR instead": "इसके बजाय QR से भुगतान करें",
+"Any colour": "कोई भी रंग",
+"Sorry — we can’t deliver to": "क्षमा करें — हम यहाँ डिलीवर नहीं कर सकते",
+"Checking…": "जाँच रहे हैं…",
+"Cash on delivery available.": "कैश ऑन डिलीवरी उपलब्ध है।",
 "Powered by": "द्वारा संचालित",
 "for faster checkout — or just continue as a guest, no details needed.": "तेज़ चेकआउट के लिए — या बस गेस्ट के रूप में जारी रखें, कोई विवरण ज़रूरी नहीं।",
 "Red": "लाल"

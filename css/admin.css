@@ -100,3 +100,4 @@
 .hirows { display: grid; gap: 10px; } .hirow { display: grid; gap: 4px; } .hirow__en { font-size: .88rem; color: var(--ink-2); } @media (min-width: 900px) { .hirow { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); align-items: center; gap: 14px; } }
 .adm__logo, .adm__brand { letter-spacing: 0 !important; font-family: "Noto Serif Devanagari", "Nirmala UI", "Mangal", Georgia, serif; }
 .sizestock { display: flex; flex-wrap: wrap; gap: 8px; margin: 6px 0; } .sizestock__i { display: grid; gap: 2px; width: 68px; text-align: center; font-size: .82rem; }
+.ptile__c { position: absolute; left: 4px; right: 4px; bottom: 4px; width: calc(100% - 8px); font-size: .72rem; padding: 2px 4px; border-radius: 6px; border: 1px solid var(--line); background: var(--surface); }

@@ -115,6 +115,16 @@ console.log('\nCash on delivery checkout (browser)');
   const mine = (await call(c, 'GET', '/api/orders')).json.orders[0]; ok(mine.status === 'processing' && mine.totals.codFee === 40, 'the order is confirmed with the COD fee');
   await call(ad, 'PUT', '/api/admin/settings', { cod: { enabled: false, fee: 0, max: 0 } }); }
 
+console.log('\nColour stock + colour photos (browser)');
+{ const mk = await call(ad, 'POST', '/api/admin/products', { name: 'Hue Demo Suit', cat: 'straight', price: 3100, colors: [{ name: 'Red', hex: '#cc0000' }, { name: 'Blue', hex: '#0000cc', stock: 0 }, { name: 'Green', hex: '#00aa00' }], stitch: ['unstitched'] });
+  const pid = mk.json.product.id;
+  const png = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==';
+  for (const rev of ['hueaaa1', 'huebbb2']) await ad.evaluate(async ([pid, rev, png]) => { const bin = Uint8Array.from(atob(png), c => c.charCodeAt(0)); await fetch('/api/admin/products/' + pid + '/image?rev=' + rev + '&w=800', { method: 'POST', headers: { 'x-requested-with': 'asingh', 'content-type': 'image/png' }, body: bin }); }, [pid, rev, png]);
+  await call(ad, 'PUT', '/api/admin/products/' + pid, { images: ['hueaaa1', 'huebbb2'], imageColors: { hueaaa1: 'Red', huebbb2: 'Green' } });
+  const h = await page(390, 844); await h.goto(BASE + '/product.html?id=' + pid); await h.waitForSelector('#gal');
+  ok(await h.locator('input[name=color][value=Blue]').isDisabled(), 'sold-out colour swatch is disabled'); ok(await h.locator('input[name=color][value=Red]').isChecked(), 'first available colour is preselected');
+  await h.locator('label.sw:has(input[value=Green])').click(); await h.waitForTimeout(900); ok(await h.evaluate(() => document.querySelector('#gal').scrollLeft) > 100, 'choosing Green slides the gallery to the green photo'); }
+
 console.log('\nCookie notice only when Analytics is on');
 await call(ad, 'PUT', '/api/admin/site', { ga4Id: 'G-TEST123456' });
 const v = await page(); await v.goto(BASE + '/'); await v.waitForSelector('.consent', { timeout: 5000 }); ok(true, 'cookie notice appears');

@@ -151,7 +151,7 @@
       '<p class="pdp__blurb">' + esc(p.blurb) + '</p>' +
       '<form id="buy" novalidate>' +
       '<fieldset class="field"><legend class="field__l">Colour: <strong id="color-name">' + esc(p.colors[0].name) + '</strong></legend><div class="swatches">' + p.colors.map(function (c, i) {
-        return '<label class="sw"><input type="radio" name="color" value="' + esc(c.name) + '"' + (i === 0 ? ' checked' : '') + '><span class="sw__dot" style="background:' + c.hex + '"></span><span class="vh">' + esc(c.name) + '</span></label>'; }).join('') + '</div></fieldset>' +
+        var cout = (p.colorOut || []).indexOf(c.name) > -1, first = p.colors.findIndex(function (z) { return (p.colorOut || []).indexOf(z.name) < 0; }); return '<label class="sw' + (cout ? ' sw--out' : '') + '"><input type="radio" name="color" value="' + esc(c.name) + '"' + (i === (first < 0 ? 0 : first) ? ' checked' : '') + (cout ? ' disabled' : '') + '><span class="sw__dot" style="background:' + c.hex + '"></span><span class="vh">' + esc(c.name) + (cout ? ' — sold out' : '') + '</span></label>'; }).join('') + '</div></fieldset>' +
       '<fieldset class="field"><legend class="field__l">Stitching status</legend>' + U.stitchRadios(p, 'stitch') + '</fieldset>' +
       '<section class="field" aria-labelledby="inc-h"><h2 class="field__l" id="inc-h">What’s included</h2><ul class="ticks">' + p.inc.map(function (i) { return '<li>' + U.icon('check', 'ico--xs') + esc(i) + '</li>'; }).join('') + '</ul></section>' +
       '<fieldset class="field" id="size-field"><legend class="field__l">Size <button type="button" class="link" data-size-guide>Size guide</button></legend>' + U.sizeRadios('size', p) + '<details class="sizefinder"><summary>Find my size</summary><div class="sizefinder__f"><div class="field"><label class="field__l" for="sf-b">Bust (inches)</label><input class="input" id="sf-b" inputmode="decimal" maxlength="5"></div><div class="field"><label class="field__l" for="sf-w">Waist (inches)</label><input class="input" id="sf-w" inputmode="decimal" maxlength="5"></div><div class="field"><label class="field__l" for="sf-h">Hip (inches)</label><input class="input" id="sf-h" inputmode="decimal" maxlength="5"></div></div><p class="sizefinder__r muted" id="sf-r" role="status">Measure over light clothing. Enter at least one measurement.</p><button type="button" class="btn btn--ghost btn--sm" id="sf-pick" hidden>Choose this size</button></details><p class="field__err" id="size-err" role="alert" hidden>Please choose a size to continue.</p></fieldset>' +
@@ -183,7 +183,7 @@
     function price() { var html = U.priceHTML(p, curStitch().add); priceEl.innerHTML = html; $('#sticky-price').innerHTML = html; }
     price();
     buy.addEventListener('change', function (e) {
-      if (e.target.name === 'color') $('#color-name').textContent = e.target.value;
+      if (e.target.name === 'color') { $('#color-name').textContent = e.target.value; var ix = (p.imgColors || []).indexOf(e.target.value); if (ix > -1) { var sl = $$('#gal > li')[ix]; if (sl) sl.scrollIntoView({ behavior: U.reduceMotion.matches ? 'auto' : 'smooth', block: 'nearest', inline: 'start' }); } }
       if (e.target.name === 'stitch') { price(); updateShip(); }
       if (e.target.name === 'size') $('#size-err').hidden = true;
     });

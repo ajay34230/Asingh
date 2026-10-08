@@ -55,6 +55,8 @@ function price(rawItems, cat, coupon) {
   });
   const wantS = {}; items.forEach(i => { const k = i.id + '|' + i.size; wantS[k] = (wantS[k] || 0) + i.qty; });
   Object.keys(wantS).forEach(k => { const [id, size] = k.split('|'), p = cat.find(id), have = p.sizeStock && p.sizeStock[size]; if (have != null && wantS[k] > have) throw bad(have === 0 ? p.name + ' is sold out in size ' + size + '.' : 'Only ' + have + ' left of ' + p.name + ' in size ' + size + '.'); });
+  const wantC = {}; items.forEach(i => { const k = i.id + '|' + i.color; wantC[k] = (wantC[k] || 0) + i.qty; });
+  Object.keys(wantC).forEach(k => { const [id, color] = k.split('|'), p = cat.find(id), c = p.colors.find(x => x.name === color), have = c && c.stock; if (have != null && wantC[k] > have) throw bad(have === 0 ? p.name + ' is sold out in ' + color + '.' : 'Only ' + have + ' left of ' + p.name + ' in ' + color + '.'); });
   const want = {}; items.forEach(i => { want[i.id] = (want[i.id] || 0) + i.qty; });
   Object.keys(want).forEach(id => { const p = cat.find(id); if (p.stock != null && want[id] > p.stock) throw bad('Only ' + p.stock + ' left of ' + p.name + '.'); });
   const subtotal = items.reduce((a, i) => a + i.unit * i.qty, 0);
@@ -86,15 +88,16 @@ function create(db, user, body, methodId, cat) {
   }
   const now = Date.now(), d = new Date(now);
   const number = newNumber(db);
-  const stockUsed = {}, wantSize = {}; items.forEach(i => { stockUsed[i.id] = (stockUsed[i.id] || 0) + i.qty; const k = i.id + '|' + i.size; wantSize[k] = (wantSize[k] || 0) + i.qty; });
+  const stockUsed = {}, wantSize = {}, wantCol = {}; items.forEach(i => { { const kc = i.id + '|' + i.color; wantCol[kc] = (wantCol[kc] || 0) + i.qty; } stockUsed[i.id] = (stockUsed[i.id] || 0) + i.qty; const k = i.id + '|' + i.size; wantSize[k] = (wantSize[k] || 0) + i.qty; });
   const order = { id: id(10), number, userId: user.id, items, totals, customer: customer(body.customer), method: methodId, status: 'awaiting_payment', proof: null, createdAt: now, updatedAt: now, timeline: [{ at: now, status: 'awaiting_payment', note: 'Order placed', by: 'customer' }] };
-  order.stockSize = wantSize; order.stock = stockUsed; adjustStock(db, order, -1); if (coupon) coupon.uses = (coupon.uses || 0) + 1;
+  order.stockSize = wantSize; order.stockColor = wantCol; order.stock = stockUsed; adjustStock(db, order, -1); if (coupon) coupon.uses = (coupon.uses || 0) + 1;
   db.data.orders.unshift(order); db.save(); if (hooks.created) try { hooks.created(order); } catch (e) {} return order;
 }
 /* stock follows the order: taken when placed, given back when cancelled (and taken again if a cancelled order is reopened) */
 function adjustStock(db, order, sign) {
   const cat = db.data.catalog; if (!cat) return;
   Object.keys(order.stockSize || {}).forEach(k => { const [id, size] = k.split('|'), p = cat.products.find(x => x.id === id); if (p && p.sizeStock && p.sizeStock[size] != null) p.sizeStock[size] = Math.max(0, p.sizeStock[size] + sign * order.stockSize[k]); });
+  Object.keys(order.stockColor || {}).forEach(k => { const [id, color] = k.split('|'), p = cat.products.find(x => x.id === id), c = p && p.colors.find(x => x.name === color); if (c && c.stock != null) c.stock = Math.max(0, c.stock + sign * order.stockColor[k]); });
   if (!order.stock) return;
   Object.keys(order.stock).forEach(id => { const p = cat.products.find(x => x.id === id); if (!p || p.stock == null) return; p.stock = Math.max(0, p.stock + sign * order.stock[id]); if (sign < 0 && p.stock === 0) { p.soldOut = true; p.autoSold = true; } if (sign > 0 && p.stock > 0 && p.autoSold) { p.soldOut = false; p.autoSold = false; } });
 }

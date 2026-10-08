@@ -384,6 +384,25 @@ console.log('\nWhatsApp Business API messages (mock)');
   await ADM.req('PATCH', '/api/admin/orders/' + o.id, { action: 'verify' }); await new Promise(r => setTimeout(r, 400)); ok(got.length >= 2 && /verified/.test(got[got.length - 1].body.template.components[0].parameters[2].text), 'a message follows when payment is verified');
   delete process.env.WHATSAPP_TOKEN; delete process.env.WHATSAPP_PHONE_ID; delete process.env.WHATSAPP_BASE; const n = got.length; await ADM.req('PATCH', '/api/admin/orders/' + o.id, { action: 'status', status: 'processing' }); await new Promise(r => setTimeout(r, 300)); ok(got.length === n, 'nothing is sent when the API is not configured'); mock.close(); }
 
+console.log('\nStock by colour + photos per colour');
+{ const sp = (await ADM.req('POST', '/api/admin/products', { name: 'Colour Suit', cat: 'straight', price: 3000, colors: [{ name: 'Red', hex: '#ff0000', stock: 1 }, { name: 'Blue', hex: '#0000ff', stock: 0 }, { name: 'Green', hex: '#00ff00' }], stitch: ['unstitched'] })).json.product;
+  ok(sp.colors[0].stock === 1 && sp.colors[1].stock === 0 && sp.colors[2].stock === undefined, 'colour stock saved (blank = unlimited)');
+  ok((await ADM.req('POST', '/api/admin/products', { name: 'Bad Colour Stock', cat: 'straight', price: 100, colors: [{ name: 'Red', hex: '#ff0000', stock: -3 }], stitch: ['unstitched'] })).status === 400, 'negative colour stock rejected');
+  const line = (color, qty = 1) => ({ items: [{ id: sp.id, size: 'M', stitch: 'unstitched', color, qty }], customer: cust, method: 'upi_qr' });
+  const C = new Client(); await C.req('POST', '/api/auth/guest', {});
+  ok((await C.req('POST', '/api/orders', line('Blue'))).status === 400, 'a sold-out colour cannot be ordered');
+  ok((await C.req('POST', '/api/orders', line('Red', 2))).status === 400, 'cannot order more than the colour stock');
+  const o1 = await C.req('POST', '/api/orders', line('Red')); ok(o1.status === 201, 'order within colour stock accepted'); ok((await C.req('POST', '/api/orders', line('Red'))).status === 400, 'colour sold out once used');
+  ok((await C.req('POST', '/api/orders', line('Green', 3))).status === 201, 'colours without a limit stay orderable');
+  ok(/"colorOut":\["Blue"(,"Red")?\]|"colorOut":\["Red","Blue"\]/.test((await new Client().req('GET', '/js/data.js')).text), 'storefront learns which colours are sold out');
+  await C.req('POST', '/api/orders/' + o1.json.order.id + '/cancel', {}); ok((await C.req('POST', '/api/orders', line('Red'))).status === 201, 'cancelling gives the colour stock back');
+  // photos tagged with a colour
+  const png = Buffer.concat([Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]), crypto.randomBytes(200)]);
+  for (const [rev, w] of [['revaaa1', 800], ['revbbb2', 800]]) await ADM.req('POST', '/api/admin/products/' + sp.id + '/image?rev=' + rev + '&w=' + w, png, { 'content-type': 'image/png' });
+  r = await ADM.req('PUT', '/api/admin/products/' + sp.id, { images: ['revaaa1', 'revbbb2'], imageColors: { revaaa1: 'Red', revbbb2: 'Green', revzzz9: 'Red' } }); ok(r.status === 200 && r.json.product.imageColors.revaaa1 === 'Red' && r.json.product.imageColors.revzzz9 === undefined, 'photos can be tagged with a colour (unknown photos ignored)');
+  ok(/"imgColors":\["Red","Green"\]/.test((await new Client().req('GET', '/js/data.js')).text), 'storefront knows which photo shows which colour');
+  await ADM.req('DELETE', '/api/admin/products/' + sp.id); }
+
 console.log('\nAdmin analytics');
 { const an = await ADM.req('GET', '/api/admin/analytics?days=30'); ok(an.status === 200 && an.json.series.length === 30 && an.json.orders >= 2, 'analytics returns a 30-day series and order totals');
   ok(an.json.paidOrders >= 1 && an.json.revenue > 0 && an.json.aov > 0 && an.json.top.length >= 1, 'revenue, average order and top products computed from paid orders');

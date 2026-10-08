@@ -85,7 +85,7 @@
 
   function editProduct(p) {
     var isNew = !p; p = p || { name: '', cat: cat.categories[0] && cat.categories[0].id, price: '', was: '', fabric: '', badge: '', blurb: '', occ: [], stitch: [], colors: [{ name: '', hex: '#7a1f3d' }], inc: [], details: [], best: false, isNew: true, published: true, soldOut: false, rating: '', reviews: '', imageUrls: [], demo: false };
-    var imgs = (p.imageUrls || []).map(function (x) { return { rev: x.rev, url: x.url }; }), stitchOn = cat.site.stitch.filter(function (x) { return x.enabled; });
+    var imgs = (p.imageUrls || []).map(function (x) { return { rev: x.rev, url: x.url, color: (p.imageColors || {})[x.rev] || '' }; }), stitchOn = cat.site.stitch.filter(function (x) { return x.enabled; });
     ADM.showDrawer('<header class="adm__dh"><div><h2>' + (isNew ? 'Add product' : 'Edit product') + '</h2><p class="muted">' + (isNew ? 'Fill in the basics — you can add photos below.' : esc(p.name)) + '</p></div><button class="adm__icon" data-x aria-label="Close">' + ico('close') + '</button></header>' +
       '<form class="adm__db pform" id="pf2" novalidate>' +
       F('e-name', 'Name', I('e-name', p.name, { max: 90, ph: 'e.g. Maharani Gota-Patti Bridal Poshak' })) +
@@ -93,7 +93,7 @@
       '<div class="adm__two3">' + F('e-price', 'Selling price (₹)', I('e-price', p.price, { mode: 'numeric', ph: '12500' })) + F('e-was', 'Original price (₹) — optional', I('e-was', p.was || '', { mode: 'numeric', ph: 'shows a discount' })) + '</div>' +
       F('e-blurb', 'Short description', T('e-blurb', p.blurb, 3, 600)) +
       '<fieldset class="field"><legend class="field__l">Photos <span class="muted">(first photo is the main one; cropped to 4:5)</span></legend>' + (p.demo && !imgs.length ? '<p class="muted">Demo drawings are showing. Add your own photos to replace them.</p>' : '') + '<div class="pgrid" id="pgrid"></div><label class="drop drop--sm"><input type="file" id="e-files" accept="image/jpeg,image/png,image/webp" multiple><span class="drop__ico" aria-hidden="true">+</span><span class="drop__t"><strong>Add photos</strong><small>Up to 6 · JPG, PNG or WebP · resized automatically</small></span></label><p class="field__err" id="e-imgerr" role="alert"></p></fieldset>' +
-      '<fieldset class="field"><legend class="field__l">Colours</legend>' + rowsHTML('e-colors', p.colors.map(function (c) { return { name: c.name, hex: c.hex }; }), [{ k: 'name', label: 'Colour name', ph: 'Mulberry', max: 24, w: 2 }, { k: 'hex', label: 'Colour code', ph: '#7a1f3d', max: 7, w: 1 }], 8, '+ Add colour') + '<small class="muted">Colour code looks like #7a1f3d. You can copy it from any colour picker.</small></fieldset>' +
+      '<fieldset class="field"><legend class="field__l">Colours</legend>' + rowsHTML('e-colors', p.colors.map(function (c) { return { name: c.name, hex: c.hex, stock: c.stock == null ? '' : c.stock }; }), [{ k: 'name', label: 'Colour name', ph: 'Mulberry', max: 24, w: 2 }, { k: 'hex', label: 'Colour code', ph: '#7a1f3d', max: 7, w: 1 }, { k: 'stock', label: 'Stock', ph: '∞', max: 5, w: 1 }], 8, '+ Add colour') + '<small class="muted">Colour code looks like #7a1f3d. You can copy it from any colour picker.</small></fieldset>' +
       '<fieldset class="field"><legend class="field__l">Stitching offered</legend><div class="chips">' + stitchOn.map(function (x) { return '<label class="chip chip--wide"><input type="checkbox" name="e-st" value="' + x.id + '"' + (p.stitch.indexOf(x.id) > -1 ? ' checked' : '') + '><span>' + esc(x.label) + (x.add ? ' (+' + money(x.add) + ')' : '') + '</span></label>'; }).join('') + '</div></fieldset>' +
       '<fieldset class="field"><legend class="field__l">Occasions</legend><div class="chips">' + cat.site.occasions.map(function (o) { return '<label class="chip chip--wide"><input type="checkbox" name="e-oc" value="' + esc(o.id) + '"' + (p.occ.indexOf(o.id) > -1 ? ' checked' : '') + '><span>' + esc(o.label) + '</span></label>'; }).join('') + '</div></fieldset>' +
       F('e-inc', 'What’s included <span class="muted">(one per line)</span>', T('e-inc', (p.inc || []).join('\n'), 4, 1200, 'Ghagra with can-can\nKanchli (blouse)\nOdhni')) +
@@ -105,9 +105,12 @@
       (isNew ? '' : '<section><h3>Danger zone</h3><button type="button" class="btn btn--ghost adm__del" id="e-del">Delete this product…</button></section>') + '</form>');
     var form = $('#pf2'); bindRows(form);
     function grid() {
-      $('#pgrid').innerHTML = imgs.map(function (im, i) { return '<div class="ptile"><img src="' + esc(im.url) + '" alt="Photo ' + (i + 1) + '">' + (i === 0 ? '<span class="ptile__main">Main</span>' : '') + '<div class="ptile__a"><button type="button" data-mv="-1" data-i="' + i + '" aria-label="Move earlier"' + (i === 0 ? ' disabled' : '') + '>←</button><button type="button" data-mv="1" data-i="' + i + '" aria-label="Move later"' + (i === imgs.length - 1 ? ' disabled' : '') + '>→</button><button type="button" data-rm="' + i + '" aria-label="Remove photo">×</button></div>' + (im.parts ? '<span class="ptile__new">New</span>' : '') + '</div>'; }).join('');
+      $('#pgrid').innerHTML = imgs.map(function (im, i) { return '<div class="ptile"><img src="' + esc(im.url) + '" alt="Photo ' + (i + 1) + '">' + (i === 0 ? '<span class="ptile__main">Main</span>' : '') + '<div class="ptile__a"><button type="button" data-mv="-1" data-i="' + i + '" aria-label="Move earlier"' + (i === 0 ? ' disabled' : '') + '>←</button><button type="button" data-mv="1" data-i="' + i + '" aria-label="Move later"' + (i === imgs.length - 1 ? ' disabled' : '') + '>→</button><button type="button" data-rm="' + i + '" aria-label="Remove photo">×</button></div>' + (im.parts ? '<span class="ptile__new">New</span>' : '') + '<select class="ptile__c" data-ic="' + i + '" aria-label="Colour shown in photo ' + (i + 1) + '"><option value="">Any colour</option>' + colourNames().map(function (n) { return '<option' + (im.color === n ? ' selected' : '') + '>' + esc(n) + '</option>'; }).join('') + '</select></div>'; }).join('');
     }
+    function colourNames() { return readRows('e-colors').map(function (c) { return (c.name || '').trim(); }).filter(Boolean); }
     grid();
+    $('#pgrid').addEventListener('change', function (e) { var c = e.target.closest('[data-ic]'); if (c) imgs[+c.getAttribute('data-ic')].color = c.value; });
+    $('#e-colors').addEventListener('change', function () { grid(); });
     $('#pgrid').addEventListener('click', function (e) { var m = e.target.closest('[data-mv]'), r = e.target.closest('[data-rm]'); if (m) { var i = +m.getAttribute('data-i'), j = i + +m.getAttribute('data-mv'); var t = imgs[i]; imgs[i] = imgs[j]; imgs[j] = t; grid(); } if (r) { imgs.splice(+r.getAttribute('data-rm'), 1); grid(); } });
     $('#e-files').addEventListener('change', function () {
       var fs = [].slice.call(this.files), err = $('#e-imgerr'); err.textContent = ''; this.value = '';
@@ -117,7 +120,7 @@
     function body() {
       var b = { name: val('e-name'), cat: val('e-cat'), fabric: val('e-fab'), price: val('e-price'), was: val('e-was'), blurb: val('e-blurb'), badge: val('e-badge'), inc: lines('e-inc'), details: lines('e-det'), published: chk('e-pub'), soldOut: chk('e-sold'), isNew: chk('e-new'), best: chk('e-best'), rating: val('e-rating'), reviews: val('e-revs'), stock: val('e-stock'), sizeStock: (function () { var o = {}; $$('[data-ss]').forEach(function (i) { if (i.value.trim() !== '') o[i.getAttribute('data-ss')] = i.value.trim(); }); return o; })() };
       b.stitch = $$('[name=e-st]:checked', form).map(function (x) { return x.value; }); b.occ = $$('[name=e-oc]:checked', form).map(function (x) { return x.value; });
-      b.colors = readRows('e-colors').map(function (c) { return { name: c.name.trim(), hex: c.hex.trim() }; }).filter(function (c) { return c.name; }); return b;
+      b.colors = readRows('e-colors').map(function (c) { return { name: c.name.trim(), hex: c.hex.trim(), stock: String(c.stock == null ? '' : c.stock).trim() }; }).filter(function (c) { return c.name; }); return b;
     }
     form.addEventListener('submit', function (e) {
       e.preventDefault(); var err = $('#e-err'), btn = $('#e-save'); err.textContent = ''; btn.disabled = true; btn.classList.add('is-busy');
@@ -125,7 +128,7 @@
       (isNew ? api('POST', '/api/admin/products', b) : api('PUT', '/api/admin/products/' + p.id, b)).then(function (r) {
         id = r.product.id; var fresh = imgs.filter(function (i) { return i.parts; });
         return seq(fresh, function (im, n) { err.textContent = 'Uploading photo ' + (n + 1) + ' of ' + fresh.length + '…'; return seq(im.parts, function (pt) { return post('/api/admin/products/' + id + '/image?rev=' + im.rev + '&w=' + pt.w, pt.blob); }); });
-      }).then(function () { return api('PUT', '/api/admin/products/' + id, { images: imgs.map(function (i) { return i.rev; }) }); })
+      }).then(function () { var ic = {}; imgs.forEach(function (i) { if (i.color) ic[i.rev] = i.color; }); return api('PUT', '/api/admin/products/' + id, { images: imgs.map(function (i) { return i.rev; }), imageColors: ic }); })
         .then(function () { toast(isNew ? 'Product added' : 'Saved'); ADM.closeDrawer(); ADM.refreshBadges(); V.products(); }, function (er) { btn.disabled = false; btn.classList.remove('is-busy'); err.textContent = er.message; });
     });
     var del = $('#e-del'); if (del) del.addEventListener('click', function () { if (confirm('Delete “' + p.name + '”? Past orders keep their details. This cannot be undone.')) api('DELETE', '/api/admin/products/' + p.id).then(function () { toast('Product deleted'); ADM.closeDrawer(); V.products(); }, function (er) { toast(er.message, 'bad'); }); });

@@ -110,7 +110,7 @@ class Catalog {
     if (!base || b.was !== undefined) { const w = b.was === '' || b.was == null ? null : Math.round(Number(b.was)); if (w != null && !(w > out.price)) throw bad('“Was” price must be higher than the selling price (or leave it blank).'); out.was = w; }
     if (!base || b.occ !== undefined) out.occ = (Array.isArray(b.occ) ? b.occ : []).filter(o => this.occasions.some(x => x.id === o));
     if (!base || b.stitch !== undefined) { const st = (Array.isArray(b.stitch) ? b.stitch : []).filter(x => this.site.stitch.some(y => y.id === x && y.enabled)); if (!st.length) throw bad('Choose at least one stitching option.'); out.stitch = this.site.stitch.map(x => x.id).filter(x => st.indexOf(x) > -1); }
-    if (!base || b.colors !== undefined) { const cs = (Array.isArray(b.colors) ? b.colors : []).slice(0, 8).map(c => ({ name: s(c && c.name, 24), hex: s(c && c.hex, 7) })).filter(c => c.name); if (!cs.length) throw bad('Add at least one colour.'); cs.forEach(c => { if (!HEX.test(c.hex)) throw bad('Colour codes look like #7a1f3d.'); }); out.colors = cs; }
+    if (!base || b.colors !== undefined) { const cs = (Array.isArray(b.colors) ? b.colors : []).slice(0, 8).map(c => { const o = { name: s(c && c.name, 24), hex: s(c && c.hex, 7) }; if (c && c.stock !== undefined && c.stock !== null && c.stock !== '') { const n = Math.round(Number(c.stock)); if (!(n >= 0 && n <= 99999)) throw bad('Colour stock must be a whole number (or blank for unlimited).'); o.stock = n; } return o; }).filter(c => c.name); if (!cs.length) throw bad('Add at least one colour.'); cs.forEach(c => { if (!HEX.test(c.hex)) throw bad('Colour codes look like #7a1f3d.'); }); out.colors = cs; }
     if (!base || b.inc !== undefined) out.inc = (Array.isArray(b.inc) ? b.inc : []).map(x => s(x, 120)).filter(Boolean).slice(0, 10);
     if (!base || b.details !== undefined) out.details = (Array.isArray(b.details) ? b.details : []).map(x => s(x, 200)).filter(Boolean).slice(0, 10);
     ['best', 'isNew', 'published', 'soldOut'].forEach(k => { if (b[k] !== undefined) out[k] = !!b[k]; else if (!base) out[k] = k === 'published'; });
@@ -131,6 +131,7 @@ class Catalog {
   update(pid, b) {
     const p = this.find(pid); if (!p) throw Object.assign(new Error('Product not found'), { status: 404 });
     Object.assign(p, this.clean(b, p));
+    if (b.imageColors && typeof b.imageColors === 'object') { const names = p.colors.map(c => c.name), ic = {}; Object.keys(b.imageColors).forEach(r => { if (p.imageStore[r] && names.indexOf(b.imageColors[r]) > -1) ic[r] = b.imageColors[r]; }); p.imageColors = ic; }
     if (Array.isArray(b.images)) { const order = b.images.filter(r => p.imageStore[r]); p.images.slice().forEach(r => { if (order.indexOf(r) < 0) this.dropImage(p, r); }); p.images = order; }
     this.touch(); return p;
   }
@@ -225,6 +226,8 @@ class Catalog {
     const o = { id: p.id, name: p.name, cat: p.cat, occ: p.occ, fabric: p.fabric, price: p.price, was: p.was || null, badge: p.badge || '', best: !!p.best, isNew: !!p.isNew, rating: p.rating || 0, reviews: p.reviews || 0, colors: p.colors, inc: p.inc, stitch: p.stitch, blurb: p.blurb, details: p.details, soldOut: !!p.soldOut, demo: !!p.demo };
     if (p.stock != null && p.stock > 0 && p.stock <= 5) o.left = p.stock;
     const ss = p.sizeStock || {}, so = Object.keys(ss).filter(k => ss[k] === 0), sl = {}; Object.keys(ss).forEach(k => { if (ss[k] > 0 && ss[k] <= 3) sl[k] = ss[k]; });
+    const co = p.colors.filter(c => c.stock === 0).map(c => c.name), cl = {}; p.colors.forEach(c => { if (c.stock > 0 && c.stock <= 3) cl[c.name] = c.stock; }); if (co.length) o.colorOut = co; if (Object.keys(cl).length) o.colorLeft = cl;
+    if (p.images.length && p.imageColors && Object.keys(p.imageColors).length) o.imgColors = p.images.map(r => p.imageColors[r] || '');
     if (so.length) o.sizeOut = so; if (Object.keys(sl).length) o.sizeLeft = sl;
     const live = this.site.stitch.filter(x => x.enabled).map(x => x.id); o.stitch = o.stitch.filter(x => live.indexOf(x) > -1); o.nimg = p.images.length || (p.demo ? 3 : 0); return o;
   }
