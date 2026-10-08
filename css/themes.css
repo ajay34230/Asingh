@@ -1,0 +1,138 @@
+/* Themes. "royal" = the default wine & gold look (tokens live in styles.css). "bloom" = a fresh, playful pastel light theme. */
+
+/* ---------- theme switch UI (both themes) ---------- */
+.announce { position: relative; align-items: center; }
+.themebtn { display: inline-flex; align-items: center; gap: 8px; min-height: 28px; padding: 2px 12px 2px 8px; margin-left: 6px; border-radius: 999px; border: 1px solid rgba(255,255,255,.45); background: rgba(255,255,255,.12); color: inherit; font-size: .78rem; letter-spacing: .04em; transition: background var(--t), transform var(--t); }
+.themebtn:hover { background: rgba(255,255,255,.26); transform: translateY(-1px); }
+.themebtn__dot { width: 14px; height: 14px; border-radius: 50%; background: conic-gradient(#e9c46a, #d6457f, #6d3df2, #2bb3a3, #e9c46a); box-shadow: 0 0 0 2px rgba(255,255,255,.7); transition: transform .6s cubic-bezier(.2,.7,.2,1); }
+.themebtn:hover .themebtn__dot { transform: rotate(180deg) scale(1.15); }
+.themepick { display: flex; gap: 10px; margin-bottom: 18px; }
+.themepick button { flex: 1; display: inline-flex; align-items: center; justify-content: center; gap: 10px; min-height: 48px; border-radius: 14px; border: 1.5px solid var(--line); background: var(--surface); font-weight: 600; transition: border-color var(--t), transform var(--t), box-shadow var(--t); }
+.themepick button[aria-pressed="true"] { border-color: var(--wine); box-shadow: 0 0 0 3px color-mix(in srgb, var(--wine) 18%, transparent); }
+.themepick button:active { transform: scale(.97); }
+.tsw { width: 22px; height: 22px; border-radius: 50%; display: inline-block; border: 2px solid #fff; box-shadow: 0 0 0 1px var(--line); }
+.tsw--royal { background: linear-gradient(135deg, #5b1530 50%, #e9c46a 50%); }
+.tsw--bloom { background: linear-gradient(135deg, #8b5cf6 33%, #ff7a59 33% 66%, #2bb3a3 66%); }
+
+/* circular reveal when switching */
+::view-transition-old(root), ::view-transition-new(root) { animation: none; mix-blend-mode: normal; }
+.theme-vt::view-transition-new(root) { animation: themeReveal .75s cubic-bezier(.4, 0, .2, 1) both; }
+@keyframes themeReveal { from { clip-path: circle(0 at var(--tx, 50%) var(--ty, 0)); } to { clip-path: circle(150vmax at var(--tx, 50%) var(--ty, 0)); } }
+
+/* =====================================================================
+   BLOOM — lavender-white canvas, violet + coral + mint accents, soft rounded shapes, springy motion
+   ===================================================================== */
+html[data-theme="bloom"] {
+  --bg: #fbf8ff; --bg-2: #f1ecfc; --surface: #ffffff; --ink: #231a3a; --ink-2: #5c5277; --line: #e3dbf6;
+  --wine: #6d3df2; --wine-2: #8b5cf6; --gold: #ff7a59; --gold-l: #ffd2c4; --sale: #e11d48; --ok: #12805c;
+  --focus: #6d3df2; --r: 22px;
+  --serif: ui-rounded, "SF Pro Rounded", "Nunito", "Quicksand", "Segoe UI", system-ui, -apple-system, sans-serif;
+  --spring: cubic-bezier(.34, 1.56, .64, 1);
+  --good: #12805c; --good-bg: #dcf7ec; --warn: #a15c00; --warn-bg: #fff0d0; --info: #2457c5; --info-bg: #e2ebff; --bad: #be123c; --bad-bg: #ffe0e8; --mute: #5c5277; --mute-bg: #ece7f8;
+}
+html[data-theme="bloom"] body { background: var(--bg); }
+/* aurora: slow drifting colour blobs behind everything */
+html[data-theme="bloom"] body::before { content: ""; position: fixed; inset: -20vmax; z-index: -1; pointer-events: none;
+  background: radial-gradient(40vmax 40vmax at 12% 8%, rgba(139,92,246,.20), transparent 60%), radial-gradient(36vmax 36vmax at 88% 18%, rgba(255,122,89,.18), transparent 60%), radial-gradient(44vmax 44vmax at 70% 92%, rgba(43,179,163,.16), transparent 60%);
+  animation: aurora 26s ease-in-out infinite alternate; }
+@keyframes aurora { from { transform: translate3d(0, 0, 0) scale(1); } to { transform: translate3d(-4vmax, 3vmax, 0) scale(1.12) rotate(6deg); } }
+
+html[data-theme="bloom"] .announce { background: linear-gradient(90deg, #6d3df2, #c04be0, #ff7a59, #6d3df2); background-size: 300% 100%; animation: shimmerbar 12s linear infinite; color: #fff; }
+@keyframes shimmerbar { to { background-position: 300% 0; } }
+html[data-theme="bloom"] .header { background: rgba(255,255,255,.72); -webkit-backdrop-filter: saturate(1.6) blur(16px); backdrop-filter: saturate(1.6) blur(16px); }
+html[data-theme="bloom"] .logo { font-family: var(--serif); font-weight: 800; letter-spacing: .14em; background: linear-gradient(90deg, #6d3df2, #ff7a59); -webkit-background-clip: text; background-clip: text; color: transparent; }
+html[data-theme="bloom"] .nav__link::after { height: 3px; border-radius: 3px; background: linear-gradient(90deg, #6d3df2, #ff7a59); bottom: 8px; }
+html[data-theme="bloom"] .mega { border-radius: 0 0 28px 28px; }
+
+/* buttons: gradient pills that bounce */
+html[data-theme="bloom"] .btn { border: 0; color: #fff; background: linear-gradient(120deg, #6d3df2, #9b5cf6 55%, #c04be0); background-size: 160% 100%; box-shadow: 0 10px 24px -10px rgba(109,61,242,.7); transition: transform .35s var(--spring), box-shadow .3s, background-position .5s; font-weight: 700; }
+html[data-theme="bloom"] .btn:hover { transform: translateY(-3px) scale(1.03); background-position: 100% 0; box-shadow: 0 16px 30px -12px rgba(109,61,242,.75); }
+html[data-theme="bloom"] .btn:active { transform: scale(.96); }
+html[data-theme="bloom"] .btn--ghost { background: #fff; color: var(--wine); border: 1.5px solid #cdbdf9; box-shadow: none; }
+html[data-theme="bloom"] .btn--ghost:hover { background: #f4efff; color: var(--wine); border-color: var(--wine); box-shadow: 0 10px 22px -14px rgba(109,61,242,.6); }
+html[data-theme="bloom"] .btn--gold { background: linear-gradient(120deg, #ff7a59, #ffa24a); color: #fff; box-shadow: 0 10px 24px -10px rgba(255,122,89,.8); }
+html[data-theme="bloom"] .btn--outline-light { background: rgba(255,255,255,.7); border: 1.5px solid #cdbdf9; color: var(--wine); }
+html[data-theme="bloom"] .btn--outline-light:hover { background: #fff; color: var(--wine); border-color: var(--wine); }
+html[data-theme="bloom"] .btn--light { background: #fff; color: var(--ink); box-shadow: 0 8px 20px -10px rgba(35,26,58,.35); }
+html[data-theme="bloom"] .btn--danger { background: linear-gradient(120deg, #e11d48, #f43f5e); }
+html[data-theme="bloom"] .btn[disabled] { filter: grayscale(.6); opacity: .6; transform: none; box-shadow: none; }
+
+/* hero: light pastel stage with floating shapes; the garment art sits in a rounded frame on the right */
+html[data-theme="bloom"] .hero { color: var(--ink); background: linear-gradient(135deg, #efe6ff 0%, #ffe7df 55%, #dff6f1 100%); }
+html[data-theme="bloom"] .hero::before { content: ""; position: absolute; z-index: -3; right: -8vmax; top: -10vmax; width: 44vmax; height: 44vmax; border-radius: 42% 58% 55% 45% / 48% 42% 58% 52%; background: radial-gradient(circle at 30% 30%, rgba(255,255,255,.9), rgba(155,92,246,.28)); animation: blob 14s ease-in-out infinite alternate; }
+@keyframes blob { to { transform: translate3d(-3vmax, 4vmax, 0) rotate(40deg) scale(1.08); border-radius: 58% 42% 40% 60% / 55% 58% 42% 45%; } }
+html[data-theme="bloom"] .hero__img { inset: 6% 3% 6% 46%; width: auto; height: auto; border-radius: 36px; overflow: hidden; box-shadow: 0 40px 80px -30px rgba(109,61,242,.55); transform: rotate(1.5deg); animation: floaty 7s ease-in-out infinite; }
+@keyframes floaty { 50% { transform: translateY(-14px) rotate(-.6deg); } }
+html[data-theme="bloom"] .hero__img { background: linear-gradient(135deg, #b99bff, #ffb8a3 60%, #9fe3d6); }
+html[data-theme="bloom"] .hero__img img { opacity: .8; filter: brightness(1.35) saturate(1.35); }
+html[data-theme="bloom"] .hero::after { background: linear-gradient(90deg, rgba(251,248,255,.85) 0%, rgba(251,248,255,.35) 42%, transparent 60%); }
+html[data-theme="bloom"] .hero__title { font-weight: 800; letter-spacing: -.02em; color: var(--ink); }
+html[data-theme="bloom"] .hero__title em, html[data-theme="bloom"] .hero__title i { font-style: normal; background: linear-gradient(90deg, #6d3df2, #ff7a59); -webkit-background-clip: text; background-clip: text; color: transparent; }
+html[data-theme="bloom"] .hero__lead { opacity: 1; color: var(--ink-2); }
+html[data-theme="bloom"] .hero__eyebrow, html[data-theme="bloom"] .eyebrow { color: var(--gold); font-weight: 700; }
+@media (max-width: 899.98px) {
+  html[data-theme="bloom"] .hero__img { inset: auto 6% 22px 6%; height: 260px; }
+  html[data-theme="bloom"] .hero { align-items: start; min-height: 0; } html[data-theme="bloom"] .hero__in { padding-bottom: 310px; }
+  html[data-theme="bloom"] .hero::after { background: linear-gradient(180deg, rgba(251,248,255,.5), transparent 55%); }
+}
+
+html[data-theme="bloom"] .marquee { background: linear-gradient(90deg, #f1ecfc, #ffe9e2, #ddf6f1); color: var(--wine); border-block: 0; font-weight: 700; }
+html[data-theme="bloom"] .marquee span::after { background: var(--gold); border-radius: 50%; clip-path: none; }
+html[data-theme="bloom"] .trust { background: transparent; border: 0; }
+html[data-theme="bloom"] .trust__list li { background: var(--surface); border-radius: 18px; padding: 12px 16px; box-shadow: 0 10px 28px -18px rgba(109,61,242,.45); transition: transform .4s var(--spring); }
+html[data-theme="bloom"] .trust__list li:hover { transform: translateY(-4px) rotate(-.6deg); }
+html[data-theme="bloom"] .trust__list .ico { color: var(--wine); }
+
+/* cards: pop in with a spring, lift + glow on hover */
+html[data-theme="bloom"] .card__media { border-radius: var(--r); overflow: hidden; background: var(--bg-2); box-shadow: 0 14px 30px -20px rgba(35,26,58,.5); transition: transform .5s var(--spring), box-shadow .4s; }
+html[data-theme="bloom"] .card:hover .card__media { transform: translateY(-8px) rotate(-.7deg); box-shadow: 0 30px 44px -22px rgba(109,61,242,.55); }
+html[data-theme="bloom"] .card__media img { transition: transform .9s cubic-bezier(.2,.7,.2,1); }
+html[data-theme="bloom"] .card:hover .card__media img { transform: scale(1.07); }
+html[data-theme="bloom"] .card__name, html[data-theme="bloom"] .card h3 { font-weight: 700; }
+html[data-theme="bloom"] .badge { border-radius: 999px; background: #fff; color: var(--wine); box-shadow: 0 6px 14px -6px rgba(35,26,58,.4); animation: wobble 4s ease-in-out infinite; }
+html[data-theme="bloom"] .badge--sale { background: linear-gradient(120deg, #e11d48, #ff5a7a); color: #fff; }
+html[data-theme="bloom"] .badge--new { background: linear-gradient(120deg, #6d3df2, #9b5cf6); color: #fff; }
+html[data-theme="bloom"] .badge--bestseller, html[data-theme="bloom"] .badge--limited { background: linear-gradient(120deg, #ff7a59, #ffa24a); color: #fff; }
+@keyframes wobble { 0%, 90%, 100% { transform: rotate(0); } 93% { transform: rotate(-6deg); } 96% { transform: rotate(5deg); } }
+html[data-theme="bloom"] .rv { opacity: 0; transform: translateY(28px) scale(.96); transition: opacity .6s ease, transform .75s var(--spring); }
+html[data-theme="bloom"] .rv.is-in { opacity: 1; transform: none; }
+html[data-theme="bloom"] .card__quick { border-radius: 999px; }
+html[data-theme="bloom"] .tile { border-radius: 26px; box-shadow: 0 18px 36px -22px rgba(109,61,242,.6); transition: transform .5s var(--spring), box-shadow .4s; }
+html[data-theme="bloom"] .tile:hover { transform: translateY(-8px) rotate(.8deg); box-shadow: 0 30px 50px -24px rgba(109,61,242,.7); }
+html[data-theme="bloom"] .tile__n { background: linear-gradient(120deg, #6d3df2, #ff7a59); -webkit-background-clip: text; background-clip: text; color: transparent; font-weight: 800; }
+
+html[data-theme="bloom"] .story { background: linear-gradient(135deg, #6d3df2, #b24ae0 55%, #ff7a59); color: #fff; border-radius: 40px; margin-inline: clamp(8px, 2vw, 32px); }
+html[data-theme="bloom"] .story::after { background: radial-gradient(60vmax 40vmax at 90% 0, rgba(255,255,255,.22), transparent 60%); }
+html[data-theme="bloom"] .story__img { opacity: .18; mix-blend-mode: soft-light; }
+
+html[data-theme="bloom"] .section__head .h2, html[data-theme="bloom"] .h1, html[data-theme="bloom"] .h2 { font-weight: 800; letter-spacing: -.015em; }
+html[data-theme="bloom"] .h2::after, html[data-theme="bloom"] .section__head h2::after { background: linear-gradient(90deg, #6d3df2, #ff7a59) !important; border-radius: 4px; }
+html[data-theme="bloom"] .input, html[data-theme="bloom"] select.input, html[data-theme="bloom"] textarea.input { border-radius: 16px; border: 1.5px solid var(--line); background: #fff; transition: border-color var(--t), box-shadow var(--t), transform var(--t); }
+html[data-theme="bloom"] .input:focus { border-color: var(--wine); box-shadow: 0 0 0 4px rgba(109,61,242,.15); outline: none; }
+html[data-theme="bloom"] .chip span, html[data-theme="bloom"] .pills a, html[data-theme="bloom"] .pill { border-radius: 999px; }
+html[data-theme="bloom"] .chip input:checked + span { background: var(--wine); color: #fff; border-color: var(--wine); }
+html[data-theme="bloom"] .count { background: var(--gold); color: #fff; animation: pop .5s var(--spring); }
+@keyframes pop { from { transform: scale(0); } }
+html[data-theme="bloom"] .sheet__panel { border-radius: 28px 0 0 28px; }
+html[data-theme="bloom"] .sheet--quick .sheet__panel, html[data-theme="bloom"] .sheet--auth .sheet__panel { border-radius: 28px; }
+html[data-theme="bloom"] .ocardx, html[data-theme="bloom"] .adm__card { border-radius: 24px; border-color: var(--line); box-shadow: 0 16px 36px -26px rgba(109,61,242,.45); }
+html[data-theme="bloom"] .footer { background: linear-gradient(180deg, transparent, #efe8fd); border-top: 0; border-radius: 40px 40px 0 0; }
+html[data-theme="bloom"] .totop { background: linear-gradient(120deg, #6d3df2, #ff7a59); color: #fff; }
+html[data-theme="bloom"] .consent { border-radius: 22px; }
+html[data-theme="bloom"] .coupon--on { background: #dcf7ec; }
+html[data-theme="bloom"] .track li.is-done .track__dot, html[data-theme="bloom"] .progress li.is-done .progress__n { background: var(--wine); border-color: var(--wine); color: #fff; }
+html[data-theme="bloom"] .stars__fg { color: #ffb020; }
+html[data-theme="bloom"] .meter__bar i, html[data-theme="bloom"] .meter span { background: linear-gradient(90deg, #6d3df2, #ff7a59); }
+html[data-theme="bloom"] ::selection { background: #d9c8ff; color: #231a3a; }
+
+/* decorative sparkles that drift up on the hero (pure CSS, hidden from assistive tech) */
+html[data-theme="bloom"] .hero__in::before, html[data-theme="bloom"] .hero__in::after { content: "✦"; position: absolute; color: var(--gold); font-size: 22px; opacity: .0; animation: sparkle 5s ease-in-out infinite; pointer-events: none; }
+html[data-theme="bloom"] .hero__in { position: relative; }
+html[data-theme="bloom"] .hero__in::before { left: 38%; top: 18%; } html[data-theme="bloom"] .hero__in::after { left: 12%; top: 60%; animation-delay: 2.2s; color: var(--wine-2); }
+@keyframes sparkle { 0%, 100% { opacity: 0; transform: translateY(10px) scale(.6) rotate(0); } 50% { opacity: .9; transform: translateY(-10px) scale(1.1) rotate(25deg); } }
+
+@media (prefers-reduced-motion: reduce) {
+  html[data-theme="bloom"] body::before, html[data-theme="bloom"] .announce, html[data-theme="bloom"] .hero::before, html[data-theme="bloom"] .hero__img, html[data-theme="bloom"] .badge, html[data-theme="bloom"] .hero__in::before, html[data-theme="bloom"] .hero__in::after { animation: none !important; }
+  html[data-theme="bloom"] .rv { transition: none; opacity: 1; transform: none; }
+  .theme-vt::view-transition-new(root) { animation: none; }
+}

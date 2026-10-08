@@ -31,6 +31,16 @@ await cu.fill('#d-pw', 'wrong-password'); await cu.click('#sf-del button[type=su
 await cu.fill('#d-pw', 'tara-new-pass-1'); await cu.click('#sf-del button[type=submit]'); await cu.waitForSelector('.authpage'); ok(true, 'account deleted → back to sign-in');
 ok((await call(cu, 'POST', '/api/auth/login', { email: 'tara@example.com', password: 'tara-new-pass-1' })).status === 401, 'deleted account cannot sign in');
 
+console.log('\nThemes');
+{ const t = await page(1280, 900); await t.goto(BASE + '/shop.html'); await t.waitForSelector('#grid .card');
+  ok(await t.getAttribute('html', 'data-theme') === 'royal', 'default theme is Royal');
+  await t.click('[data-theme-toggle]'); await t.waitForTimeout(900); ok(await t.getAttribute('html', 'data-theme') === 'bloom', 'toggle switches to Bloom');
+  const bg = await t.evaluate(() => getComputedStyle(document.body).backgroundColor); ok(bg === 'rgb(251, 248, 255)', 'Bloom paints its own background (' + bg + ')');
+  await t.reload(); ok(await t.evaluate(() => document.documentElement.getAttribute('data-theme')) === 'bloom', 'choice survives reload');
+  ok(await t.evaluate(() => document.documentElement.scrollWidth <= innerWidth), 'no horizontal overflow in Bloom');
+  await t.click('[data-theme-toggle]'); await t.waitForTimeout(900); ok(await t.getAttribute('html', 'data-theme') === 'royal', 'toggle back to Royal');
+  const m = await page(390, 844); await m.goto(BASE + '/'); await m.click('.header__menu'); await m.waitForTimeout(500); await m.click('[data-theme-set=bloom]'); await m.waitForTimeout(900); ok(await m.getAttribute('html', 'data-theme') === 'bloom', 'phone menu has a theme picker'); }
+
 console.log('\nCookie notice only when Analytics is on');
 await call(ad, 'PUT', '/api/admin/site', { ga4Id: 'G-TEST123456' });
 const v = await page(); await v.goto(BASE + '/'); await v.waitForSelector('.consent', { timeout: 5000 }); ok(true, 'cookie notice appears');

@@ -9,7 +9,7 @@
   /* ---------------- account ---------------- */
   function authView() {
     document.title = 'Sign in — ' + A.BRAND;
-    root.innerHTML = '<section class="authpage"><div class="authpage__art" aria-hidden="true">' + U.picture('maharani-poshak', 3, { sizes: '(min-width:1000px) 40vw, 0px', alt: '' }) + '<div class="authpage__cap"><p class="eyebrow eyebrow--light">Rajputana, delivered</p><p class="authpage__q">Every poshak is made for you — and every order stays private to you.</p><ul><li>' + U.icon('check', 'ico--xs') + ' Guest checkout, no details needed</li><li>' + U.icon('check', 'ico--xs') + ' Track every order in one place</li><li>' + U.icon('check', 'ico--xs') + ' Upload payment proof securely</li></ul></div></div>' +
+    root.innerHTML = '<section class="authpage"><div class="authpage__art" aria-hidden="true">' + U.picture('maharani-poshak', 3, { sizes: '(min-width:1000px) 40vw, 0px', alt: '' }) + '<div class="authpage__cap"><p class="eyebrow eyebrow--light">Made for you</p><p class="authpage__q">Every outfit is made for you — and every order stays private to you.</p><ul><li>' + U.icon('check', 'ico--xs') + ' Guest checkout, no details needed</li><li>' + U.icon('check', 'ico--xs') + ' Track every order in one place</li><li>' + U.icon('check', 'ico--xs') + ' Upload payment proof securely</li></ul></div></div>' +
       '<div class="authpage__form"><h1 class="h1">Welcome</h1><p class="muted">Sign in, create an account, or continue as a guest.</p><div id="am"></div></div></section>';
     Auth.mount($('#am'), { focus: false, onDone: function (u) { Auth.user = u; Auth.paint(); U.toast(u.isGuest ? 'Continuing as guest' : 'Welcome, ' + (u.name || 'back')); dash(); } });
   }

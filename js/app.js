@@ -329,7 +329,7 @@
     var page = document.body.getAttribute('data-page');
     var sprite = '';
     var header = '<a class="skip" href="#main">Skip to content</a>' +
-      '<p class="announce"><span>' + (A.FREE_SHIP_FROM ? 'Free shipping over ' + money(A.FREE_SHIP_FROM) : 'Free shipping on all orders') + '</span>' + ((A.SITE && A.SITE.announcement) ? '<span class="announce__sep" aria-hidden="true">·</span><span class="announce__opt">' + esc(A.SITE.announcement) + '</span>' : '') + '<span class="announce__sep" aria-hidden="true">·</span><a class="announce__track" href="track.html">Track your order</a></p>' +
+      '<p class="announce"><span>' + (A.FREE_SHIP_FROM ? 'Free shipping over ' + money(A.FREE_SHIP_FROM) : 'Free shipping on all orders') + '</span>' + ((A.SITE && A.SITE.announcement) ? '<span class="announce__sep" aria-hidden="true">·</span><span class="announce__opt">' + esc(A.SITE.announcement) + '</span>' : '') + '<span class="announce__sep" aria-hidden="true">·</span><a class="announce__track" href="track.html">Track your order</a><button type="button" class="themebtn" data-theme-toggle aria-label="Change theme"><span class="themebtn__dot" aria-hidden="true"></span><span class="themebtn__t"></span></button></p>' +
       '<header class="header" id="site-header"><div class="header__bar container">' +
       '<a class="logo" href="index.html" aria-label="' + A.BRAND + ' home">' + A.BRAND + '</a>' +
       '<nav class="nav" aria-label="Primary"><ul class="nav__list">' +
@@ -362,6 +362,7 @@
       '<div class="sheet__body"><button type="button" class="searchpill searchpill--wide" data-open="search" aria-label="Search">' + icon('search') + '<span>Search suits…</span></button>' +
       '<ul class="menu"><li><a href="shop.html">Shop all</a></li><li><a href="shop.html?sort=new">New in</a></li>' +
       A.CATEGORIES.map(function (c) { return '<li><a href="shop.html?cat=' + c.id + '">' + c.label + '</a></li>'; }).join('') + '</ul>' +
+      '<h2 class="menu__h">Theme</h2><div class="themepick" role="group" aria-label="Theme"><button type="button" data-theme-set="royal"><i class="tsw tsw--royal"></i>Royal</button><button type="button" data-theme-set="bloom"><i class="tsw tsw--bloom"></i>Bloom</button></div>' +
       '<h2 class="menu__h">Shop by occasion</h2><ul class="pills">' + A.OCCASIONS.map(function (c) { return '<li><a href="shop.html?occ=' + c.id + '">' + c.label + '</a></li>'; }).join('') + '</ul>' +
       '<ul class="menu menu--sub"><li><a href="track.html">Track your order</a></li><li><a href="shop.html?stitch=custom">Custom stitching</a></li><li><a href="shop.html?wishlist=1">Wishlist</a></li><li><a href="account.html" data-account>Account &amp; orders</a></li></ul></div></div></div>' +
       '<div class="sheet sheet--search" id="search" aria-hidden="true"><div class="sheet__backdrop" data-close></div><div class="sheet__panel" aria-label="Search">' +
@@ -585,6 +586,18 @@
     warmed[a.href] = 1; var l = document.createElement('link'); l.rel = 'prefetch'; l.href = a.href; document.head.appendChild(l);
   }
   document.addEventListener('pointerover', warm, { passive: true }); document.addEventListener('touchstart', warm, { passive: true });
+
+  /* ---------- Theme switch (Royal / Bloom) ---------- */
+  (function () {
+    var T = window.ASINGH_THEME; if (!T) return;
+    function paint() { var t = T.get(); $$('.themebtn__t').forEach(function (e) { e.textContent = t === 'bloom' ? 'Royal theme' : 'Bloom theme'; }); $$('[data-theme-set]').forEach(function (b) { b.setAttribute('aria-pressed', b.getAttribute('data-theme-set') === t); }); }
+    document.addEventListener('click', function (e) {
+      var tg = e.target.closest('[data-theme-toggle]'); if (tg) { T.toggle(tg); return; }
+      var st = e.target.closest('[data-theme-set]'); if (st) T.set(st.getAttribute('data-theme-set'), st);
+    });
+    document.addEventListener('asingh:theme', paint); document.addEventListener('asingh:ready', paint); paint(); setTimeout(paint, 0);
+  })();
+
   A.U = { api: api, upload: upload, Auth: Auth, reveal: reveal, fly: fly, $: $, $$: $$, money: money, esc: esc, picture: picture, icon: icon, stars: stars, priceHTML: priceHTML, card: card, sizeRadios: sizeRadios, stitchRadios: stitchRadios, line: line, totalsHTML: totalsHTML, shipMeter: shipMeter, emptyCart: emptyCart, byId: byId, stitchById: stitchById, Cart: Cart, Sheet: Sheet, toast: toast, afterAdd: afterAdd, bindRails: bindRails, store: store, mqDesktop: mqDesktop, mqSmall: mqSmall, reduceMotion: reduceMotion };
 
   document.addEventListener('load', function (e) { if (e.target.tagName === 'IMG') e.target.classList.add('ld'); }, true);

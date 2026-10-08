@@ -19,6 +19,7 @@ for (const [w, h] of vps) {
   const ctx = await browser.newContext({ viewport: { width: w, height: h }, hasTouch: touch, isMobile: touch && w < 1000, deviceScaleFactor: touch ? 2 : 1 });
   for (const pg of pages) {
     if (only && !pg.includes(only)) continue;
+    if (process.env.THEME) await ctx.addInitScript(t => localStorage.setItem('asingh.theme', t), process.env.THEME);
     const page = await ctx.newPage();
     const errs = []; page.on('pageerror', e => errs.push(String(e))); page.on('console', m => { if (m.type() === 'error') errs.push(m.text()); });
     await page.goto(`${BASE}/${pg}`, { waitUntil: 'load' });
