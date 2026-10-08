@@ -231,6 +231,24 @@ console.log('\nGoogle readiness');
   r = await ADM.req('PUT', '/api/admin/site', { ga4Id: 'bad id' }); ok(r.status === 400, 'bad Analytics ID rejected'); await ADM.req('PUT', '/api/admin/site', { ga4Id: '', googleSiteVerification: '' }); 
   const hp2 = await fetch(base + '/'); ok(!/googletagmanager/.test(hp2.headers.get('content-security-policy')), 'CSP back to strict when Analytics is off'); }
 
+console.log('\nCoupons & stock');
+{ r = await ADM.req('POST', '/api/admin/coupons', { code: 'welcome10', type: 'percent', value: 10, min: 1000 }); ok(r.status === 201 && r.json.coupon.code === 'WELCOME10', 'admin creates a coupon');
+  ok((await ADM.req('POST', '/api/admin/coupons', { code: 'WELCOME10', value: 5 })).status === 409, 'duplicate code rejected');
+  ok((await A.req('POST', '/api/admin/coupons', { code: 'HACK', value: 99 })).status === 404, 'customers cannot create coupons');
+  let q = await A.req('POST', '/api/coupon', { code: ' welcome10 ', items: cart }); ok(q.status === 200 && q.json.discount === Math.round(q.json.totals.subtotal * 0.1), 'customer previews 10% off');
+  ok((await A.req('POST', '/api/coupon', { code: 'NOPE', items: cart })).status === 400, 'unknown code rejected');
+  q = await A.req('POST', '/api/orders', { items: cart, customer: cust, method: 'upi_qr', coupon: 'WELCOME10' }); ok(q.status === 201 && q.json.order.totals.discount > 0 && q.json.order.totals.total === q.json.order.totals.subtotal - q.json.order.totals.discount + q.json.order.totals.shipping, 'order total includes the discount, recomputed on the server');
+  ok((await ADM.req('GET', '/api/admin/coupons')).json.coupons[0].uses === 1, 'usage counted');
+  await ADM.req('PUT', '/api/admin/coupons/WELCOME10', { active: false }); ok((await A.req('POST', '/api/coupon', { code: 'WELCOME10', items: cart })).status === 400, 'disabled coupon stops working');
+  // stock
+  const sp = (await ADM.req('POST', '/api/admin/products', { name: 'Stock Test Suit', cat: 'straight', price: 3000, colors: [{ name: 'Red', hex: '#ff0000' }], stitch: ['unstitched'], stock: 2 })).json.product;
+  const sc = [{ id: sp.id, size: 'M', stitch: 'unstitched', color: 'Red', qty: 2 }];
+  ok((await A.req('POST', '/api/orders', { items: [{ ...sc[0], qty: 3 }], customer: cust, method: 'upi_qr' })).status === 400, 'cannot order more than the stock');
+  const so = (await A.req('POST', '/api/orders', { items: sc, customer: cust, method: 'upi_qr' })).json.order; ok(!!so, 'order within stock accepted');
+  ok((await A.req('POST', '/api/orders', { items: [{ ...sc[0], qty: 1 }], customer: cust, method: 'upi_qr' })).status === 400, 'sold out once stock is used up');
+  await A.req('POST', '/api/orders/' + so.id + '/cancel', {}); ok((await A.req('POST', '/api/orders', { items: [{ ...sc[0], qty: 1 }], customer: cust, method: 'upi_qr' })).status === 201, 'cancelling gives the stock back');
+  await ADM.req('DELETE', '/api/admin/products/' + sp.id); }
+
 console.log('\nAdmin analytics');
 { const an = await ADM.req('GET', '/api/admin/analytics?days=30'); ok(an.status === 200 && an.json.series.length === 30 && an.json.orders >= 2, 'analytics returns a 30-day series and order totals');
   ok(an.json.paidOrders >= 1 && an.json.revenue > 0 && an.json.aov > 0 && an.json.top.length >= 1, 'revenue, average order and top products computed from paid orders');

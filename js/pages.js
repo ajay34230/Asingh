@@ -153,8 +153,8 @@
       '<fieldset class="field" id="size-field"><legend class="field__l">Size <button type="button" class="link" data-size-guide>Size guide</button></legend>' + U.sizeRadios('size') + '<p class="field__err" id="size-err" role="alert" hidden>Please choose a size to continue.</p></fieldset>' +
       '<div class="field"><label class="field__l" for="note">Customisation <span class="muted">(optional)</span></label><textarea class="input" id="note" name="note" rows="3" maxlength="240" placeholder="Height, sleeve length, blouse back style, monogram…" autocomplete="off"></textarea></div>' +
       '<section class="field ship" aria-labelledby="ship-h"><h2 class="field__l" id="ship-h">Shipping</h2><div class="ship__row"><label class="vh" for="pin">PIN code</label><input class="input" id="pin" name="pin" inputmode="numeric" autocomplete="postal-code" maxlength="6" pattern="[1-9][0-9]{5}" placeholder="Enter PIN code"><button class="btn btn--ghost" type="button" id="pin-check">Check</button></div><p class="ship__msg" id="ship-msg" role="status" aria-live="polite">' + U.icon('truck', 'ico--xs') + ' Free shipping over ' + money(A.FREE_SHIP_FROM) + '. Easy 7-day returns on unstitched pieces.</p></section>' +
-      '<div class="pdp__cta"><button class="btn btn--lg btn--grow" type="submit" id="add-btn"' + (p.soldOut ? ' disabled' : '') + '>' + (p.soldOut ? 'Sold out' : 'Add to bag') + '</button><button type="button" class="icon-btn icon-btn--bordered" data-wish="' + p.id + '" aria-pressed="' + wish + '" aria-label="' + (wish ? 'Remove from' : 'Add to') + ' wishlist">' + U.icon('heart') + '</button></div></form>' +
-      '<ul class="pdp__trust">' + [['scissors', 'Quality crafted'], ['truck', 'Free shipping over ' + money(A.FREE_SHIP_FROM)], ['ret', '7-day returns*']].map(function (t) { return '<li>' + U.icon(t[0]) + '<span>' + t[1] + '</span></li>'; }).join('') + '</ul><div class="pdp__acc"><details open><summary>Details &amp; care</summary><ul class="bullets">' + p.details.map(function (d) { return '<li>' + esc(d) + '</li>'; }).join('') + '</ul></details>' +
+      (p.left && !p.soldOut ? '<p class="stockleft">Only ' + p.left + ' left</p>' : '') + '<div class="pdp__cta"><button class="btn btn--lg btn--grow" type="submit" id="add-btn"' + (p.soldOut ? ' disabled' : '') + '>' + (p.soldOut ? 'Sold out' : 'Add to bag') + '</button><button type="button" class="icon-btn icon-btn--bordered" data-wish="' + p.id + '" aria-pressed="' + wish + '" aria-label="' + (wish ? 'Remove from' : 'Add to') + ' wishlist">' + U.icon('heart') + '</button></div></form>' +
+      '<ul class="pdp__trust">' + [['scissors', 'Quality crafted'], ['truck', 'Free shipping over ' + money(A.FREE_SHIP_FROM)], ['ret', (((A.SITE || {}).returnDays) ? A.SITE.returnDays + '-day returns*' : 'Easy returns*')]].map(function (t) { return '<li>' + U.icon(t[0]) + '<span>' + t[1] + '</span></li>'; }).join('') + '</ul><div class="pdp__acc"><details open><summary>Details &amp; care</summary><ul class="bullets">' + p.details.map(function (d) { return '<li>' + esc(d) + '</li>'; }).join('') + '</ul></details>' +
       '' + (((A.SITE || {}).policies || {}).returns || ((A.SITE || {}).policies || {}).shipping ? '<details><summary>Shipping &amp; returns</summary>' + ((A.SITE.policies.shipping) ? '<p>' + esc(A.SITE.policies.shipping) + '</p>' : '') + ((A.SITE.policies.returns) ? '<p>' + esc(A.SITE.policies.returns) + '</p>' : '') + '</details>' : '') + '</div></div>';
 
     var revs = A.REVIEWS || [];
@@ -220,7 +220,7 @@
       side.innerHTML = '<h2 class="h3">Order summary</h2>' + U.shipMeter() + U.totalsHTML() + '<a class="btn btn--block btn--lg" href="checkout.html">Checkout</a><p class="secure">' + U.icon('lock', 'ico--xs') + ' Secure checkout · Easy returns on unstitched pieces</p>';
       bar.innerHTML = '<div><span class="muted">Total</span><strong>' + money(Cart.total()) + '</strong></div><a class="btn btn--lg" href="checkout.html">Checkout</a>';
     }
-    var recs = A.PRODUCTS.filter(function (p) { return !Cart.items.some(function (i) { return i.id === p.id; }); }).sort(function (a, b) { return (b.cat === 'odhni') - (a.cat === 'odhni') || b.rating - a.rating; }).slice(0, 8);
+    var recs = A.PRODUCTS.filter(function (p) { return !Cart.items.some(function (i) { return i.id === p.id; }); }).sort(function (a, b) { return b.rating - a.rating; }).slice(0, 8);
     $('#cart-recs').innerHTML = recs.map(function (x) { return '<div class="rail__item">' + U.card(x, { sizes: '(min-width:1100px) 22vw, (min-width:700px) 31vw, 60vw' }) + '</div>'; }).join('');
     U.bindRails(document);
     Cart.subscribe(render); U.reveal(document);
@@ -232,17 +232,27 @@
     var form1 = $('#step-details'), form2 = $('#step-method'), qr = $('#step-qr'), done = $('#step-done'), steps = $$('.progress li'), sum = $('#summary'), order = $('#order-lines');
     $('#state').insertAdjacentHTML('beforeend', STATES.map(function (s) { return '<option>' + s + '</option>'; }).join(''));
     var finished = false, placed = null, cust = null;
+    function couponBox() {
+      return Cart.coupon ? '<p class="coupon coupon--on"><span>' + U.icon('check', 'ico--xs') + ' <strong>' + esc(Cart.coupon.code) + '</strong> applied (' + esc(Cart.coupon.label) + ')</span><button type="button" class="link" id="cp-rm">Remove</button></p>'
+        : '<form class="coupon" id="cp" novalidate><label class="vh" for="cp-c">Discount code</label><input class="input" id="cp-c" placeholder="Discount code" autocomplete="off" maxlength="20"><button class="btn btn--ghost" type="submit">Apply</button><p class="field__err" id="cp-e" role="alert"></p></form>';
+    }
+    function bindCoupon() {
+      var f = $('#cp'), rm = $('#cp-rm');
+      if (rm) rm.addEventListener('click', function () { Cart.coupon = null; renderSummary(); });
+      if (f) f.addEventListener('submit', function (e) { e.preventDefault(); var code = $('#cp-c').value.trim(); if (!code) return; U.Auth.ensure().then(function () { return api('POST', '/api/coupon', { code: code, items: Cart.items.map(function (i) { return { id: i.id, size: i.size, stitch: i.stitch, color: i.color, qty: i.qty }; }) }); }).then(function (r) { Cart.coupon = { code: r.code, discount: r.discount, label: r.label }; renderSummary(); U.toast('Code applied'); }, function (er) { if (er && er.message !== 'cancelled') $('#cp-e').textContent = er.message; }); });
+    }
     function renderSummary() {
       var n = Cart.count();
       order.innerHTML = '<ul class="lines lines--mini">' + Cart.items.map(function (i) {
         var p = byId[i.id];
         return '<li class="line line--mini"><a class="line__img" href="product.html?id=' + p.id + '" tabindex="-1" aria-hidden="true">' + U.picture(p.id, 1, { sizes: '72px', alt: '' }) + '<span class="line__qty">' + i.qty + '</span></a><div class="line__info"><p class="line__name">' + esc(p.name) + '</p><p class="line__meta">Size ' + esc(i.size) + ' · ' + esc(sById[i.stitch].label) + '</p></div><span class="line__price">' + money(Cart.unit(i) * i.qty) + '</span></li>';
-      }).join('') + '</ul>' + U.totalsHTML();
+      }).join('') + '</ul>' + couponBox() + U.totalsHTML();
+      bindCoupon();
       $('#sum-total').textContent = money(Cart.total()); $('#sum-count').textContent = n + ' item' + (n === 1 ? '' : 's');
     }
     function renderPlacedSummary(o) {
       order.innerHTML = '<ul class="lines lines--mini">' + o.items.map(function (i) { return '<li class="line line--mini"><a class="line__img" href="product.html?id=' + i.id + '" tabindex="-1" aria-hidden="true">' + U.picture(i.id, 1, { sizes: '72px', alt: '' }) + '<span class="line__qty">' + i.qty + '</span></a><div class="line__info"><p class="line__name">' + esc(i.name) + '</p><p class="line__meta">Size ' + esc(i.size) + ' · ' + esc(i.stitchLabel) + '</p></div><span class="line__price">' + money(i.unit * i.qty) + '</span></li>'; }).join('') + '</ul>' +
-        '<dl class="totals"><div><dt>Subtotal</dt><dd>' + money(o.totals.subtotal) + '</dd></div><div><dt>Shipping</dt><dd>' + (o.totals.shipping ? money(o.totals.shipping) : 'Free') + '</dd></div><div class="totals__total"><dt>Total</dt><dd>' + money(o.totals.total) + '</dd></div></dl>';
+        '<dl class="totals"><div><dt>Subtotal</dt><dd>' + money(o.totals.subtotal) + '</dd></div>' + (o.totals.discount ? '<div class="totals__disc"><dt>Discount <small>' + esc(o.totals.coupon || '') + '</small></dt><dd>− ' + money(o.totals.discount) + '</dd></div>' : '') + '<div><dt>Shipping</dt><dd>' + (o.totals.shipping ? money(o.totals.shipping) : 'Free') + '</dd></div><div class="totals__total"><dt>Total</dt><dd>' + money(o.totals.total) + '</dd></div></dl>';
       $('#sum-total').textContent = money(o.totals.total); $('#sum-count').textContent = o.items.length + ' item' + (o.items.length === 1 ? '' : 's');
     }
     var syncSum = function () { sum.open = window.matchMedia('(min-width: 900px)').matches; };
@@ -317,7 +327,7 @@
       e.preventDefault(); var m = form2.querySelector('[name=pay]:checked'), btn = $('#place'), err = $('#method-err'); err.textContent = '';
       if (!m) { err.textContent = 'Please choose a payment method.'; return; }
       btn.disabled = true; btn.classList.add('is-busy');
-      api('POST', '/api/orders', { items: Cart.items.map(function (i) { return { id: i.id, size: i.size, stitch: i.stitch, color: i.color, note: i.note, qty: i.qty }; }), customer: cust, method: m.value }).then(function (r) { finished = true; Cart.clear(); showQr(r.order); }, function (er) { btn.disabled = false; btn.classList.remove('is-busy'); err.textContent = er.message; });
+      api('POST', '/api/orders', { items: Cart.items.map(function (i) { return { id: i.id, size: i.size, stitch: i.stitch, color: i.color, note: i.note, qty: i.qty }; }), customer: cust, method: m.value, coupon: Cart.coupon ? Cart.coupon.code : undefined }).then(function (r) { finished = true; Cart.clear(); showQr(r.order); }, function (er) { btn.disabled = false; btn.classList.remove('is-busy'); err.textContent = er.message; });
     });
 
     Cart.subscribe(function () {

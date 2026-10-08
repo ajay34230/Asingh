@@ -65,13 +65,15 @@
   var Cart = {
     items: store.get('asingh.cart.v1', []).filter(function (i) { return byId[i.id]; }),
     wish: store.get('asingh.wish.v1', []).filter(function (id) { return byId[id]; }),
-    save: function () { store.set('asingh.cart.v1', Cart.items); store.set('asingh.wish.v1', Cart.wish); subs.forEach(function (f) { f(); }); },
+    coupon: null,
+    discount: function () { return Cart.coupon ? Math.min(Cart.coupon.discount, Cart.subtotal()) : 0; },
+    save: function () { Cart.coupon = null; store.set('asingh.cart.v1', Cart.items); store.set('asingh.wish.v1', Cart.wish); subs.forEach(function (f) { f(); }); },
     subscribe: function (f) { subs.push(f); f(); },
     unit: function (it) { var p = byId[it.id]; return p.price + (stitchById[it.stitch] ? stitchById[it.stitch].add : 0); },
     count: function () { return Cart.items.reduce(function (a, i) { return a + i.qty; }, 0); },
     subtotal: function () { return Cart.items.reduce(function (a, i) { return a + Cart.unit(i) * i.qty; }, 0); },
-    shipping: function () { var s = Cart.subtotal(); return s === 0 || s >= A.FREE_SHIP_FROM ? 0 : A.SHIP_FLAT; },
-    total: function () { return Cart.subtotal() + Cart.shipping(); },
+    shipping: function () { var s = Cart.subtotal() - Cart.discount(); return s === 0 || s >= A.FREE_SHIP_FROM ? 0 : A.SHIP_FLAT; },
+    total: function () { return Cart.subtotal() - Cart.discount() + Cart.shipping(); },
     add: function (id, o) {
       var key = [id, o.size, o.stitch, o.color || '', o.note || ''].join('|');
       var f = Cart.items.filter(function (i) { return i.key === key; })[0];
@@ -199,9 +201,10 @@
   }
   function totalsHTML() {
     var sub = Cart.subtotal(), sh = Cart.shipping(), left = A.FREE_SHIP_FROM - sub;
-    return '<dl class="totals"><div><dt>Subtotal</dt><dd>' + money(sub) + '</dd></div>' +
+    var dc = Cart.discount();
+    return '<dl class="totals"><div><dt>Subtotal</dt><dd>' + money(sub) + '</dd></div>' + (dc ? '<div class="totals__disc"><dt>Discount <small>' + esc(Cart.coupon.code) + '</small></dt><dd>− ' + money(dc) + '</dd></div>' : '') +
       '<div><dt>Shipping</dt><dd>' + (sub === 0 ? '—' : sh ? money(sh) : 'Free') + '</dd></div>' +
-      '<div class="totals__total"><dt>Total <small>incl. taxes</small></dt><dd>' + money(sub + sh) + '</dd></div></dl>';
+      '<div class="totals__total"><dt>Total <small>incl. taxes</small></dt><dd>' + money(sub - dc + sh) + '</dd></div></dl>';
   }
   function shipMeter() {
     var sub = Cart.subtotal(); if (!sub) return '';

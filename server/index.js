@@ -140,6 +140,12 @@ function createApp(opts = {}) {
   });
 
   /* orders (private: owner or admin only) */
+  /* coupons: preview at checkout (the order itself re-checks everything) */
+  route('POST', /^\/api\/coupon$/, async (req, res) => {
+    need(req); if (!guestLimit(ip(req) + 'c')) throw fail(429, 'Too many tries. Please wait a few minutes.');
+    const b = await jsonBody(req), c = Orders.findCoupon(db, b.code), priced = Orders.price(b.items, catalog, c);
+    send(res, 200, { code: c.code, discount: priced.totals.discount || 0, totals: priced.totals, label: c.type === 'percent' ? c.value + '% off' : '₹' + c.value + ' off' });
+  });
   route('POST', /^\/api\/orders$/, async (req, res) => {
     const u = need(req); if (!orderLimit(u.id)) throw fail(429, 'Too many orders. Please try again later.');
     const b = await jsonBody(req), m = Pay.method(b.method); if (!m) throw fail(400, 'That payment method is not available yet.');
@@ -408,6 +414,20 @@ function createApp(opts = {}) {
       top: Object.values(prod).sort((a, b) => b.qty - a.qty).slice(0, 6), cities: Object.entries(city).sort((a, b) => b[1] - a[1]).slice(0, 5).map(e => ({ city: e[0], orders: e[1] })),
       pipeline: D.orders.filter(o => ['payment_review', 'paid', 'processing', 'shipped'].indexOf(o.status) > -1).sort((a, b) => a.updatedAt - b.updatedAt).slice(0, 8).map(o => Orders.view(o, true)) });
   });
+  /* admin: discount codes */
+  const cleanCoupon = (b, old) => {
+    const code = String(b.code !== undefined ? b.code : old.code).trim().toUpperCase().replace(/\s+/g, ''), type = b.type === 'flat' ? 'flat' : b.type === 'percent' ? 'percent' : (old && old.type) || 'percent';
+    const num = (v, d) => { const n = Math.round(Number(v === undefined ? d : v)); return Number.isFinite(n) && n >= 0 ? n : 0; };
+    if (!/^[A-Z0-9_-]{3,20}$/.test(code)) throw fail(400, 'Code must be 3–20 letters or numbers.');
+    const value = num(b.value, old && old.value), o = { code, type, value, min: num(b.min, old && old.min), maxOff: num(b.maxOff, old && old.maxOff), maxUses: num(b.maxUses, old && old.maxUses), active: b.active === undefined ? !old || old.active : !!b.active };
+    if (!value || (type === 'percent' && value > 90)) throw fail(400, type === 'percent' ? 'Percent must be between 1 and 90.' : 'Enter the rupee amount off.');
+    const ex = b.expires === undefined ? (old && old.expires) : (b.expires ? Date.parse(b.expires + 'T23:59:59') : 0); if (b.expires && !Number.isFinite(ex)) throw fail(400, 'Expiry date is not valid.'); o.expires = ex || 0;
+    return o;
+  };
+  route('GET', /^\/api\/admin\/coupons$/, async (req, res) => { need(req, 'admin'); send(res, 200, { coupons: D.coupons }); });
+  route('POST', /^\/api\/admin\/coupons$/, async (req, res) => { need(req, 'admin'); const o = cleanCoupon(await jsonBody(req), null); if (D.coupons.some(c => c.code === o.code)) throw fail(409, 'That code already exists.'); const c = { ...o, uses: 0, createdAt: Date.now() }; D.coupons.unshift(c); db.save(); send(res, 201, { coupon: c }); });
+  route('PUT', /^\/api\/admin\/coupons\/([A-Z0-9_-]+)$/, async (req, res, m) => { need(req, 'admin'); const c = D.coupons.find(x => x.code === m[1]); if (!c) throw fail(404, 'Not found'); Object.assign(c, cleanCoupon({ ...(await jsonBody(req)), code: c.code }, c)); db.save(); send(res, 200, { coupon: c }); });
+  route('DELETE', /^\/api\/admin\/coupons\/([A-Z0-9_-]+)$/, async (req, res, m) => { need(req, 'admin'); D.coupons = D.coupons.filter(x => x.code !== m[1]); db.save(); send(res, 200, { ok: true }); });
   route('GET', /^\/api\/admin\/customers$/, async (req, res) => {
     need(req, 'admin'); const cnt = {}; D.orders.forEach(o => { const c = cnt[o.userId] || (cnt[o.userId] = { n: 0, spent: 0 }); c.n++; if (['paid', 'processing', 'shipped', 'delivered'].indexOf(o.status) > -1) c.spent += o.totals.total; });
     send(res, 200, { customers: D.users.filter(u => u.role === 'customer').sort((a, b) => b.createdAt - a.createdAt).slice(0, 500).map(u => ({ id: u.id, name: u.name, email: u.email, guest: !!u.isGuest, createdAt: u.createdAt, orders: (cnt[u.id] || {}).n || 0, spent: (cnt[u.id] || {}).spent || 0 })) });

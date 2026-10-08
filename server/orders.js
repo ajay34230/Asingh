@@ -25,14 +25,27 @@ function newNumber(db) {
   throw Object.assign(new Error('Could not allocate an order number'), { status: 500 });
 }
 
+/* coupons: { code, type: 'percent'|'flat', value, min, maxOff, expires, maxUses, uses, active } */
+function findCoupon(db, code) {
+  const c = (db.data.coupons || []).find(x => x.code === String(code || '').trim().toUpperCase().replace(/\s+/g, ''));
+  if (!c || !c.active) throw bad('That code isn’t valid.');
+  if (c.expires && Date.now() > c.expires) throw bad('That code has expired.');
+  if (c.maxUses && c.uses >= c.maxUses) throw bad('That code has been fully used.');
+  return c;
+}
+function couponDiscount(c, subtotal) {
+  if (subtotal < (c.min || 0)) throw bad('Add ₹' + ((c.min || 0) - subtotal).toLocaleString('en-IN') + ' more to use ' + c.code + '.');
+  let d = c.type === 'percent' ? Math.round(subtotal * c.value / 100) : c.value; if (c.maxOff) d = Math.min(d, c.maxOff);
+  return Math.max(0, Math.min(d, subtotal));
+}
 const bad = m => Object.assign(new Error(m), { status: 400 });
 const str = (v, max) => String(v == null ? '' : v).trim().slice(0, max);
 
-function price(rawItems, cat) {
+function price(rawItems, cat, coupon) {
   if (!Array.isArray(rawItems) || !rawItems.length || rawItems.length > 30) throw bad('Your bag is empty or too large.');
   const items = rawItems.map(r => {
     const p = cat.find(r && r.id); if (!p || !p.published) throw bad('Sorry — one of the items is no longer available.');
-    if (p.soldOut) throw bad(p.name + ' is sold out right now.');
+    if (p.soldOut || p.stock === 0) throw bad(p.name + ' is sold out right now.');
     const size = str(r.size, 4); if (cat.sizes.indexOf(size) < 0) throw bad('Choose a valid size for ' + p.name + '.');
     const stitch = str(r.stitch, 12); const so = cat.stitchOpt(stitch); if (!so || p.stitch.indexOf(stitch) < 0) throw bad('Stitching option not available for ' + p.name + '.');
     const color = (p.colors.find(c => c.name === r.color) || p.colors[0]).name;
@@ -40,9 +53,13 @@ function price(rawItems, cat) {
     const unit = p.price + cat.stitchAdd(stitch);
     return { id: p.id, img: cat.thumb(p), name: p.name, size, stitch, stitchLabel: so.label, color, note: str(r.note, 240), qty, unit };
   });
+  const want = {}; items.forEach(i => { want[i.id] = (want[i.id] || 0) + i.qty; });
+  Object.keys(want).forEach(id => { const p = cat.find(id); if (p.stock != null && want[id] > p.stock) throw bad('Only ' + p.stock + ' left of ' + p.name + '.'); });
   const subtotal = items.reduce((a, i) => a + i.unit * i.qty, 0);
-  const shipping = subtotal >= cat.site.shipFreeFrom ? 0 : cat.site.shipFlat;
-  return { items, totals: { subtotal, shipping, total: subtotal + shipping } };
+  const discount = coupon ? couponDiscount(coupon, subtotal) : 0, after = subtotal - discount;
+  const shipping = after >= cat.site.shipFreeFrom ? 0 : cat.site.shipFlat;
+  const totals = { subtotal, shipping, total: after + shipping }; if (discount) { totals.discount = discount; totals.coupon = coupon.code; }
+  return { items, totals };
 }
 
 function customer(c) {
@@ -58,13 +75,23 @@ function customer(c) {
 }
 
 function create(db, user, body, methodId, cat) {
-  const { items, totals } = price(body.items, cat);
+  const coupon = body.coupon ? findCoupon(db, body.coupon) : null;
+  const { items, totals } = price(body.items, cat, coupon);
   const now = Date.now(), d = new Date(now);
   const number = newNumber(db);
+  const stockUsed = {}; items.forEach(i => { stockUsed[i.id] = (stockUsed[i.id] || 0) + i.qty; });
   const order = { id: id(10), number, userId: user.id, items, totals, customer: customer(body.customer), method: methodId, status: 'awaiting_payment', proof: null, createdAt: now, updatedAt: now, timeline: [{ at: now, status: 'awaiting_payment', note: 'Order placed', by: 'customer' }] };
+  order.stock = stockUsed; adjustStock(db, order, -1); if (coupon) coupon.uses = (coupon.uses || 0) + 1;
   db.data.orders.unshift(order); db.save(); return order;
 }
+/* stock follows the order: taken when placed, given back when cancelled (and taken again if a cancelled order is reopened) */
+function adjustStock(db, order, sign) {
+  const cat = db.data.catalog; if (!cat || !order.stock) return;
+  Object.keys(order.stock).forEach(id => { const p = cat.products.find(x => x.id === id); if (!p || p.stock == null) return; p.stock = Math.max(0, p.stock + sign * order.stock[id]); if (sign < 0 && p.stock === 0) { p.soldOut = true; p.autoSold = true; } if (sign > 0 && p.stock > 0 && p.autoSold) { p.soldOut = false; p.autoSold = false; } });
+}
 function transition(db, order, status, note, by) {
+  if (status === 'cancelled' && !order.stockBack) { adjustStock(db, order, +1); order.stockBack = true; }
+  else if (status !== 'cancelled' && order.stockBack) { adjustStock(db, order, -1); order.stockBack = false; }
   const now = Date.now(); order.status = status; order.updatedAt = now; order.timeline.push({ at: now, status, note: note || '', by }); db.save(); return order;
 }
 /* customers see their own order; proof file name and internal ids stay server-side */
@@ -86,4 +113,4 @@ function cleanTracking(t) {
   if (url) { let u; try { u = new URL(url); } catch (e) { throw bad('Tracking link is not a valid URL.'); } if (u.protocol !== 'https:') throw bad('Tracking link must start with https://'); url = u.href; }
   return { courier, id, url };
 }
-module.exports = { STATUS, ADMIN_NEXT, create, transition, view, trackView, cleanTracking, normNumber, normPhone, price };
+module.exports = { findCoupon, couponDiscount, STATUS, ADMIN_NEXT, create, transition, view, trackView, cleanTracking, normNumber, normPhone, price };

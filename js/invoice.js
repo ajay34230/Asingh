@@ -21,12 +21,12 @@
     o.items.forEach(function (i, n) {
       L.push((n + 1) + '. ' + i.name, '   ' + i.color + ' · Size ' + i.size + ' · ' + i.stitchLabel + ' · Qty ' + i.qty, (i.note ? '   Note: ' + i.note + '\n' : '') + '   ' + rs(i.unit) + ' × ' + i.qty + ' = ' + rs(i.unit * i.qty), '   Photo/page: ' + location.origin + '/product.html?id=' + i.id);
     });
-    L.push('-'.repeat(56), 'Subtotal : ' + rs(o.totals.subtotal), 'Shipping : ' + (o.totals.shipping ? rs(o.totals.shipping) : 'Free'), 'TOTAL    : ' + rs(o.totals.total), isPaid(o.status) ? 'Paid     : ' + rs(o.totals.total) : 'Amount due: ' + rs(o.totals.total), '',
+    L.push('-'.repeat(56), 'Subtotal : ' + rs(o.totals.subtotal), o.totals.discount ? 'Discount : -' + rs(o.totals.discount) + ' (' + o.totals.coupon + ')' : null, 'Shipping : ' + (o.totals.shipping ? rs(o.totals.shipping) : 'Free'), 'TOTAL    : ' + rs(o.totals.total), isPaid(o.status) ? 'Paid     : ' + rs(o.totals.total) : 'Amount due: ' + rs(o.totals.total), '',
       'Payment: UPI / QR' + (o.proof && o.proof.utr ? ' · UTR ' + o.proof.utr : ''));
     if (o.tracking) L.push('Shipment: ' + [o.tracking.courier, o.tracking.id].filter(Boolean).join(' · ') + (o.tracking.url ? '\n          ' + o.tracking.url : ''));
     L.push('', 'PROGRESS'); o.timeline.forEach(function (t) { L.push('  ' + dt(t.at) + '  ' + t.label + (t.note ? ' — ' + t.note : '')); });
     L.push('', 'Track this order: ' + location.origin + '/track.html?n=' + o.number.replace(/^AS-?/i, ''), '(you will need your mobile number)', '', 'Prices include applicable taxes.' + (inv.returns ? ' ' + inv.returns : ''), 'Thank you for shopping with ' + (inv.name || 'ASINGH') + '.');
-    return L.join('\n');
+    return L.filter(function (x) { return x !== null; }).join('\n');
   }
   function render(o, inv) {
     var c = o.customer, tone = TONE[o.status], paid = isPaid(o.status);
@@ -38,7 +38,7 @@
       '<table><thead><tr><th class="ph"></th><th>Item</th><th class="r hide">Price</th><th class="r hide">Qty</th><th class="r">Amount</th></tr></thead><tbody>' + o.items.map(function (i) {
         return '<tr><td class="ph"><img src="img/' + esc(i.id) + '-1-400.webp" alt="' + esc(i.name) + '" width="56" height="70"></td><td class="nm"><strong><a href="product.html?id=' + esc(i.id) + '">' + esc(i.name) + '</a></strong><small>' + esc(i.color) + ' · Size ' + esc(i.size) + ' · ' + esc(i.stitchLabel) + '</small>' + (i.note ? '<small>Note: “' + esc(i.note) + '”</small>' : '') + '</td><td class="r hide">' + rs(i.unit) + '</td><td class="r hide">' + i.qty + '</td><td class="r">' + rs(i.unit * i.qty) + '</td></tr>';
       }).join('') + '</tbody></table>' +
-      '<div class="tot"><div><span>Subtotal</span><span>' + rs(o.totals.subtotal) + '</span></div><div><span>Shipping</span><span>' + (o.totals.shipping ? rs(o.totals.shipping) : 'Free') + '</span></div><div class="g"><span>Total</span><span>' + rs(o.totals.total) + '</span></div><div class="' + (paid ? 'paid' : 'due') + '"><span>' + (paid ? 'Paid' : 'Amount due') + '</span><span>' + rs(o.totals.total) + '</span></div></div>' +
+      '<div class="tot"><div><span>Subtotal</span><span>' + rs(o.totals.subtotal) + '</span></div>' + (o.totals.discount ? '<div><span>Discount (' + esc(o.totals.coupon) + ')</span><span>− ' + rs(o.totals.discount) + '</span></div>' : '') + '<div><span>Shipping</span><span>' + (o.totals.shipping ? rs(o.totals.shipping) : 'Free') + '</span></div><div class="g"><span>Total</span><span>' + rs(o.totals.total) + '</span></div><div class="' + (paid ? 'paid' : 'due') + '"><span>' + (paid ? 'Paid' : 'Amount due') + '</span><span>' + rs(o.totals.total) + '</span></div></div>' +
       (o.tracking ? '<div class="inv__box"><h2>Shipment</h2><p><strong>' + esc(o.tracking.courier || 'Courier') + '</strong>' + (o.tracking.id ? ' · Tracking ID <strong>' + esc(o.tracking.id) + '</strong>' : '') + (o.tracking.url ? '<br><a href="' + esc(o.tracking.url) + '">' + esc(o.tracking.url) + '</a>' : '') + '</p></div>' : '') +
       '<div class="inv__box"><h2>Progress</h2><ul class="log">' + o.timeline.map(function (t) { return '<li><time>' + dt(t.at) + '</time><span><strong>' + esc(t.label) + '</strong>' + (t.note ? ' — ' + esc(t.note) : '') + '</span></li>'; }).join('') + '</ul></div>' +
       '<footer class="inv__foot"><p><strong>Track this order any time:</strong> ' + esc(location.origin) + '/track.html — order number <strong>' + esc(o.number) + '</strong> + the mobile number above.</p><p>Prices include applicable taxes.' + (inv.returns ? ' ' + esc(inv.returns) : '') + ' This is a computer-generated bill.</p></footer>';
