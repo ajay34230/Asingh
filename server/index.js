@@ -10,6 +10,7 @@ const Pay = require('./payments');
 const Orders = require('./orders');
 const Mail = require('./mail');
 const Ship = require('./shiprocket');
+const WA = require('./whatsapp');
 const Static = require('./static');
 const { Catalog } = require('./catalog');
 const Home = require('./home');
@@ -69,8 +70,9 @@ function createApp(opts = {}) {
 
   let lastOrigin = process.env.SITE_URL || '';
   const brand = () => catalog.site.name || 'चंद्रवंशी';
-  Orders.hooks.created = o => { if (o.customer.email) { const m = Mail.orderEmail(brand(), o, lastOrigin, 'created'); Mail.send(o.customer.email, m.subject, m.html); } };
-  Orders.hooks.status = o => { if (o.customer.email && ['paid', 'processing', 'shipped', 'delivered', 'cancelled', 'payment_rejected'].indexOf(o.status) > -1) { const m = Mail.orderEmail(brand(), o, lastOrigin, 'status'); Mail.send(o.customer.email, m.subject, m.html); } };
+  const waNote = (o, kind) => { if (!WA.enabled() || !o.customer.phone) return; if (kind === 'status' && o.status === 'processing' && o.method === 'cod' && o.timeline.length <= 2) return; const msg = WA.text(o, kind); WA.send(o.customer.phone, o.customer.name.split(' ')[0], o.number, msg).then(ok => { o.wa = (o.wa || []).concat([{ at: Date.now(), status: o.status, ok }]).slice(-20); db.save(); }); };
+  Orders.hooks.created = o => { waNote(o, 'created'); if (o.customer.email) { const m = Mail.orderEmail(brand(), o, lastOrigin, 'created'); Mail.send(o.customer.email, m.subject, m.html); } };
+  Orders.hooks.status = o => { if (['paid', 'processing', 'shipped', 'delivered', 'cancelled', 'payment_rejected', 'payment_review'].indexOf(o.status) > -1) waNote(o, 'status'); if (o.customer.email && ['paid', 'processing', 'shipped', 'delivered', 'cancelled', 'payment_rejected'].indexOf(o.status) > -1) { const m = Mail.orderEmail(brand(), o, lastOrigin, 'status'); Mail.send(o.customer.email, m.subject, m.html); } };
   const mkReset = u => { const tok = crypto.randomBytes(24).toString('base64url'); D.resets = D.resets.filter(r => r.exp > Date.now() && r.uid !== u.id); D.resets.push({ h: crypto.createHash('sha256').update(tok).digest('hex'), uid: u.id, exp: Date.now() + 36e5 }); db.save(); return lastOrigin + '/account.html?reset=' + tok; };
   route('POST', /^\/api\/auth\/forgot$/, async (req, res) => {
     if (!authLimit(ip(req))) throw fail(429, 'Too many attempts. Try again in a few minutes.');
@@ -582,7 +584,7 @@ function createApp(opts = {}) {
     else throw fail(400, 'Unknown action');
     send(res, 200, { order: Orders.view(o, true) });
   });
-  route('GET', /^\/api\/admin\/settings$/, async (req, res) => { need(req, 'admin'); const s = D.settings; send(res, 200, { invoice: s.invoice, payeeName: s.payeeName, upiId: s.upiId, instructions: s.instructions, webhookUrl: s.webhookUrl, qrUrl: '/media/qr?v=' + s.qrV, qrIsDemo: !s.qrFile, envWebhook: !!process.env.ADMIN_WEBHOOK_URL, cod: { enabled: !!(s.cod && s.cod.enabled), fee: (s.cod && s.cod.fee) || 0, max: (s.cod && s.cod.max) || 0 }, shiprocket: Ship.enabled(), razorpay: { on: Pay.razorpayOn(), webhookUrl: '/api/webhooks/razorpay', webhookReady: !!process.env.WEBHOOK_SECRET_RAZORPAY } }); });
+  route('GET', /^\/api\/admin\/settings$/, async (req, res) => { need(req, 'admin'); const s = D.settings; send(res, 200, { invoice: s.invoice, payeeName: s.payeeName, upiId: s.upiId, instructions: s.instructions, webhookUrl: s.webhookUrl, qrUrl: '/media/qr?v=' + s.qrV, qrIsDemo: !s.qrFile, envWebhook: !!process.env.ADMIN_WEBHOOK_URL, cod: { enabled: !!(s.cod && s.cod.enabled), fee: (s.cod && s.cod.fee) || 0, max: (s.cod && s.cod.max) || 0 }, shiprocket: Ship.enabled(), whatsappApi: WA.enabled(), razorpay: { on: Pay.razorpayOn(), webhookUrl: '/api/webhooks/razorpay', webhookReady: !!process.env.WEBHOOK_SECRET_RAZORPAY } }); });
   route('PUT', /^\/api\/admin\/settings$/, async (req, res) => {
     need(req, 'admin'); const b = await jsonBody(req), s = D.settings;
     if (b.upiId !== undefined) { const v = String(b.upiId).trim().slice(0, 80); if (v && !/^[\w.\-]{2,}@[\w.\-]{2,}$/.test(v)) throw fail(400, 'UPI ID should look like name@bank.'); s.upiId = v; }

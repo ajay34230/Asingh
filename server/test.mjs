@@ -375,6 +375,15 @@ console.log('\nShiprocket (mock courier API)');
   await hook('whtoken', { awb: 'AWB123', current_status: 'IN TRANSIT' }); cur = (await C.req('GET', '/api/orders/' + o.id)).json.order; ok(cur.status === 'delivered', 'a late older update cannot move it backwards');
   delete process.env.SHIPROCKET_EMAIL; delete process.env.SHIPROCKET_PASSWORD; delete process.env.SHIPROCKET_BASE; delete process.env.SHIPROCKET_WEBHOOK_TOKEN; mock.close(); await ADM.req('PUT', '/api/admin/site', { pickupPin: '' }); }
 
+console.log('\nWhatsApp Business API messages (mock)');
+{ const http2 = (await import('node:http')).default, got = []; const mock = http2.createServer((rq, rs) => { let b = ''; rq.on('data', d => b += d); rq.on('end', () => { got.push({ url: rq.url, auth: rq.headers.authorization, body: JSON.parse(b || '{}') }); rs.setHeader('content-type', 'application/json'); rs.end('{"messages":[{"id":"wamid.x"}]}'); }); }); await new Promise(r => mock.listen(0, r));
+  process.env.WHATSAPP_TOKEN = 'wa-token'; process.env.WHATSAPP_PHONE_ID = '12345'; process.env.WHATSAPP_BASE = 'http://127.0.0.1:' + mock.address().port;
+  const C = new Client(); await C.req('POST', '/api/auth/guest', {}); const o = (await C.req('POST', '/api/orders', { items: cart, customer: { ...cust, phone: '9876501234' }, method: 'upi_qr' })).json.order; await new Promise(r => setTimeout(r, 400));
+  const m1 = got[0]; ok(m1 && m1.url === '/12345/messages' && m1.auth === 'Bearer wa-token' && m1.body.to === '919876501234' && m1.body.template.name === 'order_update', 'a template message goes to the customer’s WhatsApp when they order');
+  ok(m1 && m1.body.template.components[0].parameters.length === 3 && m1.body.template.components[0].parameters[1].text === o.number, 'template carries name, order number and message');
+  await ADM.req('PATCH', '/api/admin/orders/' + o.id, { action: 'verify' }); await new Promise(r => setTimeout(r, 400)); ok(got.length >= 2 && /verified/.test(got[got.length - 1].body.template.components[0].parameters[2].text), 'a message follows when payment is verified');
+  delete process.env.WHATSAPP_TOKEN; delete process.env.WHATSAPP_PHONE_ID; delete process.env.WHATSAPP_BASE; const n = got.length; await ADM.req('PATCH', '/api/admin/orders/' + o.id, { action: 'status', status: 'processing' }); await new Promise(r => setTimeout(r, 300)); ok(got.length === n, 'nothing is sent when the API is not configured'); mock.close(); }
+
 console.log('\nAdmin analytics');
 { const an = await ADM.req('GET', '/api/admin/analytics?days=30'); ok(an.status === 200 && an.json.series.length === 30 && an.json.orders >= 2, 'analytics returns a 30-day series and order totals');
   ok(an.json.paidOrders >= 1 && an.json.revenue > 0 && an.json.aov > 0 && an.json.top.length >= 1, 'revenue, average order and top products computed from paid orders');
