@@ -10,7 +10,7 @@ function tags(s) {
   if (s.noindex) h += '<meta name="robots" content="noindex, nofollow">\n'; else h += `<link rel="canonical" href="${esc(url)}">\n`;
   h += `<meta property="og:site_name" content="${esc(s.site)}"><meta property="og:type" content="${s.type || 'website'}"><meta property="og:title" content="${title}"><meta property="og:description" content="${desc}"><meta property="og:url" content="${esc(url)}"><meta property="og:image" content="${esc(img)}"><meta property="og:locale" content="en_IN">\n`;
   h += `<meta name="twitter:card" content="summary_large_image"><meta name="twitter:title" content="${title}"><meta name="twitter:description" content="${desc}"><meta name="twitter:image" content="${esc(img)}">\n`;
-  h += '<link rel="icon" type="image/png" sizes="32x32" href="/img/icons/icon-32.png"><link rel="apple-touch-icon" href="/img/icons/apple-touch-icon.png"><link rel="manifest" href="/manifest.webmanifest">\n';
+  h += '<link rel="icon" type="image/png" sizes="32x32" href="/img/icons/icon-32.png"><link rel="apple-touch-icon" href="/img/icons/apple-touch-icon.png"><link rel="manifest" href="/manifest.webmanifest"><meta name="mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-status-bar-style" content="default"><meta name="apple-mobile-web-app-title" content="' + esc(String(s.site || '').slice(0, 14)) + '">\n';
   if (s.ld) h += `<script type="application/ld+json">${JSON.stringify(s.ld).replace(/</g, '\\u003c')}</script>\n`;
   return h;
 }

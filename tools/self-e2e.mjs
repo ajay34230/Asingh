@@ -133,6 +133,19 @@ console.log('\nNotify me on a sold-out piece (browser)');
   ok((await call(ad, 'GET', '/api/admin/waitlist')).json.entries.some(e => e.email === 'notifyme@example.com'), 'entry reaches the admin waitlist');
   await ad.goto(BASE + '/admin.html#/waitlist'); await ad.waitForTimeout(900); ok(/notifyme@example.com/.test(await ad.locator('#view').innerText()), 'admin Waitlist page shows it'); await ad.goto(BASE + '/admin.html#/abandoned'); await ad.waitForTimeout(700); ok(/abandoned|No abandoned/i.test(await ad.locator('#view').innerText()), 'admin Abandoned bags page renders'); }
 
+console.log('\nInstallable app + offline (browser)');
+{ const c = await b.newContext({ viewport: { width: 1280, height: 900 } }); const a = await c.newPage(); a.on('pageerror', e => errs.push(e.message));
+  await a.goto(BASE + '/shop.html'); await a.waitForSelector('#grid .card'); await a.evaluate(() => navigator.serviceWorker.ready); await a.reload(); await a.waitForSelector('#grid .card');
+  ok(await a.evaluate(() => !!navigator.serviceWorker.controller), 'service worker is installed and in control');
+  const btn = a.locator('.announce [data-install]'); await btn.waitFor({ state: 'visible' }); ok(await btn.isVisible(), 'Install app button shown in the top bar');
+  await btn.click(); await a.waitForSelector('#install-help[open]'); ok(/Install/.test(await a.locator('#install-help').innerText()) && await a.locator('#install-help li').count() >= 2, 'tapping it explains how to install on this device (steps shown)');
+  await a.keyboard.press('Escape'); await a.goto(BASE + '/'); await a.waitForSelector('.hero'); await a.waitForTimeout(800);
+  const kept = await a.evaluate(async () => { const out = []; for (const k of await caches.keys()) for (const r of await (await caches.open(k)).keys()) out.push(new URL(r.url).pathname); return out; });
+  ok(kept.includes('/offline.html') && kept.includes('/shop.html') && !kept.some(u => /^\/(api|admin)/.test(u)), 'the offline page and visited pages are saved; the API and admin never are');
+  await c.close();
+  const ia = await b.newContext({ viewport: { width: 390, height: 844 }, userAgent: 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1' }); const ip = await ia.newPage(); await ip.goto(BASE + '/'); await ip.waitForSelector('.hero'); await ip.click('.header__menu'); await ip.waitForTimeout(400); await ip.click('.sheet--menu [data-install]'); await ip.waitForSelector('#install-help[open]');
+  ok(/Add to Home Screen/.test(await ip.locator('#install-help').innerText()), 'on an iPhone it shows the Share → Add to Home Screen steps'); await ia.close(); }
+
 console.log('\nCookie notice only when Analytics is on');
 await call(ad, 'PUT', '/api/admin/site', { ga4Id: 'G-TEST123456' });
 const v = await page(); await v.goto(BASE + '/'); await v.waitForSelector('.consent', { timeout: 5000 }); ok(true, 'cookie notice appears');

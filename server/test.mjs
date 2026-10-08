@@ -424,6 +424,26 @@ console.log('\nWaitlist + abandoned carts');
   await R2.req('POST', '/api/orders', { items: cart, customer: cust, method: 'upi_qr' }); ok(app.abandonedSweep(Date.now() + 3 * 36e5) === 0, 'no reminder to someone who ordered after filling the bag');
   await ADM.req('DELETE', '/api/admin/products/' + sp.id); }
 
+console.log('\nApp (PWA)');
+{ const mf = await new Client().req('GET', '/manifest.webmanifest'); const m = mf.json;
+  ok(m && m.display === 'standalone' && m.scope === '/' && m.start_url && m.id === '/', 'manifest: standalone app with scope and start URL');
+  ok(m.icons.some(i => i.sizes === '512x512' && (i.purpose || 'any') === 'any') && m.icons.some(i => i.purpose === 'maskable') && m.icons.some(i => i.sizes === '192x192'), 'manifest: 192, 512 and maskable icons');
+  ok(Array.isArray(m.shortcuts) && m.shortcuts.length >= 3 && m.categories.includes('shopping'), 'manifest: home-screen shortcuts and categories');
+  const sw = await fetch(base + '/sw.js'); const swt = await sw.text(); ok(sw.status === 200 && /javascript/.test(sw.headers.get('content-type')) && sw.headers.get('service-worker-allowed') === '/' && /no-cache/.test(sw.headers.get('cache-control')) && /addEventListener\('fetch'/.test(swt), 'service worker served from the root, never cached');
+  ok(/\|\/api\|admin|\(api\|admin/.test(swt) || /api\|admin/.test(swt), 'service worker excludes the API and admin from its cache');
+  const off = await fetch(base + '/offline.html'); ok(off.status === 200 && /You’re offline/.test(await off.text()), 'offline page is available');
+  const home = await (await fetch(base + '/')).text(); ok(/rel="manifest"/.test(home) && /apple-mobile-web-app-capable/.test(home) && /apple-touch-icon/.test(home), 'pages link the manifest and iPhone app tags'); }
+
+console.log('\nService worker behaviour (simulated)');
+{ const src = fs.readFileSync(path.join(path.dirname(new URL(import.meta.url).pathname), '..', 'js', 'sw.js'), 'utf8'), handlers = {}, store = {};
+  const caches = { open: async n => ({ put: async (k, v) => { (store[n] = store[n] || new Map()).set(typeof k === 'string' ? k : k.url, v); }, add: async () => {}, keys: async () => [...(store[n] || new Map()).keys()], delete: async () => true }), match: async k => { const u = typeof k === 'string' ? k : k.url; for (const m of Object.values(store)) if (m.has(u)) return m.get(u); if (/offline\.html$/.test(u)) return 'OFFLINE_PAGE'; return undefined; }, keys: async () => [], delete: async () => true };
+  const sandbox = { self: { addEventListener: (t, f) => { handlers[t] = f; }, skipWaiting: async () => {}, clients: { claim: async () => {} } }, location: { origin: 'https://shop.test' }, caches, fetch: async () => { throw new Error('offline'); }, URL, Promise, console }; vm.createContext(sandbox); vm.runInContext(src, sandbox);
+  const run = async (url, mode = 'navigate', method = 'GET') => { let out; handlers.fetch({ request: { url, method, mode }, respondWith: p => { out = p; } }); return out === undefined ? 'PASSED_THROUGH' : await out; };
+  ok(await run('https://shop.test/faq.html') === 'OFFLINE_PAGE', 'offline + page never opened → the offline page');
+  store['cv-v1-pages'] = new Map([['https://shop.test/shop.html', 'SAVED_SHOP']]); ok(await run('https://shop.test/shop.html') === 'SAVED_SHOP', 'offline + page opened before → the saved copy');
+  ok(await run('https://shop.test/api/orders', 'cors') === 'PASSED_THROUGH' && await run('https://shop.test/admin.html') === 'PASSED_THROUGH' && await run('https://shop.test/account.html?reset=abc') === 'PASSED_THROUGH', 'API, admin and password-reset links are never handled or saved');
+  ok(await run('https://shop.test/api/orders', 'cors', 'POST') === 'PASSED_THROUGH' && await run('https://other.example/x.js', 'no-cors') === 'PASSED_THROUGH', 'writes and other websites are left alone'); }
+
 console.log('\nAdmin analytics');
 { const an = await ADM.req('GET', '/api/admin/analytics?days=30'); ok(an.status === 200 && an.json.series.length === 30 && an.json.orders >= 2, 'analytics returns a 30-day series and order totals');
   ok(an.json.paidOrders >= 1 && an.json.revenue > 0 && an.json.aov > 0 && an.json.top.length >= 1, 'revenue, average order and top products computed from paid orders');

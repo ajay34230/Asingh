@@ -151,3 +151,12 @@ html[data-theme="bloom"] .logo__mark { box-shadow: none; border-radius: 0; }
 .announce { padding-block: 4px; }
 .themebtn { min-height: 40px; padding: 4px 14px 4px 10px; }
 .langbtn { min-width: 52px; justify-content: center; padding-inline: 14px; }
+
+/* install app */
+.installbtn { gap: 6px; } .installbtn[hidden] { display: none; }
+.footer__install { justify-self: start; }
+.installhelp { border: 0; border-radius: 22px; padding: 0; max-width: min(92vw, 440px); width: 100%; background: var(--bg); color: var(--ink); box-shadow: 0 40px 80px -30px rgba(0,0,0,.55); }
+.installhelp::backdrop { background: rgba(20, 6, 12, .55); backdrop-filter: blur(3px); }
+.installhelp__in { display: grid; gap: 12px; padding: 24px; justify-items: start; } .installhelp__in img { border-radius: 14px; }
+.installhelp__s { margin: 0; padding-left: 1.2em; display: grid; gap: 10px; } .installhelp__s li { padding-left: 4px; }
+.installhelp[open] { animation: rise .35s both; }

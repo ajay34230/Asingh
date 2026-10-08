@@ -341,7 +341,7 @@
     var page = document.body.getAttribute('data-page');
     var sprite = '';
     var header = '<a class="skip" href="#main">Skip to content</a>' +
-      '<p class="announce"><span>' + (A.FREE_SHIP_FROM ? 'Free shipping over ' + money(A.FREE_SHIP_FROM) : 'Free shipping on all orders') + '</span>' + ((A.SITE && A.SITE.announcement) ? '<span class="announce__sep" aria-hidden="true">·</span><span class="announce__opt">' + esc(A.SITE.announcement) + '</span>' : '') + '<span class="announce__sep" aria-hidden="true">·</span><a class="announce__track" href="track.html">Track your order</a><button type="button" class="themebtn" data-theme-toggle aria-label="Change theme"><span class="themebtn__dot" aria-hidden="true"></span><span class="themebtn__t"></span></button><button type="button" class="themebtn langbtn" data-lang-toggle data-no-i18n aria-label="Language: switch between English and Hindi"><span class="langbtn__t">हिन्दी</span></button></p>' +
+      '<p class="announce"><span>' + (A.FREE_SHIP_FROM ? 'Free shipping over ' + money(A.FREE_SHIP_FROM) : 'Free shipping on all orders') + '</span>' + ((A.SITE && A.SITE.announcement) ? '<span class="announce__sep" aria-hidden="true">·</span><span class="announce__opt">' + esc(A.SITE.announcement) + '</span>' : '') + '<span class="announce__sep" aria-hidden="true">·</span><a class="announce__track" href="track.html">Track your order</a><button type="button" class="themebtn" data-theme-toggle aria-label="Change theme"><span class="themebtn__dot" aria-hidden="true"></span><span class="themebtn__t"></span></button><button type="button" class="themebtn langbtn" data-lang-toggle data-no-i18n aria-label="Language: switch between English and Hindi"><span class="langbtn__t">हिन्दी</span></button><button type="button" class="themebtn installbtn" data-install hidden aria-label="Install the app">' + icon('plus', 'ico--xs') + '<span>Install app</span></button></p>' +
       '<header class="header" id="site-header"><div class="header__bar container">' +
       brandLink() +
       '<nav class="nav" aria-label="Primary"><ul class="nav__list">' +
@@ -362,7 +362,7 @@
       '<a class="mega__feature" href="product.html?id=rani-sa-anarkali">' + picture('rani-sa-anarkali', 1, { sizes: '(min-width:1100px) 22vw, 0px', alt: '' }) + '<span class="mega__cap"><small>Bestseller</small>Rani Pink Anarkali Suit</span></a>' +
       '</div></div></header>';
     var footer = '<footer class="footer"><div class="container footer__in">' +
-      '<div class="footer__brand"><img class="footer__logo" src="img/brand/logo-400.webp" width="150" height="150" alt="' + esc(A.BRAND) + ' logo" loading="lazy" decoding="async">' + brandLink() + '<p>Girls’ suits &amp; ethnic wear — anarkali, lehenga choli, sharara, kurti sets and more — made to your measure.</p>' +
+      '<div class="footer__brand"><img class="footer__logo" src="img/brand/logo-400.webp" width="150" height="150" alt="' + esc(A.BRAND) + ' logo" loading="lazy" decoding="async">' + brandLink() + '<button type="button" class="btn btn--ghost btn--sm footer__install" data-install hidden>' + icon('plus', 'ico--xs') + '<span>Get the app</span></button><p>Girls’ suits &amp; ethnic wear — anarkali, lehenga choli, sharara, kurti sets and more — made to your measure.</p>' +
       '<form class="newsletter" action="#" data-newsletter novalidate><div class="hp" aria-hidden="true"><label>Website <input name="website" tabindex="-1" autocomplete="off"></label></div><label for="nl-email" class="vh">Email address</label><input id="nl-email" type="email" name="email" inputmode="email" autocomplete="email" placeholder="Your email address" required><button class="btn" type="submit">Subscribe</button><p class="newsletter__msg" role="status" aria-live="polite"></p></form></div>' +
       '<details class="footer__col footer__col--cats" open><summary>Shop</summary><ul>' + A.CATEGORIES.map(function (c) { return '<li><a href="shop.html?cat=' + c.id + '">' + c.label + '</a></li>'; }).join('') + '</ul></details>' +
       footerCols() +
@@ -374,6 +374,7 @@
       '<div class="sheet__body"><button type="button" class="searchpill searchpill--wide" data-open="search" aria-label="Search">' + icon('search') + '<span>Search suits…</span></button>' +
       '<ul class="menu"><li><a href="shop.html">Shop all</a></li><li><a href="shop.html?sort=new">New in</a></li>' +
       A.CATEGORIES.map(function (c) { return '<li><a href="shop.html?cat=' + c.id + '">' + c.label + '</a></li>'; }).join('') + '</ul>' +
+      '<button type="button" class="btn btn--ghost btn--block" data-install hidden>' + icon('plus', 'ico--sm') + '<span>Install the app</span></button>' +
       '<h2 class="menu__h">Language · भाषा</h2><div class="themepick" role="group" aria-label="Language" data-no-i18n><button type="button" data-lang-set="en">English</button><button type="button" data-lang-set="hi">हिन्दी</button></div>' +
       '<h2 class="menu__h">Theme</h2><div class="themepick" role="group" aria-label="Theme"><button type="button" data-theme-set="royal"><i class="tsw tsw--royal"></i>Royal</button><button type="button" data-theme-set="bloom"><i class="tsw tsw--bloom"></i>Bloom</button></div>' +
       '<h2 class="menu__h">Shop by occasion</h2><ul class="pills">' + A.OCCASIONS.map(function (c) { return '<li><a href="shop.html?occ=' + c.id + '">' + c.label + '</a></li>'; }).join('') + '</ul>' +
@@ -625,6 +626,40 @@
     var first = true; Cart.subscribe(function () { if (first) { first = false; return; } sync(); });
     document.addEventListener('authchange', function () { hydrate(Auth.user); });
     document.addEventListener('asingh:ready', function () { setTimeout(function () { hydrate(Auth.user); }, 600); });
+  })();
+
+
+  /* ---------- App: service worker + "Install app" for every kind of device ---------- */
+  (function () {
+    if ('serviceWorker' in navigator) window.addEventListener('load', function () { navigator.serviceWorker.register('/sw.js', { scope: '/' }).catch(function () {}); });
+    var standalone = (window.matchMedia && matchMedia('(display-mode: standalone)').matches) || navigator.standalone === true, deferred = null;
+    var ua = navigator.userAgent || '', ios = /iPhone|iPad|iPod/i.test(ua) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1), android = /Android/i.test(ua);
+    var firefox = /Firefox|FxiOS/i.test(ua), samsung = /SamsungBrowser/i.test(ua), edge = /Edg\//i.test(ua), chromium = /Chrome|CriOS|Chromium/i.test(ua) && !firefox, safari = /Safari/i.test(ua) && !/Chrome|CriOS|Chromium|Edg|FxiOS|SamsungBrowser/i.test(ua);
+    function paint() { $$('[data-install]').forEach(function (b) { b.hidden = standalone; }); }
+    function steps() {
+      var n = A.BRAND;
+      if (ios) return ['Tap the <strong>Share</strong> button (the square with an arrow) at the bottom or top of your browser.', 'Scroll down and tap <strong>Add to Home Screen</strong>.', 'Tap <strong>Add</strong>. ' + esc(n) + ' now opens like an app.'];
+      if (samsung) return ['Tap the <strong>menu</strong> (☰) at the bottom.', 'Tap <strong>Add page to</strong> → <strong>Home screen</strong>.', 'Tap <strong>Add</strong>.'];
+      if (android && firefox) return ['Tap the <strong>⋮ menu</strong>.', 'Tap <strong>Install</strong> (or Add to Home screen).', 'Confirm with <strong>Add</strong>.'];
+      if (android) return ['Tap the <strong>⋮ menu</strong> at the top right.', 'Tap <strong>Install app</strong> (or <strong>Add to Home screen</strong>).', 'Tap <strong>Install</strong>.'];
+      if (safari) return ['In the menu bar choose <strong>File → Add to Dock</strong> (Safari 17 or newer).', 'Click <strong>Add</strong>. ' + esc(n) + ' now opens from your Dock like an app.'];
+      if (firefox) return ['Firefox on computers can’t install websites as apps.', 'Open this page in <strong>Chrome</strong> or <strong>Edge</strong> to install it, or press <strong>Ctrl+D</strong> to bookmark it.'];
+      if (chromium || edge) return ['Look for the <strong>install icon</strong> (a small screen with a down arrow) at the right end of the address bar — or open the <strong>⋮ menu</strong>.', 'Choose <strong>Install ' + esc(n) + '…</strong>', 'Click <strong>Install</strong>. It opens in its own window and appears in your apps.'];
+      return ['Open your browser’s menu.', 'Choose <strong>Install app</strong> or <strong>Add to Home screen</strong>.'];
+    }
+    function help() {
+      var d = $('#install-help'); if (!d) { d = document.createElement('dialog'); d.id = 'install-help'; d.className = 'installhelp'; d.setAttribute('aria-labelledby', 'ih-t'); document.body.appendChild(d); d.addEventListener('click', function (e) { if (e.target === d || e.target.closest('[data-ih-close]')) d.close(); }); }
+      d.innerHTML = '<div class="installhelp__in"><img src="img/brand/logo-128.webp" width="64" height="64" alt=""><h2 id="ih-t" class="h3">Install ' + esc(A.BRAND) + '</h2><p class="muted">Open the store like an app — one tap from your home screen, faster, and your recently viewed pieces work even with a weak signal.</p><ol class="installhelp__s">' + steps().map(function (x) { return '<li>' + x + '</li>'; }).join('') + '</ol><button type="button" class="btn btn--block" data-ih-close>Got it</button></div>';
+      if (d.showModal) d.showModal(); else alert(steps().join('\n').replace(/<[^>]+>/g, ''));
+    }
+    window.addEventListener('beforeinstallprompt', function (e) { e.preventDefault(); deferred = e; paint(); });
+    window.addEventListener('appinstalled', function () { standalone = true; deferred = null; paint(); toast('App installed — find it on your home screen'); });
+    document.addEventListener('click', function (e) {
+      var b = e.target.closest('[data-install]'); if (!b) return;
+      if (deferred) { var d = deferred; deferred = null; d.prompt(); d.userChoice.then(function (c) { if (c && c.outcome === 'accepted') { standalone = true; paint(); } }); Sheet.close('menu'); } else { Sheet.close('menu'); help(); }
+    });
+    document.addEventListener('asingh:ready', paint); setTimeout(paint, 100);
+    if (window.matchMedia) { var mq = matchMedia('(display-mode: standalone)'); (mq.addEventListener ? mq.addEventListener.bind(mq, 'change') : mq.addListener.bind(mq))(function (e) { standalone = e.matches; paint(); }); }
   })();
 
   A.U = { api: api, upload: upload, Auth: Auth, reveal: reveal, fly: fly, $: $, $$: $$, money: money, esc: esc, picture: picture, icon: icon, stars: stars, priceHTML: priceHTML, card: card, sizeRadios: sizeRadios, stitchRadios: stitchRadios, line: line, totalsHTML: totalsHTML, shipMeter: shipMeter, emptyCart: emptyCart, byId: byId, stitchById: stitchById, Cart: Cart, Sheet: Sheet, toast: toast, afterAdd: afterAdd, bindRails: bindRails, store: store, mqDesktop: mqDesktop, mqSmall: mqSmall, reduceMotion: reduceMotion };

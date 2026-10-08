@@ -446,6 +446,7 @@ function createApp(opts = {}) {
   route('GET', /^\/(index\.html)?$/, serveHome); route('HEAD', /^\/(index\.html)?$/, serveHome);
   /* admin-editable content pages live at /<slug>.html (about, faq, contact, privacy-policy…) */
   const serveCms = async (req, res, m) => {
+    if (m[1] === 'offline') return sendHtml(req, res, 200, tpl('offline.html'));
     const p = catalog.page(m[1]); if (!p || !p.published) return serve404(req, res);
     const o = SEO.origin(req), t = catalog.site; let html = tpl('page.html'), extra = '';
     const hi = /(?:^|;\s*)as_lang=hi\b/.test(req.headers.cookie || '') && p.bodyHi, pTitle = hi && p.titleHi ? p.titleHi : p.title;
@@ -477,7 +478,16 @@ function createApp(opts = {}) {
     res.end(`<?xml version="1.0" encoding="UTF-8"?><rss xmlns:g="http://base.google.com/ns/1.0" version="2.0"><channel><title>${x(t.name)}</title><link>${x(o)}</link><description>${x(t.name)} product feed</description>${items.join('')}</channel></rss>`);
   });
   route('GET', /^\/robots\.txt$/, async (req, res) => { const o = SEO.origin(req); res.writeHead(200, { 'Content-Type': 'text/plain; charset=utf-8', 'Cache-Control': 'public, max-age=3600' }); res.end(`User-agent: *\nAllow: /\nDisallow: /api/\nDisallow: /admin.html\nDisallow: /account.html\nDisallow: /order.html\nDisallow: /invoice.html\nDisallow: /cart.html\nDisallow: /checkout.html\nSitemap: ${o}/sitemap.xml\n`); });
-  route('GET', /^\/manifest\.webmanifest$/, async (req, res) => { const t = catalog.site; res.writeHead(200, { 'Content-Type': 'application/manifest+json', 'Cache-Control': 'public, max-age=3600' }); res.end(JSON.stringify({ name: t.name, short_name: t.name.slice(0, 12), description: t.heroLead, start_url: '/', display: 'standalone', background_color: '#faf6ef', theme_color: '#5b1530', lang: 'en-IN', icons: [{ src: '/img/icons/icon-192.png', sizes: '192x192', type: 'image/png' }, { src: '/img/icons/icon-512.png', sizes: '512x512', type: 'image/png' }, { src: '/img/icons/icon-maskable-512.png', sizes: '512x512', type: 'image/png', purpose: 'maskable' }] })); });
+  route('GET', /^\/manifest\.webmanifest$/, async (req, res) => {
+    const t = catalog.site, ic = (src, sz, purpose) => ({ src, sizes: sz, type: 'image/png', ...(purpose ? { purpose } : {}) });
+    res.writeHead(200, { 'Content-Type': 'application/manifest+json', 'Cache-Control': 'public, max-age=3600' });
+    res.end(JSON.stringify({ id: '/', name: t.name + (t.tagline ? ' · ' + t.tagline : ''), short_name: t.name.slice(0, 12), description: t.heroLead, start_url: '/?source=app', scope: '/', display: 'standalone', display_override: ['standalone', 'minimal-ui'], orientation: 'any', background_color: '#faf6ef', theme_color: '#5b1530', lang: 'en-IN', dir: 'ltr', categories: ['shopping', 'fashion', 'lifestyle'],
+      icons: [ic('/img/icons/icon-192.png', '192x192', 'any'), ic('/img/icons/icon-512.png', '512x512', 'any'), ic('/img/icons/icon-maskable-512.png', '512x512', 'maskable')],
+      shortcuts: [{ name: 'Shop', short_name: 'Shop', url: '/shop.html', icons: [ic('/img/icons/icon-192.png', '192x192')] }, { name: 'My bag', short_name: 'Bag', url: '/cart.html', icons: [ic('/img/icons/icon-192.png', '192x192')] }, { name: 'Track my order', short_name: 'Track', url: '/track.html', icons: [ic('/img/icons/icon-192.png', '192x192')] }] }));
+  });
+  /* service worker (served from the root so it can control the whole site) + its offline page */
+  route('GET', /^\/sw\.js$/, async (req, res) => { res.writeHead(200, { 'Content-Type': 'text/javascript; charset=utf-8', 'Cache-Control': 'no-cache', 'Service-Worker-Allowed': '/', 'X-Content-Type-Options': 'nosniff' }); res.end(fs.readFileSync(path.join(Static.ROOT, 'js/sw.js'))); });
+  route('GET', /^\/offline\.html$/, async (req, res) => sendHtml(req, res, 200, tpl('offline.html')));
   route('GET', /^\/media\/s\/([A-Za-z0-9_]{6,12})-(wide|tall)-(480|800|1080|1280|1920|2560)\.(webp|jpg|png)$/, async (req, res, m) => {
     const f = catalog.heroPath(m[1], m[2], +m[3], m[4]); if (!fs.existsSync(f)) throw fail(404, 'Not found');
     const t = sniffImage(fs.readFileSync(f).subarray(0, 16)); if (!t) throw fail(404, 'Not found');

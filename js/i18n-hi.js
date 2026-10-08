@@ -677,6 +677,13 @@
 "You’re on the list ✓": "आप सूची में हैं ✓",
 "We’ll email you the moment it’s available.": "उपलब्ध होते ही हम आपको ईमेल करेंगे।",
 "Mobile (optional)": "मोबाइल (वैकल्पिक)",
+"Install app": "ऐप इंस्टॉल करें",
+"Install the app": "ऐप इंस्टॉल करें",
+"Get the app": "ऐप पाएँ",
+"Got it": "समझ गया",
+"You’re offline": "आप ऑफ़लाइन हैं",
+"Try again": "फिर कोशिश करें",
+"No internet connection right now. Pages you have already opened still work — or reconnect and try again.": "अभी इंटरनेट कनेक्शन नहीं है। आपके देखे हुए पेज अब भी चलते हैं — या दोबारा जुड़कर कोशिश करें।",
 "Powered by": "द्वारा संचालित",
 "for faster checkout — or just continue as a guest, no details needed.": "तेज़ चेकआउट के लिए — या बस गेस्ट के रूप में जारी रखें, कोई विवरण ज़रूरी नहीं।",
 "Red": "लाल"
