@@ -162,7 +162,7 @@
       '<button type="button" class="card__wish icon-btn" data-wish="' + p.id + '" aria-pressed="' + wish + '" aria-label="' + (wish ? 'Remove ' : 'Add ') + esc(p.name) + (wish ? ' from' : ' to') + ' wishlist">' + icon('heart') + '</button>' +
       '<button type="button" class="card__quick btn btn--light" data-quick="' + p.id + '" aria-label="Quick add ' + esc(p.name) + '">' + icon('plus') + '<span>Quick add</span></button></div>' +
       '<div class="card__body"><h3 class="card__title"><a href="product.html?id=' + p.id + '">' + esc(p.name) + '</a></h3>' +
-      '<p class="card__meta">' + esc(p.fabric) + '</p>' + priceHTML(p) +
+      '<p class="card__meta">' + esc(p.fabric) + '</p>' + priceHTML(p) + '<p class="card__sw" aria-hidden="true">' + p.colors.map(function (c) { return '<span style="background:' + c.hex + '"></span>'; }).join('') + '</p><span class="vh">Colours: ' + esc(p.colors.map(function (c) { return c.name; }).join(', ')) + '</span>' +
       '<p class="card__rating">' + stars(p.rating) + ' <span class="card__count">' + p.rating.toFixed(1) + ' (' + p.reviews + ')</span></p></div></article>';
   }
   function sizeRadios(name) {
@@ -234,7 +234,7 @@
       '<button type="button" class="icon-btn header__cart" data-open="cart" aria-label="Open cart" aria-expanded="false" aria-controls="cart"><span class="icon-btn__ico">' + icon('bag') + '<span class="count" data-cart-count hidden>0</span></span></button>' +
       '<button type="button" class="icon-btn header__menu" data-open="menu" aria-label="Open menu" aria-expanded="false" aria-controls="menu">' + icon('menu') + '</button>' +
       '</div></div>' +
-      '<div class="mega" id="mega" hidden><div class="container mega__in">' +
+      '<span class="sp" aria-hidden="true"></span><div class="mega" id="mega" hidden><div class="container mega__in">' +
       '<div><h2 class="mega__h">Shop by category</h2><ul>' + A.CATEGORIES.map(function (c) { return '<li><a href="shop.html?cat=' + c.id + '">' + c.label + '</a></li>'; }).join('') + '<li><a class="mega__all" href="shop.html">View all</a></li></ul></div>' +
       '<div><h2 class="mega__h">Occasion</h2><ul>' + A.OCCASIONS.map(function (c) { return '<li><a href="shop.html?occ=' + c.id + '">' + c.label + '</a></li>'; }).join('') + '</ul></div>' +
       '<div><h2 class="mega__h">Stitching</h2><ul>' + A.STITCH.map(function (c) { return '<li><a href="shop.html?stitch=' + c.id + '">' + c.label + '</a></li>'; }).join('') + '</ul></div>' +
@@ -277,7 +277,7 @@
       '<form class="sheet__body" data-account novalidate><div class="field"><label class="field__l" for="acc-email">Email</label><input class="input" id="acc-email" type="email" name="email" inputmode="email" autocomplete="username" required></div>' +
       '<div class="field"><label class="field__l" for="acc-pass">Password</label><input class="input" id="acc-pass" type="password" name="password" autocomplete="current-password" required></div>' +
       '<button class="btn btn--block btn--lg" type="submit">Sign in</button><p class="newsletter__msg" role="status" aria-live="polite"></p></form></div></div>' +
-      '<div class="toast" id="toast" role="status" aria-live="polite"></div>';
+      '<button type="button" class="totop" id="totop" aria-label="Back to top">' + icon('chev') + '</button><div class="toast" id="toast" role="status" aria-live="polite"></div>';
     var pg = $('#page');
     pg.insertAdjacentHTML('afterbegin', header);
     pg.insertAdjacentHTML('beforeend', footer);
@@ -407,11 +407,33 @@
       requestAnimationFrame(function () {
         var y = window.scrollY, dy = y - last;
         h.classList.toggle('is-stuck', y > 8);
+        var max = document.documentElement.scrollHeight - innerHeight; h.style.setProperty('--sp', max > 0 ? Math.min(1, y / max).toFixed(4) : 0);
+        var tt = $('#totop'); if (tt) tt.classList.toggle('is-on', y > innerHeight * 1.2);
         if (Math.abs(dy) > 8) { h.classList.toggle('is-hidden', dy > 0 && y > 240 && !reduceMotion.matches && window.matchMedia('(max-width: 899.98px)').matches); last = y; }
         ticking = false;
       });
     }, { passive: true });
     h.addEventListener('focusin', function () { h.classList.remove('is-hidden'); });
+  }
+
+  function bindFX() {
+    var tt = $('#totop'); if (tt) tt.addEventListener('click', function () { window.scrollTo({ top: 0, behavior: reduceMotion.matches ? 'auto' : 'smooth' }); });
+    // Pause ambient animations (hero ornaments, marquee) while off-screen to save battery.
+    if ('IntersectionObserver' in window) {
+      var pio = new IntersectionObserver(function (en) { en.forEach(function (e) { e.target.classList.toggle('is-off', !e.isIntersecting); }); });
+      $$('[data-anim]').forEach(function (el) { pio.observe(el); });
+    }
+    if (reduceMotion.matches || !window.matchMedia('(hover:hover) and (pointer:fine)').matches) return;
+    // Cursor spotlight on tiles/cards and gentle parallax on the hero art (desktop pointers only).
+    var raf = 0, ev;
+    document.addEventListener('pointermove', function (e) {
+      ev = e; if (raf) return;
+      raf = requestAnimationFrame(function () {
+        raf = 0; var t = ev.target.closest && ev.target.closest('.tile,.step,.occ,.quote,.card__media');
+        if (t) { var r = t.getBoundingClientRect(); t.style.setProperty('--mx', ((ev.clientX - r.left) / r.width * 100).toFixed(1) + '%'); t.style.setProperty('--my', ((ev.clientY - r.top) / r.height * 100).toFixed(1) + '%'); }
+        var hero = $('.hero'); if (hero && ev.clientY < hero.getBoundingClientRect().bottom) { hero.style.setProperty('--px', ((ev.clientX / innerWidth - .5) * -22).toFixed(1) + 'px'); hero.style.setProperty('--py', ((ev.clientY / innerHeight - .5) * -14).toFixed(1) + 'px'); }
+      });
+    }, { passive: true });
   }
 
   // Horizontal rails (swipe on touch; arrow buttons on pointer devices)
@@ -435,7 +457,7 @@
   }
   function reveal(root) {
     if (!io) return;
-    $$('.card,.tile,.section__head,.review,.step,.story__head,.footer__col,.trust__list li,.summary-card,.pdp__info>*,.reviews__sum,[data-reveal]', root || document).forEach(function (el, i) {
+    $$('.card,.tile,.occs li,.rail__item--quote,.pdp__trust li,.section__head,.review,.step,.story__head,.footer__col,.trust__list li,.summary-card,.pdp__info>*,.reviews__sum,[data-reveal]', root || document).forEach(function (el, i) {
       if (el._rv || el.closest('.sheet')) return; el._rv = 1;
       el.classList.add('rv'); el.style.transitionDelay = (i % 6) * 60 + 'ms'; io.observe(el);
     });
@@ -460,7 +482,7 @@
   A.U = { reveal: reveal, fly: fly, $: $, $$: $$, money: money, esc: esc, picture: picture, icon: icon, stars: stars, priceHTML: priceHTML, card: card, sizeRadios: sizeRadios, stitchRadios: stitchRadios, line: line, totalsHTML: totalsHTML, shipMeter: shipMeter, emptyCart: emptyCart, byId: byId, stitchById: stitchById, Cart: Cart, Sheet: Sheet, toast: toast, afterAdd: afterAdd, bindRails: bindRails, store: store, mqDesktop: mqDesktop, mqSmall: mqSmall, reduceMotion: reduceMotion };
 
   $$('img').forEach(function (i) { if (i.complete && i.naturalWidth) i.classList.add('ld'); });
-  buildChrome(); bindMega(); bindSearch(); bindCartUI(); bindQuick(); bindNewsletter(); bindHeader(); bindRails(document); reveal(document);
+  buildChrome(); bindMega(); bindSearch(); bindCartUI(); bindQuick(); bindNewsletter(); bindHeader(); bindFX(); bindRails(document); reveal(document);
   document.documentElement.classList.add('js');
   document.dispatchEvent(new Event('asingh:ready'));
 })(window.ASINGH);

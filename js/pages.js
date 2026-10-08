@@ -15,7 +15,10 @@
       return '<li class="rail__item"><a class="tile" href="shop.html?cat=' + c[1] + '">' + U.picture('collection', i + 1, { w: 800, h: 800, widths: [400, 800], sizes: '(min-width:1100px) 24vw, (min-width:700px) 46vw, 72vw', alt: '' }) + '<span class="tile__cap"><span class="tile__n">0' + (i + 1) + '</span>' + c[0] + U.icon('right', 'ico--sm') + '</span></a></li>';
     }).join('');
     U.bindRails(document);
-    U.reveal(document);
+    $('#quotes-track').innerHTML = A.REVIEWS.concat(A.REVIEWS.slice(0, 1)).map(function (r, i) {
+      return '<li class="rail__item rail__item--quote"><figure class="quote"><span class="quote__mark" aria-hidden="true">“</span><p class="stars-row">' + U.stars(r.stars) + '</p><blockquote>' + esc(r.body) + '</blockquote><figcaption><strong>' + esc(r.who) + '</strong> · ' + esc(r.city) + '</figcaption></figure></li>';
+    }).join('');
+    U.bindRails(document); U.reveal(document);
   }
 
   /* ================= SHOP ================= */
@@ -141,7 +144,7 @@
       '<div class="field"><label class="field__l" for="note">Customisation <span class="muted">(optional)</span></label><textarea class="input" id="note" name="note" rows="3" maxlength="240" placeholder="Height, sleeve length, blouse back style, monogram…" autocomplete="off"></textarea></div>' +
       '<section class="field ship" aria-labelledby="ship-h"><h2 class="field__l" id="ship-h">Shipping</h2><div class="ship__row"><label class="vh" for="pin">PIN code</label><input class="input" id="pin" name="pin" inputmode="numeric" autocomplete="postal-code" maxlength="6" pattern="[1-9][0-9]{5}" placeholder="Enter PIN code"><button class="btn btn--ghost" type="button" id="pin-check">Check</button></div><p class="ship__msg" id="ship-msg" role="status" aria-live="polite">' + U.icon('truck', 'ico--xs') + ' Free shipping over ' + money(A.FREE_SHIP_FROM) + '. Easy 7-day returns on unstitched pieces.</p></section>' +
       '<div class="pdp__cta"><button class="btn btn--lg btn--grow" type="submit" id="add-btn">Add to bag</button><button type="button" class="icon-btn icon-btn--bordered" data-wish="' + p.id + '" aria-pressed="' + wish + '" aria-label="' + (wish ? 'Remove from' : 'Add to') + ' wishlist">' + U.icon('heart') + '</button></div></form>' +
-      '<div class="pdp__acc"><details open><summary>Details &amp; care</summary><ul class="bullets">' + p.details.map(function (d) { return '<li>' + esc(d) + '</li>'; }).join('') + '</ul></details>' +
+      '<ul class="pdp__trust">' + [['scissors', 'Handcrafted in Rajasthan'], ['truck', 'Free shipping over ' + money(A.FREE_SHIP_FROM)], ['ret', '7-day returns*']].map(function (t) { return '<li>' + U.icon(t[0]) + '<span>' + t[1] + '</span></li>'; }).join('') + '</ul><div class="pdp__acc"><details open><summary>Details &amp; care</summary><ul class="bullets">' + p.details.map(function (d) { return '<li>' + esc(d) + '</li>'; }).join('') + '</ul></details>' +
       '<details><summary>Shipping &amp; returns</summary><p>Unstitched and semi-stitched pieces can be returned within 7 days. Custom-stitched pieces are made to order and are not returnable, but we offer one complimentary alteration.</p></details></div></div>';
 
     var rev = '<h2 class="h2" id="reviews-h">Reviews</h2><div class="reviews__sum"><p class="reviews__score">' + p.rating.toFixed(1) + '</p><div>' + U.stars(p.rating) + '<p class="muted">Based on ' + p.reviews + ' reviews</p></div></div><ul class="reviews__list">' +
@@ -203,6 +206,9 @@
       side.innerHTML = '<h2 class="h3">Order summary</h2>' + U.shipMeter() + U.totalsHTML() + '<a class="btn btn--block btn--lg" href="checkout.html">Checkout</a><p class="secure">' + U.icon('lock', 'ico--xs') + ' Secure checkout · Easy returns on unstitched pieces</p>';
       bar.innerHTML = '<div><span class="muted">Total</span><strong>' + money(Cart.total()) + '</strong></div><a class="btn btn--lg" href="checkout.html">Checkout</a>';
     }
+    var recs = A.PRODUCTS.filter(function (p) { return !Cart.items.some(function (i) { return i.id === p.id; }); }).sort(function (a, b) { return (b.cat === 'odhni') - (a.cat === 'odhni') || b.rating - a.rating; }).slice(0, 8);
+    $('#cart-recs').innerHTML = recs.map(function (x) { return '<div class="rail__item">' + U.card(x, { sizes: '(min-width:1100px) 22vw, (min-width:700px) 31vw, 60vw' }) + '</div>'; }).join('');
+    U.bindRails(document);
     Cart.subscribe(render); U.reveal(document);
   }
 
@@ -242,9 +248,17 @@
     }
     form1.addEventListener('focusout', function (e) { if (e.target.name && RULES[e.target.name] && e.target.value) check(e.target); });
     form1.addEventListener('input', function (e) { if (e.target.getAttribute('aria-invalid') === 'true') check(e.target); });
+    function confetti() {
+      if (U.reduceMotion.matches) return;
+      var box = document.createElement('div'); box.className = 'confetti'; box.setAttribute('aria-hidden', 'true');
+      var cols = ['#e9c46a', '#c23a6e', '#e8913a', '#1d6b5a', '#7a1f3d'];
+      for (var i = 0; i < 36; i++) { var s = document.createElement('i'); s.style.cssText = '--x:' + (Math.random() * 100).toFixed(1) + 'vw;--d:' + (Math.random() * .6).toFixed(2) + 's;--t:' + (2.2 + Math.random() * 1.6).toFixed(2) + 's;--r:' + Math.round(Math.random() * 720 - 360) + 'deg;--s:' + (7 + Math.random() * 7).toFixed(0) + 'px;background:' + cols[i % 5]; box.appendChild(s); }
+      document.body.appendChild(box); setTimeout(function () { box.remove(); }, 4500);
+    }
     function go(n) {
       form1.hidden = n !== 1; form2.hidden = n !== 2; done.hidden = n !== 3;
       steps.forEach(function (s, i) { s.classList.toggle('is-done', i + 1 < n); if (i + 1 === n) s.setAttribute('aria-current', 'step'); else s.removeAttribute('aria-current'); });
+      if (n === 3) confetti();
       $('.checkout__aside').hidden = n === 3; var h = (n === 1 ? form1 : n === 2 ? form2 : done).querySelector('h2'); h.setAttribute('tabindex', '-1'); h.focus({ preventScroll: true });
       window.scrollTo({ top: Math.max(0, $('.progress').getBoundingClientRect().top + window.scrollY - 80), behavior: U.reduceMotion.matches ? 'auto' : 'smooth' });
     }

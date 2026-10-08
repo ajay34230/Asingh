@@ -6,7 +6,7 @@ import fs from 'node:fs';
 const BASE = process.env.BASE || 'http://localhost:4173';
 const widths = [280, 320, 360, 375, 390, 414, 480, 600, 768, 820, 912, 1024, 1280, 1366, 1440, 1600, 1920, 2560, 3840];
 const heights = { 280: 653, 320: 568, 360: 740, 375: 667, 390: 844, 414: 896, 480: 854, 600: 960, 768: 1024, 820: 1180, 912: 1368, 1024: 768, 1280: 800, 1366: 768, 1440: 900, 1600: 900, 1920: 1080, 2560: 1440, 3840: 2160 };
-const extra = [[667, 375], [844, 390], [932, 430], [1024, 768], [1180, 820], [1366, 1024], [653, 280], [960, 600]]; // landscape phones/tablets
+const extra = [[667, 375], [844, 390], [932, 430], [1024, 768], [1180, 820], [1366, 1024], [653, 280], [960, 600], [1024, 600], [540, 720], [884, 1104], [1280, 720], [2560, 1080], [3440, 1440], [5120, 1440]]; // landscape phones/tablets
 const pages = ['index.html', 'shop.html?cat=poshak', 'product.html?id=maharani-poshak', 'cart.html', 'checkout.html'];
 const shots = process.argv.includes('--shots');
 const only = (process.argv.find(a => a.startsWith('--only=')) || '').slice(7);
@@ -37,7 +37,7 @@ for (const [w, h] of vps) {
         const b = el.getBoundingClientRect();
         if (el.closest('.sheet') && !el.closest('.sheet.is-open') && !el.closest('.sheet--filters')) return;
         if (el.closest('.hero__img,.story__img,.sheet__panel:not(.x)') && el.closest('.sheet:not(.sheet--filters)')) return;
-        if (b.right > vw + 1 && getComputedStyle(el).position !== 'fixed' && !el.closest('.toast,.tablewrap,.lightbox__scroll,.hero__img,.story__img,.mega')) out.push(`overflow-right ${el.tagName}.${(el.className && el.className.baseVal === undefined ? el.className : '').toString().slice(0, 30)} right=${Math.round(b.right)}`);
+        if (b.right > vw + 1 && getComputedStyle(el).position !== 'fixed' && !el.closest('.toast,.tablewrap,.lightbox__scroll,.hero__img,.story__img,.mega,.marquee,.totop')) out.push(`overflow-right ${el.tagName}.${(el.className && el.className.baseVal === undefined ? el.className : '').toString().slice(0, 30)} right=${Math.round(b.right)}`);
       });
       // interactive controls: tap-target size
       document.querySelectorAll('a[href],button,input:not([type=hidden]),select,textarea,summary').forEach(el => {

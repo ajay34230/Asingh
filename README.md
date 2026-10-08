@@ -26,6 +26,9 @@ Also: `clamp()` fluid type/spacing, `srcset`/`sizes` with AVIF → WebP → JPEG
 - Animation is transform/opacity only, CSS-first: staged hero entrance, scroll reveals (one shared `IntersectionObserver`), self-drawing diamond rule under headings, image fade-ins, card hover zoom, button light-sweep, heart pop, cart-count bump, add-to-bag "fly to cart", staggered menu/mega-menu, cross-page fade (View Transitions) and scroll-linked parallax where supported. Everything switches off under `prefers-reduced-motion`.
 - Weight: ~38 KB gzipped of HTML/CSS/JS per page; a phone downloads roughly 70–260 KB of images (AVIF → WebP → JPEG, only the size needed). No fonts, no libraries. `content-visibility:auto` skips off-screen sections, backdrop blur is desktop-only, pages are prefetched on hover/touch. `node tools/weight.mjs` reports it.
 
+## v3 additions
+Hero with drifting gold ornaments, shimmering key phrase and pointer parallax (art-directed tall crop leaves clear space for text on phones); looping craft marquee; "Dressed for every occasion" tiles (pure CSS, no image weight); testimonials; cursor spotlight on tiles/cards; colour swatches and skeleton shimmer on product cards; container queries so cards adapt to their own width; header scroll-progress bar; back-to-top; PDP trust row; "Complete the look" on the cart page; confetti on order success. Ambient animations pause when off-screen and all motion respects `prefers-reduced-motion`. QA matrix now also covers 1024×600, Fold (280 / 884×1104), Surface Duo, 2560×1080, 3440×1440 and 5120×1440.
+
 ## QA tooling
 `node tools/qa.mjs` — loads every page at 19 widths (280→3840) plus landscape phone/tablet sizes and checks horizontal overflow, header collisions, touch-target size, tiny text and broken images.
 `node tools/weight.mjs` — page weight at phone / desktop / 4K.

@@ -270,7 +270,7 @@ def hero():
         rng = np.random.default_rng(3); return Image.fromarray(np.clip(c + rng.normal(0, 2, (h, w, 1)), 0, 255).astype(np.uint8))
     wide = scene(2560, 1280, [(1580, 90, .78, "jodha-poshak"), (2060, 150, .82, "maharani-poshak"), (2480, 260, .66, "kesariya-poshak")])
     save(wide, "hero-wide", [1280, 1920, 2560, 3840], .5, 1920)
-    tall = scene(1080, 1350, [(540, 20, .98, "maharani-poshak")])
+    tall = scene(1080, 1350, [(540, 8, .6, "maharani-poshak")])
     save(tall, "hero-tall", [480, 800, 1080], 1.25, 800)
 
 if __name__ == "__main__":
