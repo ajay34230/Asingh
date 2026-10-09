@@ -496,6 +496,8 @@ console.log('\nAI helpers (Gemini free tier + free fallbacks)');
     a = await ask('आपकी वेबसाइट के बारे में बताइए'); ok(/हम लड़कियों/.test(a.reply), 'the same question in Hindi gets a Hindi description');
     a = await ask('how do I wash a gota patti suit?'); ok(/dry-?clean/i.test(a.reply), 'care questions are answered');
     a = await ask('which fabric is best for summer'); ok(/cotton/i.test(a.reply), 'fabric questions are answered');
+    a = await ask('Hii how are you'); ok(/doing great/.test(a.reply) && !/understand/.test(a.reply), '“Hii how are you” gets a friendly answer');
+    a = await ask('kaise ho aap'); ok(/ठीक|great/.test(a.reply), '“kaise ho” gets a friendly answer');
     a = await ask('asdf qwer'); ok(!a.products.length && /Contact|WhatsApp/.test(a.reply), 'gibberish is not answered with random products'); }
   const sb = {}; vm.createContext(sb); vm.runInContext((await C.req('GET', '/js/data.js')).text, sb);
   const first = sb.ASINGH.PRODUCTS[0]; const q1 = (await C.req('GET', '/api/ai/search?q=' + encodeURIComponent('under 99999'))).json.ids; ok(q1.length === sb.ASINGH.PRODUCTS.length, 'a price-only search returns everything within budget');

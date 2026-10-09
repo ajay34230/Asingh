@@ -18,7 +18,8 @@ function fixWord(w, known) {   // forgive spelling slips ("lehnga", "sharra")
   known.forEach(k => { if (k.length >= 4) { const d = lev(w, k); if (d < bd && d <= (w.length > 7 ? 2 : 1)) { bd = d; best = k; } } }); return best;
 }
 function intentOf(q) {
-  if (/^(hi+|hello+|hey+|namaste|namaskar|good (morning|evening|afternoon)|hlo|helo)\b[\s!.,?]*$/.test(q)) return 'greet';
+  if (/\b(how are you|how r u|how are u|how do you do|kaise ho|kaisi ho|kaise hain|aap kaise|kya haal|how's it going|hows it going|what'?s up|wassup|sup)\b/.test(q)) return 'smalltalk';
+  if (/^(hi+|hii+|hello+|hey+|heyy+|namaste|namaskar|good (morning|evening|afternoon|night)|hlo|helo|hy|hiya)\b/.test(q) && q.split(' ').length <= 4) return 'greet';
   if (/^(thanks?|thank you|thx|ok(ay)?|great|nice|good|got it|shukriya|dhanyavad)[\s!.,?]*$/.test(q)) return 'thanks';
   if (/\b(about (this|the|your)|this (website|site|store|shop)|your (website|site|store|shop)|tell me about|who are you|who r u|what is this|what are you|about us|about you|kaun ho|aap kaun|ye kya hai|yeh kya hai|website ke bare|store ke bare|(website|site|store|shop|brand|company) (ke |के )?about|about (website|site|store|shop|brand|company)|brand|company|founder|owner|since when|kab se)\b/.test(q)) return 'about';
   if (/\b(wash|washing|dry ?clean|iron|care|clean|stain|shrink|colou?r (run|bleed)|धोना|धोएं|देखभाल)\b/.test(q)) return 'care';
@@ -52,6 +53,7 @@ function answer(catalog, msgs, lang, helpers) {
   const say = (reply, extra) => ({ ...base, reply, suggest: DEF, ...extra });
   const intent = intentOf(last);
   switch (intent) {
+    case 'smalltalk': return say(T('I’m doing great, thank you for asking! 😊 How can I help you today — are you looking for a dress for a girl, or do you have a question about delivery, returns or sizes?', 'मैं बिल्कुल ठीक हूँ, पूछने के लिए धन्यवाद! 😊 बताइए, मैं आपकी कैसे मदद करूँ — किसी बच्ची के लिए ड्रेस ढूँढ रहे हैं, या डिलीवरी, रिटर्न या साइज़ के बारे में कुछ पूछना है?'), { suggest: chips([['New arrivals', 'नए आगमन'], ['Best sellers', 'बेस्टसेलर'], ['Suit under ₹3,000', '₹3,000 से कम का सूट']]) });
     case 'greet': return say(T('Namaste! 🙏 Tell me what you are looking for — for example “red lehenga for a wedding” or “suit under ₹3,000”.', 'नमस्ते! 🙏 बताइए आप क्या ढूँढ रहे हैं — जैसे “शादी के लिए लाल लहंगा” या “₹3,000 से कम का सूट”।'), { suggest: chips([['New arrivals', 'नए आगमन'], ['Best sellers', 'बेस्टसेलर'], ['Suit under ₹3,000', '₹3,000 से कम का सूट']]) });
     case 'thanks': return say(T('You are welcome! Let me know if you need anything else.', 'आपका स्वागत है! और कुछ चाहिए तो बताइए।'));
     case 'about': { const bits = [`${v.name}${t.tagline ? ' — ' + t.tagline : ''}`, t.heroLead || ''].filter(Boolean).join('. '), styles = catalog.categories.slice(0, 8).map(c => c.label).join(', ');
@@ -83,7 +85,7 @@ function answer(catalog, msgs, lang, helpers) {
     const hit = helpers.ruleSearch(pub, id => (catalog.categories.find(c => c.id === id) || {}).label || id, lastRaw).slice(0, 4);
     if (hit.length) return say(T('Here are some pieces you might like:', 'ये कुछ पीस आपको पसंद आ सकते हैं:'), { products: hit.map(card) });
     if (SHOPPY.test(last) || f.words.some(w => known.has(w))) return say(T('Happy to help! Here are a few popular pieces to start with. To narrow it down, tell me her age, the occasion and your budget.', 'ज़रूर! शुरुआत के लिए ये कुछ लोकप्रिय पीस हैं। सही चुनने के लिए बच्ची की उम्र, मौक़ा और आपका बजट बताइए।'), { products: topPicks().map(card), suggest: chips([['Wedding, under ₹10,000', 'शादी के लिए, ₹10,000 तक'], ['Birthday party', 'जन्मदिन की पार्टी'], ['Everyday wear', 'रोज़ पहनने के लिए']]) });
-    return say(T(`I could not quite understand that. I can help you find a suit (try “red lehenga for wedding” or “anarkali under ₹5,000”) or answer questions about delivery, returns, sizes and payment. For anything else, ${reach}.`, `मैं ठीक से समझ नहीं पाया। मैं सूट ढूँढने में मदद कर सकता हूँ (जैसे “शादी के लिए लाल लहंगा” या “₹5,000 से कम का अनारकली”) या डिलीवरी, रिटर्न, साइज़ और पेमेंट के बारे में बता सकता हूँ। बाकी के लिए ${reach}।`), { suggest: chips([['New arrivals', 'नए आगमन'], ['Best sellers', 'बेस्टसेलर'], ['What do you have?', 'आपके पास क्या-क्या है?']]) });
+    return say(T(`Sorry, I didn’t quite get that. I can help you find a suit (try “red lehenga for wedding” or “anarkali under ₹5,000”) or answer questions about delivery, returns, sizes and payment. For anything else, ${reach}.`, `मैं ठीक से समझ नहीं पाया। मैं सूट ढूँढने में मदद कर सकता हूँ (जैसे “शादी के लिए लाल लहंगा” या “₹5,000 से कम का अनारकली”) या डिलीवरी, रिटर्न, साइज़ और पेमेंट के बारे में बता सकता हूँ। बाकी के लिए ${reach}।`), { suggest: chips([['New arrivals', 'नए आगमन'], ['Best sellers', 'बेस्टसेलर'], ['What do you have?', 'आपके पास क्या-क्या है?']]) });
   }
   const fam = p => p.colors.map(c => helpers.family(c.hex)), famOk = (p, c) => fam(p).includes(c) || (c === 'red' && fam(p).includes('maroon')) || p.colors.some(x => x.name.toLowerCase().includes(c));
   const styleOk = p => !f.styleIds.length || f.styleIds.includes(p.cat), colOk = p => cols.every(c => famOk(p, c)), occOk = p => occ.every(o => (p.occ || []).includes(o)), priceOk = p => (!max || p.price <= max) && (!min || p.price >= min);
