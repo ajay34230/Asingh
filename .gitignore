@@ -1,0 +1,10 @@
+# Build output
+localdrop/build/
+localdrop/app/build/
+localdrop/.gradle/
+.gradle/
+*.class
+local.properties
+.idea/
+*.iml
+.DS_Store
