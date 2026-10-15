@@ -37,8 +37,14 @@ jobs:
             > "$RUNNER_TEMP/server.log" 2>&1 &
           sleep 3
           GUEST_IP=$(hostname -I | awk '{print $1}')
-          python3 tests/api_test.py --host 127.0.0.1 --guest-host "$GUEST_IP" --port 8099 --pin 123456 \
-            --root "$RUNNER_TEMP/ld/root" || (cat "$RUNNER_TEMP/server.log"; exit 1)
+          echo "guest ip: $GUEST_IP"
+          if ! python3 tests/api_test.py --host 127.0.0.1 --guest-host "$GUEST_IP" --port 8099 --pin 123456 \
+            --root "$RUNNER_TEMP/ld/root" > "$RUNNER_TEMP/test.log" 2>&1; then
+            cat "$RUNNER_TEMP/test.log"; cat "$RUNNER_TEMP/server.log"
+            grep -iE 'fail|error|traceback|exception' "$RUNNER_TEMP/test.log" | head -8 | while read -r line; do echo "::error::$line"; done
+            exit 1
+          fi
+          cat "$RUNNER_TEMP/test.log" | tail -5
 
       - uses: gradle/actions/setup-gradle@v4
         with:
