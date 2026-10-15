@@ -35,7 +35,7 @@ jobs:
           java -Dfile.encoding=UTF-8 -cp "$RUNNER_TEMP/classes" DesktopMain --port 8099 \
             --root "$RUNNER_TEMP/ld/root" --data "$RUNNER_TEMP/ld/data" --web app/src/main/assets/web --pin 123456 \
             > "$RUNNER_TEMP/server.log" 2>&1 &
-          sleep 3
+          for i in $(seq 1 40); do curl -fs http://127.0.0.1:8099/api/ping >/dev/null && break; sleep 0.5; done
           GUEST_IP=$(hostname -I | awk '{print $1}')
           echo "guest ip: $GUEST_IP"
           if ! python3 tests/api_test.py --host 127.0.0.1 --guest-host "$GUEST_IP" --port 8099 --pin 123456 \
