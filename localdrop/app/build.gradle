@@ -1,0 +1,49 @@
+plugins {
+    id 'com.android.application'
+}
+
+android {
+    namespace 'com.ajay.localdrop'
+    compileSdk 34
+
+    defaultConfig {
+        applicationId "com.ajay.localdrop"
+        minSdk 26
+        targetSdk 34
+        // CI passes -Pvc=<run number> so every build can update the previous one.
+        versionCode (project.hasProperty('vc') ? project.property('vc').toInteger() : 1)
+        versionName "1.0.0"
+    }
+
+    signingConfigs {
+        release {
+            // This key is committed on purpose so that every build is signed the same way and installs as an
+            // update. It is not a secret. Do not publish this app to an app store with it.
+            storeFile file('../keystore/localdrop-release.jks')
+            storePassword 'localdrop'
+            keyAlias 'localdrop'
+            keyPassword 'localdrop'
+        }
+    }
+
+    buildTypes {
+        release {
+            minifyEnabled false
+            signingConfig signingConfigs.release
+        }
+    }
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+
+    lint {
+        abortOnError false
+        checkReleaseBuilds false
+    }
+
+    buildFeatures {
+        buildConfig false
+    }
+}

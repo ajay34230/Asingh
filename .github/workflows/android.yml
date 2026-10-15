@@ -1,0 +1,72 @@
+name: Build LocalDrop APK
+
+on:
+  push:
+    branches: [localdrop-app]
+    paths:
+      - 'localdrop/**'
+      - '.github/workflows/android.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      # The server is plain Java, so it is tested first on the build machine itself.
+      - name: Test the server
+        working-directory: localdrop
+        run: |
+          set -e
+          export LC_ALL=C.UTF-8
+          mkdir -p "$RUNNER_TEMP/ld/root" "$RUNNER_TEMP/ld/data" "$RUNNER_TEMP/classes"
+          echo "hello" > "$RUNNER_TEMP/ld/root/hello.txt"
+          javac --release 8 -d "$RUNNER_TEMP/classes" app/src/main/java/com/ajay/localdrop/server/*.java desktop/*.java
+          java -Dfile.encoding=UTF-8 -cp "$RUNNER_TEMP/classes" DesktopMain --port 8099 \
+            --root "$RUNNER_TEMP/ld/root" --data "$RUNNER_TEMP/ld/data" --web app/src/main/assets/web --pin 123456 \
+            > "$RUNNER_TEMP/server.log" 2>&1 &
+          sleep 3
+          GUEST_IP=$(hostname -I | awk '{print $1}')
+          python3 tests/api_test.py --host 127.0.0.1 --guest-host "$GUEST_IP" --port 8099 --pin 123456 \
+            --root "$RUNNER_TEMP/ld/root" || (cat "$RUNNER_TEMP/server.log"; exit 1)
+
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.10.2'
+
+      - name: Build the APK
+        working-directory: localdrop
+        run: gradle --no-daemon assembleRelease -Pvc=${{ github.run_number }}
+
+      - name: Name the APK
+        run: |
+          mkdir -p dist
+          cp localdrop/app/build/outputs/apk/release/app-release.apk dist/LocalDrop.apk
+          ls -la dist
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: LocalDrop-apk
+          path: dist/LocalDrop.apk
+          retention-days: 30
+
+      - name: Publish a download link
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release delete localdrop-latest --cleanup-tag --yes || true
+          gh release create localdrop-latest dist/LocalDrop.apk \
+            --target "${{ github.sha }}" \
+            --prerelease \
+            --title "LocalDrop (latest build)" \
+            --notes "Latest build of the LocalDrop Android app from branch localdrop-app (build ${{ github.run_number }}, commit ${GITHUB_SHA::7}). Open this page on your phone and download LocalDrop.apk. Android will ask you to allow installs from your browser the first time."

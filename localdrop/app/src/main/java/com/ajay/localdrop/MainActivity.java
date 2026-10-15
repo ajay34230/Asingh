@@ -1,0 +1,340 @@
+package com.ajay.localdrop;
+
+import android.Manifest;
+import android.app.Activity;
+import android.app.DownloadManager;
+import android.content.ClipData;
+import android.content.ClipboardManager;
+import android.content.Context;
+import android.content.Intent;
+import android.content.pm.PackageManager;
+import android.content.res.Configuration;
+import android.graphics.Color;
+import android.net.Uri;
+import android.os.Build;
+import android.os.Bundle;
+import android.os.Environment;
+import android.os.PowerManager;
+import android.provider.Settings;
+import android.util.Log;
+import android.view.View;
+import android.view.WindowManager;
+import android.webkit.ConsoleMessage;
+import android.webkit.JavascriptInterface;
+import android.webkit.URLUtil;
+import android.webkit.ValueCallback;
+import android.webkit.WebChromeClient;
+import android.webkit.WebResourceRequest;
+import android.webkit.WebSettings;
+import android.webkit.WebView;
+import android.webkit.WebViewClient;
+import android.widget.TextView;
+import android.widget.Toast;
+
+import org.json.JSONObject;
+
+import java.io.IOException;
+
+/** The phone's own screen: a WebView showing the same LocalDrop page that other devices see in their browser. */
+public final class MainActivity extends Activity {
+    private static final int REQ_FILES = 11;
+    private static final int REQ_NOTIFY = 12;
+    private static final int REQ_HOTSPOT = 13;
+    private static final int REQ_STORAGE = 14;
+
+    private WebView web;
+    private ValueCallback<Uri[]> fileCallback;
+    private HotspotController hotspot;
+    private String origin;
+    private boolean pendingHotspot;
+
+    @Override protected void onCreate(Bundle savedInstanceState) {
+        super.onCreate(savedInstanceState);
+        hotspot = HotspotController.get(this);
+        int port;
+        try {
+            port = ServerRuntime.ensure(this).port();
+        } catch (IOException e) {
+            TextView t = new TextView(this);
+            t.setText("LocalDrop could not start its server.\n\n" + e.getMessage());
+            t.setPadding(48, 96, 48, 48);
+            setContentView(t);
+            return;
+        }
+        origin = "http://127.0.0.1:" + port;
+        try {
+            Intent svc = new Intent(this, ServerService.class);
+            startForegroundService(svc);
+        } catch (Exception ignored) {
+            // The server keeps running while the app is open even without the service.
+        }
+
+        web = new WebView(this);
+        setContentView(web);
+        applyBars(isNight() ? "#07141F" : "#EEF4F6", !isNight());
+        web.setBackgroundColor(Color.parseColor(isNight() ? "#07141F" : "#EEF4F6"));
+        WebSettings s = web.getSettings();
+        s.setJavaScriptEnabled(true);
+        s.setDomStorageEnabled(true);
+        s.setMediaPlaybackRequiresUserGesture(false);
+        s.setAllowFileAccess(false);
+        s.setAllowContentAccess(false);
+        s.setSupportZoom(false);
+        s.setBuiltInZoomControls(false);
+        s.setTextZoom(100);
+        s.setUserAgentString(s.getUserAgentString() + " LocalDropHost/1");
+        web.setOverScrollMode(View.OVER_SCROLL_NEVER);
+        web.addJavascriptInterface(new Bridge(), "LDHost");
+        web.setWebViewClient(new WebViewClient() {
+            @Override public boolean shouldOverrideUrlLoading(WebView v, WebResourceRequest r) {
+                Uri u = r.getUrl();
+                if (u.toString().startsWith(origin)) return false;
+                try {
+                    startActivity(new Intent(Intent.ACTION_VIEW, u));
+                } catch (Exception ignored) {
+                    // no app can open it
+                }
+                return true;
+            }
+
+            @Override public boolean onRenderProcessGone(WebView v, android.webkit.RenderProcessGoneDetail d) {
+                recreate();
+                return true;
+            }
+        });
+        web.setWebChromeClient(new WebChromeClient() {
+            @Override public boolean onShowFileChooser(WebView w, ValueCallback<Uri[]> cb, FileChooserParams p) {
+                if (fileCallback != null) fileCallback.onReceiveValue(null);
+                fileCallback = cb;
+                try {
+                    startActivityForResult(p.createIntent(), REQ_FILES);
+                } catch (Exception e) {
+                    fileCallback = null;
+                    return false;
+                }
+                return true;
+            }
+
+            @Override public boolean onConsoleMessage(ConsoleMessage m) {
+                Log.d("LocalDropWeb", m.message() + " (" + m.sourceId() + ":" + m.lineNumber() + ")");
+                return true;
+            }
+        });
+        web.setDownloadListener((url, ua, cd, mime, len) -> {
+            try {
+                String name = URLUtil.guessFileName(url, cd, mime);
+                DownloadManager.Request r = new DownloadManager.Request(Uri.parse(url));
+                r.setTitle(name);
+                r.setNotificationVisibility(DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED);
+                r.setDestinationInExternalPublicDir(Environment.DIRECTORY_DOWNLOADS, name);
+                ((DownloadManager) getSystemService(Context.DOWNLOAD_SERVICE)).enqueue(r);
+                Toast.makeText(this, "Saving " + name + " to Downloads", Toast.LENGTH_SHORT).show();
+            } catch (Exception e) {
+                Toast.makeText(this, "Could not save the file", Toast.LENGTH_SHORT).show();
+            }
+        });
+        hotspot.setOnChange(this::pushChange);
+        web.loadUrl(origin + "/");
+
+        if (Build.VERSION.SDK_INT >= 33
+                && checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
+            requestPermissions(new String[] {Manifest.permission.POST_NOTIFICATIONS}, REQ_NOTIFY);
+        }
+    }
+
+    private boolean isNight() {
+        return (getResources().getConfiguration().uiMode & Configuration.UI_MODE_NIGHT_MASK)
+                == Configuration.UI_MODE_NIGHT_YES;
+    }
+
+    @SuppressWarnings("deprecation")
+    private void applyBars(String hex, boolean darkIcons) {
+        int c = Color.parseColor(hex);
+        getWindow().addFlags(WindowManager.LayoutParams.FLAG_DRAWS_SYSTEM_BAR_BACKGROUNDS);
+        getWindow().setStatusBarColor(c);
+        getWindow().setNavigationBarColor(c);
+        int flags = View.SYSTEM_UI_FLAG_VISIBLE;
+        if (darkIcons) {
+            flags |= View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR;
+            if (Build.VERSION.SDK_INT >= 26) flags |= View.SYSTEM_UI_FLAG_LIGHT_NAVIGATION_BAR;
+        }
+        getWindow().getDecorView().setSystemUiVisibility(flags);
+    }
+
+    /** Lets the page know that something on the phone changed (a permission, the hotspot). */
+    private void pushChange() {
+        if (web == null) return;
+        web.post(() -> web.evaluateJavascript("window.onLDHostChange && window.onLDHostChange()", null));
+    }
+
+    @Override protected void onResume() {
+        super.onResume();
+        pushChange();
+    }
+
+    @Override protected void onDestroy() {
+        if (hotspot != null) hotspot.setOnChange(null);
+        if (web != null) {
+            web.removeJavascriptInterface("LDHost");
+            web.destroy();
+        }
+        super.onDestroy();
+    }
+
+    @Override protected void onActivityResult(int req, int result, Intent data) {
+        if (req == REQ_FILES) {
+            if (fileCallback != null) {
+                fileCallback.onReceiveValue(WebChromeClient.FileChooserParams.parseResult(result, data));
+                fileCallback = null;
+            }
+            return;
+        }
+        super.onActivityResult(req, result, data);
+    }
+
+    @Override public void onRequestPermissionsResult(int req, String[] perms, int[] results) {
+        super.onRequestPermissionsResult(req, perms, results);
+        boolean granted = results.length > 0 && results[0] == PackageManager.PERMISSION_GRANTED;
+        if (req == REQ_HOTSPOT) {
+            if (granted && pendingHotspot) hotspot.start();
+            else hotspot.fail("Allow nearby devices access to start a hotspot.");
+            pendingHotspot = false;
+        }
+        pushChange();
+    }
+
+    @Override public void onBackPressed() {
+        if (web == null) {
+            super.onBackPressed();
+            return;
+        }
+        web.evaluateJavascript("window.LDBack ? window.LDBack() : false", value -> {
+            if (!"true".equals(value)) moveTaskToBack(true);
+        });
+    }
+
+    private void startHotspotFlow() {
+        String perm = Build.VERSION.SDK_INT >= 33 ? Manifest.permission.NEARBY_WIFI_DEVICES
+                : Manifest.permission.ACCESS_FINE_LOCATION;
+        if (checkSelfPermission(perm) != PackageManager.PERMISSION_GRANTED) {
+            pendingHotspot = true;
+            requestPermissions(new String[] {perm}, REQ_HOTSPOT);
+            return;
+        }
+        hotspot.start();
+    }
+
+    private void openStorageSettings() {
+        if (Build.VERSION.SDK_INT >= 30) {
+            try {
+                startActivity(new Intent(Settings.ACTION_MANAGE_APP_ALL_FILES_ACCESS_PERMISSION,
+                        Uri.parse("package:" + getPackageName())));
+            } catch (Exception e) {
+                try {
+                    startActivity(new Intent(Settings.ACTION_MANAGE_ALL_FILES_ACCESS_PERMISSION));
+                } catch (Exception ignored) {
+                    Toast.makeText(this, "Open Settings and allow all files access for LocalDrop", Toast.LENGTH_LONG).show();
+                }
+            }
+        } else {
+            requestPermissions(new String[] {Manifest.permission.READ_EXTERNAL_STORAGE,
+                    Manifest.permission.WRITE_EXTERNAL_STORAGE}, REQ_STORAGE);
+        }
+    }
+
+    /** Functions the LocalDrop page can call when it runs on the phone itself. */
+    private final class Bridge {
+        @JavascriptInterface public String info() {
+            try {
+                AndroidPlatform p = ServerRuntime.platform();
+                JSONObject o = new JSONObject();
+                o.put("sdk", Build.VERSION.SDK_INT);
+                o.put("storageAccess", p != null && p.hasStorageAccess());
+                o.put("notifications", Build.VERSION.SDK_INT < 33
+                        || checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) == PackageManager.PERMISSION_GRANTED);
+                PowerManager pm = (PowerManager) getSystemService(Context.POWER_SERVICE);
+                o.put("batteryUnrestricted", pm.isIgnoringBatteryOptimizations(getPackageName()));
+                o.put("hotspot", new JSONObject(hotspot.stateJson()));
+                return o.toString();
+            } catch (Exception e) {
+                return "{}";
+            }
+        }
+
+        @JavascriptInterface public void requestStorage() {
+            runOnUiThread(MainActivity.this::openStorageSettings);
+        }
+
+        @JavascriptInterface public void startHotspot() {
+            runOnUiThread(MainActivity.this::startHotspotFlow);
+        }
+
+        @JavascriptInterface public void stopHotspot() {
+            hotspot.stop();
+        }
+
+        @JavascriptInterface public void requestNotifications() {
+            runOnUiThread(() -> {
+                if (Build.VERSION.SDK_INT >= 33) {
+                    requestPermissions(new String[] {Manifest.permission.POST_NOTIFICATIONS}, REQ_NOTIFY);
+                }
+            });
+        }
+
+        @JavascriptInterface public void keepRunning() {
+            runOnUiThread(() -> {
+                try {
+                    startActivity(new Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS,
+                            Uri.parse("package:" + getPackageName())));
+                } catch (Exception e) {
+                    try {
+                        startActivity(new Intent(Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS));
+                    } catch (Exception ignored) {
+                        // no settings screen available
+                    }
+                }
+            });
+        }
+
+        @JavascriptInterface public void share(String text) {
+            runOnUiThread(() -> {
+                Intent i = new Intent(Intent.ACTION_SEND).setType("text/plain").putExtra(Intent.EXTRA_TEXT, text);
+                startActivity(Intent.createChooser(i, "Share link"));
+            });
+        }
+
+        @JavascriptInterface public void copy(String text) {
+            runOnUiThread(() -> {
+                ClipboardManager cm = (ClipboardManager) getSystemService(Context.CLIPBOARD_SERVICE);
+                cm.setPrimaryClip(ClipData.newPlainText("LocalDrop", text));
+            });
+        }
+
+        @JavascriptInterface public void openExternal(String path) {
+            runOnUiThread(() -> {
+                try {
+                    startActivity(new Intent(Intent.ACTION_VIEW, Uri.parse(origin + path)));
+                } catch (Exception e) {
+                    Toast.makeText(MainActivity.this, "No app can open this", Toast.LENGTH_SHORT).show();
+                }
+            });
+        }
+
+        @JavascriptInterface public void bars(String hex, boolean darkIcons) {
+            runOnUiThread(() -> {
+                try {
+                    applyBars(hex, darkIcons);
+                } catch (Exception ignored) {
+                    // ignore a bad colour
+                }
+            });
+        }
+
+        @JavascriptInterface public void quit() {
+            runOnUiThread(() -> {
+                startService(new Intent(MainActivity.this, ServerService.class).setAction(ServerService.ACTION_STOP));
+                finishAndRemoveTask();
+            });
+        }
+    }
+}
