@@ -183,6 +183,7 @@
       if (d.perms) { st.perms = d.perms; LD.emit('perms', st.perms); }
       LD.emit('settings-changed', d);
     });
+    es.addEventListener('signal', function (e) { LD.emit('signal', JSON.parse(e.data)); });
     es.addEventListener('kicked', function () {
       es.close();
       LD.emit('kicked');

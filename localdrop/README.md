@@ -19,14 +19,16 @@ Updates install over the old version, because every build is signed with the sam
 - **Viewer**: images (swipe, zoom), video and audio with seeking, PDF, text and code.
 - **Drop**: a shared chat for notes, links and files, with private messages to one device.
 - **Apps**: other devices can download the LocalDrop installer from the host (Files menu, "Apps to install"). The host can also allow installers of other apps on the phone.
+- **Calls**: voice and video calls between connected devices, straight over the local network (WebRTC; nothing leaves your network). Everyone picks a name when joining. Browsers only allow the camera and microphone on secure pages, so guests open the secure address (the `https://` one shown in the call prompt), accept the certificate warning once, and then call. The host app itself needs no warning.
+- **Connection help**: Invite sheet, "Get help" gives tips for several routers and a delay and speed test.
 - **Nearby**: a live radar of connected devices, who did what, and the host can disconnect a device.
 - **Join**: QR code with optional PIN built in, one-tap hotspot from the app, Wi-Fi QR for the hotspot, addresses for every network the phone is on.
-- **Security**: PIN (4 to 8 digits) with lockout after 5 wrong tries, per-device sign-in, host controls for what guests may do (upload, change files, make links).
+- **Security**: PIN (4 to 8 digits, can be turned off in Settings so people join with just a name) with lockout after 5 wrong tries, per-device sign-in, host controls for what guests may do (upload, change files, make links).
 - **Look**: light and dark themes, animations (respects the reduced-motion setting), works on phones, tablets and computers.
 
 ## Things to know
 
-- Traffic on the local network is plain HTTP, like most local-network tools. Use a PIN, and use a network you trust.
+- Traffic on the local network is plain HTTP (the call page uses a self-signed HTTPS certificate bundled in the app, so browsers warn once), like most local-network tools. Use a PIN, and use a network you trust.
 - To share Downloads, Photos or the whole phone, Android needs "All files access". The app asks and explains.
 - To keep sharing while the screen is off, allow LocalDrop to ignore battery limits (Settings, "Keep running in the background").
 - The signing key in `keystore/` is committed on purpose so that builds from this repository are updates of one another. It is public. Do not treat the APK signature as proof of who built it. For your own distribution, make your own key and change `app/build.gradle`.

@@ -16,7 +16,7 @@ import java.util.Map;
 final class NetInfo {
     private NetInfo() {}
 
-    static List<Map<String, Object>> addresses(int port, Platform platform) {
+    static List<Map<String, Object>> addresses(int port, int tlsPort, Platform platform) {
         List<Map<String, Object>> out = new ArrayList<>();
         try {
             Enumeration<NetworkInterface> en = NetworkInterface.getNetworkInterfaces();
@@ -42,6 +42,7 @@ final class NetInfo {
                     m.put("ip", ip);
                     m.put("port", port);
                     m.put("url", "http://" + ip + ":" + port);
+                    if (tlsPort > 0) m.put("tlsUrl", "https://" + ip + ":" + tlsPort);
                     out.add(m);
                 }
             }
@@ -61,6 +62,7 @@ final class NetInfo {
                     m.put("ip", pair[1]);
                     m.put("port", port);
                     m.put("url", "http://" + pair[1] + ":" + port);
+                    if (tlsPort > 0) m.put("tlsUrl", "https://" + pair[1] + ":" + tlsPort);
                     out.add(m);
                 }
             } catch (RuntimeException ignored) {

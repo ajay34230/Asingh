@@ -102,6 +102,14 @@ final class AndroidPlatform implements Platform {
         }
     }
 
+    @Override public InputStream openTlsKeystore() throws IOException {
+        try {
+            return ctx.getAssets().open("tls.p12");
+        } catch (FileNotFoundException e) {
+            return null;
+        }
+    }
+
     // ---------------------------------------------------------------- thumbnails
 
     @Override public byte[] thumbnail(File file, int width) {

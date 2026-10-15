@@ -152,7 +152,7 @@
     LD.overlays.closeAll();
     var guess = LD.guessDevice();
     var hashPin = (location.hash.match(/[#&]pin=(\d{4,8})/) || [])[1] || '';
-    var nameIn = h('input', { class: 'input', value: LD.store.get('ld_name', '') || guess.name, maxlength: 40, autocomplete: 'off', 'aria-label': 'Name of this device' });
+    var nameIn = h('input', { class: 'input', value: LD.store.get('ld_name', '') || guess.name, maxlength: 40, autocomplete: 'off', 'aria-label': 'Your name' });
     var pinIn = h('input', {
       class: 'input pin-input', type: 'password', inputmode: 'numeric', autocomplete: 'off', maxlength: 8, placeholder: '••••••', value: hashPin,
       'aria-label': 'PIN', pattern: '[0-9]*'
@@ -161,7 +161,7 @@
     var btn = h('button', { class: 'btn primary big', type: 'submit' }, 'Join', LD.icon('chevron-right', 18));
     var needPin = !!(info && info.pinRequired);
     var form = h('form', { class: 'login-form', onSubmit: function (e) { e.preventDefault(); submit(); } },
-      h('label', { class: 'field-label' }, 'Name this device'), nameIn,
+      h('label', { class: 'field-label' }, 'Your name'), nameIn,
       needPin ? h('label', { class: 'field-label' }, 'PIN shown on the host phone') : null,
       needPin ? pinIn : null,
       err, btn);

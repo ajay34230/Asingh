@@ -42,6 +42,11 @@ public final class DesktopPlatform implements Platform {
 
     @Override public boolean isRootAllowed(File dir) { return dir.isDirectory() || dir.getParentFile() != null; }
 
+    @Override public InputStream openTlsKeystore() throws IOException {
+        File f = new File(System.getProperty("ld.tls", web.getAbsoluteFile().getParentFile() == null ? "tls.p12" : new File(web.getAbsoluteFile().getParentFile(), "tls.p12").getPath()));
+        return f.isFile() ? new java.io.FileInputStream(f) : null;
+    }
+
     @Override public InputStream openAsset(String path) throws IOException {
         File f = new File(web, path);
         if (!f.isFile()) return null;

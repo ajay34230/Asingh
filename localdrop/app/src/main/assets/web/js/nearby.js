@@ -100,6 +100,10 @@
     var acts = [];
     if (!self) {
       acts.push(h('button', { class: 'btn primary', onClick: function () { sheet.close(); LD.screens.drop.setTarget(d.id); LD.go('drop'); } }, LD.icon('message', 18), 'Message'));
+      if (d.online && LD.calls) {
+        acts.push(h('button', { class: 'btn', onClick: function () { sheet.close(); LD.calls.start(d.id, false); } }, LD.icon('phone-call', 18), 'Voice call'));
+        acts.push(h('button', { class: 'btn', onClick: function () { sheet.close(); LD.calls.start(d.id, true); } }, LD.icon('video', 18), 'Video call'));
+      }
       acts.push(h('button', { class: 'btn', disabled: !S.perms.upload, onClick: function () { fileIn.click(); } }, LD.icon('send', 18), 'Send files'));
     } else {
       acts.push(h('button', { class: 'btn', onClick: function () { sheet.close(); renameSelf(); } }, LD.icon('edit', 18), 'Rename'));

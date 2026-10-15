@@ -41,6 +41,8 @@ public final class MainActivity extends Activity {
     private static final int REQ_NOTIFY = 12;
     private static final int REQ_HOTSPOT = 13;
     private static final int REQ_STORAGE = 14;
+    private static final int REQ_MEDIA = 15;
+    private android.webkit.PermissionRequest mediaRequest;
 
     private WebView web;
     private ValueCallback<Uri[]> fileCallback;
@@ -95,6 +97,14 @@ public final class MainActivity extends Activity {
                     return false;
                 }
                 return true;
+            }
+
+            @Override public void onPermissionRequest(final android.webkit.PermissionRequest r) {
+                runOnUiThread(() -> askMedia(r));
+            }
+
+            @Override public void onPermissionRequestCanceled(android.webkit.PermissionRequest r) {
+                if (mediaRequest == r) mediaRequest = null;
             }
 
             @Override public boolean onConsoleMessage(ConsoleMessage m) {
@@ -202,8 +212,37 @@ public final class MainActivity extends Activity {
         super.onActivityResult(req, result, data);
     }
 
+    /** Calls: grant the page the camera or microphone once Android has allowed it. */
+    private void askMedia(android.webkit.PermissionRequest r) {
+        if (!r.getOrigin().toString().startsWith("http://127.0.0.1")) { r.deny(); return; }
+        java.util.List<String> need = new java.util.ArrayList<>();
+        for (String res : r.getResources()) {
+            if (res.equals(android.webkit.PermissionRequest.RESOURCE_VIDEO_CAPTURE)) need.add(Manifest.permission.CAMERA);
+            if (res.equals(android.webkit.PermissionRequest.RESOURCE_AUDIO_CAPTURE)) need.add(Manifest.permission.RECORD_AUDIO);
+        }
+        java.util.List<String> missing = new java.util.ArrayList<>();
+        for (String p : need) if (checkSelfPermission(p) != PackageManager.PERMISSION_GRANTED) missing.add(p);
+        if (missing.isEmpty()) { r.grant(r.getResources()); return; }
+        if (mediaRequest != null) mediaRequest.deny();
+        mediaRequest = r;
+        requestPermissions(missing.toArray(new String[0]), REQ_MEDIA);
+    }
+
     @Override public void onRequestPermissionsResult(int req, String[] perms, int[] results) {
         super.onRequestPermissionsResult(req, perms, results);
+        if (req == REQ_MEDIA) {
+            android.webkit.PermissionRequest r = mediaRequest;
+            mediaRequest = null;
+            if (r == null) return;
+            java.util.List<String> ok = new java.util.ArrayList<>();
+            for (String res : r.getResources()) {
+                String need = res.equals(android.webkit.PermissionRequest.RESOURCE_VIDEO_CAPTURE) ? Manifest.permission.CAMERA
+                    : res.equals(android.webkit.PermissionRequest.RESOURCE_AUDIO_CAPTURE) ? Manifest.permission.RECORD_AUDIO : null;
+                if (need != null && checkSelfPermission(need) == PackageManager.PERMISSION_GRANTED) ok.add(res);
+            }
+            if (ok.isEmpty()) r.deny(); else r.grant(ok.toArray(new String[0]));
+            return;
+        }
         boolean granted = results.length > 0 && results[0] == PackageManager.PERMISSION_GRANTED;
         if (req == REQ_HOTSPOT) {
             if (granted && pendingHotspot) hotspot.start();
@@ -302,6 +341,18 @@ public final class MainActivity extends Activity {
                     } catch (Exception ignored) {
                         // no settings screen available
                     }
+                }
+            });
+        }
+
+        @JavascriptInterface public void audioMode(boolean call, boolean speaker) {
+            runOnUiThread(() -> {
+                try {
+                    android.media.AudioManager am = (android.media.AudioManager) getSystemService(Context.AUDIO_SERVICE);
+                    am.setMode(call ? android.media.AudioManager.MODE_IN_COMMUNICATION : android.media.AudioManager.MODE_NORMAL);
+                    am.setSpeakerphoneOn(call && speaker);
+                } catch (Exception ignored) {
+                    // audio routing is best effort
                 }
             });
         }

@@ -102,6 +102,25 @@ public final class LocalDropServer {
 
     public int start(int preferredPort) throws IOException {
         port = http.start(preferredPort);
+        tlsPort = 0;
+        try {
+            InputStream ks = platform.openTlsKeystore();
+            if (ks != null) {
+                try {
+                    java.security.KeyStore k = java.security.KeyStore.getInstance("PKCS12");
+                    k.load(ks, "localdrop".toCharArray());
+                    javax.net.ssl.KeyManagerFactory kmf = javax.net.ssl.KeyManagerFactory.getInstance(javax.net.ssl.KeyManagerFactory.getDefaultAlgorithm());
+                    kmf.init(k, "localdrop".toCharArray());
+                    javax.net.ssl.SSLContext ctx = javax.net.ssl.SSLContext.getInstance("TLS");
+                    ctx.init(kmf.getKeyManagers(), null, null);
+                    tlsPort = http.startTls(port + 363, ctx);
+                } finally {
+                    ks.close();
+                }
+            }
+        } catch (Exception e) {
+            platform.log("HTTPS is not available: " + e);
+        }
         timer.scheduleWithFixedDelay(new Runnable() {
             @Override public void run() {
                 store.pruneExpired();
@@ -118,13 +137,15 @@ public final class LocalDropServer {
     }
 
     public int port() { return port; }
+    public int tlsPort() { return tlsPort; }
+    private volatile int tlsPort;
     public void setPinEnabled(boolean on) { store.pinEnabled = on; store.markDirty(); }
     public void setPin(String pin) { store.pin = pin; store.markDirty(); }
     public String pin() { return store.pin; }
     public boolean pinEnabled() { return store.pinEnabled; }
     public int guestsOnline() { return hub.onlineGuests(); }
     public String rootPath() { return files.root().getPath(); }
-    public List<Map<String, Object>> addresses() { return NetInfo.addresses(port, platform); }
+    public List<Map<String, Object>> addresses() { return NetInfo.addresses(port, tlsPort, platform); }
     public void setListener(final Listener l) {
         hub.setListener(new Hub.Listener() {
             @Override public void onPeopleChanged() { l.onPeopleChanged(); }
@@ -266,6 +287,7 @@ public final class LocalDropServer {
             case "/api/file": download(s, req, res); return;
             case "/api/apps": apps(res); return;
             case "/api/speed": speed(req, res); return;
+            case "/api/signal": signal(s, req, res); return;
             case "/api/app": appDownload(s, req, res); return;
             case "/api/thumb": thumb(req, res); return;
             case "/api/upload": upload(s, req, res); return;
@@ -290,7 +312,7 @@ public final class LocalDropServer {
             case "/api/admin/settings": adminSettings(m, s, req, res); return;
             case "/api/admin/regen-pin": regenPin(s, res); return;
             case "/api/admin/root": setRoot(s, req, res); return;
-            case "/api/admin/network": needHost(s); res.json(200, NetInfo.addresses(port, platform)); return;
+            case "/api/admin/network": needHost(s); res.json(200, NetInfo.addresses(port, tlsPort, platform)); return;
             default: throw new HttpError(404, "Not found");
         }
     }
@@ -300,7 +322,7 @@ public final class LocalDropServer {
     private void info(Request req, Response res) throws IOException {
         Session s = session(req);
         Map<String, Object> m = Json.obj("app", "LocalDrop", "version", platform.version(), "platform", platform.deviceKind(),
-                "hostName", store.deviceName, "host", req.loopback, "authed", s != null,
+                "hostName", store.deviceName, "host", req.loopback, "authed", s != null, "tlsPort", tlsPort,
                 "pinRequired", s == null && store.pinEnabled);
         if (s != null) {
             m.put("you", Json.obj("id", s.deviceId, "name", s.name, "kind", s.kind));
@@ -554,6 +576,27 @@ public final class LocalDropServer {
         if (who != null && start == 0 && !res.isHead()) {
             hub.addActivity("download", who, whoId, "downloaded " + name, files.relOf(f));
         }
+    }
+
+    // ---------------------------------------------------------------- calls (signalling only; media goes device to device)
+
+    private void signal(Session s, Request req, Response res) throws IOException {
+        if (!req.method.equals("POST")) throw new HttpError(405, "Method not allowed");
+        Map<String, Object> b = req.json();
+        String to = Json.str(b, "to");
+        String type = Json.str(b, "type");
+        if (to == null || type == null || !type.matches("invite|answer|ice|end|decline|busy")) throw new HttpError(400, "Bad call message.");
+        Object data = b.get("data");
+        if (data != null && Json.stringify(data).length() > 100000) throw new HttpError(413, "That call message is too large.");
+        Hub.Device d = hub.get(to);
+        if (d == null || !d.online) throw new HttpError(404, "That device isn't available right now.");
+        Map<String, Object> msg = Json.obj("from", Json.obj("id", s.deviceId, "name", s.name, "kind", s.kind),
+                "type", type, "callId", Json.str(b, "callId"), "video", Json.bool(b, "video", false));
+        if (data != null) msg.put("data", data);
+        Set<String> ids = new HashSet<>();
+        ids.add(to);
+        hub.sendTo(ids, "signal", msg);
+        res.json(200, Json.obj("ok", true));
     }
 
     // ---------------------------------------------------------------- connection test

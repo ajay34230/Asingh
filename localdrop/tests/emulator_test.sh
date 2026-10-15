@@ -30,6 +30,13 @@ tap 1; adb exec-out screencap -p > "$OUT/3-files.png"
 tap 3; adb exec-out screencap -p > "$OUT/4-drop.png"
 tap 7; adb exec-out screencap -p > "$OUT/5-settings.png"
 curl -fs http://127.0.0.1:8080/api/info > "$OUT/info.json" && grep -q '"host":true' "$OUT/info.json" && ok "host session over loopback" || bad "info"
+TLSP=$(sed -n 's/.*"tlsPort":\([0-9]*\).*/\1/p' "$OUT/info.json")
+if [ -n "$TLSP" ]; then
+  adb forward tcp:$TLSP tcp:$TLSP >/dev/null
+  curl -fsk https://127.0.0.1:$TLSP/api/ping | grep -q '"t"' && ok "HTTPS (calls) port $TLSP answers" || bad "HTTPS port $TLSP does not answer"
+else
+  bad "no tlsPort in /api/info"
+fi
 curl -fs http://127.0.0.1:8080/ | grep -q "LocalDrop" && ok "web page is served from the APK assets" || bad "index"
 curl -fs http://127.0.0.1:8080/js/qr.js | grep -q qrMatrix && ok "script assets served" || bad "assets"
 H=(-H "X-Requested-With: LocalDrop" -H "Content-Type: application/json")

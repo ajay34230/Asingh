@@ -39,6 +39,8 @@ public final class Http {
     private final Handler handler;
     private final Platform log;
     private ServerSocket server;
+    private ServerSocket tlsServer;
+    private int tlsPort;
     private ExecutorService pool;
     private final Semaphore slots = new Semaphore(300);
     private volatile boolean running;
@@ -51,6 +53,11 @@ public final class Http {
 
     public int port() {
         return port;
+    }
+
+    /** Port of the HTTPS listener, or 0 when there is none. */
+    public int tlsPort() {
+        return tlsPort;
     }
 
     /** Starts listening on all interfaces. Tries the preferred port, then the next few, then any free port. */
@@ -75,12 +82,37 @@ public final class Http {
                 return t;
             }
         });
+        startAcceptor(server, "ld-accept");
+        return port;
+    }
+
+    private void startAcceptor(final ServerSocket srv, String name) {
         Thread acceptor = new Thread(new Runnable() {
-            @Override public void run() { acceptLoop(); }
-        }, "ld-accept");
+            @Override public void run() { acceptLoop(srv); }
+        }, name);
         acceptor.setDaemon(true);
         acceptor.start();
-        return port;
+    }
+
+    /** Adds an HTTPS listener (browsers only allow the camera and microphone on secure pages). Returns the port, or 0. */
+    public synchronized int startTls(int preferred, javax.net.ssl.SSLContext ctx) {
+        if (!running || ctx == null) return 0;
+        for (int i = 0; i < 25; i++) {
+            int p = preferred + i;
+            if (p > 65535 || p == port) continue;
+            try {
+                ServerSocket s = ctx.getServerSocketFactory().createServerSocket();
+                s.setReuseAddress(true);
+                s.bind(new InetSocketAddress(p), 128);
+                tlsServer = s;
+                tlsPort = s.getLocalPort();
+                startAcceptor(s, "ld-accept-tls");
+                return tlsPort;
+            } catch (IOException e) {
+                // try the next port
+            }
+        }
+        return 0;
     }
 
     private static ServerSocket tryBind(int p) {
@@ -98,6 +130,9 @@ public final class Http {
     public synchronized void stop() {
         running = false;
         try { if (server != null) server.close(); } catch (IOException ignored) { }
+        try { if (tlsServer != null) tlsServer.close(); } catch (IOException ignored) { }
+        tlsServer = null;
+        tlsPort = 0;
         if (pool != null) pool.shutdownNow();
         server = null;
     }
@@ -106,10 +141,10 @@ public final class Http {
         return running;
     }
 
-    private void acceptLoop() {
+    private void acceptLoop(ServerSocket srv) {
         while (running) {
             try {
-                final Socket c = server.accept();
+                final Socket c = srv.accept();
                 if (!slots.tryAcquire()) {
                     try { c.close(); } catch (IOException ignored) { }
                     continue;

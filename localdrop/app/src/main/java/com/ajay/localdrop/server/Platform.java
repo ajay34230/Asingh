@@ -66,6 +66,9 @@ public interface Platform {
     /** JPEG thumbnail bytes for an image or video, or null when this platform cannot make one. */
     byte[] thumbnail(File file, int width);
 
+    /** The bundled TLS key store (PKCS12, password "localdrop"), or null when HTTPS is not available. */
+    InputStream openTlsKeystore() throws IOException;
+
     /** Extra {interfaceName, ipv4} pairs for platforms where listing network interfaces is restricted. */
     List<String[]> fallbackAddresses();
 

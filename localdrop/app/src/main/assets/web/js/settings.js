@@ -106,7 +106,7 @@
 
     // Security
     var pinRows = [
-      row('lock', 'Require a PIN', 'Devices must enter it to join', LD.toggle(cfg.pinEnabled, function (on) { save({ pinEnabled: on }); }, 'Require a PIN'))
+      row('lock', 'Require a PIN', 'Turn off to let anyone on the network join with just a name', LD.toggle(cfg.pinEnabled, function (on) { save({ pinEnabled: on }); }, 'Require a PIN'))
     ];
     if (cfg.pinEnabled) {
       pinRows.push(row('key', 'PIN', null, h('span', { class: 'pin-inline' },
