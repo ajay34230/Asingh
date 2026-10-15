@@ -288,7 +288,7 @@
   var st = {
     path: null, entries: [], loading: false, error: null,
     sort: { key: LD.store.get('ld_sort', 'name'), dir: LD.store.get('ld_sortdir', '1') === '-1' ? -1 : 1 },
-    view: LD.store.get('ld_view', 'list'),
+    view: LD.store.get('ld_view', 'list'), filter: 'all',
     q: '', results: null, sel: {}, selecting: false, hidden: LD.store.get('ld_hidden', '0') === '1', seq: 0, fresh: true
   };
   var el = {};
@@ -318,6 +318,8 @@
       h('div', { class: 'search' }, LD.icon('search', 18), el.search, el.searchClear),
       el.tools));
     root.appendChild(el.crumbs);
+    el.chips = h('div', { class: 'chips scroll-x', role: 'group', 'aria-label': 'Filter by type' });
+    root.appendChild(el.chips);
     root.appendChild(el.storage);
     root.appendChild(el.list);
     root.appendChild(el.fab);
@@ -326,6 +328,7 @@
     document.body.appendChild(el.selbar);
     document.body.appendChild(el.drop);
     renderTools();
+    renderChips();
 
     LD.on('files-changed', function (d) {
       if (S.tab !== 'files' && !up.items.length) { st.stale = true; return; }
@@ -528,9 +531,27 @@
     return bits.join(' · ');
   }
 
+  var FILTERS = [
+    ['all', 'All', null], ['image', 'Photos', ['image']], ['video', 'Videos', ['video']], ['audio', 'Music', ['audio']],
+    ['doc', 'Documents', ['pdf', 'doc', 'sheet', 'slides', 'text', 'code']], ['archive', 'Zips', ['archive']], ['apk', 'Apps', ['apk']]
+  ];
+  function renderChips() {
+    LD.clear(el.chips);
+    FILTERS.forEach(function (f) {
+      el.chips.appendChild(h('button', { class: 'chip' + (st.filter === f[0] ? ' on' : ''), 'aria-pressed': st.filter === f[0] ? 'true' : 'false', onClick: function () {
+        st.filter = f[0]; st.fresh = true; renderChips(); renderList();
+      } }, f[1]));
+    });
+  }
+  function applyFilter(list) {
+    if (st.filter === 'all') return list;
+    var kinds = FILTERS.filter(function (f) { return f[0] === st.filter; })[0][2];
+    return list.filter(function (e) { return e.dir || kinds.indexOf(e.kind) >= 0; });
+  }
+
   function renderList() {
     var searching = !!st.q;
-    var raw = searching ? (st.results || []) : st.entries;
+    var raw = searching ? (st.results || []) : applyFilter(st.entries);
     var list = searching ? raw : LD.sortEntries(raw, st.sort);
     st.shown = list;
     el.root.classList.toggle('selecting', st.selecting);

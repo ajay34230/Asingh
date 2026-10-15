@@ -2,10 +2,12 @@
 # Runs inside an Android emulator on CI: installs the APK, starts it, and checks the real server and screen.
 APK="$1"; OUT="${2:-emu-out}"; mkdir -p "$OUT"
 fail=0
-ok()  { echo "ok   $1"; }
-bad() { echo "FAIL $1"; fail=1; }
+ok()  { echo "ok   $1"; echo "::notice::ok $1"; }
+bad() { echo "FAIL $1"; echo "::error::FAIL $1"; fail=1; }
+echo "::notice::emulator script started"
 P=com.ajay.localdrop
-adb install -r "$APK" || { bad "install"; exit 1; }
+adb install -r "$APK" 2>&1 | tail -3
+adb shell pm list packages | grep -q com.ajay.localdrop || { bad "install"; exit 1; }
 ok "APK installs"
 adb shell pm grant $P android.permission.POST_NOTIFICATIONS 2>/dev/null
 adb shell appops set $P MANAGE_EXTERNAL_STORAGE allow 2>/dev/null
@@ -37,9 +39,9 @@ adb exec-out screencap -p > "$OUT/2-after.png"
 # the app must still be alive and not have crashed
 adb shell pidof $P >/dev/null && ok "app process alive" || bad "app crashed"
 adb logcat -d > "$OUT/logcat.txt"
-grep -q "FATAL EXCEPTION" "$OUT/logcat.txt" && { bad "crash in logcat"; grep -A12 "FATAL EXCEPTION" "$OUT/logcat.txt" | head -30; } || ok "no crashes in logcat"
+grep -q "FATAL EXCEPTION" "$OUT/logcat.txt" && { bad "crash in logcat"; grep -A8 "FATAL EXCEPTION" "$OUT/logcat.txt" | head -12 | while read -r l; do echo "::error::$l"; done; } || ok "no crashes in logcat"
 grep "LocalDropWeb" "$OUT/logcat.txt" | grep -iE "error|uncaught|undefined" | head -10 > "$OUT/js-errors.txt"
-[ -s "$OUT/js-errors.txt" ] && { bad "JavaScript errors in the app"; cat "$OUT/js-errors.txt"; } || ok "no JavaScript errors in the WebView"
+[ -s "$OUT/js-errors.txt" ] && { bad "JavaScript errors in the app"; while read -r l; do echo "::error::$l"; done < "$OUT/js-errors.txt"; } || ok "no JavaScript errors in the WebView"
 # foreground service up
 adb shell dumpsys activity services $P | grep -q ServerService && ok "foreground service running" || bad "service not running"
 # send the app to the background and confirm it keeps serving

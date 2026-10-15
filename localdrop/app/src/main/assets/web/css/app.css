@@ -575,3 +575,8 @@ button.act-row:hover { background: var(--surface2); }
 .srow.stack .row-text { flex: 1 1 140px; }
 .srow.stack .segmented { flex: 1 1 100%; margin: 4px 0 2px; display: flex; }
 .srow.stack .segmented button { flex: 1; justify-content: center; }
+
+.chips { display: flex; gap: 8px; padding: 0 0 10px; }
+.chip { flex: none; padding: 7px 14px; border-radius: 999px; background: var(--surface); box-shadow: var(--shadow); font-size: 13.5px; font-weight: 650; color: var(--muted); transition: background .2s, color .2s, transform .15s var(--spring); }
+.chip:active { transform: scale(.94); }
+.chip.on { background: var(--brand); color: #fff; }
