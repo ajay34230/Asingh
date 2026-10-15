@@ -32,6 +32,8 @@ head -c 300000 /dev/urandom > "$OUT/blob.bin"
 curl -fs -X PUT "${H[0]}" --data-binary @"$OUT/blob.bin" "http://127.0.0.1:8080/api/upload?path=&name=blob.bin" >/dev/null && ok "upload" || bad "upload"
 curl -fs http://127.0.0.1:8080/api/files?path= | grep -q blob.bin && ok "file listed" || bad "list"
 curl -fs "http://127.0.0.1:8080/api/file?path=blob.bin" | cmp - "$OUT/blob.bin" && ok "download matches upload" || bad "download"
+curl -fs http://127.0.0.1:8080/api/apps | grep -q 'com.ajay.localdrop' && ok "apps list includes LocalDrop" || bad "apps list"
+curl -fs -o "$OUT/self.apk" "http://127.0.0.1:8080/api/app?pkg=com.ajay.localdrop" && [ "$(stat -c %s "$OUT/self.apk")" -gt 100000 ] && head -c 2 "$OUT/self.apk" | grep -q PK && ok "LocalDrop APK can be downloaded from the app" || bad "apk download"
 # sharing the whole phone storage
 curl -fs -X POST "${H[@]}" -d '{"id":"downloads"}' http://127.0.0.1:8080/api/admin/root >/dev/null && ok "share the Downloads folder" || bad "Downloads root (needs all files access)"
 curl -fs http://127.0.0.1:8080/api/files?path= >/dev/null && ok "list Downloads" || bad "list Downloads"

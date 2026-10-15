@@ -33,6 +33,7 @@ final class Store {
     boolean guestUpload = true;
     boolean guestModify = true;
     boolean allowLinks = true;
+    boolean shareApps = false;
     String root;
     long bytesUp;
     long bytesDown;
@@ -96,6 +97,7 @@ final class Store {
                 guestUpload = Json.bool(m, "guestUpload", true);
                 guestModify = Json.bool(m, "guestModify", true);
                 allowLinks = Json.bool(m, "allowLinks", true);
+                shareApps = Json.bool(m, "shareApps", false);
                 root = Json.str(m, "root");
                 bytesUp = Json.num(m, "bytesUp", 0);
                 bytesDown = Json.num(m, "bytesDown", 0);
@@ -163,6 +165,7 @@ final class Store {
         m.put("guestUpload", guestUpload);
         m.put("guestModify", guestModify);
         m.put("allowLinks", allowLinks);
+        m.put("shareApps", shareApps);
         m.put("root", root);
         m.put("bytesUp", bytesUp);
         m.put("bytesDown", bytesDown);

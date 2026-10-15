@@ -264,6 +264,8 @@ public final class LocalDropServer {
             case "/api/files": listFiles(s, req, res); return;
             case "/api/search": search(s, req, res); return;
             case "/api/file": download(s, req, res); return;
+            case "/api/apps": apps(res); return;
+            case "/api/app": appDownload(s, req, res); return;
             case "/api/thumb": thumb(req, res); return;
             case "/api/upload": upload(s, req, res); return;
             case "/api/mkdir": mkdir(s, req, res); return;
@@ -465,8 +467,12 @@ public final class LocalDropServer {
 
     private void serveFile(Request req, Response res, File f, boolean download, String who, String whoId)
             throws IOException {
+        serveFile(req, res, f, f.getName(), download, who, whoId);
+    }
+
+    private void serveFile(Request req, Response res, File f, String name, boolean download, String who, String whoId)
+            throws IOException {
         if (!f.isFile()) throw new HttpError(404, "That file no longer exists.");
-        String name = f.getName();
         String mime = Mime.of(name);
         boolean inline = !download && Mime.inlineSafe(mime);
         long len = f.length();
@@ -547,6 +553,37 @@ public final class LocalDropServer {
         if (who != null && start == 0 && !res.isHead()) {
             hub.addActivity("download", who, whoId, "downloaded " + name, files.relOf(f));
         }
+    }
+
+    // ---------------------------------------------------------------- apps
+
+    private List<Platform.AppEntry> sharedApps() {
+        return platform.installedApps(store.shareApps);
+    }
+
+    private void apps(Response res) throws IOException {
+        List<Object> out = new ArrayList<>();
+        for (Platform.AppEntry a : sharedApps()) {
+            out.add(Json.obj("pkg", a.pkg, "label", a.label, "size", a.size, "split", a.split,
+                    "self", a.pkg.equals(selfPackage())));
+        }
+        res.json(200, Json.obj("apps", out, "all", store.shareApps));
+    }
+
+    private String selfPackage() {
+        List<Platform.AppEntry> own = platform.installedApps(false);
+        return own.isEmpty() ? "" : own.get(0).pkg;
+    }
+
+    private void appDownload(Session s, Request req, Response res) throws IOException {
+        String pkg = req.q("pkg", "");
+        Platform.AppEntry hit = null;
+        for (Platform.AppEntry a : sharedApps()) if (a.pkg.equals(pkg)) hit = a;
+        if (hit == null) throw new HttpError(404, "That app isn't shared.");
+        File f = platform.apkFile(pkg);
+        if (f == null || !f.isFile()) throw new HttpError(404, "That app can't be shared.");
+        String name = FileStore.cleanName(hit.label.replaceAll("[\\\\/:*?\"<>|]", "") + ".apk");
+        serveFile(req, res, f, name, true, s.name, s.deviceId);
     }
 
     private void thumb(Request req, Response res) throws IOException {
@@ -1025,6 +1062,7 @@ public final class LocalDropServer {
             if (b.containsKey("guestUpload")) store.guestUpload = Json.bool(b, "guestUpload", true);
             if (b.containsKey("guestModify")) store.guestModify = Json.bool(b, "guestModify", true);
             if (b.containsKey("allowLinks")) store.allowLinks = Json.bool(b, "allowLinks", true);
+            if (b.containsKey("shareApps")) store.shareApps = Json.bool(b, "shareApps", false);
             if (b.containsKey("pinEnabled")) {
                 boolean on = Json.bool(b, "pinEnabled", true);
                 if (on && !store.pinEnabled) revoke = true;
@@ -1043,7 +1081,7 @@ public final class LocalDropServer {
                     "links", store.allowLinks)));
         }
         res.json(200, Json.obj("deviceName", store.deviceName, "pinEnabled", store.pinEnabled, "pin", store.pin,
-                "guestUpload", store.guestUpload, "guestModify", store.guestModify, "allowLinks", store.allowLinks,
+                "guestUpload", store.guestUpload, "guestModify", store.guestModify, "allowLinks", store.allowLinks, "shareApps", store.shareApps,
                 "roots", rootsJson(), "root", files.root().getPath(), "storage", files.storage(),
                 "bytesUp", store.bytesUp, "bytesDown", store.bytesDown, "port", port,
                 "version", platform.version(), "platform", platform.deviceKind()));

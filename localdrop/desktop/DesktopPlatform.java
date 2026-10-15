@@ -68,6 +68,19 @@ public final class DesktopPlatform implements Platform {
         }
     }
 
+    /** For tests: -Dld.testapk=/path/app.apk pretends this computer has one installable app. */
+    @Override public List<AppEntry> installedApps(boolean everything) {
+        List<AppEntry> l = new ArrayList<>();
+        String t = System.getProperty("ld.testapk");
+        if (t != null && new File(t).isFile()) l.add(new AppEntry("test.app", "Test App", new File(t).length(), false));
+        return l;
+    }
+
+    @Override public File apkFile(String pkg) {
+        String t = System.getProperty("ld.testapk");
+        return t != null && pkg.equals("test.app") ? new File(t) : null;
+    }
+
     @Override public List<String[]> fallbackAddresses() { return new ArrayList<>(); }
 
     @Override public String deviceName() {

@@ -64,7 +64,8 @@
     // Links and trash
     el.root.appendChild(card('Files', [
       row('link', 'Share links', 'Links you have made', null, LD.manageLinks),
-      row('trash', 'Trash', 'Restore deleted items within 30 days', null, LD.openTrash)
+      row('trash', 'Trash', 'Restore deleted items within 30 days', null, LD.openTrash),
+      row('apk', 'Apps to install', 'Get the LocalDrop app or others from the host phone', null, LD.openApps)
     ]));
 
     // About
@@ -128,7 +129,8 @@
     el.root.appendChild(card('What others can do', [
       row('upload', 'Upload files', 'Other devices can add files', LD.toggle(cfg.guestUpload, function (on) { save({ guestUpload: on }); }, 'Guests can upload')),
       row('edit', 'Change files', 'Rename, move, copy, delete and edit', LD.toggle(cfg.guestModify, function (on) { save({ guestModify: on }); }, 'Guests can change files')),
-      row('link', 'Share links', 'Let anyone with a link download without a PIN', LD.toggle(cfg.allowLinks, function (on) { save({ allowLinks: on }); }, 'Allow share links'))
+      row('link', 'Share links', 'Let anyone with a link download without a PIN', LD.toggle(cfg.allowLinks, function (on) { save({ allowLinks: on }); }, 'Allow share links')),
+      LD.isHostApp ? row('apk', 'Share other apps', 'Let devices download the installers of apps on this phone. LocalDrop itself is always shareable', LD.toggle(cfg.shareApps, function (on) { save({ shareApps: on }); }, 'Share other apps')) : null
     ], 'Downloading is always allowed for devices that have joined.'));
 
     // This phone (Android app)

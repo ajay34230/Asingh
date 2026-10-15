@@ -28,6 +28,27 @@ public interface Platform {
         }
     }
 
+    /** An installed app whose APK can be handed to another device. */
+    final class AppEntry {
+        public String pkg;
+        public String label;
+        public long size;
+        /** True for apps delivered as several APK files (app bundles); only the base file can be shared. */
+        public boolean split;
+        public AppEntry(String pkg, String label, long size, boolean split) {
+            this.pkg = pkg;
+            this.label = label;
+            this.size = size;
+            this.split = split;
+        }
+    }
+
+    /** Installed apps that may be shared. When everything is false, only this app is listed. Empty where unsupported. */
+    List<AppEntry> installedApps(boolean everything);
+
+    /** The APK file of an installed app, or null. */
+    File apkFile(String pkg);
+
     /** Private folder for settings, tokens and message history. */
     File dataDir();
 

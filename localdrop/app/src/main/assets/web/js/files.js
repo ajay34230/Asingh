@@ -99,6 +99,28 @@
     load();
   };
 
+  // ---- apps (hand an installed app to another device) ------------------------------------------------
+  LD.openApps = function () {
+    var body = h('div', { class: 'apps' }, LD.skeleton(2));
+    LD.sheet({ title: 'Apps on this phone', body: body });
+    LD.api.get('/api/apps').then(function (d) {
+      LD.clear(body);
+      if (!d.apps.length) {
+        body.appendChild(LD.empty('apk', 'No apps to share here', 'Apps can be shared from the Android version of LocalDrop.'));
+        return;
+      }
+      body.appendChild(h('p', { class: 'field-note apps-note' }, d.all
+        ? 'Tap an app to download its installer (APK). Open the file on the other Android phone to install it.'
+        : 'Download the LocalDrop installer to put LocalDrop on another Android phone. ' + (S.isHost ? 'Turn on "Share other apps" in Settings to list more.' : '')));
+      d.apps.forEach(function (a) {
+        body.appendChild(h('div', { class: 'link-row' },
+          h('span', { class: 'tile small k-apk' }, LD.icon('apk', 18)),
+          h('div', { class: 'link-main' }, h('b', {}, a.label), h('span', {}, LD.fmtSize(a.size) + (a.split ? ' \u00b7 may need its other parts to run' : (a.self ? ' \u00b7 this app' : '')))),
+          h('button', { class: 'btn small primary', onClick: function () { LD.download('/api/app?pkg=' + encodeURIComponent(a.pkg)); LD.toast('Downloading ' + a.label + '.apk', 'ok'); } }, LD.icon('download', 16), 'Get')));
+      });
+    }, function (e) { LD.clear(body).appendChild(h('p', { class: 'pick-empty' }, e.message)); });
+  };
+
   // ---- trash --------------------------------------------------------------------------------
   LD.openTrash = function () {
     var body = h('div', { class: 'trash' }, LD.skeleton(3));
@@ -494,7 +516,8 @@
       { sep: true },
       { icon: 'download', label: 'Download this folder as zip', onClick: function () { LD.download(LD.zipUrl([st.path], st.path ? LD.baseName(st.path) : null)); } },
       { icon: 'link', label: 'My share links', disabled: !S.perms.links, onClick: LD.manageLinks },
-      { icon: 'trash', label: 'Trash', onClick: LD.openTrash }
+      { icon: 'trash', label: 'Trash', onClick: LD.openTrash },
+      { icon: 'apk', label: 'Apps to install', hint: 'Download LocalDrop or other apps from the host phone', onClick: LD.openApps }
     ]);
   }
 

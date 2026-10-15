@@ -215,6 +215,53 @@ final class AndroidPlatform implements Platform {
         return sb.toString();
     }
 
+    // ---------------------------------------------------------------- apps
+
+    @Override public List<AppEntry> installedApps(boolean everything) {
+        List<AppEntry> out = new ArrayList<>();
+        try {
+            android.content.pm.PackageManager pm = ctx.getPackageManager();
+            String self = ctx.getPackageName();
+            if (!everything) {
+                android.content.pm.ApplicationInfo ai = ctx.getApplicationInfo();
+                out.add(new AppEntry(self, "LocalDrop", new File(ai.sourceDir).length(), hasSplits(ai)));
+                return out;
+            }
+            for (android.content.pm.ApplicationInfo ai : pm.getInstalledApplications(0)) {
+                boolean own = ai.packageName.equals(self);
+                boolean system = (ai.flags & android.content.pm.ApplicationInfo.FLAG_SYSTEM) != 0
+                        && (ai.flags & android.content.pm.ApplicationInfo.FLAG_UPDATED_SYSTEM_APP) == 0;
+                if (!own && (system || pm.getLaunchIntentForPackage(ai.packageName) == null)) continue;
+                File f = new File(ai.sourceDir);
+                if (!f.isFile()) continue;
+                String label = String.valueOf(pm.getApplicationLabel(ai));
+                out.add(new AppEntry(ai.packageName, own ? "LocalDrop" : label, f.length(), hasSplits(ai)));
+            }
+            java.util.Collections.sort(out, new java.util.Comparator<AppEntry>() {
+                @Override public int compare(AppEntry a, AppEntry b) {
+                    boolean x = a.pkg.equals(self), y = b.pkg.equals(self);
+                    if (x != y) return x ? -1 : 1;
+                    return a.label.compareToIgnoreCase(b.label);
+                }
+            });
+        } catch (Throwable ignored) {
+            // an empty list is fine
+        }
+        return out;
+    }
+
+    private static boolean hasSplits(android.content.pm.ApplicationInfo ai) {
+        return ai.splitSourceDirs != null && ai.splitSourceDirs.length > 0;
+    }
+
+    @Override public File apkFile(String pkg) {
+        try {
+            return new File(ctx.getPackageManager().getApplicationInfo(pkg, 0).sourceDir);
+        } catch (Throwable t) {
+            return null;
+        }
+    }
+
     // ---------------------------------------------------------------- device
 
     @Override public List<String[]> fallbackAddresses() {
