@@ -45,6 +45,9 @@ public interface Platform {
     /** JPEG thumbnail bytes for an image or video, or null when this platform cannot make one. */
     byte[] thumbnail(File file, int width);
 
+    /** Extra {interfaceName, ipv4} pairs for platforms where listing network interfaces is restricted. */
+    List<String[]> fallbackAddresses();
+
     /** Friendly name of this device, for example "Pixel 8". */
     String deviceName();
 

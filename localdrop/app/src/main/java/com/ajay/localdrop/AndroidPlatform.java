@@ -3,6 +3,10 @@ package com.ajay.localdrop;
 import android.Manifest;
 import android.content.Context;
 import android.content.pm.PackageManager;
+import android.net.ConnectivityManager;
+import android.net.LinkAddress;
+import android.net.LinkProperties;
+import android.net.Network;
 import android.content.res.Configuration;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
@@ -212,6 +216,26 @@ final class AndroidPlatform implements Platform {
     }
 
     // ---------------------------------------------------------------- device
+
+    @Override public List<String[]> fallbackAddresses() {
+        List<String[]> out = new ArrayList<>();
+        try {
+            ConnectivityManager cm = (ConnectivityManager) ctx.getSystemService(Context.CONNECTIVITY_SERVICE);
+            for (Network n : cm.getAllNetworks()) {
+                LinkProperties lp = cm.getLinkProperties(n);
+                if (lp == null) continue;
+                for (LinkAddress la : lp.getLinkAddresses()) {
+                    java.net.InetAddress a = la.getAddress();
+                    if (a instanceof java.net.Inet4Address && !a.isLoopbackAddress() && !a.isLinkLocalAddress()) {
+                        out.add(new String[] {lp.getInterfaceName(), a.getHostAddress()});
+                    }
+                }
+            }
+        } catch (Throwable ignored) {
+            // nothing more we can do
+        }
+        return out;
+    }
 
     @Override public String deviceName() {
         try {

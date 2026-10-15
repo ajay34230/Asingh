@@ -50,16 +50,6 @@ public final class ServerService extends Service {
             stopSelf();
             return START_NOT_STICKY;
         }
-        LocalDropServer server;
-        try {
-            server = ServerRuntime.ensure(this);
-        } catch (Exception e) {
-            stopSelf();
-            return START_NOT_STICKY;
-        }
-        server.setListener(new LocalDropServer.Listener() {
-            @Override public void onPeopleChanged() { refresh(); }
-        });
         try {
             Notification n = build();
             if (Build.VERSION.SDK_INT >= 34) {
@@ -73,6 +63,18 @@ public final class ServerService extends Service {
             stopSelf();
             return START_NOT_STICKY;
         }
+        final Context app = getApplicationContext();
+        new Thread(() -> {
+            try {
+                LocalDropServer server = ServerRuntime.ensure(app);
+                server.setListener(new LocalDropServer.Listener() {
+                    @Override public void onPeopleChanged() { refresh(); }
+                });
+                refresh();
+            } catch (Exception e) {
+                stopSelf();
+            }
+        }, "ld-service-start").start();
         acquire();
         return START_STICKY;
     }

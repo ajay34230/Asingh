@@ -68,6 +68,8 @@ public final class DesktopPlatform implements Platform {
         }
     }
 
+    @Override public List<String[]> fallbackAddresses() { return new ArrayList<>(); }
+
     @Override public String deviceName() {
         try {
             return InetAddress.getLocalHost().getHostName();

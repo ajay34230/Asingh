@@ -124,7 +124,7 @@ public final class LocalDropServer {
     public boolean pinEnabled() { return store.pinEnabled; }
     public int guestsOnline() { return hub.onlineGuests(); }
     public String rootPath() { return files.root().getPath(); }
-    public List<Map<String, Object>> addresses() { return NetInfo.addresses(port); }
+    public List<Map<String, Object>> addresses() { return NetInfo.addresses(port, platform); }
     public void setListener(final Listener l) {
         hub.setListener(new Hub.Listener() {
             @Override public void onPeopleChanged() { l.onPeopleChanged(); }
@@ -287,7 +287,7 @@ public final class LocalDropServer {
             case "/api/admin/settings": adminSettings(m, s, req, res); return;
             case "/api/admin/regen-pin": regenPin(s, res); return;
             case "/api/admin/root": setRoot(s, req, res); return;
-            case "/api/admin/network": needHost(s); res.json(200, NetInfo.addresses(port)); return;
+            case "/api/admin/network": needHost(s); res.json(200, NetInfo.addresses(port, platform)); return;
             default: throw new HttpError(404, "Not found");
         }
     }

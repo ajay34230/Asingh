@@ -16,7 +16,7 @@ import java.util.Map;
 final class NetInfo {
     private NetInfo() {}
 
-    static List<Map<String, Object>> addresses(int port) {
+    static List<Map<String, Object>> addresses(int port, Platform platform) {
         List<Map<String, Object>> out = new ArrayList<>();
         try {
             Enumeration<NetworkInterface> en = NetworkInterface.getNetworkInterfaces();
@@ -47,6 +47,25 @@ final class NetInfo {
             }
         } catch (Exception ignored) {
             // no interfaces available
+        }
+        if (out.isEmpty() && platform != null) {
+            try {
+                for (String[] pair : platform.fallbackAddresses()) {
+                    String name = pair[0] == null ? "" : pair[0].toLowerCase(Locale.ROOT);
+                    if (skip(name)) continue;
+                    String kind = kindOf(name);
+                    Map<String, Object> m = new LinkedHashMap<>();
+                    m.put("iface", pair[0]);
+                    m.put("kind", kind);
+                    m.put("label", label(kind));
+                    m.put("ip", pair[1]);
+                    m.put("port", port);
+                    m.put("url", "http://" + pair[1] + ":" + port);
+                    out.add(m);
+                }
+            } catch (RuntimeException ignored) {
+                // fallback is best effort
+            }
         }
         Collections.sort(out, new Comparator<Map<String, Object>>() {
             @Override public int compare(Map<String, Object> a, Map<String, Object> b) {

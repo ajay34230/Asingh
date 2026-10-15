@@ -45,30 +45,12 @@ public final class MainActivity extends Activity {
     private WebView web;
     private ValueCallback<Uri[]> fileCallback;
     private HotspotController hotspot;
-    private String origin;
+    private volatile String origin = "http://127.0.0.1:8080";
     private boolean pendingHotspot;
 
     @Override protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         hotspot = HotspotController.get(this);
-        int port;
-        try {
-            port = ServerRuntime.ensure(this).port();
-        } catch (IOException e) {
-            TextView t = new TextView(this);
-            t.setText("LocalDrop could not start its server.\n\n" + e.getMessage());
-            t.setPadding(48, 96, 48, 48);
-            setContentView(t);
-            return;
-        }
-        origin = "http://127.0.0.1:" + port;
-        try {
-            Intent svc = new Intent(this, ServerService.class);
-            startForegroundService(svc);
-        } catch (Exception ignored) {
-            // The server keeps running while the app is open even without the service.
-        }
-
         web = new WebView(this);
         setContentView(web);
         applyBars(isNight() ? "#07141F" : "#EEF4F6", !isNight());
@@ -88,7 +70,7 @@ public final class MainActivity extends Activity {
         web.setWebViewClient(new WebViewClient() {
             @Override public boolean shouldOverrideUrlLoading(WebView v, WebResourceRequest r) {
                 Uri u = r.getUrl();
-                if (u.toString().startsWith(origin)) return false;
+                if (u.getHost() != null && u.getHost().equals("127.0.0.1")) return false;
                 try {
                     startActivity(new Intent(Intent.ACTION_VIEW, u));
                 } catch (Exception ignored) {
@@ -134,12 +116,40 @@ public final class MainActivity extends Activity {
             }
         });
         hotspot.setOnChange(this::pushChange);
-        web.loadUrl(origin + "/");
+        startServerThenLoad();
 
         if (Build.VERSION.SDK_INT >= 33
                 && checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
             requestPermissions(new String[] {Manifest.permission.POST_NOTIFICATIONS}, REQ_NOTIFY);
         }
+    }
+
+    /** Opens the listening socket off the main thread, then loads the page from it. */
+    private void startServerThenLoad() {
+        final Context app = getApplicationContext();
+        new Thread(() -> {
+            try {
+                final int port = ServerRuntime.ensure(app).port();
+                runOnUiThread(() -> {
+                    if (isDestroyed() || web == null) return;
+                    origin = "http://127.0.0.1:" + port;
+                    try {
+                        startForegroundService(new Intent(this, ServerService.class));
+                    } catch (Exception ignored) {
+                        // The server keeps running while the app is open even without the service.
+                    }
+                    web.loadUrl(origin + "/");
+                });
+            } catch (Exception e) {
+                runOnUiThread(() -> {
+                    TextView t = new TextView(this);
+                    t.setText("LocalDrop could not start its server.\n\n" + e.getMessage());
+                    t.setPadding(48, 96, 48, 48);
+                    setContentView(t);
+                    web = null;
+                });
+            }
+        }, "ld-start").start();
     }
 
     private boolean isNight() {
