@@ -18,6 +18,7 @@ Updates install over the old version, because every build is signed with the sam
 - **Files**: browse, search, sort, list or grid view, thumbnails, multi-select, upload files and whole folders (drag and drop on a computer), download single files or zips, rename, move, copy, new folder, edit text files, Trash with restore, share links that expire.
 - **Viewer**: images (swipe, zoom), video and audio with seeking, PDF, text and code.
 - **Drop**: a shared chat for notes, links and files, with private messages to one device.
+- **Apps**: other devices can download the LocalDrop installer from the host (Files menu, "Apps to install"). The host can also allow installers of other apps on the phone.
 - **Nearby**: a live radar of connected devices, who did what, and the host can disconnect a device.
 - **Join**: QR code with optional PIN built in, one-tap hotspot from the app, Wi-Fi QR for the hotspot, addresses for every network the phone is on.
 - **Security**: PIN (4 to 8 digits) with lockout after 5 wrong tries, per-device sign-in, host controls for what guests may do (upload, change files, make links).
