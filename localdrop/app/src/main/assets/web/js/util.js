@@ -2,6 +2,7 @@
 (function () {
   'use strict';
   var LD = (window.LD = window.LD || {});
+  LD.screens = LD.screens || {};
 
   // ---- events ---------------------------------------------------------------
   var listeners = {};

@@ -1,3 +1,33 @@
-<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>LocalDrop</title></head>
-<body style="font-family:sans-serif;padding:24px"><h1>LocalDrop</h1><p id="s">Starting…</p>
-<script src="app.js"></script></body></html>
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, interactive-widget=resizes-content">
+<meta name="theme-color" content="#edf3f5">
+<meta name="color-scheme" content="light dark">
+<meta name="application-name" content="LocalDrop">
+<title>LocalDrop</title>
+<link rel="icon" href="icon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="icon-192.png">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="stylesheet" href="css/app.css">
+</head>
+<body>
+<div id="root"><div class="splash"><svg class="logo" viewBox="0 0 32 32" aria-hidden="true"><circle cx="16" cy="16" r="14" fill="none" stroke="currentColor" stroke-opacity=".35" stroke-width="2"/><circle cx="16" cy="16" r="9" fill="none" stroke="currentColor" stroke-opacity=".7" stroke-width="2.2"/><circle cx="16" cy="16" r="4" fill="currentColor"/><circle cx="25.4" cy="8.2" r="3" fill="#ff7a59"/></svg></div></div>
+<div id="layer"></div>
+<div id="toasts" aria-live="polite"></div>
+<noscript><p style="padding:24px;font-family:sans-serif">LocalDrop needs JavaScript. Please turn it on in your browser.</p></noscript>
+<script src="js/util.js"></script>
+<script src="js/icons.js"></script>
+<script src="js/api.js"></script>
+<script src="js/ui.js"></script>
+<script src="js/qr.js"></script>
+<script src="js/connect.js"></script>
+<script src="js/files.js"></script>
+<script src="js/viewer.js"></script>
+<script src="js/drop.js"></script>
+<script src="js/nearby.js"></script>
+<script src="js/settings.js"></script>
+<script src="js/main.js"></script>
+</body>
+</html>
