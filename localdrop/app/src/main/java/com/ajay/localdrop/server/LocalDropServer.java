@@ -585,7 +585,7 @@ public final class LocalDropServer {
         Map<String, Object> b = req.json();
         String to = Json.str(b, "to");
         String type = Json.str(b, "type");
-        if (to == null || type == null || !type.matches("invite|answer|ice|end|decline|busy")) throw new HttpError(400, "Bad call message.");
+        if (to == null || type == null || !type.matches("invite|answer|ice|end|decline|busy|hold|resume")) throw new HttpError(400, "Bad call message.");
         Object data = b.get("data");
         if (data != null && Json.stringify(data).length() > 100000) throw new HttpError(413, "That call message is too large.");
         Hub.Device d = hub.get(to);

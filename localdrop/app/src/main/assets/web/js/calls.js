@@ -168,6 +168,9 @@
       finish(c, from.name + ' is on another call.', true);
     } else if (m.type === 'end') {
       finish(c, 'The call ended.', true);
+    } else if (m.type === 'hold' || m.type === 'resume') {
+      c.peerHeld = m.type === 'hold';
+      holdUI(c);
     }
   });
 
@@ -269,6 +272,32 @@
     if (c.timeEl) c.timeEl.hidden = st !== 'connected';
   }
 
+  /** Hold: stop sending sound and picture; the other side sees "on hold". */
+  function setHold(c, on) {
+    c.held = on;
+    if (c.local) {
+      c.local.getAudioTracks().forEach(function (t) { t.enabled = !on && !c.muted; });
+      c.local.getVideoTracks().forEach(function (t) { t.enabled = !on && !c.camOff; });
+    }
+    c.remoteEl.muted = on;
+    send(c.peer.id, on ? 'hold' : 'resume', c.id).catch(function () { /* peer gone */ });
+    holdUI(c);
+  }
+  function holdUI(c) {
+    if (!c.ui) return;
+    c.ui.classList.toggle('held', !!(c.held || c.peerHeld));
+    if (c.holdBtn) {
+      c.holdBtn.classList.toggle('on', !!c.held);
+      c.holdBtn.setAttribute('aria-pressed', c.held ? 'true' : 'false');
+      LD.clear(c.holdBtn).appendChild(LD.icon(c.held ? 'phone-call' : 'pause', 24));
+      c.holdBtn.setAttribute('aria-label', c.held ? 'Resume call' : 'Hold call');
+    }
+    if (c.holdEl) {
+      c.holdEl.hidden = !(c.held || c.peerHeld);
+      c.holdEl.textContent = c.held ? 'You put the call on hold' : c.peer.name + ' put the call on hold';
+    }
+  }
+
   function openUI(c) {
     c.statusEl = h('span', { class: 'call-status' }, LABEL.starting);
     c.timeEl = h('span', { class: 'call-time', hidden: true }, '00:00');
@@ -277,14 +306,14 @@
     if (c.localEl) c.localEl.muted = true;
     var muteBtn = h('button', { class: 'call-btn', 'aria-label': 'Mute microphone', 'aria-pressed': 'false', onClick: function () {
       var on = !c.muted; c.muted = on;
-      if (c.local) c.local.getAudioTracks().forEach(function (t) { t.enabled = !on; });
+      if (c.local) c.local.getAudioTracks().forEach(function (t) { t.enabled = !on && !c.held; });
       muteBtn.classList.toggle('on', on);
       muteBtn.setAttribute('aria-pressed', on ? 'true' : 'false');
       LD.clear(muteBtn).appendChild(LD.icon(on ? 'mic-off' : 'mic', 24));
     } }, LD.icon('mic', 24));
     var camBtn = c.video ? h('button', { class: 'call-btn', 'aria-label': 'Turn camera off', 'aria-pressed': 'false', onClick: function () {
       var off = !c.camOff; c.camOff = off;
-      if (c.local) c.local.getVideoTracks().forEach(function (t) { t.enabled = !off; });
+      if (c.local) c.local.getVideoTracks().forEach(function (t) { t.enabled = !off && !c.held; });
       camBtn.classList.toggle('on', off);
       camBtn.setAttribute('aria-pressed', off ? 'true' : 'false');
       LD.clear(camBtn).appendChild(LD.icon(off ? 'video-off' : 'video', 24));
@@ -297,13 +326,15 @@
       try { window.LDHost.audioMode(true, c.speaker); } catch (e) { /* older app */ }
     } }, LD.icon('speaker', 24)) : null;
     if (spkBtn && c.video) c.speaker = true;
+    c.holdBtn = h('button', { class: 'call-btn', 'aria-label': 'Hold call', 'aria-pressed': 'false', onClick: function () { if (c.state === 'connected' || c.state === 'reconnecting') setHold(c, !c.held); } }, LD.icon('pause', 24));
+    c.holdEl = h('div', { class: 'call-hold', hidden: true, role: 'status' });
     var endBtn = h('button', { class: 'call-btn red big', 'aria-label': 'Hang up', onClick: function () { hangUp(c); } }, LD.icon('phone-off', 28));
     c.avatar = h('div', { class: 'call-avatar' }, h('span', { class: 'ring r1' }), h('span', { class: 'ring r2' }), h('span', { class: 'ring r3' }), LD.deviceBadge(c.peer.kind, 96));
     c.ui = h('div', { class: 'call' + (c.video ? ' video' : ''), role: 'dialog', 'aria-label': 'Call with ' + c.peer.name },
       c.remoteEl, c.video ? h('div', { class: 'call-shade' }) : null,
       h('div', { class: 'call-top' }, h('b', {}, c.peer.name), c.statusEl, c.timeEl),
-      c.avatar, c.localEl,
-      h('div', { class: 'call-controls' }, muteBtn, camBtn, flipBtn, spkBtn, endBtn));
+      c.avatar, c.holdEl, c.localEl,
+      h('div', { class: 'call-controls' }, muteBtn, camBtn, flipBtn, spkBtn, c.holdBtn, endBtn));
     document.body.appendChild(c.ui);
     requestAnimationFrame(function () { c.ui.classList.add('in'); });
     c.entry = { close: function () { LD.toast('Tap the red button to hang up.'); } };
