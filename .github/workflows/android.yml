@@ -76,3 +76,32 @@ jobs:
             --prerelease \
             --title "LocalDrop (latest build)" \
             --notes "Latest build of the LocalDrop Android app from branch localdrop-app (build ${{ github.run_number }}, commit ${GITHUB_SHA::7}). Open this page on your phone and download LocalDrop.apk. Android will ask you to allow installs from your browser the first time."
+
+  emulator-test:
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: LocalDrop-apk
+          path: apk
+      - name: Enable hardware acceleration
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+      - name: Run the APK in an Android emulator
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 34
+          target: google_apis
+          arch: x86_64
+          disable-animations: true
+          script: bash localdrop/tests/emulator_test.sh apk/LocalDrop.apk emu-out
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: emulator-results
+          path: emu-out
