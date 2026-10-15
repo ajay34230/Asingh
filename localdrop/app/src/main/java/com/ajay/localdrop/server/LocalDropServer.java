@@ -265,6 +265,7 @@ public final class LocalDropServer {
             case "/api/search": search(s, req, res); return;
             case "/api/file": download(s, req, res); return;
             case "/api/apps": apps(res); return;
+            case "/api/speed": speed(req, res); return;
             case "/api/app": appDownload(s, req, res); return;
             case "/api/thumb": thumb(req, res); return;
             case "/api/upload": upload(s, req, res); return;
@@ -553,6 +554,27 @@ public final class LocalDropServer {
         if (who != null && start == 0 && !res.isHead()) {
             hub.addActivity("download", who, whoId, "downloaded " + name, files.relOf(f));
         }
+    }
+
+    // ---------------------------------------------------------------- connection test
+
+    /** Sends a block of data so a device can measure how fast the link to this phone really is. */
+    private void speed(Request req, Response res) throws IOException {
+        int mb = 8;
+        try { mb = Math.max(1, Math.min(32, Integer.parseInt(req.q("mb", "8")))); } catch (NumberFormatException ignored) { }
+        long total = mb * 1024L * 1024L;
+        res.header("Cache-Control", "no-store");
+        OutputStream out = res.begin(200, "application/octet-stream", total);
+        if (!res.isHead()) {
+            byte[] buf = new byte[64 * 1024];
+            long left = total;
+            while (left > 0) {
+                int n = (int) Math.min(buf.length, left);
+                out.write(buf, 0, n);
+                left -= n;
+            }
+        }
+        out.close();
     }
 
     // ---------------------------------------------------------------- apps
