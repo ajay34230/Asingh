@@ -29,7 +29,7 @@ H=(-H "X-Requested-With: LocalDrop" -H "Content-Type: application/json")
 curl -fs -X POST "${H[@]}" -d '{}' http://127.0.0.1:8080/api/admin/settings > "$OUT/settings.json" && ok "admin settings" || bad "admin settings"
 curl -fs "${H[@]}" http://127.0.0.1:8080/api/admin/network > "$OUT/net.json"; echo "addresses: $(cat "$OUT/net.json")"
 head -c 300000 /dev/urandom > "$OUT/blob.bin"
-curl -fs -X PUT "${H[0]}" --data-binary @"$OUT/blob.bin" "http://127.0.0.1:8080/api/upload?path=&name=blob.bin" >/dev/null && ok "upload" || bad "upload"
+curl -fs -X PUT -H "X-Requested-With: LocalDrop" --data-binary @"$OUT/blob.bin" "http://127.0.0.1:8080/api/upload?path=&name=blob.bin" >/dev/null && ok "upload" || bad "upload"
 curl -fs http://127.0.0.1:8080/api/files?path= | grep -q blob.bin && ok "file listed" || bad "list"
 curl -fs "http://127.0.0.1:8080/api/file?path=blob.bin" | cmp - "$OUT/blob.bin" && ok "download matches upload" || bad "download"
 curl -fs http://127.0.0.1:8080/api/apps | grep -q 'com.ajay.localdrop' && ok "apps list includes LocalDrop" || bad "apps list"

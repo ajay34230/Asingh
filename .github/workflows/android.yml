@@ -105,3 +105,13 @@ jobs:
         with:
           name: emulator-results
           path: emu-out
+      - name: Publish the emulator screenshots
+        if: always()
+        run: |
+          [ -d emu-out ] || exit 0
+          rm -f emu-out/blob.bin emu-out/self.apk
+          cd emu-out
+          git init -q -b emulator-results
+          git config user.name "ci"; git config user.email "ci@users.noreply.github.com"
+          git add -A; git commit -qm "Emulator results for ${GITHUB_SHA::7}"
+          git push -qf "https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}.git" emulator-results
