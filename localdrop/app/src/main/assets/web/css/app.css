@@ -647,4 +647,24 @@ button.act-row:hover { background: var(--surface2); }
 .incoming-art > :last-child, .call-avatar > :last-child { background: rgba(255, 255, 255, .18) !important; color: #fff !important; position: relative; }
 .incoming-art svg, .call-avatar svg { color: #fff !important; }
 .call-hold { position: absolute; z-index: 4; left: 50%; top: 42%; transform: translateX(-50%); padding: 10px 18px; border-radius: 999px; background: rgba(0, 0, 0, .55); color: #fff; font-size: 14px; backdrop-filter: blur(6px); text-align: center; max-width: 86%; }
-.call.held .call-remote { filter: blur(14px) brightness(.5); }
+/* group calls: one tile per person */
+.call-grid { position: absolute; inset: 0; display: grid; grid-template-columns: 1fr; grid-auto-rows: 1fr; z-index: 0; gap: 2px; }
+.call-grid[data-n="3"], .call-grid[data-n="4"] { grid-template-columns: 1fr 1fr; }
+.call-grid[data-n="5"], .call-grid[data-n="6"], .call-grid[data-n="7"], .call-grid[data-n="8"], .call-grid[data-n="9"] { grid-template-columns: 1fr 1fr 1fr; }
+.call-tile { position: relative; overflow: hidden; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px; min-height: 0; }
+.call-tile .call-avatar { margin: 0; }
+.call-grid:not([data-n="1"]) .call-avatar { transform: scale(.7); }
+.call-name { position: relative; z-index: 2; font-weight: 600; font-size: 15px; text-shadow: 0 1px 6px #0008; }
+.call-tag { position: relative; z-index: 2; font-size: 12px; opacity: .8; min-height: 14px; }
+.call-grid[data-n="1"] .call-name { display: none; }
+.call-tile.has-remote .call-avatar { display: none; }
+.call-tile.has-remote .call-remote { opacity: 1; }
+.call-tile.held .call-remote { filter: blur(14px) brightness(.5); }
+.call-tile + .call-tile { box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .06); }
+.call-add { position: absolute; inset: 0; z-index: 10; display: grid; place-items: center; background: rgba(0, 0, 0, .55); padding: 20px; }
+.call-add-card { width: 100%; max-width: 360px; background: var(--surface); color: var(--text, inherit); border-radius: 22px; padding: 18px; display: flex; flex-direction: column; gap: 10px; max-height: 70vh; overflow: auto; }
+.call-add-card h3 { margin: 0 0 4px; }
+.call-add-list { display: flex; flex-direction: column; gap: 6px; }
+.call-add-row { display: flex; align-items: center; gap: 12px; padding: 8px 10px; border-radius: 14px; background: var(--surface2); border: 0; font: inherit; color: inherit; text-align: left; cursor: pointer; }
+.call-add-row span { flex: 1; font-weight: 600; }
+.call.video .call-name { position: absolute; left: 12px; bottom: 92px; } .call.video .call-tag { position: absolute; left: 12px; bottom: 74px; }
