@@ -160,7 +160,7 @@
       toBottom(true);
       var target = to;
       LD.upload(f, {
-        path: '', rel: 'Drop', quiet: true,
+        path: '', rel: 'Drop', quiet: true, tid: Math.random().toString(36).slice(2, 12) + Date.now().toString(36), to: target || '',
         onProgress: function (l, t) { bar.style.width = Math.round(l / t * 100) + '%'; label.textContent = LD.fmtSize(l) + ' of ' + LD.fmtSize(t); }
       }).then(function (r) {
         return LD.api.post('/api/messages', { text: '', to: target, file: { path: r.path } });

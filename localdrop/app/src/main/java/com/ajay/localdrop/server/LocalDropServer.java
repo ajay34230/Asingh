@@ -716,7 +716,12 @@ public final class LocalDropServer {
         File tmp = new File(dir, ".ld-" + Store.randomToken(5) + FileStore.PART);
         long got = 0;
         boolean ok = false;
+        String tid = req.q("tid", "");
+        if (!tid.matches("[A-Za-z0-9]{4,40}") || len < 256 * 1024) tid = null;
+        String tto = req.q("to", "");
+        long lastTell = 0;
         try {
+            if (tid != null) transfer(s, tid, name, len, 0, tto, "active");
             FileOutputStream fo = new FileOutputStream(tmp);
             try {
                 byte[] buf = new byte[128 * 1024];
@@ -725,6 +730,10 @@ public final class LocalDropServer {
                 while ((n = in.read(buf)) > 0) {
                     fo.write(buf, 0, n);
                     got += n;
+                    if (tid != null) {
+                        long now = System.currentTimeMillis();
+                        if (now - lastTell > 300) { lastTell = now; transfer(s, tid, name, len, got, tto, "active"); }
+                    }
                 }
             } finally {
                 fo.close();
@@ -769,11 +778,26 @@ public final class LocalDropServer {
             hub.broadcast("files", Json.obj("dir", files.relOf(dir)));
             res.json(200, Json.obj("ok", true, "name", target.getName(), "path", relPath, "size", got));
         } finally {
+            if (tid != null) transfer(s, tid, name, len, got, tto, ok ? "done" : "failed");
             if (!ok) {
                 if (got > 0) store.addTraffic(got, 0);
                 //noinspection ResultOfMethodCallIgnored
                 tmp.delete();
             }
+        }
+    }
+
+    /** Tells the receiving device(s) how far a Drop upload has got, so they can show it arriving. */
+    private void transfer(Session s, String tid, String name, long size, long loaded, String to, String state) {
+        Map<String, Object> m = Json.obj("id", tid, "name", name, "size", size, "loaded", loaded, "state", state,
+                "from", Json.obj("id", s.deviceId, "name", s.name, "kind", s.kind));
+        if (to != null && !to.isEmpty()) {
+            if (hub.get(to) == null) return;
+            Set<String> ids = new HashSet<>();
+            ids.add(to);
+            hub.sendTo(ids, "transfer", m);
+        } else {
+            hub.broadcast("transfer", m);
         }
     }
 

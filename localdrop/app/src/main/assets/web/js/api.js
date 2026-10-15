@@ -71,6 +71,8 @@
       if (file.lastModified) q.set('mtime', String(file.lastModified));
       if (o.conflict) q.set('conflict', o.conflict);
       if (o.quiet) q.set('quiet', '1');
+      if (o.tid) q.set('tid', o.tid);
+      if (o.to) q.set('to', o.to);
       xhr.open('PUT', '/api/upload?' + q.toString());
       xhr.setRequestHeader('X-Requested-With', 'LocalDrop');
       xhr.upload.onprogress = function (e) {
@@ -183,6 +185,7 @@
       if (d.perms) { st.perms = d.perms; LD.emit('perms', st.perms); }
       LD.emit('settings-changed', d);
     });
+    es.addEventListener('transfer', function (e) { LD.emit('transfer', JSON.parse(e.data)); });
     es.addEventListener('signal', function (e) { LD.emit('signal', JSON.parse(e.data)); });
     es.addEventListener('kicked', function () {
       es.close();

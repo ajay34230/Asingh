@@ -668,3 +668,14 @@ button.act-row:hover { background: var(--surface2); }
 .call-add-row { display: flex; align-items: center; gap: 12px; padding: 8px 10px; border-radius: 14px; background: var(--surface2); border: 0; font: inherit; color: inherit; text-align: left; cursor: pointer; }
 .call-add-row span { flex: 1; font-weight: 600; }
 .call.video .call-name { position: absolute; left: 12px; bottom: 92px; } .call.video .call-tag { position: absolute; left: 12px; bottom: 74px; }
+.dev-main { display: flex; align-items: center; gap: 12px; flex: 1; min-width: 0; background: none; border: 0; padding: 0; text-align: left; font: inherit; color: inherit; cursor: pointer; }
+.call-act { color: var(--brand, #0e6b8a); background: var(--brand-soft, rgba(14, 107, 138, .12)); border-radius: 50%; }
+.call-hint { display: flex; align-items: center; gap: 12px; padding: 14px; border-radius: 18px; background: var(--surface); box-shadow: var(--shadow); }
+.call-hint > svg { color: var(--brand, #0e6b8a); flex: none; }
+.call-hint > div { flex: 1; display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.call-hint span { color: var(--muted); font-size: 13px; }
+.call-start { align-self: center; margin-top: 6px; } .call-add-row .call-act { margin-left: 4px; }
+.tray.rx { bottom: calc(var(--nav-h) + var(--safe-b) + 92px); display: flex; flex-direction: column; gap: 12px; z-index: 46; }
+.rx-row .tray-title { flex: 1; min-width: 0; display: flex; flex-direction: column; text-align: left; }
+.rx-row .tray-title span { font-size: 12px; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.rx-pct { font-variant-numeric: tabular-nums; color: var(--brand); }

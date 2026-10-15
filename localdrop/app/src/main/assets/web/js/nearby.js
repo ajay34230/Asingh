@@ -65,24 +65,45 @@
     LD.clear(el.me).appendChild(LD.icon(LD.deviceIcon(me.kind), 26));
     el.meName.textContent = (S.isHost ? me.name || 'This phone' : me.name) + ' (you)';
     el.stage.classList.toggle('lonely', !online.length);
+    el.callBtn.hidden = !online.length;
     el.caption.textContent = online.length ? online.length + (online.length === 1 ? ' device nearby' : ' devices nearby') :
       (S.isHost ? 'Waiting for devices to join' : 'Only you are here for now');
     el.sub.textContent = online.length ? 'Tap a device to send it something.' : (S.isHost ? 'Scan the QR code on another device, or open the address in its browser.' : 'Ask others to scan your QR code to join.');
   }
 
   // ---- device list ----------------------------------------------------------------------------------
+  function openCallPicker() {
+    var list = others().filter(function (d) { return d.online; });
+    var sheet;
+    var body = list.length ? h('div', { class: 'call-add-list' }, list.map(function (d) {
+      return h('div', { class: 'call-add-row' }, LD.deviceBadge(d.kind, 40), h('span', {}, d.name),
+        h('button', { class: 'icon-btn call-act', 'aria-label': 'Voice call ' + d.name, onClick: function () { sheet.close(); LD.calls.start(d.id, false); } }, LD.icon('phone-call', 20)),
+        h('button', { class: 'icon-btn call-act', 'aria-label': 'Video call ' + d.name, onClick: function () { sheet.close(); LD.calls.start(d.id, true); } }, LD.icon('video', 20)));
+    })) : LD.empty('radar', 'No one to call yet', 'Calls work between devices that are connected. Invite one with the QR code.');
+    sheet = LD.sheet({ title: 'Call someone', body: body });
+  }
+
   function renderDevices() {
     LD.clear(el.devices);
     var all = S.devices;
-    if (all.length <= 1 && !others().length) { el.devicesWrap.hidden = true; return; }
     el.devicesWrap.hidden = false;
+    if (!others().length) {
+      el.devices.appendChild(h('div', { class: 'call-hint' }, LD.icon('phone-call', 22),
+        h('div', {}, h('b', {}, 'Voice and video calls'), h('span', {}, 'Calls appear here as soon as another device joins. Invite one with the QR code.')),
+        h('button', { class: 'btn small primary', onClick: function () { LD.openInvite(); } }, 'Invite')));
+      return;
+    }
     all.forEach(function (d, i) {
       var self = S.you && d.id === S.you.id;
-      el.devices.appendChild(h('button', { class: 'dev-row' + (d.online ? ' online' : ''), style: { '--i': Math.min(i, 10) }, onClick: function () { openDevice(d.id); } },
-        LD.deviceBadge(d.kind, 42),
-        h('span', { class: 'dev-text' },
-          h('span', { class: 'dev-name' }, d.name, self ? h('em', {}, 'You') : null, d.host ? h('em', { class: 'host' }, 'Host') : null),
-          h('span', { class: 'dev-meta' }, d.online ? 'Online' + (d.ip ? ' · ' + d.ip : '') : 'Last seen ' + LD.fmtAgo(d.lastSeen))),
+      var canCall = d.online && !self && LD.calls;
+      el.devices.appendChild(h('div', { class: 'dev-row' + (d.online ? ' online' : ''), style: { '--i': Math.min(i, 10) } },
+        h('button', { class: 'dev-main', onClick: function () { openDevice(d.id); } },
+          LD.deviceBadge(d.kind, 42),
+          h('span', { class: 'dev-text' },
+            h('span', { class: 'dev-name' }, d.name, self ? h('em', {}, 'You') : null, d.host ? h('em', { class: 'host' }, 'Host') : null),
+            h('span', { class: 'dev-meta' }, d.online ? 'Online' + (d.ip ? ' \u00b7 ' + d.ip : '') : 'Last seen ' + LD.fmtAgo(d.lastSeen)))),
+        canCall ? h('button', { class: 'icon-btn call-act', 'aria-label': 'Voice call ' + d.name, onClick: function () { LD.calls.start(d.id, false); } }, LD.icon('phone-call', 20)) : null,
+        canCall ? h('button', { class: 'icon-btn call-act', 'aria-label': 'Video call ' + d.name, onClick: function () { LD.calls.start(d.id, true); } }, LD.icon('video', 20)) : null,
         h('span', { class: 'dot' + (d.online ? ' live' : '') })));
     });
   }
@@ -194,13 +215,15 @@
       h('div', { class: 'me' }, el.me, el.meName));
     el.caption = h('b', { class: 'radar-caption' });
     el.sub = h('span', { class: 'radar-sub' });
+    el.callBtn = h('button', { class: 'btn primary call-start', onClick: function () { openCallPicker(); } }, LD.icon('phone-call', 18), 'Call someone');
     el.devices = h('div', { class: 'dev-list' });
     el.devicesWrap = h('section', { class: 'block', hidden: true }, h('h3', { class: 'block-title' }, 'Devices'), el.devices);
     el.activity = h('div', { class: 'act-list' });
     el.activityWrap = h('section', { class: 'block', hidden: true }, h('h3', { class: 'block-title' }, 'Recent activity'), el.activity);
     root.appendChild(el.hero);
     root.appendChild(h('section', { class: 'radar' }, el.stage, h('div', { class: 'radar-text' }, el.caption, el.sub),
-      S.isHost ? null : h('button', { class: 'btn', onClick: function () { LD.openInvite(); } }, LD.icon('qr', 18), 'Invite someone')));
+      S.isHost ? null : h('button', { class: 'btn', onClick: function () { LD.openInvite(); } }, LD.icon('qr', 18), 'Invite someone'),
+      el.callBtn));
     root.appendChild(el.devicesWrap);
     root.appendChild(el.activityWrap);
     renderRadar();

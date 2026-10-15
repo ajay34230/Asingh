@@ -17,7 +17,7 @@ Updates install over the old version, because every build is signed with the sam
 
 - **Files**: browse, search, sort, list or grid view, thumbnails, multi-select, upload files and whole folders (drag and drop on a computer), download single files or zips, rename, move, copy, new folder, edit text files, Trash with restore, share links that expire.
 - **Viewer**: images (swipe, zoom), video and audio with seeking, PDF, text and code.
-- **Drop**: a shared chat for notes, links and files, with private messages to one device.
+- **Drop**: a shared chat (receivers see files arriving live, with percent and speed) for notes, links and files, with private messages to one device.
 - **Apps**: other devices can download the LocalDrop installer from the host (Files menu, "Apps to install"). The host can also allow installers of other apps on the phone.
 - **Calls**: voice and video calls (mute, camera off, flip camera, speaker, hold, cancel, decline, busy, and group calls: add more people to a call, everyone connects to everyone) between connected devices, straight over the local network (WebRTC; nothing leaves your network). Everyone picks a name when joining. Browsers only allow the camera and microphone on secure pages, so guests open the secure address (the `https://` one shown in the call prompt), accept the certificate warning once, and then call. The host app itself needs no warning.
 - **Connection help**: Invite sheet, "Get help" gives tips for several routers and a delay and speed test.

@@ -62,7 +62,7 @@
     var u = ['KB', 'MB', 'GB', 'TB'];
     var i = -1;
     do { n /= 1024; i++; } while (n >= 1024 && i < u.length - 1);
-    return (n >= 100 ? n.toFixed(0) : n >= 10 ? n.toFixed(1) : n.toFixed(2)).replace(/\.?0+$/, '') + ' ' + u[i];
+    return (n >= 100 ? n.toFixed(0) : n >= 10 ? n.toFixed(1) : n.toFixed(2)).replace(/(\.\d*?)0+$/, '$1').replace(/\.$/, '') + ' ' + u[i];
   };
   LD.fmtSpeed = function (bps) {
     return LD.fmtSize(bps) + '/s';
