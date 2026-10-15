@@ -117,8 +117,8 @@
       var others = S.devices.filter(function (d) { return !d.host && d.online && (!S.you || d.id !== S.you.id); }).length;
       var host = S.devices.filter(function (d) { return d.host; })[0];
       var txt;
-      if (S.isHost) txt = others ? others + (others === 1 ? ' device connected' : ' devices connected') : 'Waiting for devices';
-      else txt = 'Connected to ' + (host ? host.name : (S.info && S.info.hostName) || 'host');
+      if (S.isHost) txt = others ? others + ' connected' : 'No one yet';
+      else txt = 'Connected' + (host ? ' to ' + host.name : '');
       connText.textContent = txt;
       dot.classList.toggle('live', S.online && (!S.isHost || others > 0));
       dot.classList.toggle('off', !S.online);

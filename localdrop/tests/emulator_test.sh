@@ -20,8 +20,15 @@ for i in $(seq 1 40); do
   sleep 1
 done
 [ $up = 1 ] && ok "server answers inside the app" || bad "server did not start"
-sleep 6
-adb exec-out screencap -p > "$OUT/1-home.png"
+sleep 25
+adb exec-out screencap -p > "$OUT/1-invite.png"
+read W H < <(adb shell wm size | grep -oE '[0-9]+x[0-9]+' | tail -1 | tr x ' ')
+tap() { adb shell input tap $(( W * $1 / 8 )) $(( H * 96 / 100 )); sleep 4; }
+adb shell input keyevent KEYCODE_BACK; sleep 3
+adb exec-out screencap -p > "$OUT/2-nearby.png"
+tap 1; adb exec-out screencap -p > "$OUT/3-files.png"
+tap 3; adb exec-out screencap -p > "$OUT/4-drop.png"
+tap 7; adb exec-out screencap -p > "$OUT/5-settings.png"
 curl -fs http://127.0.0.1:8080/api/info > "$OUT/info.json" && grep -q '"host":true' "$OUT/info.json" && ok "host session over loopback" || bad "info"
 curl -fs http://127.0.0.1:8080/ | grep -q "LocalDrop" && ok "web page is served from the APK assets" || bad "index"
 curl -fs http://127.0.0.1:8080/js/qr.js | grep -q qrMatrix && ok "script assets served" || bad "assets"
@@ -37,7 +44,7 @@ curl -fs -o "$OUT/self.apk" "http://127.0.0.1:8080/api/app?pkg=com.ajay.localdro
 # sharing the whole phone storage
 curl -fs -X POST "${H[@]}" -d '{"id":"downloads"}' http://127.0.0.1:8080/api/admin/root >/dev/null && ok "share the Downloads folder" || bad "Downloads root (needs all files access)"
 curl -fs http://127.0.0.1:8080/api/files?path= >/dev/null && ok "list Downloads" || bad "list Downloads"
-adb exec-out screencap -p > "$OUT/2-after.png"
+adb exec-out screencap -p > "$OUT/6-end.png"
 # the app must still be alive and not have crashed
 adb shell pidof $P >/dev/null && ok "app process alive" || bad "app crashed"
 adb logcat -d > "$OUT/logcat.txt"
