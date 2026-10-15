@@ -587,6 +587,8 @@ public final class LocalDropServer {
         throw new HttpError(404, "No preview");
     }
 
+    private final Object renameLock = new Object();
+
     private void upload(Session s, Request req, Response res) throws IOException {
         if (!req.method.equals("PUT") && !req.method.equals("POST")) throw new HttpError(405, "Method not allowed");
         needUpload(s);
@@ -635,14 +637,18 @@ public final class LocalDropServer {
                     throw new HttpError(500, "Could not save the file.");
                 }
             } else {
-                for (int i = 0; i < 10000 && target == null; i++) {
-                    String cand = i == 0 ? name : numbered(name, i);
-                    File c = new File(dir, cand);
-                    try {
-                        Files.move(tmp.toPath(), c.toPath());
-                        target = c;
-                    } catch (FileAlreadyExistsException exists) {
-                        // try the next name
+                // Files.move() checks and renames in two steps, so two uploads of one name could both win.
+                synchronized (renameLock) {
+                    for (int i = 0; i < 10000 && target == null; i++) {
+                        String cand = i == 0 ? name : numbered(name, i);
+                        File c = new File(dir, cand);
+                        if (c.exists()) continue;
+                        try {
+                            Files.move(tmp.toPath(), c.toPath());
+                            target = c;
+                        } catch (FileAlreadyExistsException exists) {
+                            // try the next name
+                        }
                     }
                 }
                 if (target == null) throw new HttpError(409, "Could not find a free name for this file.");
