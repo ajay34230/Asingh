@@ -698,3 +698,4 @@ button.act-row:hover { background: var(--surface2); }
 .get-steps { margin: 6px 0 0; padding-left: 20px; color: var(--muted); font-size: 13.5px; line-height: 1.5; }
 .get-card > .btn { margin-left: auto; }
 .login .help-link { margin-top: 10px; }
+.get-ic.win { background: linear-gradient(135deg, #0ea5e9, #2563eb); } .get-card > a.btn { margin-left: auto; text-decoration: none; }

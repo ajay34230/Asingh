@@ -5,6 +5,8 @@ Turn an Android phone into a private file-sharing server. Other phones, tablets 
 **Download the APK:** https://github.com/ajay34230/Asingh/releases/download/localdrop-latest/LocalDrop.apk
 (Release page: https://github.com/ajay34230/Asingh/releases/tag/localdrop-latest. Every push to the `localdrop-app` branch builds a fresh APK.)
 
+**Windows:** https://github.com/ajay34230/Asingh/releases/download/localdrop-latest/LocalDrop-Windows.zip (unzip, run `LocalDrop.exe`, allow it through the firewall; it opens LocalDrop in the browser and sits in the tray. Built by the `windows` CI job.)
+
 ## Install
 
 1. Open the APK link on the phone and install it (Android asks you to allow installs from your browser or file app once).

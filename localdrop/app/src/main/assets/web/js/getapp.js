@@ -37,6 +37,13 @@
           : 'This host is not an Android phone, so there is no installer here. Open the address of a phone running LocalDrop to get it.')),
       h('button', { class: 'btn primary', disabled: !hasApk, onClick: function () { LD.download('/api/getapp'); LD.toast('Downloading LocalDrop.apk', 'ok'); } }, LD.icon('download', 18), 'Download')));
 
+    body.appendChild(h('section', { class: 'get-card' },
+      h('span', { class: 'get-ic win' }, LD.icon('monitor', 26)),
+      h('div', { class: 'get-text' },
+        h('b', {}, 'Windows app'),
+        h('span', {}, 'LocalDrop for a Windows PC: share its folders and call from the same screen. Unzip it, run LocalDrop.exe and allow it through the firewall when Windows asks. Needs an internet connection to download.')),
+      h('a', { class: 'btn primary', href: 'https://github.com/ajay34230/Asingh/releases/download/localdrop-latest/LocalDrop-Windows.zip', rel: 'noopener' }, LD.icon('download', 18), 'Download')));
+
     var steps = webSteps();
     var pwa = h('section', { class: 'get-card' },
       h('span', { class: 'get-ic web' }, LD.icon('globe', 26)),
