@@ -197,6 +197,25 @@
     if (hashPin && needPin) submit();
   }
 
+  /** Sign in without typing: a one-time pass from the plain address, or a LocalDrop phone / room join. */
+  function quickLogin() {
+    var hash = location.hash || '';
+    var ho = (hash.match(/[#&]h=([A-Za-z0-9]+)/) || [])[1];
+    if (ho) return LD.api.post('/api/login', { deviceId: deviceId(), name: LD.store.get('ld_name', '') || LD.guessDevice().name, kind: LD.guessDevice().kind, handoff: ho }, { quiet: true });
+    if (/[#&]aj=1/.test(hash)) {
+      var id = '', name = '', kind = LD.guessDevice().kind;
+      if (LD.isHostApp && window.LDHost && window.LDHost.info) {
+        try { var hi = JSON.parse(window.LDHost.info()); id = hi.installId || ''; name = hi.deviceName || ''; kind = 'phone'; } catch (e) { /* use the page's own name */ }
+      }
+      id = id || decodeURIComponent((hash.match(/[&#]d=([^&]*)/) || [])[1] || '') || deviceId();
+      name = name || decodeURIComponent((hash.match(/[&#]n=([^&]*)/) || [])[1] || '') || LD.store.get('ld_name', '') || LD.guessDevice().name;
+      LD.store.set('ld_device', id);
+      LD.store.set('ld_name', name);
+      return LD.api.post('/api/login', { deviceId: id, name: name, kind: kind, autojoin: true }, { quiet: true });
+    }
+    return null;
+  }
+
   function showMessage(icon, title, text, actionLabel, action) {
     shellBuilt = false;
     LD.overlays.closeAll();
@@ -210,8 +229,13 @@
     booting = true;
     LD.api.get('/api/info', { quiet: true }).then(function (info) {
       if (!info.authed && !info.host) {
-        booting = false;
         S.info = info;
+        var auto = quickLogin();
+        if (auto) {
+          return auto.then(function () { history.replaceState(null, '', location.pathname + location.search); booting = false; return boot(); },
+            function () { history.replaceState(null, '', location.pathname + location.search); booting = false; showLogin(info); });
+        }
+        booting = false;
         showLogin(info);
         return null;
       }
@@ -249,6 +273,7 @@
     LD.connectEvents();
     LD.loadMessages().catch(function () { /* shown when the Drop tab opens */ });
     if (!location.hash || location.hash === '#') LD.go(S.isHost ? 'nearby' : 'files', '', true);
+    if (LD.room) { LD.room.bar(); LD.room.follow(); }
     route();
     if (S.isHost && !LD.store.get('ld_seen_invite', '')) {
       LD.store.set('ld_seen_invite', '1');

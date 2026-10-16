@@ -26,7 +26,7 @@ final class ServerRuntime {
             server = s;
             try {
                 discovery = new Discovery(app);
-                discovery.start(s.port(), p.deviceName());
+                discovery.start(installId(app), s.port(), s.tlsPort(), p.deviceName(), autoConnect(app));
             } catch (Throwable ignored) {
                 discovery = null;
             }
@@ -40,6 +40,21 @@ final class ServerRuntime {
 
     static synchronized AndroidPlatform platform() {
         return platform;
+    }
+
+    static String installId(Context c) {
+        SharedPreferences p = c.getSharedPreferences("ld", Context.MODE_PRIVATE);
+        String id = p.getString("installId", "");
+        if (id.isEmpty()) {
+            id = Long.toHexString(new java.security.SecureRandom().nextLong() & 0xffffffffffL);
+            while (id.length() < 10) id = "0" + id;
+            p.edit().putString("installId", id).apply();
+        }
+        return id;
+    }
+
+    static boolean autoConnect(Context c) {
+        return c.getSharedPreferences("ld", Context.MODE_PRIVATE).getBoolean("autoConnect", true);
     }
 
     static synchronized Discovery discovery() {

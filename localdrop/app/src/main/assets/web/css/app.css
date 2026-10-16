@@ -699,3 +699,9 @@ button.act-row:hover { background: var(--surface2); }
 .get-card > .btn { margin-left: auto; }
 .login .help-link { margin-top: 10px; }
 .get-ic.win { background: linear-gradient(135deg, #0ea5e9, #2563eb); } .get-card > a.btn { margin-left: auto; text-decoration: none; }
+.room-bar { position: fixed; left: 50%; transform: translateX(-50%); bottom: calc(var(--nav-h) + var(--safe-b) + 8px); z-index: 44; display: flex; align-items: center; gap: 8px; padding: 6px 8px 6px 14px; border-radius: 999px; background: #0b3a4f; color: #fff; font-size: 13px; box-shadow: 0 8px 24px rgba(0, 0, 0, .25); max-width: calc(100% - 24px); }
+.room-leave { border: 0; border-radius: 999px; padding: 6px 12px; background: rgba(255, 255, 255, .18); color: #fff; font: inherit; font-weight: 600; cursor: pointer; white-space: nowrap; }
+.secure-steps { margin: 6px 0; padding-left: 20px; display: flex; flex-direction: column; gap: 12px; }
+.secure-steps > li > b { display: block; margin-bottom: 6px; }
+.secure-steps ul { margin: 0 0 0 -4px; padding-left: 18px; color: var(--muted); font-size: 13.5px; line-height: 1.5; }
+.secure-sha { word-break: break-all; font-family: ui-monospace, monospace; font-size: 11px; }

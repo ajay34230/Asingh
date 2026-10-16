@@ -104,20 +104,14 @@ public final class LocalDropServer {
         port = http.start(preferredPort);
         tlsPort = 0;
         try {
-            InputStream ks = platform.openTlsKeystore();
-            if (ks != null) {
-                try {
-                    java.security.KeyStore k = java.security.KeyStore.getInstance("PKCS12");
-                    k.load(ks, "localdrop".toCharArray());
-                    javax.net.ssl.KeyManagerFactory kmf = javax.net.ssl.KeyManagerFactory.getInstance(javax.net.ssl.KeyManagerFactory.getDefaultAlgorithm());
-                    kmf.init(k, "localdrop".toCharArray());
-                    javax.net.ssl.SSLContext ctx = javax.net.ssl.SSLContext.getInstance("TLS");
-                    ctx.init(kmf.getKeyManagers(), null, null);
-                    tlsPort = http.startTls(port + 363, ctx);
-                } finally {
-                    ks.close();
+            tls = new LocalTls(platform.dataDir(), new java.util.concurrent.Callable<List<String>>() {
+                @Override public List<String> call() {
+                    List<String> ips = new ArrayList<>();
+                    for (Map<String, Object> m : NetInfo.addresses(port, 0, platform)) ips.add(String.valueOf(m.get("ip")));
+                    return ips;
                 }
-            }
+            });
+            tlsPort = http.startTls(port + 363, tls.context());
         } catch (Exception e) {
             platform.log("HTTPS is not available: " + e);
         }
@@ -139,6 +133,7 @@ public final class LocalDropServer {
     public int port() { return port; }
     public int tlsPort() { return tlsPort; }
     private volatile int tlsPort;
+    private volatile LocalTls tls;
     public void setPinEnabled(boolean on) { store.pinEnabled = on; store.markDirty(); }
     public void setPin(String pin) { store.pin = pin; store.markDirty(); }
     public String pin() { return store.pin; }
@@ -275,6 +270,7 @@ public final class LocalDropServer {
             case "/api/login": login(req, res); return;
             case "/api/logout": logout(req, res); return;
             case "/api/getapp": getApp(req, res); return;
+            case "/api/ca": caCertificate(res); return;
             default: break;
         }
         Session s = need(req);
@@ -289,6 +285,7 @@ public final class LocalDropServer {
             case "/api/apps": apps(res); return;
             case "/api/speed": speed(req, res); return;
             case "/api/signal": signal(s, req, res); return;
+            case "/api/handoff": handoff(s, req, res); return;
             case "/api/app": appDownload(s, req, res); return;
             case "/api/thumb": thumb(req, res); return;
             case "/api/upload": upload(s, req, res); return;
@@ -324,7 +321,10 @@ public final class LocalDropServer {
         Session s = session(req);
         Map<String, Object> m = Json.obj("app", "LocalDrop", "version", platform.version(), "platform", platform.deviceKind(),
                 "hostName", store.deviceName, "host", req.loopback, "authed", s != null, "tlsPort", tlsPort,
-                "pinRequired", s == null && store.pinEnabled, "apk", !selfPackage().isEmpty());
+                "pinRequired", s == null && store.pinEnabled, "apk", !selfPackage().isEmpty(),
+                "caSha", tls == null ? "" : tls.caFingerprint(), "autoTrust", store.autoTrust);
+        Map<String, Object> room = platform.room();
+        if (room != null) m.put("room", room);
         if (s != null) {
             m.put("you", Json.obj("id", s.deviceId, "name", s.name, "kind", s.kind));
             m.put("perms", perms(s));
@@ -352,6 +352,20 @@ public final class LocalDropServer {
         }
         String ip = req.remoteIp;
         long now = System.currentTimeMillis();
+        String ho = Json.str(b, "handoff");
+        if (ho != null && !ho.isEmpty()) {
+            // moving from the plain address to the secure one: the token stands in for the PIN, once
+            Object[] h = handoffs.remove(ho);
+            if (h == null || (Long) h[3] < now) throw new HttpError(401, "That link has expired. Open the address again.");
+            finishLogin(res, (String) h[0], (String) h[1], (String) h[2], ip);
+            return;
+        }
+        if (Json.bool(b, "autojoin", false)) {
+            // a LocalDrop phone joining automatically; the host can switch this off in Settings
+            if (!store.autoTrust) throw new HttpError(403, "This host asks for its PIN.");
+            finishLogin(res, id, name, kind, ip);
+            return;
+        }
         long[] f = failures.get(ip);
         if (f != null && f[1] > now) {
             long wait = (f[1] - now + 999) / 1000;
@@ -372,11 +386,27 @@ public final class LocalDropServer {
             }
             failures.remove(ip);
         }
+        finishLogin(res, id, name, kind, ip);
+    }
+
+    private void finishLogin(Response res, String id, String name, String kind, String ip) throws IOException {
         store.revokeDevice(id);
         String token = store.issueToken(id, name, kind);
         hub.ensure(id, name, kind, ip, false);
         res.cookie("ld=" + token + "; Path=/; HttpOnly; SameSite=Lax; Max-Age=31536000");
         res.json(200, Json.obj("ok", true, "deviceId", id));
+    }
+
+    private final Map<String, Object[]> handoffs = new java.util.concurrent.ConcurrentHashMap<>();
+
+    /** One-time pass so a signed-in device can move to the secure address without typing the PIN again. */
+    private void handoff(Session s, Request req, Response res) throws IOException {
+        guardWrite(req);
+        long now = System.currentTimeMillis();
+        for (Map.Entry<String, Object[]> e : handoffs.entrySet()) if ((Long) e.getValue()[3] < now) handoffs.remove(e.getKey());
+        String t = Store.randomToken(16);
+        handoffs.put(t, new Object[] {s.deviceId, s.name, s.kind, now + 120000L});
+        res.json(200, Json.obj("token", t));
     }
 
     private void logout(Request req, Response res) throws IOException {
@@ -639,6 +669,13 @@ public final class LocalDropServer {
     private String selfPackage() {
         List<Platform.AppEntry> own = platform.installedApps(false);
         return own.isEmpty() ? "" : own.get(0).pkg;
+    }
+
+    /** The certificate other devices install once so that the secure address is trusted. Public, like any CA certificate. */
+    private void caCertificate(Response res) throws IOException {
+        if (tls == null) throw new HttpError(404, "Secure addresses are not available on this host.");
+        res.header("Content-Disposition", "attachment; filename=\"LocalDrop-CA.crt\"");
+        res.bytes(200, "application/x-x509-ca-cert", tls.caCertificate());
     }
 
     /** The LocalDrop installer itself. Open to anyone on the network, no PIN: it is the same public app. */
@@ -1160,6 +1197,7 @@ public final class LocalDropServer {
             if (b.containsKey("guestModify")) store.guestModify = Json.bool(b, "guestModify", true);
             if (b.containsKey("allowLinks")) store.allowLinks = Json.bool(b, "allowLinks", true);
             if (b.containsKey("shareApps")) store.shareApps = Json.bool(b, "shareApps", false);
+            if (b.containsKey("autoTrust")) store.autoTrust = Json.bool(b, "autoTrust", true);
             if (b.containsKey("pinEnabled")) {
                 boolean on = Json.bool(b, "pinEnabled", true);
                 if (on && !store.pinEnabled) revoke = true;
@@ -1178,7 +1216,7 @@ public final class LocalDropServer {
                     "links", store.allowLinks)));
         }
         res.json(200, Json.obj("deviceName", store.deviceName, "pinEnabled", store.pinEnabled, "pin", store.pin,
-                "guestUpload", store.guestUpload, "guestModify", store.guestModify, "allowLinks", store.allowLinks, "shareApps", store.shareApps,
+                "guestUpload", store.guestUpload, "guestModify", store.guestModify, "allowLinks", store.allowLinks, "shareApps", store.shareApps, "autoTrust", store.autoTrust,
                 "roots", rootsJson(), "root", files.root().getPath(), "storage", files.storage(),
                 "bytesUp", store.bytesUp, "bytesDown", store.bytesDown, "port", port,
                 "version", platform.version(), "platform", platform.deviceKind()));

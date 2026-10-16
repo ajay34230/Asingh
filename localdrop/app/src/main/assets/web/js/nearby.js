@@ -75,7 +75,7 @@
   // ---- other LocalDrop phones on this network (found automatically by the Android app) -----------------
   var seenPeers = {};
   function loadPeers() {
-    if (!LD.isHostApp || !window.LDHost || !window.LDHost.nearby || !el.peersWrap) return;
+    if (!LD.isHostApp || !S.isHost || !window.LDHost || !window.LDHost.nearby || !el.peersWrap) return;
     var list = [];
     try { list = JSON.parse(window.LDHost.nearby()); } catch (e) { list = []; }
     Promise.all(list.map(function (p) {
@@ -96,7 +96,8 @@
       });
     });
   }
-  window.onLDNearby = LD.debounce(loadPeers, 400);
+  window.onLDNearby = function () { LD.emit('nearby'); };
+  LD.on('nearby', LD.debounce(loadPeers, 400));
 
   function openCallPicker() {
     var list = others().filter(function (d) { return d.online; });

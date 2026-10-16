@@ -102,15 +102,12 @@ final class AndroidPlatform implements Platform {
         }
     }
 
-    @Override public InputStream openTlsKeystore() throws IOException {
-        try {
-            return ctx.getAssets().open("tls.p12");
-        } catch (FileNotFoundException e) {
-            return null;
-        }
-    }
-
     // ---------------------------------------------------------------- thumbnails
+
+    @Override public java.util.Map<String, Object> room() {
+        Discovery d = ServerRuntime.discovery();
+        return d == null ? null : d.room();
+    }
 
     @Override public byte[] thumbnail(File file, int width) {
         String kind = Mime.kind(file.getName());

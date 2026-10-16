@@ -48,6 +48,17 @@ public final class MainActivity extends Activity {
     private ValueCallback<Uri[]> fileCallback;
     private HotspotController hotspot;
     private volatile String origin = "http://127.0.0.1:8080";
+    private volatile String pageUrl = "";
+
+    private boolean isPeer(String host) {
+        Discovery d = ServerRuntime.discovery();
+        return d != null && d.knowsHost(host);
+    }
+
+    /** True while the page is LocalDrop's own page on this phone (not another phone's). */
+    private boolean local() {
+        return pageUrl.startsWith("http://127.0.0.1");
+    }
     private boolean pendingHotspot;
 
     @Override protected void onCreate(Bundle savedInstanceState) {
@@ -72,13 +83,23 @@ public final class MainActivity extends Activity {
         web.setWebViewClient(new WebViewClient() {
             @Override public boolean shouldOverrideUrlLoading(WebView v, WebResourceRequest r) {
                 Uri u = r.getUrl();
-                if (u.getHost() != null && u.getHost().equals("127.0.0.1")) return false;
+                if (u.getHost() != null && (u.getHost().equals("127.0.0.1") || isPeer(u.getHost()))) return false;
                 try {
                     startActivity(new Intent(Intent.ACTION_VIEW, u));
                 } catch (Exception ignored) {
                     // no app can open it
                 }
                 return true;
+            }
+
+            @Override public void onPageStarted(WebView v, String url, android.graphics.Bitmap icon) {
+                pageUrl = url == null ? "" : url;
+            }
+
+            /** Another LocalDrop phone on this network uses a certificate made by that phone, so accept it for those hosts only. */
+            @Override public void onReceivedSslError(WebView v, android.webkit.SslErrorHandler h, android.net.http.SslError e) {
+                String host = Uri.parse(e.getUrl()).getHost();
+                if (host != null && isPeer(host)) h.proceed(); else h.cancel();
             }
 
             @Override public boolean onRenderProcessGone(WebView v, android.webkit.RenderProcessGoneDetail d) {
@@ -117,6 +138,8 @@ public final class MainActivity extends Activity {
                 String name = URLUtil.guessFileName(url, cd, mime);
                 DownloadManager.Request r = new DownloadManager.Request(Uri.parse(url));
                 r.setTitle(name);
+                String ck = android.webkit.CookieManager.getInstance().getCookie(url);
+                if (ck != null) r.addRequestHeader("Cookie", ck);
                 r.setNotificationVisibility(DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED);
                 r.setDestinationInExternalPublicDir(Environment.DIRECTORY_DOWNLOADS, name);
                 ((DownloadManager) getSystemService(Context.DOWNLOAD_SERVICE)).enqueue(r);
@@ -224,7 +247,8 @@ public final class MainActivity extends Activity {
 
     /** Calls: grant the page the camera or microphone once Android has allowed it. */
     private void askMedia(android.webkit.PermissionRequest r) {
-        if (!r.getOrigin().toString().startsWith("http://127.0.0.1")) { r.deny(); return; }
+        String oh = r.getOrigin().getHost();
+        if (oh == null || !(oh.equals("127.0.0.1") || isPeer(oh))) { r.deny(); return; }
         java.util.List<String> need = new java.util.ArrayList<>();
         for (String res : r.getResources()) {
             if (res.equals(android.webkit.PermissionRequest.RESOURCE_VIDEO_CAPTURE)) need.add(Manifest.permission.CAMERA);
@@ -314,6 +338,8 @@ public final class MainActivity extends Activity {
                 PowerManager pm = (PowerManager) getSystemService(Context.POWER_SERVICE);
                 o.put("batteryUnrestricted", pm.isIgnoringBatteryOptimizations(getPackageName()));
                 o.put("hotspot", new JSONObject(hotspot.stateJson()));
+                o.put("installId", ServerRuntime.installId(getApplicationContext()));
+                o.put("deviceName", p == null ? "Phone" : p.deviceName());
                 return o.toString();
             } catch (Exception e) {
                 return "{}";
@@ -321,14 +347,17 @@ public final class MainActivity extends Activity {
         }
 
         @JavascriptInterface public void requestStorage() {
+            if (!local()) return;
             runOnUiThread(MainActivity.this::openStorageSettings);
         }
 
         @JavascriptInterface public void startHotspot() {
+            if (!local()) return;
             runOnUiThread(MainActivity.this::startHotspotFlow);
         }
 
         @JavascriptInterface public void stopHotspot() {
+            if (!local()) return;
             hotspot.stop();
         }
 
@@ -341,6 +370,7 @@ public final class MainActivity extends Activity {
         }
 
         @JavascriptInterface public void keepRunning() {
+            if (!local()) return;
             runOnUiThread(() -> {
                 try {
                     startActivity(new Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS,
@@ -365,6 +395,35 @@ public final class MainActivity extends Activity {
                     // audio routing is best effort
                 }
             });
+        }
+
+        /** The shared room: which phone hosts it, and whether this one takes part. */
+        @JavascriptInterface public String room() {
+            Discovery d = ServerRuntime.discovery();
+            return d == null ? "{}" : d.roomJson();
+        }
+
+        @JavascriptInterface public void peerDown(String id) {
+            Discovery d = ServerRuntime.discovery();
+            if (d != null) d.markDown(id);
+        }
+
+        @JavascriptInterface public boolean autoConnect() {
+            return ServerRuntime.autoConnect(getApplicationContext());
+        }
+
+        @JavascriptInterface public void setAutoConnect(boolean on) {
+            Context c = getApplicationContext();
+            c.getSharedPreferences("ld", Context.MODE_PRIVATE).edit().putBoolean("autoConnect", on).apply();
+            Discovery d = ServerRuntime.discovery();
+            com.ajay.localdrop.server.LocalDropServer sv = ServerRuntime.get();
+            AndroidPlatform p = ServerRuntime.platform();
+            if (d != null && sv != null && p != null) d.setAuto(on, sv.port(), sv.tlsPort(), p.deviceName());
+        }
+
+        /** This phone's own LocalDrop page. */
+        @JavascriptInterface public String home() {
+            return origin + "/";
         }
 
         @JavascriptInterface public String nearby() {
@@ -420,6 +479,7 @@ public final class MainActivity extends Activity {
         }
 
         @JavascriptInterface public void quit() {
+            if (!local()) return;
             runOnUiThread(() -> {
                 startService(new Intent(MainActivity.this, ServerService.class).setAction(ServerService.ACTION_STOP));
                 finishAndRemoveTask();

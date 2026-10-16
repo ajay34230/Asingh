@@ -12,6 +12,7 @@ import java.net.Inet4Address;
 import java.net.InetAddress;
 import java.net.NetworkInterface;
 import java.util.ArrayDeque;
+import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
@@ -23,7 +24,7 @@ final class Discovery {
     private static final String TAG = "LocalDropNsd";
 
     private static final class Peer {
-        String service; String name; String host; int port;
+        String service; String name; String host; int port; int tls; String id = ""; boolean auto = true;
     }
 
     private final NsdManager nsd;
@@ -31,6 +32,12 @@ final class Discovery {
     private final ArrayDeque<NsdServiceInfo> queue = new ArrayDeque<>();
     private boolean resolving;
     private volatile String myName = "";
+    private volatile String myId = "";
+    private volatile String myDevice = "";
+    private volatile int myPort;
+    private volatile int myTls;
+    private volatile boolean auto = true;
+    private final Map<String, Long> down = new ConcurrentHashMap<>();
     private volatile Listener listener;
     private NsdManager.RegistrationListener reg;
     private NsdManager.DiscoveryListener disc;
@@ -46,14 +53,32 @@ final class Discovery {
         if (l != null) l.onChange();
     }
 
-    void start(int port, String deviceName) {
+    /** Whether this phone takes part in the automatic shared room (the person can turn it off). */
+    void setAuto(boolean on, int port, int tlsPort, String deviceName) {
+        if (auto == on) return;
+        auto = on;
+        stop();
+        start(myId, port, tlsPort, deviceName, on);
+    }
+
+    void start(String id, int port, int tlsPort, String deviceName, boolean autoConnect) {
         if (nsd == null) return;
+        myId = id;
+        myPort = port;
+        myTls = tlsPort;
+        myDevice = deviceName == null ? "" : deviceName;
+        auto = autoConnect;
         try {
             NsdServiceInfo info = new NsdServiceInfo();
             info.setServiceName("LocalDrop " + (deviceName == null ? "phone" : deviceName));
             info.setServiceType(TYPE);
             info.setPort(port);
-            try { info.setAttribute("n", deviceName == null ? "" : deviceName); } catch (Throwable ignored) { /* optional */ }
+            try {
+                info.setAttribute("n", deviceName == null ? "" : deviceName);
+                info.setAttribute("i", id);
+                info.setAttribute("t", Integer.toString(tlsPort));
+                info.setAttribute("a", autoConnect ? "1" : "0");
+            } catch (Throwable ignored) { /* optional */ }
             reg = new NsdManager.RegistrationListener() {
                 @Override public void onServiceRegistered(NsdServiceInfo i) { myName = i.getServiceName(); }
                 @Override public void onRegistrationFailed(NsdServiceInfo i, int code) { Log.w(TAG, "register failed " + code); }
@@ -106,8 +131,15 @@ final class Discovery {
                             p.port = r.getPort();
                             p.name = p.service.startsWith("LocalDrop ") ? p.service.substring(10) : p.service;
                             try {
-                                byte[] n = r.getAttributes().get("n");
+                                Map<String, byte[]> at = r.getAttributes();
+                                byte[] n = at.get("n");
                                 if (n != null && n.length > 0) p.name = new String(n, "UTF-8");
+                                byte[] i = at.get("i");
+                                if (i != null) p.id = new String(i, "UTF-8");
+                                byte[] t = at.get("t");
+                                if (t != null) p.tls = Integer.parseInt(new String(t, "UTF-8"));
+                                byte[] a = at.get("a");
+                                p.auto = a == null || !"0".equals(new String(a, "UTF-8"));
                             } catch (Throwable ignored) { /* use the service name */ }
                             peers.put(p.service, p);
                             changed();
@@ -137,11 +169,62 @@ final class Discovery {
                 o.put("name", p.name);
                 o.put("host", p.host);
                 o.put("port", p.port);
+                o.put("id", p.id);
                 o.put("url", "http://" + p.host + ":" + p.port + "/");
+                if (p.tls > 0) o.put("tlsUrl", "https://" + p.host + ":" + p.tls + "/");
                 a.put(o);
             }
         } catch (Exception ignored) { /* empty list */ }
         return a.toString();
+    }
+
+    boolean knowsHost(String host) {
+        for (Peer p : peers.values()) if (p.host.equals(host)) return true;
+        return false;
+    }
+
+    /** A peer that didn't answer; skip it when choosing the room host for a minute. */
+    void markDown(String id) { if (id != null) down.put(id, System.currentTimeMillis() + 60000L); }
+
+    /**
+     * The shared room: every phone with automatic joining on picks the same host, the one with the lowest id,
+     * so all of them end up in one place without anyone choosing.
+     */
+    Map<String, Object> room() {
+        Map<String, Object> m = new LinkedHashMap<>();
+        m.put("on", auto);
+        m.put("self", myId);
+        if (!auto) return m;
+        long now = System.currentTimeMillis();
+        String best = myId;
+        Peer lead = null;
+        for (Peer p : peers.values()) {
+            Long until = down.get(p.id);
+            if (!p.auto || p.id.isEmpty() || (until != null && until > now)) continue;
+            if (p.id.compareTo(best) < 0) { best = p.id; lead = p; }
+        }
+        Map<String, Object> l = new LinkedHashMap<>();
+        l.put("id", best);
+        if (lead == null) {
+            l.put("self", true);
+            l.put("name", myDevice);
+        } else {
+            l.put("self", false);
+            l.put("name", lead.name);
+            l.put("url", "http://" + lead.host + ":" + lead.port + "/");
+            if (lead.tls > 0) l.put("tlsUrl", "https://" + lead.host + ":" + lead.tls + "/");
+        }
+        m.put("leader", l);
+        return m;
+    }
+
+    String roomJson() {
+        try {
+            JSONObject o = new JSONObject(room());
+            return o.toString();
+        } catch (Throwable t) {
+            return "{}";
+        }
     }
 
     boolean knows(String url) {

@@ -34,6 +34,7 @@ curl -fs -o "$OUT/getapp.apk" http://127.0.0.1:8080/api/getapp && [ "$(stat -c %
 TLSP=$(sed -n 's/.*"tlsPort":\([0-9]*\).*/\1/p' "$OUT/info.json")
 if [ -n "$TLSP" ]; then
   adb forward tcp:$TLSP tcp:$TLSP >/dev/null
+  curl -fs http://127.0.0.1:8080/api/ca -o /tmp/ca.der && openssl x509 -inform der -in /tmp/ca.der -out /tmp/ca.pem && ok "CA certificate served" || bad "CA certificate missing"
   curl -fsk https://127.0.0.1:$TLSP/api/ping | grep -q '"t"' && ok "HTTPS (calls) port $TLSP answers" || bad "HTTPS port $TLSP does not answer"
 else
   bad "no tlsPort in /api/info"

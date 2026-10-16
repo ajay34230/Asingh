@@ -136,7 +136,6 @@ jobs:
           javac --release 8 -encoding UTF-8 -d "$RUNNER_TEMP/wclasses" app/src/main/java/com/ajay/localdrop/server/*.java desktop/*.java
           jar cfe "$RUNNER_TEMP/win-in/LocalDrop.jar" WindowsMain -C "$RUNNER_TEMP/wclasses" .
           cp -r app/src/main/assets/web "$RUNNER_TEMP/win-in/web"
-          cp app/src/main/assets/tls.p12 "$RUNNER_TEMP/win-in/tls.p12"
           jpackage --type app-image --name LocalDrop --input "$RUNNER_TEMP/win-in" --main-jar LocalDrop.jar --main-class WindowsMain \
             --dest "$RUNNER_TEMP/win-out" --java-options "-Dfile.encoding=UTF-8"
           ls "$RUNNER_TEMP/win-out/LocalDrop"

@@ -13,21 +13,37 @@
     return !!(window.isSecureContext && navigator.mediaDevices && navigator.mediaDevices.getUserMedia && window.RTCPeerConnection);
   }
 
-  // ---- secure page hint -----------------------------------------------------------------------------
+  // ---- secure page: install LocalDrop's certificate once, then calls just work ----------------------------
+  function platformSteps() {
+    var ua = navigator.userAgent || '';
+    if (/iPhone|iPad|iPod/.test(ua)) return ['Tap Allow when Safari asks to download a configuration profile.', 'Open Settings, tap "Profile Downloaded", then Install.', 'Open Settings, General, About, Certificate Trust Settings, and switch LocalDrop on.'];
+    if (/Android/.test(ua)) return ['Open the downloaded file, or go to Settings, Security, Encryption and credentials, Install a certificate, CA certificate.', 'Choose LocalDrop-CA.crt and confirm. Android may ask you to set a screen lock first.', 'Come back here and tap Open secure page.'];
+    if (/Windows/.test(ua)) return ['Open the downloaded LocalDrop-CA.crt, choose Install Certificate.', 'Pick "Current User", then "Place all certificates in the following store" and choose Trusted Root Certification Authorities.', 'Finish, restart the browser, then tap Open secure page.'];
+    if (/Mac/.test(ua)) return ['Open the downloaded LocalDrop-CA.crt. Keychain Access adds it.', 'Double-click LocalDrop in Keychain Access, open Trust, and set "Always Trust".', 'Then tap Open secure page.'];
+    return ['Open the downloaded LocalDrop-CA.crt and add it to your trusted authorities (Linux and Firefox: browser settings, Certificates, Authorities, Import).', 'Restart the browser, then tap Open secure page.'];
+  }
+
+  function openSecure() {
+    var port = S.info && S.info.tlsPort;
+    if (!port) { LD.toast('Secure addresses are not available on this host.', 'error'); return; }
+    var url = 'https://' + location.hostname + ':' + port + '/';
+    LD.api.post('/api/handoff', {}, { quiet: true }).then(function (t) { location.href = url + '#h=' + t.token; },
+      function () { location.href = url; });
+  }
+
   LD.needSecure = function () {
     var port = S.info && S.info.tlsPort;
-    var url = port ? 'https://' + location.hostname + ':' + port + '/#/nearby' : '';
+    var sha = (S.info && S.info.caSha) || '';
     var body = h('div', { class: 'secure' },
-      h('p', {}, 'Browsers only allow the microphone and camera on a secure page. LocalDrop has one ready.'),
-      url ? h('ol', {},
-        h('li', {}, 'Tap the button below.'),
-        h('li', {}, 'Your browser will warn that the certificate isn’t trusted. That is expected: LocalDrop made it itself. Choose Advanced, then Continue.'),
-        h('li', {}, 'Allow the microphone or camera when asked, then call again.')) :
+      h('p', {}, 'Browsers only allow the microphone and camera on a trusted secure page. Install LocalDrop’s certificate once and the secure page opens with a padlock, with no warning, every time.'),
+      port ? h('ol', { class: 'secure-steps' },
+        h('li', {}, h('b', {}, 'Download the certificate'), h('button', { class: 'btn small', onClick: function () { LD.download('/api/ca'); } }, LD.icon('download', 16), 'Download')),
+        h('li', {}, h('b', {}, 'Install it'), h('ul', {}, platformSteps().map(function (t) { return h('li', {}, t); }))),
+        h('li', {}, h('b', {}, 'Open the secure page'), h('button', { class: 'btn small primary', onClick: openSecure }, LD.icon('lock', 16), 'Open secure page'))) :
         h('p', { class: 'field-error' }, 'Secure calling isn’t available on this host.'),
-      url ? h('div', { class: 'btn-row' },
-        h('button', { class: 'btn', onClick: function () { LD.copyWithToast(url, 'Secure address copied'); } }, LD.icon('copy', 18), 'Copy'),
-        h('button', { class: 'btn primary', onClick: function () { location.href = url; } }, LD.icon('lock', 18), 'Open secure page')) : null);
-    LD.sheet({ title: 'Calls need a secure page', body: body });
+      sha ? h('p', { class: 'field-note secure-sha' }, 'Certificate fingerprint (SHA-256), same as on the host phone: ' + sha) : null,
+      h('p', { class: 'field-note' }, 'This certificate is made on the host phone and only works for private network addresses. It can’t vouch for websites on the internet.'));
+    LD.sheet({ title: 'Set up secure calls', body: body });
   };
 
   // ---- sounds -----------------------------------------------------------------------------------------

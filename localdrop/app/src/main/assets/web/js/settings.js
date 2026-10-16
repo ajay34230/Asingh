@@ -125,6 +125,10 @@
         });
       }));
     }
+    pinRows.push(row('users', 'LocalDrop phones join without a PIN', 'Phones with the LocalDrop app on this network can join by themselves. Turn off to make them type the PIN', LD.toggle(cfg.autoTrust !== false, function (on) { save({ autoTrust: on }); }, 'LocalDrop phones join without a PIN')));
+    if (LD.isHostApp && window.LDHost && window.LDHost.autoConnect) {
+      pinRows.push(row('wifi', 'Join nearby LocalDrop phones automatically', 'Phones with the app on the same network meet in one shared room. Turn off to stay on your own', LD.toggle(window.LDHost.autoConnect(), function (on) { window.LDHost.setAutoConnect(on); LD.emit('nearby'); }, 'Join nearby LocalDrop phones automatically')));
+    }
     el.root.appendChild(card('Security', pinRows, cfg.pinEnabled ? null : 'Without a PIN, anyone on this network can open your files.'));
 
     // What guests may do

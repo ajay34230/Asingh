@@ -34,6 +34,7 @@ final class Store {
     boolean guestModify = true;
     boolean allowLinks = true;
     boolean shareApps = false;
+    boolean autoTrust = true;
     String root;
     long bytesUp;
     long bytesDown;
@@ -98,6 +99,7 @@ final class Store {
                 guestModify = Json.bool(m, "guestModify", true);
                 allowLinks = Json.bool(m, "allowLinks", true);
                 shareApps = Json.bool(m, "shareApps", false);
+                autoTrust = Json.bool(m, "autoTrust", true);
                 root = Json.str(m, "root");
                 bytesUp = Json.num(m, "bytesUp", 0);
                 bytesDown = Json.num(m, "bytesDown", 0);
@@ -166,6 +168,7 @@ final class Store {
         m.put("guestModify", guestModify);
         m.put("allowLinks", allowLinks);
         m.put("shareApps", shareApps);
+        m.put("autoTrust", autoTrust);
         m.put("root", root);
         m.put("bytesUp", bytesUp);
         m.put("bytesDown", bytesDown);

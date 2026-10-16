@@ -66,8 +66,8 @@ public interface Platform {
     /** JPEG thumbnail bytes for an image or video, or null when this platform cannot make one. */
     byte[] thumbnail(File file, int width);
 
-    /** The bundled TLS key store (PKCS12, password "localdrop"), or null when HTTPS is not available. */
-    InputStream openTlsKeystore() throws IOException;
+    /** Other LocalDrop phones nearby and which one hosts the shared room, or null when this platform doesn't look for them. */
+    default java.util.Map<String, Object> room() { return null; }
 
     /** Extra {interfaceName, ipv4} pairs for platforms where listing network interfaces is restricted. */
     List<String[]> fallbackAddresses();
