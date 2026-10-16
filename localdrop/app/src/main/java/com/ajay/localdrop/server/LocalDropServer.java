@@ -331,6 +331,7 @@ public final class LocalDropServer {
             m.put("rootName", files.rootLabel());
             m.put("port", port);
         }
+        res.header("Access-Control-Allow-Origin", "*");
         res.json(200, m);
     }
 

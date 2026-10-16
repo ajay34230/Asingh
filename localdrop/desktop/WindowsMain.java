@@ -44,6 +44,7 @@ public final class WindowsMain {
     private static JFrame frame;
 
     public static void main(String[] args) throws Exception {
+        System.setProperty("ld.room", "1");
         File appDir = appDir();
         File home = new File(System.getProperty("user.home", "."));
         File root = new File(home, "LocalDrop");

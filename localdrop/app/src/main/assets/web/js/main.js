@@ -273,7 +273,7 @@
     LD.connectEvents();
     LD.loadMessages().catch(function () { /* shown when the Drop tab opens */ });
     if (!location.hash || location.hash === '#') LD.go(S.isHost ? 'nearby' : 'files', '', true);
-    if (LD.room) { LD.room.bar(); LD.room.follow(); }
+    if (LD.room) { LD.room.bar(); LD.room.follow(); LD.room.remember(); }
     route();
     if (S.isHost && !LD.store.get('ld_seen_invite', '')) {
       LD.store.set('ld_seen_invite', '1');

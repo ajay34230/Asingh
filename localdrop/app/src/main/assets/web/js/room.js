@@ -77,7 +77,20 @@
     });
   }
 
-  LD.room = { check: check, follow: follow, bar: bar };
+  // Remember where LocalDrop lives, so the app can find it again when the address changes (see finder.js).
+  function remember() {
+    try {
+      var f = JSON.parse(localStorage.getItem('ldfind') || '{}');
+      var hs = (f.hosts || []).filter(function (x) { return x !== location.host; });
+      hs.unshift(location.host);
+      f.hosts = hs.slice(0, 6);
+      f.n = LD.store.get('ld_name', '') || f.n || '';
+      f.d = LD.store.get('ld_device', '') || f.d || '';
+      localStorage.setItem('ldfind', JSON.stringify(f));
+    } catch (e) { /* storage unavailable */ }
+  }
+
+  LD.room = { check: check, follow: follow, bar: bar, remember: remember };
   LD.on('nearby', check);
   if (app) {
     setTimeout(check, 3000);
