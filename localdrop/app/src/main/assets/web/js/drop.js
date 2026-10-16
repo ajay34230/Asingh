@@ -144,11 +144,74 @@
     el.send.disabled = !el.input.value.trim();
   }
 
-  function sendFiles(files) {
+
+  /** Asks who should get something. Resolves with null (everyone), an array of device ids, or undefined if cancelled. */
+  LD.pickRecipients = function (opts) {
+    opts = opts || {};
+    return new Promise(function (resolve) {
+      var devs = S.devices.filter(function (d) { return !S.you || d.id !== S.you.id; });
+      var online = devs.filter(function (d) { return d.online; });
+      var chosen = {};
+      var everyone = !opts.preselect || !opts.preselect.length;
+      (opts.preselect || []).forEach(function (id) { chosen[id] = true; });
+      var done = false;
+      var list = h('div', { class: 'pick-list' });
+      var go = h('button', { class: 'btn primary wide', onClick: function () { finish(); } }, 'Send');
+      var sheet;
+      function count() { return Object.keys(chosen).filter(function (k) { return chosen[k]; }).length; }
+      function refresh() {
+        LD.clear(list);
+        list.appendChild(row('users', 'Everyone', online.length + (online.length === 1 ? ' device online' : ' devices online'), everyone, function () {
+          everyone = !everyone;
+          if (everyone) chosen = {};
+          refresh();
+        }));
+        devs.forEach(function (d) {
+          list.appendChild(row(LD.deviceIcon(d.kind), d.name + (d.host ? ' (host)' : ''), d.online ? 'Online' : 'Offline. They get it when they return', !everyone && chosen[d.id], function () {
+            everyone = false;
+            chosen[d.id] = !chosen[d.id];
+            if (!count()) everyone = true;
+            refresh();
+          }));
+        });
+        go.textContent = everyone ? 'Send to everyone' : 'Send to ' + count() + (count() === 1 ? ' device' : ' devices');
+        go.disabled = !everyone && !count();
+      }
+      function row(icon, label, hint, on, fn) {
+        return h('button', { class: 'pick-row' + (on ? ' on' : ''), role: 'checkbox', 'aria-checked': on ? 'true' : 'false', onClick: fn },
+          h('span', { class: 'pick-ic' }, LD.icon(icon, 20)),
+          h('span', { class: 'pick-text' }, h('b', {}, label), h('span', {}, hint)),
+          h('span', { class: 'pick-check' }, on ? LD.icon('check', 16) : null));
+      }
+      function finish() {
+        done = true;
+        var ids = Object.keys(chosen).filter(function (k) { return chosen[k]; });
+        sheet.close();
+        resolve(everyone ? null : ids);
+      }
+      refresh();
+      var body = h('div', { class: 'pick' },
+        opts.note ? h('p', { class: 'field-note' }, opts.note) : null,
+        list, go);
+      sheet = LD.sheet({ title: opts.title || 'Send to', body: body, onClose: function () { if (!done) { done = true; resolve(undefined); } } });
+    });
+  };
+
+  /** Sends the same file(s) to the chosen devices (null = everyone). */
+  function sendFiles(files, targets) {
     if (!S.perms.upload) { LD.toast('The host has turned off uploads.', 'error'); return; }
-    Array.prototype.forEach.call(files, function (f) {
+    var list = Array.prototype.slice.call(files);
+    if (!list.length) return;
+    if (targets === undefined) {
+      LD.pickRecipients({ title: list.length === 1 ? 'Send ' + list[0].name + ' to' : 'Send ' + list.length + ' files to', preselect: to ? [to] : [] }).then(function (t) {
+        if (t !== undefined) sendFiles(list, t);
+      });
+      return;
+    }
+    var names = targets === null ? 'everyone' : targets.map(deviceName).join(', ');
+    list.forEach(function (f) {
       var bar = h('i', { style: { width: '0%' } });
-      var label = h('span', {}, 'Sending…');
+      var label = h('span', {}, 'Sending to ' + names + '…');
       var node = h('div', { class: 'msg mine pending' }, h('div', { class: 'msg-col' }, h('div', { class: 'bubble' },
         h('div', { class: 'msg-file' }, h('span', { class: 'tile small k-file' }, LD.icon('upload', 18)),
           h('span', { class: 'msg-file-text' }, h('b', {}, f.name), label)),
@@ -158,12 +221,11 @@
       if (el.list.querySelector('.empty')) LD.clear(el.list);
       el.list.appendChild(node);
       toBottom(true);
-      var target = to;
       LD.upload(f, {
-        path: '', rel: 'Drop', quiet: true, tid: Math.random().toString(36).slice(2, 12) + Date.now().toString(36), to: target || '',
-        onProgress: function (l, t) { bar.style.width = Math.round(l / t * 100) + '%'; label.textContent = LD.fmtSize(l) + ' of ' + LD.fmtSize(t); }
+        path: '', rel: 'Drop', quiet: true, tid: Math.random().toString(36).slice(2, 12) + Date.now().toString(36), to: targets ? targets.join(',') : '',
+        onProgress: function (l, t) { bar.style.width = Math.round(l / t * 100) + '%'; label.textContent = LD.fmtSize(l) + ' of ' + LD.fmtSize(t) + ' · to ' + names; }
       }).then(function (r) {
-        return LD.api.post('/api/messages', { text: '', to: target, file: { path: r.path } });
+        return LD.sendFileMessages(r.path, targets);
       }).then(function () {
         remove();
       }, function (e) {
@@ -178,6 +240,12 @@
     });
   }
 
+  /** Posts a file message to everyone (null) or to each chosen device. */
+  LD.sendFileMessages = function (path, targets) {
+    if (!targets) return LD.api.post('/api/messages', { text: '', to: null, file: { path: path } });
+    return Promise.all(targets.map(function (id) { return LD.api.post('/api/messages', { text: '', to: id, file: { path: path } }); }));
+  };
+
   function mount(root) {
     el.who = h('button', { class: 'who', onClick: chooseWho, 'aria-label': 'Choose who to send to' });
     el.sub = h('span', { class: 'drop-sub' });
@@ -185,7 +253,7 @@
     el.scroll = h('div', { class: 'msgs-scroll' }, el.list);
     el.input = h('textarea', { class: 'composer-input', rows: 1, placeholder: 'Write a message or paste a link', 'aria-label': 'Message', enterkeyhint: 'send', maxlength: 8000 });
     el.send = h('button', { class: 'send-btn', 'aria-label': 'Send', disabled: true, onClick: send }, LD.icon('send', 20));
-    el.file = h('input', { type: 'file', multiple: true, hidden: true, onChange: function () { sendFiles(el.file.files); el.file.value = ''; } });
+    el.file = h('input', { type: 'file', multiple: true, hidden: true, onChange: function () { var fl = Array.prototype.slice.call(el.file.files); el.file.value = ''; sendFiles(fl); } });
     var attach = h('button', { class: 'icon-btn attach', 'aria-label': 'Attach a file', onClick: function () { el.file.click(); } }, LD.icon('clip', 22));
     var more = h('button', { class: 'icon-btn', 'aria-label': 'Drop options', onClick: function () {
       LD.menu([
@@ -222,6 +290,6 @@
     mount: mount,
     onShow: function () { updateTo(); toBottom(); },
     setTarget: function (id) { to = id; if (el.who) updateTo(); },
-    sendTo: function (id, files) { to = id; if (el.who) updateTo(); sendFiles(files); }
+    sendTo: function (id, files) { to = id; if (el.who) updateTo(); sendFiles(files, [id]); }
   };
 })();

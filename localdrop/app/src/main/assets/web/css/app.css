@@ -329,7 +329,7 @@ svg.i { flex: none; display: block; }
 @keyframes slideup { from { transform: translateY(100%); } }
 .selbar-top { display: flex; align-items: center; gap: 8px; padding: 0 2px 8px; }
 .selbar-top b { flex: 1; font-size: 16px; }
-.selbar-actions { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; }
+.selbar-actions { display: grid; grid-template-columns: repeat(5, 1fr); gap: 4px; }
 .sel-act { display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 10px 0; border-radius: 14px; font-size: 12.5px; font-weight: 650; color: var(--ink); }
 .sel-act:hover:not(:disabled) { background: var(--surface2); }
 .sel-act:disabled { opacity: .35; }
@@ -679,3 +679,22 @@ button.act-row:hover { background: var(--surface2); }
 .rx-row .tray-title { flex: 1; min-width: 0; display: flex; flex-direction: column; text-align: left; }
 .rx-row .tray-title span { font-size: 12px; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .rx-pct { font-variant-numeric: tabular-nums; color: var(--brand); }
+.pick { display: flex; flex-direction: column; gap: 12px; }
+.pick-list { display: flex; flex-direction: column; gap: 6px; max-height: 50vh; overflow: auto; }
+.pick-row { display: flex; align-items: center; gap: 12px; padding: 10px 12px; border-radius: 16px; border: 1.5px solid transparent; background: var(--surface2); font: inherit; color: inherit; text-align: left; cursor: pointer; transition: border-color .15s, background .15s; }
+.pick-row.on { border-color: var(--brand); background: var(--brand-soft); }
+.pick-ic { width: 38px; height: 38px; border-radius: 12px; display: grid; place-items: center; background: var(--surface); color: var(--brand); flex: none; }
+.pick-text { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.pick-text span { font-size: 12px; color: var(--muted); }
+.pick-check { width: 24px; height: 24px; border-radius: 50%; border: 2px solid var(--line); display: grid; place-items: center; flex: none; color: #fff; }
+.pick-row.on .pick-check { background: var(--brand); border-color: var(--brand); }
+.getapp { display: flex; flex-direction: column; gap: 12px; }
+.get-card { display: flex; align-items: flex-start; gap: 14px; padding: 16px; border-radius: 20px; background: var(--surface2); flex-wrap: wrap; }
+.get-card.off { opacity: .7; }
+.get-ic { width: 48px; height: 48px; border-radius: 16px; display: grid; place-items: center; background: linear-gradient(135deg, #12b886, #0a8f9c); color: #fff; flex: none; }
+.get-ic.web { background: linear-gradient(135deg, #3b82f6, #6366f1); }
+.get-text { flex: 1; min-width: 180px; display: flex; flex-direction: column; gap: 4px; }
+.get-text span { color: var(--muted); font-size: 13.5px; line-height: 1.45; }
+.get-steps { margin: 6px 0 0; padding-left: 20px; color: var(--muted); font-size: 13.5px; line-height: 1.5; }
+.get-card > .btn { margin-left: auto; }
+.login .help-link { margin-top: 10px; }

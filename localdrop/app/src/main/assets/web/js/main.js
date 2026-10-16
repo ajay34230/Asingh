@@ -169,7 +169,8 @@
       h('div', { class: 'login-art' }, h('span', { class: 'ring r1' }), h('span', { class: 'ring r2' }), h('span', { class: 'ring r3' }), LD.logo(54)),
       h('h2', {}, 'Join ' + ((info && info.hostName) || 'LocalDrop')),
       h('p', { class: 'login-sub' }, needPin ? 'Enter the PIN to share files and messages with this device.' : 'Share files and messages with this device.'),
-      form);
+      form,
+      h('button', { class: 'help-link', type: 'button', onClick: function () { LD.openGetApp(); } }, LD.icon('download', 16), 'Get the Android app or install the web app'));
     LD.clear(rootEl).appendChild(h('div', { class: 'login' }, card));
     setTimeout(function () { (needPin && !hashPin ? pinIn : nameIn).focus(); }, 150);
 
@@ -210,6 +211,7 @@
     LD.api.get('/api/info', { quiet: true }).then(function (info) {
       if (!info.authed && !info.host) {
         booting = false;
+        S.info = info;
         showLogin(info);
         return null;
       }

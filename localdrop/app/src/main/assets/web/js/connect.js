@@ -143,6 +143,7 @@
           h('button', { class: 'btn primary', onClick: function () { LD.nativeShare(link, 'Join me on LocalDrop'); } }, LD.icon('share', 18), 'Share')));
       }
 
+      body.appendChild(h('button', { class: 'help-link', onClick: function () { LD.openGetApp(); } }, LD.icon('download', 16), 'Get the Android app (APK) or install the web app'));
       body.appendChild(h('button', { class: 'help-link', onClick: function () { LD.openHelp(); } }, LD.icon('info', 16), 'Can\u2019t connect, or using several routers? Get help'));
       if (hs && hs.hotspot) body.appendChild(hotspotCard(hs.hotspot));
       else if (S.isHost && LD.isHostApp) body.appendChild(h('p', { class: 'invite-note' }, 'Tip: turn on your phone hotspot and LocalDrop will show it here automatically.'));

@@ -274,6 +274,7 @@ public final class LocalDropServer {
             case "/api/ping": res.json(200, Json.obj("t", System.currentTimeMillis())); return;
             case "/api/login": login(req, res); return;
             case "/api/logout": logout(req, res); return;
+            case "/api/getapp": getApp(req, res); return;
             default: break;
         }
         Session s = need(req);
@@ -323,7 +324,7 @@ public final class LocalDropServer {
         Session s = session(req);
         Map<String, Object> m = Json.obj("app", "LocalDrop", "version", platform.version(), "platform", platform.deviceKind(),
                 "hostName", store.deviceName, "host", req.loopback, "authed", s != null, "tlsPort", tlsPort,
-                "pinRequired", s == null && store.pinEnabled);
+                "pinRequired", s == null && store.pinEnabled, "apk", !selfPackage().isEmpty());
         if (s != null) {
             m.put("you", Json.obj("id", s.deviceId, "name", s.name, "kind", s.kind));
             m.put("perms", perms(s));
@@ -640,6 +641,14 @@ public final class LocalDropServer {
         return own.isEmpty() ? "" : own.get(0).pkg;
     }
 
+    /** The LocalDrop installer itself. Open to anyone on the network, no PIN: it is the same public app. */
+    private void getApp(Request req, Response res) throws IOException {
+        String pkg = selfPackage();
+        File f = pkg.isEmpty() ? null : platform.apkFile(pkg);
+        if (f == null || !f.isFile()) throw new HttpError(404, "The app can only be downloaded from an Android phone running LocalDrop.");
+        serveFile(req, res, f, "LocalDrop.apk", true, "Someone", "");
+    }
+
     private void appDownload(Session s, Request req, Response res) throws IOException {
         String pkg = req.q("pkg", "");
         Platform.AppEntry hit = null;
@@ -792,10 +801,9 @@ public final class LocalDropServer {
         Map<String, Object> m = Json.obj("id", tid, "name", name, "size", size, "loaded", loaded, "state", state,
                 "from", Json.obj("id", s.deviceId, "name", s.name, "kind", s.kind));
         if (to != null && !to.isEmpty()) {
-            if (hub.get(to) == null) return;
             Set<String> ids = new HashSet<>();
-            ids.add(to);
-            hub.sendTo(ids, "transfer", m);
+            for (String id : to.split(",")) if (!id.isEmpty() && hub.get(id) != null) ids.add(id);
+            if (!ids.isEmpty()) hub.sendTo(ids, "transfer", m);
         } else {
             hub.broadcast("transfer", m);
         }

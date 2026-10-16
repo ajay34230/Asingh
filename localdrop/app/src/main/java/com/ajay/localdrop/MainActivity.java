@@ -189,7 +189,17 @@ public final class MainActivity extends Activity {
 
     @Override protected void onResume() {
         super.onResume();
+        Discovery d = ServerRuntime.discovery();
+        if (d != null) d.setListener(() -> runOnUiThread(() -> {
+            if (web != null) web.evaluateJavascript("window.onLDNearby&&window.onLDNearby()", null);
+        }));
         pushChange();
+    }
+
+    @Override protected void onPause() {
+        Discovery d = ServerRuntime.discovery();
+        if (d != null) d.setListener(null);
+        super.onPause();
     }
 
     @Override protected void onDestroy() {
@@ -353,6 +363,24 @@ public final class MainActivity extends Activity {
                     am.setSpeakerphoneOn(call && speaker);
                 } catch (Exception ignored) {
                     // audio routing is best effort
+                }
+            });
+        }
+
+        @JavascriptInterface public String nearby() {
+            Discovery d = ServerRuntime.discovery();
+            return d == null ? "[]" : d.json();
+        }
+
+        /** Opens another LocalDrop phone found on this network in the browser. */
+        @JavascriptInterface public void join(String url) {
+            Discovery d = ServerRuntime.discovery();
+            if (d == null || url == null || !d.knows(url)) return;
+            runOnUiThread(() -> {
+                try {
+                    startActivity(new Intent(Intent.ACTION_VIEW, Uri.parse(url)));
+                } catch (Exception e) {
+                    Toast.makeText(MainActivity.this, "No browser found", Toast.LENGTH_SHORT).show();
                 }
             });
         }

@@ -72,6 +72,32 @@
   }
 
   // ---- device list ----------------------------------------------------------------------------------
+  // ---- other LocalDrop phones on this network (found automatically by the Android app) -----------------
+  var seenPeers = {};
+  function loadPeers() {
+    if (!LD.isHostApp || !window.LDHost || !window.LDHost.nearby || !el.peersWrap) return;
+    var list = [];
+    try { list = JSON.parse(window.LDHost.nearby()); } catch (e) { list = []; }
+    Promise.all(list.map(function (p) {
+      var ctl = new AbortController();
+      var t = setTimeout(function () { ctl.abort(); }, 2500);
+      return fetch(p.url + 'api/ping', { mode: 'no-cors', cache: 'no-store', signal: ctl.signal })
+        .then(function () { clearTimeout(t); return p; }, function () { clearTimeout(t); return null; });
+    })).then(function (ok) {
+      var live = ok.filter(Boolean);
+      LD.clear(el.peers);
+      el.peersWrap.hidden = !live.length;
+      live.forEach(function (p) {
+        if (!seenPeers[p.url]) { seenPeers[p.url] = true; LD.toast('Found ' + p.name + ' nearby', 'ok'); }
+        el.peers.appendChild(h('div', { class: 'dev-row online' },
+          h('span', { class: 'dev-main' }, LD.deviceBadge('phone', 42),
+            h('span', { class: 'dev-text' }, h('span', { class: 'dev-name' }, p.name), h('span', { class: 'dev-meta' }, 'LocalDrop \u00b7 ' + p.host + ':' + p.port))),
+          h('button', { class: 'btn small primary', onClick: function () { window.LDHost.join(p.url); } }, LD.icon('wifi', 16), 'Connect')));
+      });
+    });
+  }
+  window.onLDNearby = LD.debounce(loadPeers, 400);
+
   function openCallPicker() {
     var list = others().filter(function (d) { return d.online; });
     var sheet;
@@ -218,12 +244,16 @@
     el.callBtn = h('button', { class: 'btn primary call-start', onClick: function () { openCallPicker(); } }, LD.icon('phone-call', 18), 'Call someone');
     el.devices = h('div', { class: 'dev-list' });
     el.devicesWrap = h('section', { class: 'block', hidden: true }, h('h3', { class: 'block-title' }, 'Devices'), el.devices);
+    el.peers = h('div', { class: 'dev-list' });
+    el.peersWrap = h('section', { class: 'block', hidden: true }, h('h3', { class: 'block-title' }, 'LocalDrop phones found nearby'),
+      el.peers, h('p', { class: 'field-note' }, 'Tap Connect to join that phone. It opens in your browser; enter its PIN if it has one.'));
     el.activity = h('div', { class: 'act-list' });
     el.activityWrap = h('section', { class: 'block', hidden: true }, h('h3', { class: 'block-title' }, 'Recent activity'), el.activity);
     root.appendChild(el.hero);
     root.appendChild(h('section', { class: 'radar' }, el.stage, h('div', { class: 'radar-text' }, el.caption, el.sub),
       S.isHost ? null : h('button', { class: 'btn', onClick: function () { LD.openInvite(); } }, LD.icon('qr', 18), 'Invite someone'),
       el.callBtn));
+    root.appendChild(el.peersWrap);
     root.appendChild(el.devicesWrap);
     root.appendChild(el.activityWrap);
     renderRadar();
@@ -237,5 +267,6 @@
     setInterval(function () { if (S.tab === 'nearby') { renderDevices(); renderActivity(); } }, 30000);
   }
 
-  LD.screens.nearby = { mount: mount, onShow: function () { renderRadar(); renderDevices(); renderActivity(); loadHero(); } };
+  LD.screens.nearby = { mount: mount, onShow: function () { renderRadar(); renderDevices(); renderActivity(); loadHero(); loadPeers(); } };
+  setInterval(function () { if (S.tab === 'nearby') loadPeers(); }, 12000);
 })();

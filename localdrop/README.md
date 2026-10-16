@@ -21,6 +21,8 @@ Updates install over the old version, because every build is signed with the sam
 - **Apps**: other devices can download the LocalDrop installer from the host (Files menu, "Apps to install"). The host can also allow installers of other apps on the phone.
 - **Calls**: voice and video calls (mute, camera off, flip camera, speaker, hold, cancel, decline, busy, and group calls: add more people to a call, everyone connects to everyone) between connected devices, straight over the local network (WebRTC; nothing leaves your network). Everyone picks a name when joining. Browsers only allow the camera and microphone on secure pages, so guests open the secure address (the `https://` one shown in the call prompt), accept the certificate warning once, and then call. The host app itself needs no warning.
 - **Connection help**: Invite sheet, "Get help" gives tips for several routers and a delay and speed test.
+- **Get the app**: guests can download the Android app (APK, no PIN needed) or install LocalDrop as a web app (PWA) from the login screen, Invite sheet or Settings.
+- **Nearby phones**: Android phones running LocalDrop on the same Wi-Fi find each other automatically (mDNS) and show a Connect button on the Nearby screen.
 - **Nearby**: a live radar of connected devices, who did what, and the host can disconnect a device.
 - **Join**: QR code with optional PIN built in, one-tap hotspot from the app, Wi-Fi QR for the hotspot, addresses for every network the phone is on.
 - **Security**: PIN (4 to 8 digits, can be turned off in Settings so people join with just a name) with lockout after 5 wrong tries, per-device sign-in, host controls for what guests may do (upload, change files, make links).

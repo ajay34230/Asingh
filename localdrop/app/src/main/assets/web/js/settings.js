@@ -71,6 +71,7 @@
     // About
     el.root.appendChild(card('About', [
       row('qr', 'Invite devices', 'Show the QR code and address', null, function () { LD.openInvite(); }),
+      row('download', 'Get the app', 'Download the Android app (APK) or install the web app (PWA)', null, function () { LD.openGetApp(); }),
       row('wifi', 'Connection help and speed test', 'Works across routers on one network', null, LD.openHelp),
       row('info', 'LocalDrop', 'Version ' + ((S.info && S.info.version) || (cfg && cfg.version) || '1.0'), null, null),
       row('shield', 'Privacy', 'Everything stays on your own network. Nothing goes to the internet.', null, null)

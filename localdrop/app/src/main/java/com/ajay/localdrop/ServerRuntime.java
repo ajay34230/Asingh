@@ -11,6 +11,7 @@ import java.io.IOException;
 final class ServerRuntime {
     private static LocalDropServer server;
     private static AndroidPlatform platform;
+    private static Discovery discovery;
 
     private ServerRuntime() {}
 
@@ -23,6 +24,12 @@ final class ServerRuntime {
             s.start(prefs.getInt("port", 8080));
             platform = p;
             server = s;
+            try {
+                discovery = new Discovery(app);
+                discovery.start(s.port(), p.deviceName());
+            } catch (Throwable ignored) {
+                discovery = null;
+            }
         }
         return server;
     }
@@ -35,7 +42,15 @@ final class ServerRuntime {
         return platform;
     }
 
+    static synchronized Discovery discovery() {
+        return discovery;
+    }
+
     static synchronized void stop() {
+        if (discovery != null) {
+            discovery.stop();
+            discovery = null;
+        }
         if (server != null) {
             server.stop();
             server = null;

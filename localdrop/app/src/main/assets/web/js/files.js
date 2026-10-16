@@ -694,6 +694,7 @@
       return h('button', { class: 'sel-act' + (danger ? ' danger' : ''), disabled: !n || !!off, onClick: fn }, LD.icon(icon, 22), h('span', {}, label));
     }
     el.selbar.appendChild(h('div', { class: 'selbar-actions' },
+      act('send', 'Send to', function () { sendToDevices(selEntries()); }, false, selEntries().every(function (e) { return e.dir; })),
       act('download', 'Download', function () { downloadMany(selEntries()); }),
       act('move', 'Move', function () { moveCopy(selEntries(), false); }, false, !mod),
       act('copy', 'Copy', function () { moveCopy(selEntries(), true); }, false, !mod),
@@ -701,6 +702,18 @@
   }
 
   // ---- actions -------------------------------------------------------------------------------------------------------------
+  /** Shares existing files with chosen devices (or everyone) through Drop. */
+  function sendToDevices(items) {
+    var fl = items.filter(function (e) { return !e.dir; });
+    if (!fl.length) { LD.toast('Pick files to send. Folders can be shared as a link or zip.', 'error'); return; }
+    LD.pickRecipients({ title: fl.length === 1 ? 'Send ' + fl[0].name + ' to' : 'Send ' + fl.length + ' files to' }).then(function (t) {
+      if (t === undefined) return;
+      Promise.all(fl.map(function (e) { return LD.sendFileMessages(e.path, t); })).then(function () {
+        LD.toast('Sent to ' + (t ? t.length + (t.length === 1 ? ' device' : ' devices') : 'everyone') + '. See Drop.', 'ok');
+      }, LD.fail);
+    });
+  }
+
   function downloadMany(items) {
     if (!items.length) return;
     if (items.length === 1 && !items[0].dir) { LD.download(LD.fileUrl(items[0].path, true)); return; }
@@ -763,6 +776,7 @@
     var mod = S.perms.modify;
     var items = [];
     if (!e.dir) items.push({ icon: 'eye', label: 'Open', onClick: function () { openEntry(e, files || [e]); } });
+    if (!e.dir) items.push({ icon: 'send', label: 'Send to devices\u2026', hint: 'Choose who gets it', onClick: function () { sendToDevices([e]); } });
     items.push({ icon: 'download', label: e.dir ? 'Download as zip' : 'Download', onClick: function () { downloadMany([e]); } });
     items.push({ icon: 'link', label: 'Share link', disabled: !S.perms.links, hint: S.perms.links ? null : 'Turned off by the host', onClick: function () { LD.shareLink(e); } });
     if (!e.dir) items.push({ icon: 'send', label: 'Send in Drop', onClick: function () { sendInDrop(e); } });

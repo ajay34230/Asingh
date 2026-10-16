@@ -30,6 +30,7 @@ tap 1; adb exec-out screencap -p > "$OUT/3-files.png"
 tap 3; adb exec-out screencap -p > "$OUT/4-drop.png"
 tap 7; adb exec-out screencap -p > "$OUT/5-settings.png"
 curl -fs http://127.0.0.1:8080/api/info > "$OUT/info.json" && grep -q '"host":true' "$OUT/info.json" && ok "host session over loopback" || bad "info"
+curl -fs -o "$OUT/getapp.apk" http://127.0.0.1:8080/api/getapp && [ "$(stat -c %s "$OUT/getapp.apk")" -gt 100000 ] && ok "own APK downloads without a PIN" || bad "api/getapp"
 TLSP=$(sed -n 's/.*"tlsPort":\([0-9]*\).*/\1/p' "$OUT/info.json")
 if [ -n "$TLSP" ]; then
   adb forward tcp:$TLSP tcp:$TLSP >/dev/null
