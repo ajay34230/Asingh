@@ -286,6 +286,7 @@ public final class LocalDropServer {
             case "/api/speed": speed(req, res); return;
             case "/api/signal": signal(s, req, res); return;
             case "/api/handoff": handoff(s, req, res); return;
+            case "/api/nearby": res.json(200, Json.obj("peers", platform.nearby())); return;
             case "/api/app": appDownload(s, req, res); return;
             case "/api/thumb": thumb(req, res); return;
             case "/api/upload": upload(s, req, res); return;
@@ -587,7 +588,7 @@ public final class LocalDropServer {
                 RandomAccessFile raf = new RandomAccessFile(f, "r");
                 try {
                     raf.seek(start);
-                    byte[] buf = new byte[128 * 1024];
+                    byte[] buf = new byte[1024 * 1024];
                     long left = count;
                     while (left > 0) {
                         int n = raf.read(buf, 0, (int) Math.min(buf.length, left));
@@ -771,7 +772,7 @@ public final class LocalDropServer {
             if (tid != null) transfer(s, tid, name, len, 0, tto, "active");
             FileOutputStream fo = new FileOutputStream(tmp);
             try {
-                byte[] buf = new byte[128 * 1024];
+                byte[] buf = new byte[1024 * 1024];
                 InputStream in = req.body();
                 int n;
                 while ((n = in.read(buf)) > 0) {

@@ -69,6 +69,9 @@ public interface Platform {
     /** Other LocalDrop phones nearby and which one hosts the shared room, or null when this platform doesn't look for them. */
     default java.util.Map<String, Object> room() { return null; }
 
+    /** Other LocalDrop devices found on the network: maps with name, kind, host, port, id, url, tlsUrl. */
+    default List<java.util.Map<String, Object>> nearby() { return new java.util.ArrayList<>(); }
+
     /** Extra {interfaceName, ipv4} pairs for platforms where listing network interfaces is restricted. */
     List<String[]> fallbackAddresses();
 

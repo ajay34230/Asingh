@@ -119,7 +119,7 @@ public final class Http {
         try {
             ServerSocket s = new ServerSocket();
             s.setReuseAddress(true);
-            s.setReceiveBufferSize(256 * 1024);
+            s.setReceiveBufferSize(4 * 1024 * 1024);
             s.bind(new InetSocketAddress(p), 128);
             return s;
         } catch (IOException e) {
@@ -176,14 +176,14 @@ public final class Http {
         void run() {
             try {
                 sock.setTcpNoDelay(true);
-                sock.setSendBufferSize(256 * 1024);
+                sock.setSendBufferSize(4 * 1024 * 1024);
                 InetSocketAddress ra = (InetSocketAddress) sock.getRemoteSocketAddress();
                 String ip = ra.getAddress().getHostAddress();
                 int pct = ip.indexOf('%');
                 if (pct > 0) ip = ip.substring(0, pct);
                 if (ip.startsWith("::ffff:")) ip = ip.substring(7);
                 boolean loop = ra.getAddress().isLoopbackAddress();
-                InputStream in = new java.io.BufferedInputStream(sock.getInputStream(), 32768);
+                InputStream in = new java.io.BufferedInputStream(sock.getInputStream(), 256 * 1024);
                 OutputStream out = sock.getOutputStream();
                 boolean first = true;
                 while (running) {

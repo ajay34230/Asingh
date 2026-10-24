@@ -75,9 +75,18 @@
   // ---- other LocalDrop phones on this network (found automatically by the Android app) -----------------
   var seenPeers = {};
   function loadPeers() {
-    if (!LD.isHostApp || !S.isHost || !window.LDHost || !window.LDHost.nearby || !el.peersWrap) return;
-    var list = [];
-    try { list = JSON.parse(window.LDHost.nearby()); } catch (e) { list = []; }
+    if (!S.isHost || !el.peersWrap) return;
+    var src;
+    if (LD.isHostApp && window.LDHost && window.LDHost.nearby) {
+      var l0 = [];
+      try { l0 = JSON.parse(window.LDHost.nearby()); } catch (e) { l0 = []; }
+      src = Promise.resolve(l0);
+    } else if (S.info && S.info.platform === 'desktop') {
+      src = LD.api.get('/api/nearby', { quiet: true }).then(function (r) { return r.peers || []; }, function () { return []; });
+    } else return;
+    src.then(function (list) { showPeers(list); });
+  }
+  function showPeers(list) {
     Promise.all(list.map(function (p) {
       var ctl = new AbortController();
       var t = setTimeout(function () { ctl.abort(); }, 2500);
@@ -90,9 +99,9 @@
       live.forEach(function (p) {
         if (!seenPeers[p.url]) { seenPeers[p.url] = true; LD.toast('Found ' + p.name + ' nearby', 'ok'); }
         el.peers.appendChild(h('div', { class: 'dev-row online' },
-          h('span', { class: 'dev-main' }, LD.deviceBadge('phone', 42),
+          h('span', { class: 'dev-main' }, LD.deviceBadge(p.kind || 'phone', 42),
             h('span', { class: 'dev-text' }, h('span', { class: 'dev-name' }, p.name), h('span', { class: 'dev-meta' }, 'LocalDrop \u00b7 ' + p.host + ':' + p.port))),
-          h('button', { class: 'btn small primary', onClick: function () { window.LDHost.join(p.url); } }, LD.icon('wifi', 16), 'Connect')));
+          h('button', { class: 'btn small primary', onClick: function () { if (window.LDHost && window.LDHost.join) window.LDHost.join(p.url); else location.href = p.url + '#aj=1&n=' + encodeURIComponent((S.info && S.info.hostName) || '') + '&d=' + encodeURIComponent((S.info && S.info.room && S.info.room.self) || ''); } }, LD.icon('wifi', 16), 'Connect')));
       });
     });
   }
@@ -246,7 +255,7 @@
     el.devices = h('div', { class: 'dev-list' });
     el.devicesWrap = h('section', { class: 'block', hidden: true }, h('h3', { class: 'block-title' }, 'Devices'), el.devices);
     el.peers = h('div', { class: 'dev-list' });
-    el.peersWrap = h('section', { class: 'block', hidden: true }, h('h3', { class: 'block-title' }, 'LocalDrop phones found nearby'),
+    el.peersWrap = h('section', { class: 'block', hidden: true }, h('h3', { class: 'block-title' }, 'LocalDrop devices found nearby'),
       el.peers, h('p', { class: 'field-note' }, 'Tap Connect to join that phone. It opens in your browser; enter its PIN if it has one.'));
     el.activity = h('div', { class: 'act-list' });
     el.activityWrap = h('section', { class: 'block', hidden: true }, h('h3', { class: 'block-title' }, 'Recent activity'), el.activity);

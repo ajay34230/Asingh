@@ -81,20 +81,14 @@ public final class DesktopPlatform implements Platform {
         return t != null && pkg.equals("test.app") ? new File(t) : null;
     }
 
-    /** The Windows app joins the shared room as the hub: its id sorts first, so phones on the network move to it. */
-    @Override public java.util.Map<String, Object> room() {
-        if (System.getProperty("ld.room") == null) return null;
-        java.util.Map<String, Object> m = new java.util.LinkedHashMap<>();
-        m.put("on", true);
-        m.put("self", "0000windows");
-        m.put("seen", new ArrayList<String>());
-        java.util.Map<String, Object> l = new java.util.LinkedHashMap<>();
-        l.put("id", "0000windows");
-        l.put("self", true);
-        l.put("name", deviceName());
-        m.put("leader", l);
-        return m;
-    }
+    private volatile PeerFinder finder;
+
+    /** Starts looking for other LocalDrop devices (Windows app). */
+    public void startFinder(int port, int tlsPort) { finder = new PeerFinder(data, deviceName(), port, tlsPort); }
+
+    @Override public java.util.Map<String, Object> room() { PeerFinder f = finder; return f == null ? null : f.room(); }
+
+    @Override public List<java.util.Map<String, Object>> nearby() { PeerFinder f = finder; return f == null ? new ArrayList<java.util.Map<String, Object>>() : f.nearby(); }
 
     @Override public List<String[]> fallbackAddresses() { return new ArrayList<>(); }
 

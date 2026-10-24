@@ -44,7 +44,6 @@ public final class WindowsMain {
     private static JFrame frame;
 
     public static void main(String[] args) throws Exception {
-        System.setProperty("ld.room", "1");
         File appDir = appDir();
         File home = new File(System.getProperty("user.home", "."));
         File root = new File(home, "LocalDrop");
@@ -58,8 +57,10 @@ public final class WindowsMain {
         }
         //noinspection ResultOfMethodCallIgnored
         root.mkdirs();
-        server = new LocalDropServer(new DesktopPlatform(data, root, web));
+        DesktopPlatform dp = new DesktopPlatform(data, root, web);
+        server = new LocalDropServer(dp);
         port = server.start(want);
+        dp.startFinder(port, server.tlsPort());
         Runtime.getRuntime().addShutdownHook(new Thread() {
             @Override public void run() { server.stop(); }
         });

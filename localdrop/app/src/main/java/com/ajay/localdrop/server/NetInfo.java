@@ -32,7 +32,7 @@ final class NetInfo {
                 Enumeration<InetAddress> addrs = ni.getInetAddresses();
                 while (addrs.hasMoreElements()) {
                     InetAddress a = addrs.nextElement();
-                    if (!(a instanceof Inet4Address) || a.isLinkLocalAddress() || a.isLoopbackAddress()) continue;
+                    if (!(a instanceof Inet4Address) || a.isLoopbackAddress()) continue;
                     String ip = a.getHostAddress();
                     String kind = kindOf(name);
                     Map<String, Object> m = new LinkedHashMap<>();

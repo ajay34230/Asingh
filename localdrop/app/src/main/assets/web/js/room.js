@@ -63,14 +63,20 @@
   }
 
   // ---- browsers (PWA or any browser): follow the room host --------------------------------------------
+  // A PC can stay on its own page: open http://127.0.0.1:8080/#stay once.
+  function stay() {
+    try { if (location.hash.indexOf('stay') > 0) localStorage.setItem('ld_stay', '1'); if (location.hash.indexOf('own') > 0) localStorage.removeItem('ld_stay'); return !!localStorage.getItem('ld_stay'); } catch (e) { return false; }
+  }
+
   function follow() {
-    if (app || !S.info || S.isHost) return;
+    var pc = S.isHost && S.info && S.info.platform === 'desktop' && !stay();
+    if (app || !S.info || (S.isHost && !pc)) return;
     var r = S.info.room;
     if (!r || !r.leader || r.leader.self || moving) return;
     var l = r.leader;
     var base = location.protocol === 'https:' && l.tlsUrl ? l.tlsUrl : l.url;
-    var name = LD.store.get('ld_name', '') || '';
-    var id = LD.store.get('ld_device', '') || '';
+    var name = pc ? S.info.hostName : (LD.store.get('ld_name', '') || '');
+    var id = pc ? r.self : (LD.store.get('ld_device', '') || '');
     ping(l.url).then(function (ok) {
       if (!ok) return;
       leave(base + '#aj=1&n=' + encodeURIComponent(name) + '&d=' + encodeURIComponent(id), 'Joining ' + l.name + '’s room');
@@ -97,7 +103,8 @@
     setInterval(check, 8000);
   }
   setInterval(function () {
-    if (app || !S.info || S.isHost || !S.you) return;
+    var pc = S.isHost && S.info && S.info.platform === 'desktop';
+    if (app || !S.info || (S.isHost && !pc) || !S.you) return;
     LD.api.get('/api/info', { quiet: true }).then(function (i) { S.info.room = i.room; follow(); }, function () { /* offline for now */ });
   }, 15000);
 })();

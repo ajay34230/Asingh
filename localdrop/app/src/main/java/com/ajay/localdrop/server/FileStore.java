@@ -242,7 +242,7 @@ final class FileStore {
             dst.setLastModified(src.lastModified());
         } else {
             try (InputStream in = new FileInputStream(src); OutputStream out = new FileOutputStream(dst)) {
-                byte[] buf = new byte[128 * 1024];
+                byte[] buf = new byte[1024 * 1024];
                 int n;
                 while ((n = in.read(buf)) > 0) out.write(buf, 0, n);
             }
@@ -448,7 +448,7 @@ final class FileStore {
             e.setTime(f.lastModified());
             z.setLevel(Mime.isCompressed(f.getName()) ? Deflater.NO_COMPRESSION : Deflater.BEST_SPEED);
             z.putNextEntry(e);
-            byte[] buf = new byte[128 * 1024];
+            byte[] buf = new byte[1024 * 1024];
             int n;
             while ((n = in.read(buf)) > 0) {
                 z.write(buf, 0, n);
