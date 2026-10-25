@@ -705,3 +705,11 @@ button.act-row:hover { background: var(--surface2); }
 .secure-steps > li > b { display: block; margin-bottom: 6px; }
 .secure-steps ul { margin: 0 0 0 -4px; padding-left: 18px; color: var(--muted); font-size: 13.5px; line-height: 1.5; }
 .secure-sha { word-break: break-all; font-family: ui-monospace, monospace; font-size: 11px; }
+.hero-how { margin: 2px 0 8px; color: var(--muted); font-size: 14px; }
+.hero-note { margin: 8px 0 0; color: var(--muted); font-size: 12.5px; }
+.addr-list { display: flex; flex-direction: column; gap: 8px; }
+.addr-row { display: flex; align-items: center; gap: 10px; width: 100%; padding: 12px 14px; border-radius: 14px; border: 1.5px solid var(--line, #0b8f8c33); background: transparent; color: inherit; font: inherit; text-align: left; cursor: pointer; }
+.addr-row.on { border-color: #0B8F8C; background: #0B8F8C14; }
+.addr-kind { font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: .04em; color: #0B8F8C; min-width: 84px; }
+.addr-url { flex: 1; font-size: 18px; font-weight: 700; font-variant-numeric: tabular-nums; word-break: break-all; }
+.hero-pin.ok { color: #0B8F8C; }

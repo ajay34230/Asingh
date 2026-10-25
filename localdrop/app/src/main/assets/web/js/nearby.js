@@ -231,14 +231,21 @@
         h('button', { class: 'btn primary', onClick: function () { LD.openInvite(); } }, 'Set up')));
       return;
     }
-    var link = a.url + (hero.pinOn && hero.pin && LD.store.get('ld_qr_pin', '1') === '1' ? '/#pin=' + hero.pin : '');
+    var sel = hero.sel && hero.addrs.filter(function (x) { return x.ip === hero.sel; })[0] || a;
+    var link = sel.url + (hero.pinOn && hero.pin && LD.store.get('ld_qr_pin', '1') === '1' ? '/#pin=' + hero.pin : '');
+    function nice(x) { return x.kind === 'ethernet' || x.kind === 'usb' ? 'LAN cable' : x.kind === 'direct' ? 'Direct' : x.kind === 'hotspot' ? 'Hotspot' : x.kind === 'wifi' ? 'Same Wi-Fi' : 'Network'; }
     el.hero.appendChild(h('button', { class: 'hero-qr', 'aria-label': 'Show a larger QR code', onClick: function () { LD.openInvite(); } }, LD.qrBlock(link, 168)));
     el.hero.appendChild(h('div', { class: 'hero-text' },
-      h('span', { class: 'hero-kicker' }, a.label || 'Network'),
-      h('h2', {}, 'Scan or type to join'),
-      h('button', { class: 'address', onClick: function () { LD.copyWithToast(a.url, 'Address copied'); } }, h('span', { class: 'address-text' }, a.url.replace(/^http:\/\//, '')), LD.icon('copy', 16)),
-      hero.pinOn && hero.pin ? h('div', { class: 'hero-pin' }, LD.icon('key', 15), 'PIN ', h('b', {}, hero.pin)) : h('div', { class: 'hero-pin warn' }, LD.icon('alert', 15), 'No PIN set'),
-      h('button', { class: 'btn small primary', onClick: function () { LD.openInvite(); } }, LD.icon('qr', 16), 'Bigger code and hotspot')));
+      h('h2', {}, 'Connect another device'),
+      h('p', { class: 'hero-how' }, 'On the other device, open a browser and type one of these (or scan the code):'),
+      h('div', { class: 'addr-list' }, hero.addrs.map(function (x) {
+        return h('button', { class: 'addr-row' + (x.ip === sel.ip ? ' on' : ''), onClick: function () { hero.sel = x.ip; LD.copyWithToast(x.url, 'Address copied'); renderHero(); } },
+          h('span', { class: 'addr-kind' }, nice(x)),
+          h('span', { class: 'addr-url' }, x.url.replace(/^http:\/\//, '')),
+          LD.icon('copy', 16));
+      })),
+      hero.pinOn && hero.pin ? h('div', { class: 'hero-pin' }, LD.icon('key', 15), 'PIN ', h('b', {}, hero.pin)) : h('div', { class: 'hero-pin ok' }, LD.icon('check', 15), 'No PIN needed'),
+      h('p', { class: 'hero-note' }, 'Same Wi-Fi: use the Wi-Fi address. Cable between PCs or a switch: use the LAN cable address. Tap one to copy it.')));
   }
 
   function mount(root) {
