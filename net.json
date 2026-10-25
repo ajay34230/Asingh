@@ -1,0 +1,1 @@
+[{"iface":"wlan0","kind":"wifi","label":"Wi-Fi","ip":"10.0.2.16","port":8080,"url":"http://10.0.2.16:8080","tlsUrl":"https://10.0.2.16:8443"},{"iface":"eth0","kind":"ethernet","label":"Ethernet","ip":"10.0.2.15","port":8080,"url":"http://10.0.2.15:8080","tlsUrl":"https://10.0.2.15:8443"}]
