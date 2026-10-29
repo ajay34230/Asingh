@@ -1,0 +1,190 @@
+name: Validate and build Android debug APK
+
+# Runs only when asked (Actions tab -> "Run workflow") or when scripts, scenes, project
+# settings or this workflow change on a phase-* branch. Docs-only pushes do not trigger it.
+on:
+  workflow_dispatch:
+    inputs:
+      renderer:
+        description: "Renderer for the Android build"
+        type: choice
+        options:
+          - mobile
+          - gl_compatibility
+        default: mobile
+  push:
+    branches:
+      - "phase-*"
+    paths:
+      - "scripts/**"
+      - "scenes/**"
+      - "assets/**"
+      - "project.godot"
+      - "export_presets.cfg"
+      - "ci/**"
+      - ".github/workflows/build.yml"
+
+concurrency:
+  group: build-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+env:
+  # Pinned engine version. Change it here only, then re-run: checksums are verified.
+  GODOT_VERSION: "4.4.1"
+
+jobs:
+  validate:
+    name: Import, self-test, screenshots
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Cache Godot binary
+        uses: actions/cache@v4
+        with:
+          path: .ci/godot
+          key: godot-bin-${{ env.GODOT_VERSION }}
+
+      - name: Install Godot ${{ env.GODOT_VERSION }}
+        run: ci/install_godot.sh
+
+      - name: Import project (headless)
+        run: |
+          mkdir -p logs
+          set -o pipefail
+          .ci/godot/Godot_v${GODOT_VERSION}-stable_linux.x86_64 --headless --path . --import 2>&1 | tee logs/import.log
+          if grep -E "SCRIPT ERROR|Parse Error" logs/import.log; then
+            echo "::error::Script errors found during import"
+            exit 1
+          fi
+
+      - name: Self-test (headless physics checks)
+        run: |
+          set -o pipefail
+          .ci/godot/Godot_v${GODOT_VERSION}-stable_linux.x86_64 --headless --fixed-fps 60 --path . -- --selftest 2>&1 | tee logs/selftest.log
+
+      - name: Install software rendering packages
+        continue-on-error: true
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends xvfb libgl1 libgl1-mesa-dri libglx-mesa0 \
+            libxcursor1 libxinerama1 libxi6 libxrandr2 libxkbcommon0 libasound2t64
+
+      - name: Capture screenshots (software OpenGL, not the phone GPU)
+        continue-on-error: true
+        run: |
+          set -o pipefail
+          mkdir -p captures
+          LIBGL_ALWAYS_SOFTWARE=1 xvfb-run -a -s "-screen 0 1280x720x24" \
+            .ci/godot/Godot_v${GODOT_VERSION}-stable_linux.x86_64 \
+            --rendering-driver opengl3 --rendering-method gl_compatibility --resolution 1280x720 \
+            --path . -- --capture=captures 2>&1 | tee logs/capture.log
+
+      - name: Upload logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: validation-logs
+          path: logs/
+          if-no-files-found: warn
+          retention-days: 14
+
+      - name: Upload screenshots
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: screenshots
+          path: captures/*.png
+          if-no-files-found: warn
+          retention-days: 14
+
+  android:
+    name: Android debug APK
+    needs: validate
+    runs-on: ubuntu-24.04
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Cache Godot binary and export templates
+        uses: actions/cache@v4
+        with:
+          path: |
+            .ci/godot
+            ~/.local/share/godot/export_templates
+          key: godot-android-${{ env.GODOT_VERSION }}
+
+      - name: Install Godot and export templates
+        run: |
+          ci/install_godot.sh
+          ci/install_templates.sh
+
+      - name: Install Android SDK components
+        run: |
+          set -o pipefail
+          SDKM="$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager"
+          yes | "$SDKM" --licenses > /dev/null || true
+          "$SDKM" "platform-tools" "build-tools;35.0.1" "platforms;android-35" "cmake;3.10.2.4988404"
+          ls "$ANDROID_HOME/build-tools"
+
+      - name: Configure Godot editor settings and a throwaway debug keystore
+        run: |
+          mkdir -p "$HOME/.config/godot" logs build
+          for f in editor_settings-4.4.tres editor_settings-4.tres; do
+            printf '[gd_resource type="EditorSettings" format=3]\n\n[resource]\nexport/android/android_sdk_path = "%s"\nexport/android/java_sdk_path = "%s"\n' \
+              "$ANDROID_HOME" "$JAVA_HOME" > "$HOME/.config/godot/$f"
+          done
+          cat "$HOME/.config/godot/editor_settings-4.4.tres"
+          # Standard Android debug keystore, generated fresh on every run. It is not stored
+          # anywhere, is not a secret, and signs only the debug APK for personal testing.
+          keytool -genkeypair -v -keystore "$RUNNER_TEMP/debug.keystore" \
+            -alias androiddebugkey -keypass android -storepass android \
+            -dname "CN=Android Debug,O=Android,C=US" -keyalg RSA -keysize 2048 -validity 10000 > /dev/null
+
+      - name: Choose renderer
+        run: |
+          RENDERER="${{ github.event.inputs.renderer || 'mobile' }}"
+          echo "Renderer for this build: $RENDERER"
+          if [ "$RENDERER" = "gl_compatibility" ]; then
+            sed -i '/^\[rendering\]/a renderer/rendering_method.mobile="gl_compatibility"' project.godot
+          fi
+
+      - name: Import and export debug APK
+        env:
+          GODOT_ANDROID_KEYSTORE_DEBUG_PATH: ${{ runner.temp }}/debug.keystore
+          GODOT_ANDROID_KEYSTORE_DEBUG_USER: androiddebugkey
+          GODOT_ANDROID_KEYSTORE_DEBUG_PASSWORD: android
+        run: |
+          set -o pipefail
+          GODOT=".ci/godot/Godot_v${GODOT_VERSION}-stable_linux.x86_64"
+          "$GODOT" --headless --path . --import 2>&1 | tee logs/android-import.log
+          "$GODOT" --headless --path . --export-debug "Android Debug" build/TheLostKingdom-debug.apk 2>&1 | tee logs/android-export.log
+          test -s build/TheLostKingdom-debug.apk
+          ls -l build/
+          "$ANDROID_HOME/build-tools/35.0.1/apksigner" verify --verbose build/TheLostKingdom-debug.apk 2>&1 | tee logs/apksigner.log || true
+
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: TheLostKingdom-debug-apk
+          path: build/TheLostKingdom-debug.apk
+          if-no-files-found: error
+          retention-days: 14
+
+      - name: Upload Android logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: android-logs
+          path: logs/
+          if-no-files-found: warn
+          retention-days: 14

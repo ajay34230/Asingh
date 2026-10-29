@@ -1,0 +1,23 @@
+# Godot
+.godot/
+*.translation
+.import/
+export.cfg
+.mono/
+
+# Build outputs - never commit APKs, keystores or SDKs
+build/
+*.apk
+*.aab
+*.keystore
+*.jks
+local.properties
+android/build/
+
+# Screenshots produced by CI/local runs
+captures/
+
+# OS / editor
+.DS_Store
+Thumbs.db
+*.swp
