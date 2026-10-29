@@ -17,12 +17,19 @@ const EDGE_Y := 32.0              # terrain border is forced to this height (ski
 const RIM_HEIGHT := 22.0
 const FORECOURT := Vector2(0.0, -138.0)
 const START_MOUND := Vector2(120.0, 160.0)
+## Ground is levelled around these points so houses can be built on them.
+const HOUSE_SITES: Array[Vector2] = [
+	Vector2(-75.0, 10.0), Vector2(-102.0, -18.0), Vector2(-64.0, -38.0),
+	Vector2(-98.0, 38.0), Vector2(-128.0, 8.0),
+]
+const SITE_FLAT_RADIUS := 13.0
+const SITE_BLEND_RADIUS := 24.0
 
-const SAND_A := Color(0.80, 0.64, 0.38)
-const SAND_B := Color(0.70, 0.50, 0.27)
-const CREAM := Color(0.84, 0.72, 0.50)
-const ROCK := Color(0.47, 0.30, 0.19)
-const GRAVEL := Color(0.58, 0.49, 0.37)
+const SAND_A := Color(0.76, 0.63, 0.45)
+const SAND_B := Color(0.68, 0.52, 0.34)
+const CREAM := Color(0.82, 0.72, 0.55)
+const ROCK := Color(0.46, 0.33, 0.24)
+const GRAVEL := Color(0.56, 0.50, 0.42)
 const MOUNTAIN_LOW := Color(0.40, 0.26, 0.21)
 const MOUNTAIN_HIGH := Color(0.50, 0.36, 0.30)
 
@@ -33,6 +40,7 @@ var _dunes := FastNoiseLite.new()
 var _detail := FastNoiseLite.new()
 var _ridge := FastNoiseLite.new()
 var _mountain := FastNoiseLite.new()
+var _site_y := PackedFloat32Array()
 
 
 func _init(seed_value: int = 1337) -> void:
@@ -57,6 +65,9 @@ func _init(seed_value: int = 1337) -> void:
 	_mountain.fractal_type = FastNoiseLite.FRACTAL_RIDGED
 	_mountain.fractal_octaves = 4
 
+	for s in HOUSE_SITES:
+		_site_y.append(_ground_base(s.x, s.y))
+
 
 ## Centre line of the dry riverbed. It meets x = 0 at the entrance forecourt.
 func river_x(z: float) -> float:
@@ -65,8 +76,35 @@ func river_x(z: float) -> float:
 
 ## Height of the ground at a world position (formula, used to fill the height grid).
 func height_at(x: float, z: float) -> float:
-	var h := _dunes.get_noise_2d(x, z) * 16.0 + 8.0
-	h += _detail.get_noise_2d(x, z) * 2.2
+	var h := _ground_base(x, z)
+
+	# Level ground under each house site.
+	for i in HOUSE_SITES.size():
+		var ds_ := Vector2(x - HOUSE_SITES[i].x, z - HOUSE_SITES[i].y).length()
+		h = lerpf(_site_y[i], h, smoothstep(SITE_FLAT_RADIUS, SITE_BLEND_RADIUS, ds_))
+
+	# Railway cutting/embankment: a level strip along the goods line that fades out at both ends.
+	var rail_w := (1.0 - smoothstep(6.0, 18.0, absf(z - 96.0))) * (1.0 - smoothstep(105.0, 150.0, absf(x)))
+	h = lerpf(h, 2.0, rail_w)
+
+	# Enclosing rim on the east, west and south sides (not the north: the cliff covers that
+	# side, and a rim there would bury the entrance platform), then the steep north cliff.
+	var edge := maxf(absf(x), absf(z))
+	h += RIM_HEIGHT * smoothstep(160.0, 195.0, maxf(absf(x), z))
+	h += smoothstep(-174.5, -190.0, z) * (57.0 + _ridge.get_noise_2d(x, z) * 8.0)
+
+	# Border is blended to a constant so the outer skirt joins without a seam.
+	h = lerpf(h, EDGE_Y, smoothstep(190.0, 200.0, edge))
+	return h
+
+
+## Dunes, riverbed, start mound and entrance forecourt (everything except sites, rim, cliff).
+func _ground_base(x: float, z: float) -> float:
+	# Sharp-crested dunes: 1 - |noise| has a ridge line wherever the noise crosses zero.
+	var dn := _dunes.get_noise_2d(x, z)
+	var crest := 1.0 - absf(dn)
+	var h := crest * crest * 22.0 + dn * 3.0 - 2.0
+	h += _detail.get_noise_2d(x, z) * 1.6
 
 	# Dry riverbed: a wide, shallow channel that winds towards the entrance.
 	var d := absf(x - river_x(z))
@@ -81,15 +119,6 @@ func height_at(x: float, z: float) -> float:
 	# Flat forecourt in front of the entrance.
 	var df := Vector2(x - FORECOURT.x, z - FORECOURT.y).length()
 	h = lerpf(0.0, h, smoothstep(26.0, 60.0, df))
-
-	# Enclosing rim on the east, west and south sides (not the north: the cliff covers that
-	# side, and a rim there would bury the entrance platform), then the steep north cliff.
-	var edge := maxf(absf(x), absf(z))
-	h += RIM_HEIGHT * smoothstep(160.0, 195.0, maxf(absf(x), z))
-	h += smoothstep(-174.5, -190.0, z) * (57.0 + _ridge.get_noise_2d(x, z) * 8.0)
-
-	# Border is blended to a constant so the outer skirt joins without a seam.
-	h = lerpf(h, EDGE_Y, smoothstep(190.0, 200.0, edge))
 	return h
 
 
@@ -166,7 +195,11 @@ func _make_material() -> StandardMaterial3D:
 	tex.height = 256
 	tex.seamless = true
 	m.albedo_texture = tex
+	m.normal_enabled = true
+	m.normal_texture = PropFactory.sand_normal_texture()
+	m.normal_scale = 0.9
 	m.uv1_triplanar = true
+	m.uv1_world_triplanar = true
 	m.uv1_scale = Vector3(0.07, 0.07, 0.07)
 	return m
 
@@ -217,7 +250,12 @@ func _chunk_arrays(cx: int, cz: int) -> Array:
 			var nrm := _normal_at(gi, gj)
 			verts.append(p)
 			norms.append(nrm)
-			cols.append(_color_at(p, nrm))
+			# Cheap baked ambient occlusion from the height grid: hollows darker, crests lighter.
+			var lap := (heights[gj * w + maxi(gi - 1, 0)] + heights[gj * w + mini(gi + 1, N)]
+				+ heights[maxi(gj - 1, 0) * w + gi] + heights[mini(gj + 1, N) * w + gi]) * 0.25 - p.y
+			var ao := clampf(1.0 - lap * 0.10, 0.68, 1.08)
+			var base_c := _color_at(p, nrm)
+			cols.append(Color(base_c.r * ao, base_c.g * ao, base_c.b * ao))
 	for j in CHUNK_CELLS:
 		for i in CHUNK_CELLS:
 			var a := j * n1 + i

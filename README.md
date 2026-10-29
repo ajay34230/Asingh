@@ -79,3 +79,11 @@ ci/                                 Godot / export-template install scripts
 - Not yet tested on a physical Galaxy S10: performance and Mobile-renderer appearance are unverified.
 - Android export is built by CI only; it has not been confirmed to succeed until a workflow run finishes.
 - Statues, columns and rocks are simple shapes; no imported or photo-based assets.
+
+
+## Added after the first baseline (still Phase 1, environment only)
+
+- **Hamlet of five enterable houses** west of the riverbed (`scripts/house_builder.gd`, `scripts/house_interiors.gd`): real doorways and windows, a partition wall with its own doorway, timber ceiling beams, furniture, a lantern, exterior stairs to a walkable flat roof.
+- **Goods line ("maal gaadi")** across the south of the valley (`scripts/railway_builder.gd`): broad-gauge track, a parked goods train (steam locomotive, tender, boxcar, gondola, flatcar, covered wagon, tank wagon), a loading dock you can walk onto and into the boxcar, goods shed, water tower, signal, telegraph poles and cargo carts. The train is static scenery; it does not move.
+- Everything is still generated in code; no external assets. All shapes are primitive-built and procedurally textured, so this is stylised, not photo-real.
+- Verified: headless import, automated self-test (walk into a house, climb its roof stairs, walk up the dock into the boxcar) and software-GL screenshots. Not tested on a real Galaxy S10; frame rate on the phone is unknown.

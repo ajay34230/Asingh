@@ -11,6 +11,8 @@ var terrain: TerrainBuilder
 var player: Player
 var touch: TouchControls
 var atmosphere := Atmosphere.new()
+var houses: HouseBuilder
+var railway: RailwayBuilder
 
 
 func _ready() -> void:
@@ -20,6 +22,10 @@ func _ready() -> void:
 	terrain.build(self)
 	RuinsBuilder.new(terrain).build(self)
 	EntranceBuilder.new(terrain).build(self)
+	houses = HouseBuilder.new(terrain)
+	houses.build(self)
+	railway = RailwayBuilder.new(terrain)
+	railway.build(self)
 	atmosphere.build(self)
 	_spawn_player()
 	_build_ui()
@@ -142,6 +148,70 @@ func _run_selftest() -> void:
 	if pp.z < -173.5:
 		fails.append("player walked through the sealed door (z=%.1f)" % pp.z)
 
+	# 5b. Enter the first house through its door, then climb the outside stairs to the roof.
+	var hs: Dictionary = houses.houses[0]
+	var hn: Node3D = hs.node
+	var door_out: Vector3 = hs.door_out
+	player.global_position = door_out + Vector3(0, 0.6, 0)
+	player.velocity = Vector3.ZERO
+	for i in 30:
+		await get_tree().physics_frame
+	var inward: Vector3 = hn.global_transform.basis * Vector3(0, 0, -1)
+	player.set_look(atan2(-inward.x, -inward.z), 0.0)
+	player.move_input = Vector2(0.0, 1.0)
+	player.sprint = false
+	for i in 150:
+		await get_tree().physics_frame
+	player.move_input = Vector2.ZERO
+	var local_p: Vector3 = hn.global_transform.affine_inverse() * player.global_position
+	notes.append("house 0: player local position after walking in %s" % [local_p.snappedf(0.1)])
+	if absf(local_p.x) > hs.half.x or local_p.z > hs.half.y - 0.2 or local_p.z < -hs.half.y:
+		fails.append("player did not get inside house 0 (local %s)" % [local_p.snappedf(0.1)])
+	if local_p.y < 0.0 or local_p.y > 1.5:
+		fails.append("player not on the house floor (local y=%.2f)" % local_p.y)
+
+	var sb: Vector3 = hs.stair_bottom
+	player.global_position = sb + Vector3(0, 0.6, 0)
+	player.velocity = Vector3.ZERO
+	for i in 20:
+		await get_tree().physics_frame
+	player.set_look(atan2(-inward.x, -inward.z), 0.0)
+	player.move_input = Vector2(0.0, 1.0)
+	for i in 130:
+		await get_tree().physics_frame
+	player.move_input = Vector2.ZERO
+	var rp: Vector3 = hn.global_transform.affine_inverse() * player.global_position
+	notes.append("house 0 stairs: player local position %s" % [rp.snappedf(0.1)])
+	if rp.y < HouseBuilder.WALL_H:
+		fails.append("player did not climb to the roof of house 0 (local y=%.2f)" % rp.y)
+
+	# 5c. Goods line: walk up the dock ramp and into the boxcar.
+	player.global_position = railway.dock_ramp_foot + Vector3(0, 0.6, 0)
+	player.velocity = Vector3.ZERO
+	for i in 20:
+		await get_tree().physics_frame
+	player.set_look(-PI * 0.5, 0.0)
+	player.move_input = Vector2(0.0, 1.0)
+	for i in 150:
+		await get_tree().physics_frame
+	player.move_input = Vector2.ZERO
+	notes.append("dock: player at %s" % [player.global_position.snappedf(0.1)])
+	if player.global_position.y < RailwayBuilder.RAIL_Y + RailwayBuilder.DOCK_H - 0.3:
+		fails.append("player did not reach the loading dock (y=%.2f)" % player.global_position.y)
+	var door := railway.boxcar_door_world
+	player.global_position = Vector3(door.x, RailwayBuilder.RAIL_Y + RailwayBuilder.DOCK_H + 0.2, door.z - 1.0)
+	player.velocity = Vector3.ZERO
+	for i in 20:
+		await get_tree().physics_frame
+	player.set_look(PI, 0.0)
+	player.move_input = Vector2(0.0, 1.0)
+	for i in 90:
+		await get_tree().physics_frame
+	player.move_input = Vector2.ZERO
+	notes.append("boxcar: player at %s" % [player.global_position.snappedf(0.1)])
+	if player.global_position.z < RailwayBuilder.RAIL_Z - 1.2 or player.global_position.y < RailwayBuilder.RAIL_Y + RailwayBuilder.DOCK_H - 0.3:
+		fails.append("player did not enter the boxcar")
+
 	# 6. Scene census, for the performance notes.
 	var meshes := 0
 	var bodies := 0
@@ -181,6 +251,9 @@ func _run_capture(dir: String) -> void:
 		["03_entrance_forecourt", Vector2(0, -120), Vector3(0, 26, -170), 0.2],
 		["04_caravan_station", Vector2(18, 86), Vector3(48, 3, 40), -0.16],
 		["05_riverbed", Vector2(rx.call(55.0), 55), Vector3(rx.call(-30.0), 0, -30), -0.1],
+		["08_goods_train", Vector2(-20, 118), Vector3(-15, 4, 96), -0.04],
+		["09_loading_dock", Vector2(-24, 91), Vector3(2, 3, 92), -0.02],
+		["10_goods_train_close", Vector2(-30, 108), Vector3(-5, 5, 96), 0.0],
 	]
 	for v in views:
 		var p: Vector2 = v[1]
@@ -193,4 +266,23 @@ func _run_capture(dir: String) -> void:
 		var path := "%s/%s.png" % [dir, v[0]]
 		var err := img.save_png(path)
 		print("[capture] %s -> %s (%s)" % [v[0], path, "ok" if err == OK else "error %d" % err])
+	# House views: exteriors with the normal camera, then interiors with the camera pulled in.
+	var views2 := [
+		["06_house_exterior", 0, Vector3(1.0, 0.3, 14.0), Vector3(0, 2.0, 0), 7.5],
+		["06b_house_exterior_roof_stairs", 2, Vector3(15.0, 0.3, -3.0), Vector3(2, 2.0, 0), 7.5],
+		["07_house_interior_main", 0, Vector3(-3.0, 0.3, -1.0), Vector3(1.0, 1.2, 3.5), 2.4],
+		["07b_house_interior_oven_shelf", 0, Vector3(0.5, 0.3, 1.5), Vector3(-5.0, 1.2, 0.3), 2.4],
+		["07c_house_interior_bedroom", 0, Vector3(2.2, 0.3, 2.2), Vector3(3.2, 0.6, -3.0), 2.4],
+	]
+	for v2 in views2:
+		var hn: Node3D = houses.houses[v2[1]].node
+		player.set_distance(v2[4])
+		player.global_position = hn.global_transform * v2[2]
+		player.velocity = Vector3.ZERO
+		_look_at_point(hn.global_transform * v2[3], -0.08)
+		for i in 14:
+			await get_tree().process_frame
+		await RenderingServer.frame_post_draw
+		var img2 := get_viewport().get_texture().get_image()
+		print("[capture] %s -> %s" % [v2[0], "ok" if img2.save_png("%s/%s.png" % [dir, v2[0]]) == OK else "error"])
 	get_tree().quit(0)

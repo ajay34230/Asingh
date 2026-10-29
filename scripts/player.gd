@@ -77,6 +77,10 @@ func _ready() -> void:
 	_apply_look()
 
 
+func set_distance(d: float) -> void:
+	_arm.spring_length = d
+
+
 func add_look(delta_px: Vector2) -> void:
 	_yaw -= delta_px.x * LOOK_SENSITIVITY
 	_pitch = clampf(_pitch - delta_px.y * LOOK_SENSITIVITY, -1.2, 0.45)
