@@ -351,6 +351,25 @@ func _yard(root: Node3D) -> void:
 	PropFactory.box(root, Vector3(2.0, 0.3, 0.06), Vector3(gx + 0.8, gy + 6.0, RAIL_Z + 2.8), PropFactory.material(Color(0.55, 0.15, 0.12)), Vector3(0, 0, 28), false, false)
 	PropFactory.sphere(root, 0.22, Vector3(gx, gy + 5.2, RAIL_Z + 2.6), PropFactory.glow_lamp())
 
+	# Yard equipment: workbench, tool rack and anvil in the shed, ropes, lanterns, buckets, tools.
+	PropsExtra.workbench(root, Vector3(sx + 2.0, RAIL_Y, sz - 2.8), 0.0)
+	PropsExtra.tool_rack(root, Vector3(sx + 2.0, RAIL_Y + 2.0, sz - 3.27), 0.0)
+	PropsExtra.anvil(root, Vector3(sx + 5.0, RAIL_Y, sz - 1.5), 0.0)
+	PropsExtra.crate_stack(root, Vector3(sx - 5.5, RAIL_Y, sz - 2.6), 0.0, _rng)
+	PropsExtra.basket(root, Vector3(sx + 0.5, RAIL_Y, sz - 2.9))
+	PropsExtra.rope_coil(root, Vector3(dock_x0 + 5.0, top, dz + 1.6), 1.0)
+	PropsExtra.rope_coil(root, Vector3(dock_x1 - 1.5, top, dz + 1.6), 0.8)
+	PropsExtra.bucket(root, Vector3(dock_x0 + 6.2, top, dz + 1.5))
+	for lx in [dock_x0 + 0.5, dock_x0 + 9.0, dock_x1 - 0.5]:
+		PropFactory.cylinder(root, 0.04, 0.05, 1.8, Vector3(lx, top + 0.9, dz + 2.2), PropFactory.iron(), Vector3.ZERO, false, 6, 0, false)
+		PropsExtra.oil_lamp(root, Vector3(lx, top + 1.8, dz + 2.2))
+	PropsExtra.leaning_tool(root, Vector3(sx - 8.0, RAIL_Y, RAIL_Z - 5.0), 0.0, 0)
+	PropsExtra.leaning_tool(root, Vector3(sx - 7.7, RAIL_Y, RAIL_Z - 5.0), 0.0, 1)
+	PropsExtra.leaning_tool(root, Vector3(sx - 7.4, RAIL_Y, RAIL_Z - 5.0), 0.0, 2)
+	PropsExtra.ladder(root, Vector3(wx, gy, wz + 2.0), 0.0, 9.0)
+	PropsExtra.bucket(root, Vector3(wx + 3.2, gy, wz + 1.0))
+	_hand_trolley(root, Vector3(train_x0 + 78.0, RAIL_TOP, RAIL_Z))
+
 	# Wooden cargo cart (bullock cart) with sacks, near the dock ramp.
 	_cargo_cart(root, Vector3(dock_x0 - 11.0, RAIL_Y, dz + 0.5), 20.0)
 	_cargo_cart(root, Vector3(dock_x1 + 9.0, RAIL_Y, dz - 1.0), -35.0)
@@ -409,3 +428,21 @@ func _telegraph(root: Node3D) -> void:
 				PropFactory.box(root, Vector3(25.0, 0.025, 0.025), Vector3(x + 12.5, RAIL_Y + 6.0, pole_z + s * 0.7), wire, Vector3.ZERO, false, false)
 		x += 25.0
 		n += 1
+
+
+## Hand-pumped rail trolley (draisine) parked on the track.
+func _hand_trolley(root: Node3D, pos: Vector3) -> void:
+	var t := Node3D.new()
+	t.name = "HandTrolley"
+	t.position = pos
+	root.add_child(t)
+	var wood := PropFactory.wood()
+	var iron := PropFactory.iron()
+	PropFactory.box(t, Vector3(2.6, 0.12, 1.5), Vector3(0, 0.6, 0), wood)
+	for ax in [-0.9, 0.9]:
+		for sd in [-1.0, 1.0]:
+			_wheel(t, ax, sd, 0.3)
+	PropFactory.box(t, Vector3(0.1, 0.8, 0.1), Vector3(0, 1.0, 0), iron, Vector3.ZERO, false, false)
+	PropFactory.box(t, Vector3(0.1, 0.1, 2.2), Vector3(0, 1.4, 0), wood, Vector3(0, 0, 8), false, false)
+	PropFactory.box(t, Vector3(0.6, 0.06, 0.5), Vector3(-0.8, 0.7, 0.3), wood, Vector3.ZERO, false, false)
+	PropsExtra.oil_lamp(t, Vector3(1.0, 0.66, -0.4))

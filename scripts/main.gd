@@ -253,6 +253,7 @@ func _run_capture(dir: String) -> void:
 		["05_riverbed", Vector2(rx.call(55.0), 55), Vector3(rx.call(-30.0), 0, -30), -0.1],
 		["08_goods_train", Vector2(-20, 118), Vector3(-15, 4, 96), -0.04],
 		["09_loading_dock", Vector2(-24, 91), Vector3(2, 3, 92), -0.02],
+		["11_goods_shed_yard", Vector2(4, 68), Vector3(-9, 3, 85), -0.03],
 		["10_goods_train_close", Vector2(-30, 108), Vector3(-5, 5, 96), 0.0],
 	]
 	for v in views:
@@ -272,6 +273,7 @@ func _run_capture(dir: String) -> void:
 		["06b_house_exterior_roof_stairs", 2, Vector3(15.0, 0.3, -3.0), Vector3(2, 2.0, 0), 7.5],
 		["07_house_interior_main", 0, Vector3(-3.0, 0.3, -1.0), Vector3(1.0, 1.2, 3.5), 2.4],
 		["07b_house_interior_oven_shelf", 0, Vector3(0.5, 0.3, 1.5), Vector3(-5.0, 1.2, 0.3), 2.4],
+		["06c_house_workshop_yard", 0, Vector3(-11.0, 0.3, 7.0), Vector3(-6, 1.0, 3), 6.0],
 		["07c_house_interior_bedroom", 0, Vector3(2.2, 0.3, 2.2), Vector3(3.2, 0.6, -3.0), 2.4],
 	]
 	for v2 in views2:

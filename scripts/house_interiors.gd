@@ -115,3 +115,19 @@ static func furnish(h: Node3D, w: float, d: float, door_x: float, partition_x: f
 	for i in 3:
 		PropFactory.box(h, Vector3(0.08, 0.35, 0.08), Vector3(room_x1 - 0.2 - i * 0.3, FY + 2.7, -hd + 0.5), PropFactory.cloth(Color(0.38, 0.45, 0.25)), Vector3.ZERO, false, false)
 	PropFactory.sphere(h, 0.28, Vector3(door_x + 1.0, FY + 0.34, hd - 0.55), clay, Vector3(1, 1.2, 1), true)
+
+	# --- extra equipment: tools, workshop gear, baskets, rope, lamp ---
+	var rack_x := (partition_x - 0.2) if has_part else (hw - t * 0.5 - 0.02)
+	PropsExtra.tool_rack(h, Vector3(rack_x, FY + 1.6, d * 0.22), -90.0)
+	if variant != 2:
+		PropsExtra.spinning_wheel(h, Vector3(inner_w + 0.9, FY, hd - 1.6), 90.0)
+	PropsExtra.grinding_stone(h, Vector3(room_x1 - 0.8, FY, inner_back + 0.7))
+	PropsExtra.basket(h, Vector3(inner_w + 0.7, FY, 2.3))
+	PropsExtra.basket(h, Vector3(inner_w + 1.4, FY, 2.5), false)
+	PropsExtra.bucket(h, Vector3(door_x - 1.0, FY, hd - 0.7))
+	PropsExtra.rope_coil(h, Vector3(room_x1 - 0.6, FY, hd - 1.0), 0.8)
+	PropsExtra.leaning_tool(h, Vector3(door_x + 1.9, FY, hd - 0.55), 180.0, 0)
+	PropsExtra.leaning_tool(h, Vector3(door_x + 2.15, FY, hd - 0.55), 180.0, 3)
+	PropsExtra.oil_lamp(h, Vector3(tx + 0.55, FY + 0.76, tz + 0.2))
+	if variant == 0:
+		PropsExtra.workbench(h, Vector3(room_x1 - 2.2, FY, inner_back + 0.5), 0.0)

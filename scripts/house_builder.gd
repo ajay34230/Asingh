@@ -248,6 +248,19 @@ func _exterior(h: Node3D, w: float, d: float, door_x: float, variant: int) -> vo
 			PropFactory.cylinder(h, 0.05, 0.06, 1.9, Vector3(rx, 0.95, sz * 1.2), wood, Vector3(0, 0, sz * 8), false, 6)
 		PropFactory.cylinder(h, 0.04, 0.04, 2.6, Vector3(rx, 1.85, 0), wood, Vector3(90, 0, 0), false, 6)
 		PropFactory.box(h, Vector3(0.03, 1.0, 1.4), Vector3(rx, 1.3, 0.1), PropFactory.cloth(Color(0.32, 0.42, 0.50)), Vector3(0, 0, 3), false, false)
+	# Equipment around the house: leaning tools, bucket, baskets, crates, ladder, workshop corner.
+	PropsExtra.leaning_tool(h, Vector3(door_x + 3.0, 0.0, front_z + 0.3), 0.0, 0)
+	PropsExtra.leaning_tool(h, Vector3(door_x + 3.3, 0.0, front_z + 0.3), 0.0, 1)
+	PropsExtra.bucket(h, Vector3(door_x + 3.9, 0.0, front_z + 0.7))
+	PropsExtra.basket(h, Vector3(door_x - 3.2, 0.0, front_z + 0.7))
+	PropsExtra.crate_stack(h, Vector3(-w * 0.5 + 1.3, 0.0, -d * 0.5 - 0.9), 20.0, _rng)
+	PropsExtra.ladder(h, Vector3(-1.0, 0.0, -d * 0.5 - 0.35), 180.0, 3.8)
+	PropsExtra.rope_coil(h, Vector3(door_x + 2.2, 0.0, front_z + 1.3), 0.9)
+	if variant == 0:
+		PropsExtra.workbench(h, Vector3(-w * 0.5 - 2.6, 0.0, d * 0.5 - 0.3), 90.0)
+		PropsExtra.tool_rack(h, Vector3(-w * 0.5 - 0.3, 1.9, d * 0.5 - 0.3), 90.0)
+	elif variant == 2:
+		PropsExtra.anvil(h, Vector3(-w * 0.5 - 2.4, 0.0, d * 0.5 - 0.6), 90.0)
 	# Wind-blown sand banked against the back wall.
 	PropFactory.sphere(h, 3.0, Vector3(0, -0.4, -d * 0.5 - 1.4), PropFactory.material(Color(0.76, 0.62, 0.42)), Vector3(1.6, 0.35, 0.7))
 
