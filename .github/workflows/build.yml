@@ -106,6 +106,8 @@ jobs:
     name: Android debug APK
     needs: validate
     runs-on: ubuntu-24.04
+    permissions:
+      contents: write
     timeout-minutes: 40
     steps:
       - uses: actions/checkout@v4
@@ -179,6 +181,16 @@ jobs:
           path: build/TheLostKingdom-debug.apk
           if-no-files-found: error
           retention-days: 14
+
+      - name: Publish debug APK as a downloadable release (no login needed)
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          TAG=debug-latest
+          gh release view "$TAG" >/dev/null 2>&1 || gh release create "$TAG" --prerelease \
+            --title "Latest debug build" --notes "Debug APK for personal testing. Rebuilt on every push." --target "${{ github.sha }}"
+          gh release upload "$TAG" build/TheLostKingdom-debug.apk --clobber
+          gh release edit "$TAG" --notes "Debug APK for personal testing. Built from commit ${{ github.sha }}."
 
       - name: Upload Android logs
         if: always()
