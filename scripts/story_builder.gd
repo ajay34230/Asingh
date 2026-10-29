@@ -12,6 +12,8 @@ var player: Player
 var terrain: TerrainBuilder
 var office: Node3D
 var _rivet_nodes: Array = []
+var _seals_seen := 0
+var _act2_ready := false
 
 
 func _init(m: Node3D, s: Story, h: QuestHUD, d: DialogueUI, c: Cinematic) -> void:
@@ -48,6 +50,7 @@ func build() -> void:
 	_dig_site()
 	_gate()
 	story.refs["player"] = player
+	story.changed.connect(_on_story_changed)
 	story.refresh()
 
 
@@ -195,8 +198,6 @@ func _rivets() -> void:
 
 func _found_seal(flag: String, title: String) -> void:
 	story.set_flag(flag, true)
-	hud.banner("SUN-SEAL FOUND\n" + title, "seal_found")
-	story.changed.emit()
 
 
 func _crate() -> void:
@@ -265,15 +266,15 @@ func open_gate() -> void:
 		{"from": gp + Vector3(0, 3.0, 4), "to": gp + Vector3(0, 3.0, -2), "look": gp + Vector3(0, 3.0, -14), "dur": 5.0,
 		 "text": "Beyond it: a golden corridor, and somewhere in the dark... a lantern. Arin's lantern.", "sfx": "reveal"},
 		{"from": gp + Vector3(0, 12, 26), "to": gp + Vector3(0, 18, 40), "look": gp + Vector3(0, 6, 0), "dur": 5.0, "title": true,
-		 "text": "To be continued: Act 2, the Lost Kingdom."},
+		 "text": "Act 2: The Lantern Trail."},
 	]
 	if door != null:
 		var tw := main.create_tween()
 		tw.tween_interval(3.0)
 		tw.tween_property(door, "position:y", door.position.y - 9.0, 6.0).set_trans(Tween.TRANS_SINE)
-	cin.play(shots, "ACT 2 AWAITS", func() -> void:
+	cin.play(shots, "ACT 2: THE LANTERN TRAIL", func() -> void:
 		story.set_flag("gate_open", true)
-		story.changed.emit()
+		start_act2()
 		hud.banner("ACT 1 COMPLETE", "mission_new"))
 
 
@@ -295,6 +296,27 @@ func intro() -> void:
 	cin.play(shots, "THE LOST KINGDOM", func() -> void: start_in_office())
 
 
+## After loading a save: remove collected rivets, open the gate if it was opened.
+func apply_loaded_state() -> void:
+	_seals_seen = story.seals_held()
+	var got := int(story.get_flag("rivets", 0))
+	var left: Array = story.refs.get("rivets", [])
+	for i in mini(got, left.size()):
+		var n: Node = left[0]
+		left.remove_at(0)
+		n.queue_free()
+	if story.get_flag("gate_open"):
+		var door := main.find_child("SealedDoor", true, false) as Node3D
+		if door != null:
+			door.position.y -= 9.0
+		for it in main.get_tree().get_nodes_in_group("interactables"):
+			if (it as Interactable).prompt.begins_with("Examine the Sun Gate"):
+				(it as Interactable).enabled = false
+		start_act2()
+	story.silence()
+	story.refresh()
+
+
 func start_in_office() -> void:
 	var hs: Dictionary = main.houses.houses[5]
 	var p: Vector3 = hs["inside"]
@@ -303,3 +325,178 @@ func start_in_office() -> void:
 	var d: Vector3 = (story.refs["desk"] as Vector3) - p
 	player.set_look(atan2(-d.x, -d.z), -0.05)
 	hud.banner("CHAPTER ONE\nWhere is Arin?", "mission_new")
+	story.set_flag("intro_done", true)
+
+
+# --- seal effect ---------------------------------------------------------------------------
+
+func _on_story_changed() -> void:
+	var held := story.seals_held()
+	if held > _seals_seen:
+		_seals_seen = held
+		hud.banner("SUN-SEAL FOUND (%d/3)" % held, "seal_found")
+		seal_fx(player.global_position + Vector3(0, 1.0, 0))
+
+
+func _sparks(parent: Node3D, color: Color, amount: int, speed: float, life: float, grav: float) -> CPUParticles3D:
+	var p := CPUParticles3D.new()
+	p.amount = amount
+	p.lifetime = life
+	p.one_shot = true
+	p.explosiveness = 0.9
+	p.direction = Vector3.UP
+	p.spread = 180.0
+	p.initial_velocity_min = speed * 0.5
+	p.initial_velocity_max = speed
+	p.gravity = Vector3(0, grav, 0)
+	p.scale_amount_min = 0.5
+	p.scale_amount_max = 1.2
+	var sm := SphereMesh.new()
+	sm.radius = 0.03
+	sm.height = 0.06
+	sm.radial_segments = 6
+	sm.rings = 3
+	var m := StandardMaterial3D.new()
+	m.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	m.albedo_color = color
+	m.emission_enabled = true
+	m.emission = color
+	sm.material = m
+	p.mesh = sm
+	parent.add_child(p)
+	p.emitting = true
+	return p
+
+
+## A golden sun-disc rises from the player, spins, bursts into sparks and fades.
+func seal_fx(at: Vector3) -> void:
+	var root := Node3D.new()
+	root.position = at
+	main.add_child(root)
+	var disc := MeshInstance3D.new()
+	var cy := CylinderMesh.new()
+	cy.top_radius = 0.38
+	cy.bottom_radius = 0.38
+	cy.height = 0.06
+	disc.mesh = cy
+	disc.material_override = PropFactory.glow_bronze()
+	disc.rotation_degrees.x = 90
+	root.add_child(disc)
+	for k in 12:
+		var ray := MeshInstance3D.new()
+		var bm := BoxMesh.new()
+		bm.size = Vector3(0.05, 0.22, 0.03)
+		ray.mesh = bm
+		ray.material_override = PropFactory.glow_bronze()
+		ray.rotation.z = k * TAU / 12.0
+		ray.position = Vector3(cos(k * TAU / 12.0), sin(k * TAU / 12.0), 0) * 0.52
+		disc.add_child(ray)
+	disc.rotation_degrees = Vector3(0, 0, 0)
+	var l := OmniLight3D.new()
+	l.light_color = Color(1.0, 0.8, 0.4)
+	l.omni_range = 9.0
+	l.light_energy = 0.0
+	root.add_child(l)
+	_sparks(root, Color(1.0, 0.85, 0.4), 60, 3.5, 1.6, -1.5)
+	var tw := root.create_tween().set_parallel(true)
+	tw.tween_property(root, "position:y", at.y + 1.6, 2.2).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_OUT)
+	tw.tween_property(disc, "rotation:y", TAU * 3.0, 2.2)
+	tw.tween_property(l, "light_energy", 4.0, 0.5)
+	tw.chain().tween_property(root, "scale", Vector3.ZERO, 0.5).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_IN)
+	tw.parallel().tween_property(l, "light_energy", 0.0, 0.5)
+	tw.chain().tween_callback(root.queue_free)
+
+
+# --- Act 2: Arin and the Queen's lanterns -------------------------------------------------
+
+func start_act2() -> void:
+	if _act2_ready:
+		return
+	_act2_ready = true
+	_spawn_arin()
+	var lanterns: Array = []
+	for lp in [Vector2(-12.0, -158.0), Vector2(12.0, -158.0), Vector2(0.0, -150.0)]:
+		var l := _lantern(lp)
+		lanterns.append(l)
+	story.refs["lanterns"] = lanterns
+	# lanterns already lit in a loaded save
+	var lit := int(story.get_flag("lanterns", 0))
+	for i in mini(lit, lanterns.size()):
+		_light(lanterns[i], false)
+	story.changed.emit()
+
+
+func _spawn_arin() -> void:
+	var n := Npc.new().setup(NpcBuilder.PRESETS["merchant"], "idle", "Arin")
+	n.player = player
+	main.add_child(n)
+	n.global_position = Vector3(3.0, EntranceBuilder.PLATFORM_Y + 0.05, -161.0)
+	n.rotation.y = deg_to_rad(20.0)
+	n.home_yaw = n.rotation.y
+	story.refs["Arin"] = n
+	main.npcs.append(n)
+	var it := _it(n, Vector3(0, 1.1, 0), "Talk to Dr. Arin", 3.3, Callable())
+	it.on_interact = func(_by: Node3D, _me: Interactable) -> void:
+		dlg.open(story.dialogue_for("Arin"), n, "man")
+
+
+func _lantern(p2: Vector2) -> Node3D:
+	var from := Vector3(p2.x, EntranceBuilder.PLATFORM_Y + 4.0, p2.y)
+	var q := PhysicsRayQueryParameters3D.create(from, from + Vector3(0, -8, 0))
+	var hit := main.get_world_3d().direct_space_state.intersect_ray(q)
+	var gy: float = hit["position"].y if not hit.is_empty() else EntranceBuilder.PLATFORM_Y
+	var n := Node3D.new()
+	n.position = Vector3(p2.x, gy, p2.y)
+	main.add_child(n)
+	PropFactory.cylinder(n, 0.08, 0.14, 1.6, Vector3(0, 0.8, 0), PropFactory.bronze(), Vector3.ZERO, false, 10)
+	PropFactory.cylinder(n, 0.3, 0.14, 0.18, Vector3(0, 1.65, 0), PropFactory.bronze(), Vector3.ZERO, false, 12)
+	var flame := MeshInstance3D.new()
+	var sm := SphereMesh.new()
+	sm.radius = 0.16
+	sm.height = 0.36
+	flame.mesh = sm
+	flame.material_override = PropFactory.glow_lamp()
+	flame.position = Vector3(0, 1.9, 0)
+	flame.scale = Vector3.ZERO
+	flame.name = "Flame"
+	n.add_child(flame)
+	var l := OmniLight3D.new()
+	l.name = "Light"
+	l.light_color = Color(1.0, 0.72, 0.35)
+	l.omni_range = 11.0
+	l.light_energy = 0.0
+	l.position = Vector3(0, 2.0, 0)
+	n.add_child(l)
+	var it := _it(n, Vector3(0, 1.5, 0), "Light the lantern", 3.2, Callable())
+	it.on_interact = func(_by: Node3D, me: Interactable) -> void:
+		me.enabled = false
+		story.add("lanterns", 1)
+		_light(n, true)
+		player.say("The flame catches. Somewhere beneath the stone, something answers. (%d/3)" % int(story.get_flag("lanterns", 0)))
+	return n
+
+
+func _light(n: Node3D, animate: bool) -> void:
+	var flame := n.get_node("Flame") as Node3D
+	var l := n.get_node("Light") as OmniLight3D
+	for c in n.get_children():
+		if c is Interactable:
+			(c as Interactable).enabled = false
+	if animate:
+		Sfx.at("reveal", n.global_position + Vector3(0, 2, 0), -6.0, 1.3)
+		_sparks(n, Color(1.0, 0.8, 0.4), 40, 2.8, 1.4, -1.0).position = Vector3(0, 1.9, 0)
+		var tw := n.create_tween().set_parallel(true)
+		tw.tween_property(flame, "scale", Vector3.ONE, 0.9).set_trans(Tween.TRANS_ELASTIC).set_ease(Tween.EASE_OUT)
+		tw.tween_property(l, "light_energy", 2.6, 1.2)
+		tw.chain().tween_callback(func() -> void: _flicker(l))
+	else:
+		flame.scale = Vector3.ONE
+		l.light_energy = 2.6
+		_flicker(l)
+
+
+func _flicker(l: OmniLight3D) -> void:
+	var tw := l.create_tween().set_loops()
+	tw.tween_property(l, "light_energy", 2.2, 0.31)
+	tw.tween_property(l, "light_energy", 2.9, 0.23)
+	tw.tween_property(l, "light_energy", 2.4, 0.37)

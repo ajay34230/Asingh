@@ -126,6 +126,41 @@ func _define_quests() -> void:
 			],
 		},
 	]
+	quests.append({
+		"id": "lantern", "title": "The Lantern Trail",
+		"blurb": "A lantern glows beyond the opened gate. Light the three lanterns of the Queen's road and find out what Arin discovered.",
+		"show": func() -> bool: return get_flag("gate_open"),
+		"objs": [
+			{"text": func() -> String: return "Speak to Dr. Arin Rao at the Sun Gate",
+			 "done": func() -> bool: return get_flag("arin_met"), "target": func() -> Vector3: return _pos("Arin")},
+			{"text": func() -> String: return "Light the Queen's lanterns (%d/3)" % int(get_flag("lanterns", 0)),
+			 "done": func() -> bool: return int(get_flag("lanterns", 0)) >= 3, "target": func() -> Vector3: return _nearest_lantern(_pos("player"))},
+			{"text": func() -> String: return "Return to Arin",
+			 "done": func() -> bool: return get_flag("arin_done"), "target": func() -> Vector3: return _pos("Arin")},
+		],
+	})
+
+
+func _nearest_lantern(from: Vector3) -> Vector3:
+	var best := Vector3.ZERO
+	var bd := INF
+	for l in refs.get("lanterns", []):
+		if is_instance_valid(l):
+			var d: float = from.distance_to((l as Node3D).global_position)
+			if d < bd:
+				bd = d
+				best = (l as Node3D).global_position
+	return best
+
+
+## Mark every currently visible/finished mission as already announced (used after loading a save).
+func silence() -> void:
+	for q in quests:
+		var id: String = q["id"]
+		if (q["show"] as Callable).call():
+			_announced["new_" + id] = true
+		if quest_done(q) and (q["show"] as Callable).call():
+			_announced["done_" + id] = true
 
 
 ## Visible, unfinished objectives as [{text, target}] for the tracker (max `limit`).
@@ -172,6 +207,7 @@ func dialogue_for(who: String) -> Dictionary:
 		"Blacksmith": return _blacksmith()
 		"RailWorker": return _railworker()
 		"Elder": return _elder()
+		"Arin": return _arin()
 		"desk": return _journal()
 		"map": return _map()
 		"YardWorker": return _small("Salim", ["Mohan knows the goods yard better than the rails know him. Ask him.", "Heavy crates, light pay. Mind the dock ramp, friend."])
@@ -349,4 +385,33 @@ func _elder() -> Dictionary:
 		s = "again"
 	if get_flag("seal_well"):
 		s = "after"
+	return {"start": s, "nodes": n}
+
+
+func _arin() -> Dictionary:
+	var lit := int(get_flag("lanterns", 0))
+	var n := {
+		"first": {"who": "Dr. Arin Rao", "text": "You came. I told myself someone would, and then told myself no one should. The gate is open; then the seals are real, and so is everything I was afraid of.",
+			"set": {"arin_met": true}, "choices": [
+				{"t": "Where have you been?", "go": "where"}, {"t": "What is beyond the gate?", "go": "beyond"}]},
+		"where": {"who": "Dr. Arin Rao", "text": "Inside, three nights. The Queen's road is lined with lanterns that must be lit in order to wake the corridor. I lit none; my hands shook too much. I made it back here and could go no further.",
+			"choices": [{"t": "What is beyond the gate?", "go": "beyond"}, {"t": "I will light them.", "go": "task"}]},
+		"beyond": {"who": "Dr. Arin Rao", "text": "A kingdom that was never destroyed. It was put to sleep, with its people, until the sun returned to the valley. Ila did not hide Suryavan. She waited.",
+			"choices": [{"t": "I will light the lanterns.", "go": "task"}]},
+		"task": {"who": "Dr. Arin Rao", "text": "Three lanterns stand on the platform: left, right and ahead. Touch each flame and the corridor will answer. I will be here. I have walked far enough.",
+			"choices": [{"t": "Rest, Arin. I will be quick.", "go": ""}]},
+		"waiting": {"who": "Dr. Arin Rao", "text": "%d of 3 lit. Keep going; I can feel the stone warming already." % lit,
+			"choices": [{"t": "Almost there.", "go": ""}]},
+		"finale": {"who": "Dr. Arin Rao", "text": "Look. The whole road is alight. All those years of reading about Suryavan, and it was only waiting for someone to ask it kindly.",
+			"set": {"arin_done": true}, "choices": [{"t": "Together, then.", "go": "end"}]},
+		"end": {"who": "Dr. Arin Rao", "text": "Together. Rest tonight; at dawn we walk the Queen's road. That is the next chapter of the valley's story, and I want you beside me for it.",
+			"choices": [{"t": "At dawn.", "go": ""}]},
+		"after": {"who": "Dr. Arin Rao", "text": "The lanterns will burn until dawn. I will bring the maps. Go, breathe, and thank the village.",
+			"choices": [{"t": "Rest well, Arin.", "go": ""}]},
+	}
+	var s := "first"
+	if get_flag("arin_met"):
+		s = "waiting" if lit < 3 else "finale"
+		if get_flag("arin_done"):
+			s = "after"
 	return {"start": s, "nodes": n}

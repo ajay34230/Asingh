@@ -20,6 +20,7 @@ var hud: QuestHUD
 var dlg: DialogueUI
 var cin: Cinematic
 var story_b: StoryBuilder
+var menu: GameMenu
 
 
 func _ready() -> void:
@@ -121,7 +122,16 @@ func _build_story() -> void:
 	add_child(cin)
 	story_b = StoryBuilder.new(self, story, hud, dlg, cin)
 	story_b.build()
-	if not testing:
+	menu = GameMenu.new()
+	menu.story = story
+	menu.player = player
+	menu.main = self
+	add_child(menu)
+	if testing:
+		return
+	if menu.load_save():
+		story_b.apply_loaded_state()
+	else:
 		story_b.intro.call_deferred()
 
 
@@ -475,6 +485,22 @@ func _run_selftest() -> void:
 		fails.append("story: interactables talk=%d gate=%d" % [talk, gate_it])
 	notes.append("story ok: talk interactables=%d" % talk)
 
+	# Save / load round trip (uses a temporary save file, then removes it).
+	var had_save := GameMenu.has_save()
+	if not had_save:
+		story.set_flag("intro_done", true)
+		story.set_flag("met_chief", true)
+		var keep_pos := player.global_position
+		menu.save()
+		story.flags.erase("met_chief")
+		player.global_position = Vector3.ZERO
+		if not menu.load_save() or not story.get_flag("met_chief") or player.global_position.distance_to(keep_pos + Vector3(0, 0.3, 0)) > 0.5:
+			fails.append("save/load round trip failed")
+		DirAccess.remove_absolute(ProjectSettings.globalize_path(GameMenu.SAVE_PATH))
+		story.flags.clear()
+		player.global_position = keep_pos
+	notes.append("save/load checked")
+
 	for s in notes:
 		print("[selftest] ", s)
 	if fails.is_empty():
@@ -564,6 +590,21 @@ func _run_capture(dir: String) -> void:
 		await get_tree().process_frame
 	await RenderingServer.frame_post_draw
 	get_viewport().get_texture().get_image().save_png("%s/23_hud.png" % dir)
+	# Act 2 shots: Arin, lanterns, seal effect.
+	story.set_flag("gate_open")
+	story_b.start_act2()
+	player.set_distance(7.5)
+	_teleport(0.0, -140.0)
+	player.global_position = Vector3(2.0, EntranceBuilder.PLATFORM_Y + 0.4, -151.5)
+	player.velocity = Vector3.ZERO
+	_look_at_point(Vector3(3.0, EntranceBuilder.PLATFORM_Y + 1.5, -161.0), -0.1)
+	story_b.story.refs["lanterns"][0].get_node("Flame").scale = Vector3.ONE
+	story_b._light(story_b.story.refs["lanterns"][0], true)
+	story_b.seal_fx(player.global_position + Vector3(0, 1.0, 0))
+	for i in 50:
+		await get_tree().process_frame
+	await RenderingServer.frame_post_draw
+	get_viewport().get_texture().get_image().save_png("%s/24_act2.png" % dir)
 	var rx := terrain.river_x
 	var views := [
 		["01_start_viewpoint", Vector2(120, 160), Vector3(0, 22, -168), -0.07],
