@@ -103,7 +103,7 @@ func _wall(parent: Node3D, along_x: bool, fixed: float, a: float, b: float, open
 
 
 func _shell(h: Node3D, w: float, d: float, door_x: float, partition_x: float, variant: int) -> void:
-	var wall_mat := PropFactory.plaster() if variant != 2 else PropFactory.sandstone_pale()
+	var wall_mat := PropFactory.plaster() if variant != 2 else PropFactory.mud_brick()
 	var trim := PropFactory.sandstone_dark()
 	var wood := PropFactory.wood()
 	var hw := w * 0.5

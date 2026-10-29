@@ -85,6 +85,147 @@ static func stone(color: Color, strata: float = 0.9) -> StandardMaterial3D:
 	return m
 
 
+
+# --- hand-painted style textures for aged buildings --------------------------------------
+# Generated pixel by pixel in code (no imported images): sun-dried mud bricks in courses with
+# dark mortar joints, covered by a lime/mud plaster that has flaked away in patches, with
+# hairline cracks, damp stains and dirt at the base. Albedo and normal maps are tileable.
+
+static func _noise_img(seed_value: int, freq: float, size: int, cellular: bool = false) -> Image:
+	var fn := FastNoiseLite.new()
+	fn.seed = seed_value
+	fn.frequency = freq
+	if cellular:
+		fn.noise_type = FastNoiseLite.TYPE_CELLULAR
+		fn.cellular_return_type = FastNoiseLite.RETURN_DISTANCE2_SUB
+		fn.cellular_jitter = 1.0
+	else:
+		fn.noise_type = FastNoiseLite.TYPE_SIMPLEX_SMOOTH
+		fn.fractal_octaves = 4
+	return fn.get_seamless_image(size, size, false, false, 0.1, true)
+
+
+static func _hash2(a: int, b: int) -> float:
+	var h := (a * 73856093) ^ (b * 19349663)
+	h = (h ^ (h >> 13)) * 1274126177
+	return float(absi(h) % 1000) / 999.0
+
+
+static func _normal_from_heights(hts: PackedFloat32Array, size: int, strength: float) -> Image:
+	var img := Image.create_empty(size, size, false, Image.FORMAT_RGB8)
+	for y in size:
+		for x in size:
+			var hx := hts[y * size + (x + 1) % size] - hts[y * size + (x + size - 1) % size]
+			var hy := hts[((y + 1) % size) * size + x] - hts[((y + size - 1) % size) * size + x]
+			var n := Vector3(-hx * strength, hy * strength, 1.0).normalized()
+			img.set_pixel(x, y, Color(n.x * 0.5 + 0.5, n.y * 0.5 + 0.5, n.z * 0.5 + 0.5))
+	return img
+
+
+## `plaster_amount` 0..1: how much of the brickwork is still covered by plaster.
+static func aged_wall(plaster_amount: float, tint: Color) -> StandardMaterial3D:
+	var key := "aged_wall_%s_%s" % [plaster_amount, tint]
+	if _materials.has(key):
+		return _materials[key]
+	var size := 256
+	var patch := _noise_img(901, 0.008, size)
+	var grain := _noise_img(902, 0.09, size)
+	var stain := _noise_img(903, 0.006, size)
+	var crack := _noise_img(904, 0.018, size, true)
+	var albedo := Image.create_empty(size, size, false, Image.FORMAT_RGB8)
+	var hts := PackedFloat32Array()
+	hts.resize(size * size)
+	var brick_h := 16
+	var brick_w := 32
+	for y in size:
+		var row := y / brick_h
+		for x in size:
+			var xo := x + (row % 2) * (brick_w / 2)
+			var col := xo / brick_w
+			var bx := xo % brick_w
+			var by := y % brick_h
+			var g := grain.get_pixel(x, y).r
+			var pm := patch.get_pixel(x, y).r
+			# Mud brick: per-brick tone, slightly rounded edges, dark recessed mortar.
+			var tone := 0.78 + 0.34 * _hash2(row, col)
+			var edge := minf(minf(bx, brick_w - bx), minf(by, brick_h - by))
+			var mortar := 1.0 - smoothstep(0.8, 3.0, edge)
+			var brick_col := Color(0.55, 0.40, 0.27) * tone * (0.85 + 0.3 * g)
+			var mortar_col := Color(0.30, 0.23, 0.17) * (0.8 + 0.4 * g)
+			var col_brick := brick_col.lerp(mortar_col, mortar)
+			var h_brick := (1.0 - mortar) * 0.8 + g * 0.15
+			# Plaster coat that has peeled in irregular patches.
+			var cover := smoothstep(0.48 - plaster_amount * 0.55, 0.56 - plaster_amount * 0.55 + 0.06, pm)
+			var plaster_col := Color(0.80, 0.69, 0.52) * (0.86 + 0.24 * g)
+			var h_pl := 1.0 + g * 0.25
+			# Cracks on the plaster (thin dark lines) and damp stains.
+			var cr := 1.0 - smoothstep(0.0, 0.05, crack.get_pixel(x, y).r)
+			plaster_col = plaster_col.lerp(Color(0.25, 0.19, 0.14), cr * 0.75)
+			h_pl -= cr * 0.6
+			var st := stain.get_pixel(x, y).r
+			plaster_col = plaster_col * (1.0 - 0.28 * smoothstep(0.55, 0.9, st))
+			var out := col_brick.lerp(plaster_col, cover)
+			var hh := lerpf(h_brick, h_pl, cover)
+			# Thin shadow where the plaster edge stands proud of the brick.
+			out = out * (1.0 - 0.25 * (cover * (1.0 - cover)) * 4.0)
+			albedo.set_pixel(x, y, Color(out.r * tint.r, out.g * tint.g, out.b * tint.b))
+			hts[y * size + x] = hh
+	var m := StandardMaterial3D.new()
+	m.albedo_texture = ImageTexture.create_from_image(albedo)
+	m.normal_enabled = true
+	m.normal_texture = ImageTexture.create_from_image(_normal_from_heights(hts, size, 2.2))
+	m.normal_scale = 1.2
+	m.roughness = 0.97
+	m.uv1_triplanar = true
+	m.uv1_world_triplanar = true
+	m.uv1_triplanar_sharpness = 4.0
+	m.uv1_scale = Vector3(0.3, 0.3, 0.3)
+	_materials[key] = m
+	return m
+
+
+## Old timber: long grain, cracks (checks) and silvery weathering. The texture is generated once;
+## `tint` only multiplies it, so every timber colour shares one texture.
+static func aged_wood(tint: Color) -> StandardMaterial3D:
+	var key := "aged_wood_%s" % tint
+	if _materials.has(key):
+		return _materials[key]
+	if not _textures.has("aged_wood_albedo"):
+		var size := 192
+		var base := _noise_img(911, 0.03, size)
+		var fine := _noise_img(912, 0.1, size)
+		var crack := _noise_img(913, 0.02, size, true)
+		var albedo := Image.create_empty(size, size, false, Image.FORMAT_RGB8)
+		var hts := PackedFloat32Array()
+		hts.resize(size * size)
+		for y in size:
+			# Triangle-wave v coordinate: grain varies slowly along Y and the tile stays seamless.
+			var gy := int(size * 0.2 * (1.0 - absf(2.0 * y / size - 1.0)))
+			for x in size:
+				var ring := base.get_pixel(x, gy).r
+				var ln := fine.get_pixel(x, gy).r
+				var band := 0.5 + 0.5 * sin(x * 0.5 + ring * 9.0)
+				var cr := 1.0 - smoothstep(0.0, 0.03, crack.get_pixel((x * 3) % size, gy).r)
+				var c := Color(0.62, 0.47, 0.32).lerp(Color(0.40, 0.29, 0.19), band * 0.7)
+				c = c.lerp(Color(0.62, 0.59, 0.54), 0.15 * ln)
+				c = c.lerp(Color(0.12, 0.08, 0.06), cr * 0.8)
+				albedo.set_pixel(x, y, c)
+				hts[y * size + x] = band * 0.2 - cr * 0.5
+		_textures["aged_wood_albedo"] = ImageTexture.create_from_image(albedo)
+		_textures["aged_wood_normal"] = ImageTexture.create_from_image(_normal_from_heights(hts, size, 1.0))
+	var m := StandardMaterial3D.new()
+	m.albedo_color = tint
+	m.albedo_texture = _textures["aged_wood_albedo"]
+	m.normal_enabled = true
+	m.normal_texture = _textures["aged_wood_normal"]
+	m.normal_scale = 0.8
+	m.roughness = 0.88
+	m.uv1_triplanar = true
+	m.uv1_world_triplanar = true
+	m.uv1_scale = Vector3(0.7, 0.7, 0.7)
+	_materials[key] = m
+	return m
+
 static func sandstone() -> StandardMaterial3D:
 	return stone(Color(0.62, 0.47, 0.31))
 
@@ -97,24 +238,20 @@ static func sandstone_pale() -> StandardMaterial3D:
 	return stone(Color(0.72, 0.60, 0.44))
 
 
-## Lime/mud plaster for house walls.
+## Aged lime plaster over mud brick (house walls), mostly intact.
 static func plaster() -> StandardMaterial3D:
-	return stone(Color(0.80, 0.69, 0.52), 0.1)
+	return aged_wall(0.7, Color(1, 1, 1))
+
+
+## Mud-brick walls with most of the plaster gone.
+static func mud_brick() -> StandardMaterial3D:
+	return aged_wall(0.2, Color(1.0, 0.97, 0.94))
 
 
 static func wood(color: Color = Color(0.36, 0.25, 0.16)) -> StandardMaterial3D:
-	var key := "wood_%s" % color
-	if _materials.has(key):
-		return _materials[key]
-	var m := StandardMaterial3D.new()
-	m.albedo_color = color
-	m.albedo_texture = _noise_texture("wood_a", 0.035, 3, 21, false, 0.0, 0.55)
-	m.roughness = 0.82
-	m.uv1_triplanar = true
-	m.uv1_world_triplanar = true
-	m.uv1_scale = Vector3(1.4, 0.35, 1.4)
-	_materials[key] = m
-	return m
+	# `color` is the legacy base colour; it only tints the grain texture.
+	var tint := Color(color.r / 0.36, color.g / 0.25, color.b / 0.16).clamp(Color(0.4, 0.4, 0.4), Color(1.6, 1.6, 1.6))
+	return aged_wood(Color(snappedf(tint.r, 0.1), snappedf(tint.g, 0.1), snappedf(tint.b, 0.1)))
 
 
 static func cloth(color: Color) -> StandardMaterial3D:
