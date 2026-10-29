@@ -204,3 +204,12 @@ save("crickets_loop", cr + 0.02 * periodic_noise(d, 2000, 7000, 11), 0.35)
 d = 8.0; t = t_(d)
 room = periodic_noise(d, 60, 400, 21) * (0.8 + 0.2 * np.sin(2 * np.pi * t / d * 2))
 save("room_tone", room, 0.3)
+
+# warm drone pad: always-on background tone (seamless 24 s loop: all frequencies are whole cycles)
+d = 24.0; t = t_(d); pad = np.zeros(len(t))
+for k, a in [(1760, 1.0), (2640, 0.7), (3520, 0.55), (5280, 0.3), (7040, 0.18)]:
+    for det in (-1, 0, 1):
+        ph = rng.uniform(0, 2 * np.pi)
+        lfo = 0.65 + 0.35 * np.sin(2 * np.pi * rng.integers(1, 5) * t / d + rng.uniform(0, 6.28))
+        pad += a * lfo * np.sin(2 * np.pi * (k + det) / d * t + ph)
+save("ambient_pad", pad, 0.5)

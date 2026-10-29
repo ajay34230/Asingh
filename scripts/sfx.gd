@@ -18,6 +18,7 @@ var _music: AudioStreamPlayer
 var _wind: AudioStreamPlayer
 var _crickets: AudioStreamPlayer
 var _room: AudioStreamPlayer
+var _pad: AudioStreamPlayer
 var _ui: AudioStreamPlayer
 var _bird_t := 4.0
 var _rng := RandomNumberGenerator.new()
@@ -40,6 +41,7 @@ func setup(p: Player, h: HouseBuilder) -> Sfx:
 		_pool.append(a)
 	_music = _loop_player("music_desert", -12.0)
 	_wind = _loop_player("wind_loop", -10.0)
+	_pad = _loop_player("ambient_pad", -15.0)
 	_crickets = _loop_player("crickets_loop", -24.0)
 	_room = _loop_player("room_tone", -80.0)
 	_ui = AudioStreamPlayer.new()
