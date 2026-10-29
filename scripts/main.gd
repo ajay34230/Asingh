@@ -568,5 +568,26 @@ func _run_capture(dir: String) -> void:
 		await RenderingServer.frame_post_draw
 		idx += 1
 		print("[capture] npc_%s -> " % np2.name, get_viewport().get_texture().get_image().save_png("%s/15_npc_%d_%s.png" % [dir, idx, np2.name]))
+	# Animals and carts.
+	var shots := 0
+	for lf in life:
+		var tgt: Node3D = lf
+		var is_wagon := lf is Wagon
+		var an := lf as Animal
+		if not is_wagon and an != null and not (an.species in ["cow", "camel", "dog", "horse", "deer"]):
+			continue
+		shots += 1
+		var off := Vector3(7.5, 0.5, 5.0) if is_wagon else Vector3(3.2, 0.5, 2.4)
+		player.global_position = tgt.global_position + off
+		player.velocity = Vector3.ZERO
+		player.set_distance(2.6)
+		_look_at_point(tgt.global_position + Vector3(0, 1.1, 0), -0.05)
+		for i in 40:
+			await get_tree().physics_frame
+		for i in 4:
+			await get_tree().process_frame
+		_look_at_point(tgt.global_position + Vector3(0, 1.1, 0), -0.05)
+		await RenderingServer.frame_post_draw
+		print("[capture] life_%d -> " % shots, get_viewport().get_texture().get_image().save_png("%s/16_life_%02d_%s.png" % [dir, shots, tgt.name]))
 	model.visible = true
 	get_tree().quit(0)

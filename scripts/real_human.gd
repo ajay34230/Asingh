@@ -44,7 +44,7 @@ var _order: Array = []            # per skeleton: bone indices parent-first
 var _arm_rot: Array = []          # per skeleton: {"L": rad, "R": rad} rotation about Z that lowers the arm
 var _pose: Dictionary = {}        # key -> Vector3 (rx, ry, rz) rig-style angles
 var _hips_dy := 0.0
-var _hips_rest_pos: Array = []
+var _frame: Array = []             # per skeleton: Basis mapping skeleton space to model space (with scale)
 var _inner: Node3D
 var look_yaw := 0.0                # radians relative to the body, set by the NPC brain
 var action := ""
@@ -109,14 +109,20 @@ func _register(sk: Skeleton3D) -> void:
 		order.append(i)
 	_rest_g.append(rg)
 	_order.append(order)
-	_hips_rest_pos.append(sk.get_bone_rest(idx["hips"]).origin)
+	var fb := Basis.IDENTITY
+	var nd: Node = sk
+	while nd != null and nd != _inner:
+		if nd is Node3D:
+			fb = (nd as Node3D).transform.basis * fb
+		nd = nd.get_parent()
+	_frame.append(fb)
 	var rot := {}
 	for side in ["L", "R"]:
 		var sh: int = idx["sh_" + side]
 		var el: int = idx["el_" + side]
 		var a := 1.3 * (1.0 if side == "L" else -1.0)
 		if sh >= 0 and el >= 0:
-			var d := sk.get_bone_global_rest(el).origin - sk.get_bone_global_rest(sh).origin
+			var d: Vector3 = fb * (sk.get_bone_global_rest(el).origin - sk.get_bone_global_rest(sh).origin)
 			# rotate the arm direction (in the XY plane) to hang straight down, keeping a small gap
 			a = Vector2(d.x, d.y).angle_to(Vector2(0.0, -1.0))
 			a *= 0.93
@@ -230,7 +236,8 @@ func _apply() -> void:
 				var r: Vector3 = _pose[k]
 				# r.z = abduction in radians: raises the arm away from the hanging pose
 				d = Basis(Vector3.UP, r.y) * Basis(Vector3.RIGHT, -r.x) * Basis(Vector3.BACK, a0 - signf(a0) * r.z)
-			own[bi] = d
+			var fn: Basis = (_frame[si] as Basis).orthonormalized()
+			own[bi] = fn.inverse() * d * fn
 		# D_total(b) = D_total(parent) * own(b); global basis = D_total * restGlobal
 		var dtot: Array = []
 		dtot.resize(n)
@@ -246,10 +253,13 @@ func _apply() -> void:
 				local = b_p.inverse() * b_i
 			else:
 				local = b_i
-			var rest_local := sk.get_bone_rest(i).basis
-			sk.set_bone_pose_rotation(i, (rest_local.inverse() * local).get_rotation_quaternion())
+			sk.set_bone_pose_rotation(i, local.orthonormalized().get_rotation_quaternion())
 		if idx["hips"] >= 0:
-			sk.set_bone_pose_position(idx["hips"], (_hips_rest_pos[si] as Vector3) + Vector3(0, _hips_dy / maxf(_inner.scale.y, 0.01), 0))
+			var off: Vector3 = (_frame[si] as Basis).inverse() * Vector3(0, _hips_dy / maxf(_inner.scale.y, 0.01), 0)
+			var hp: int = idx["hips"]
+			var pp := sk.get_bone_parent(hp)
+			var pb: Basis = (rg[pp] as Basis) if pp >= 0 else Basis.IDENTITY
+			sk.set_bone_pose_position(hp, sk.get_bone_rest(hp).origin + pb.inverse() * off)
 
 
 # --- animation -----------------------------------------------------------------------------
