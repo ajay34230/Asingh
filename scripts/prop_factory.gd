@@ -254,6 +254,62 @@ static func sand_ripple_textures() -> Array:
 	return [_textures["sand_ripple_a"], _textures["sand_ripple_n"]]
 
 
+## Woven cloth for clothing. Uses the mesh UVs (not world triplanar) so it moves with animated limbs.
+static func fabric(color: Color, weave_scale: float = 6.0, roughness: float = 0.92) -> StandardMaterial3D:
+	var key := "fabric_%s_%s" % [color, weave_scale]
+	if _materials.has(key):
+		return _materials[key]
+	if not _textures.has("weave_n"):
+		var size := 64
+		var hts := PackedFloat32Array()
+		hts.resize(size * size)
+		for y in size:
+			for x in size:
+				var a := sin(float(x) / size * TAU * 8.0)
+				var b := sin(float(y) / size * TAU * 8.0)
+				hts[y * size + x] = 0.5 * (a * b) + 0.25 * (absf(a) + absf(b))
+		_textures["weave_n"] = ImageTexture.create_from_image(_normal_from_heights(hts, size, 0.35))
+	var m := StandardMaterial3D.new()
+	m.albedo_color = color
+	m.roughness = roughness
+	m.normal_enabled = true
+	m.normal_texture = _textures["weave_n"]
+	m.normal_scale = 0.6
+	m.uv1_scale = Vector3(weave_scale, weave_scale, 1.0)
+	m.cull_mode = BaseMaterial3D.CULL_BACK
+	_materials[key] = m
+	return m
+
+
+static func skin(color: Color) -> StandardMaterial3D:
+	var key := "skin_%s" % color
+	if _materials.has(key):
+		return _materials[key]
+	var m := StandardMaterial3D.new()
+	m.albedo_color = color
+	m.roughness = 0.55
+	m.metallic_specular = 0.45
+	m.rim_enabled = true
+	m.rim = 0.25
+	m.rim_tint = 0.6
+	_materials[key] = m
+	return m
+
+
+static func hair(color: Color) -> StandardMaterial3D:
+	var key := "hair_%s" % color
+	if _materials.has(key):
+		return _materials[key]
+	var m := StandardMaterial3D.new()
+	m.albedo_color = color
+	m.roughness = 0.62
+	m.metallic_specular = 0.25
+	m.albedo_texture = _noise_texture("hair_a", 0.3, 2, 77, false, 0.0, 0.55, false, 128)
+	m.uv1_scale = Vector3(6, 6, 1)
+	_materials[key] = m
+	return m
+
+
 static func sandstone() -> StandardMaterial3D:
 	return stone(Color(0.62, 0.47, 0.31))
 

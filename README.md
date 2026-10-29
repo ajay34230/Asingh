@@ -87,3 +87,14 @@ ci/                                 Godot / export-template install scripts
 - **Goods line ("maal gaadi")** across the south of the valley (`scripts/railway_builder.gd`): broad-gauge track, a parked goods train (steam locomotive, tender, boxcar, gondola, flatcar, covered wagon, tank wagon), a loading dock you can walk onto and into the boxcar, goods shed, water tower, signal, telegraph poles and cargo carts. The train is static scenery; it does not move.
 - Everything is still generated in code; no external assets. All shapes are primitive-built and procedurally textured, so this is stylised, not photo-real.
 - Verified: headless import, automated self-test (walk into a house, climb its roof stairs, walk up the dock into the boxcar) and software-GL screenshots. Not tested on a real Galaxy S10; frame rate on the phone is unknown.
+
+
+## Phase 2: player controller (branch `phase-2-player-controller`)
+
+- **Movement:** real-scale walking (2.4 m/s) and running (6.5 m/s), acceleration and braking, jump with coyote time and jump buffering, automatic step-up over ledges up to 0.45 m, steep slopes slide.
+- **Collision:** terrain, houses, walls, train, props and NPCs are solid. A startup pass (`collision_fixer.gd`) adds a collider to any large visible object that had none (196 added); only the stairs are walk-through-by-design because they use a ramp collider.
+- **Camera:** third-person orbit with wall collision, pinch / mouse-wheel zoom, small run field-of-view kick.
+- **Interaction range:** `Interactable` nodes with a reach; the nearest one in front of the camera is focused, a prompt and a USE button appear. Test interactions: house doors (open/close), sealed entrance door, statues, well (placeholder messages only, no story).
+- **Touch controls:** floating joystick with dead zone, look drag, two-finger pinch zoom, RUN, JUMP, USE.
+- **Characters:** the player and six ambient NPCs (blacksmith, elder, villager, weaver, rail worker, trader) are jointed procedural humans with faces, hair, clothes and walk / run / idle / hammer animation. NPCs only stand and work; no dialogue, AI or story role. They are stylised low-poly, not photo-real.
+- **Tests:** `--selftest` now also checks step-up, wall blocking, jump, camera collision, door interaction, NPC solidity, plus everything from Phase 1. `--audit` lists visible meshes that have no collision.

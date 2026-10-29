@@ -38,6 +38,7 @@ func build(parent: Node3D) -> Node3D:
 func _stairs(root: Node3D) -> void:
 	var stairs := Node3D.new()
 	stairs.name = "Staircase"
+	stairs.set_meta("no_auto_collide", true)   # climbed via an invisible ramp collider
 	root.add_child(stairs)
 	var stone := PropFactory.sandstone_pale()
 	for i in STEP_COUNT:
@@ -62,7 +63,7 @@ func _stairs(root: Node3D) -> void:
 	ramp.visible = false
 	# Low balustrade walls along both sides of the staircase.
 	for side in [-1.0, 1.0]:
-		var wall := PropFactory.box(stairs, Vector3(1.4, 2.4, length + 1.5), (p0 + p1) * 0.5 + Vector3(side * (STAIR_WIDTH * 0.5 + 0.7), 1.0, 0), PropFactory.sandstone(), Vector3(angle, 0, 0), false)
+		var wall := PropFactory.box(stairs, Vector3(1.4, 2.4, length + 1.5), (p0 + p1) * 0.5 + Vector3(side * (STAIR_WIDTH * 0.5 + 0.7), 1.0, 0), PropFactory.sandstone(), Vector3(angle, 0, 0), true)
 		wall.name = "Balustrade"
 
 

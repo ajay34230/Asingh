@@ -59,8 +59,10 @@ func _house(parent: Node3D, index: int, w: float, d: float, yaw: float, variant:
 	_exterior(h, w, d, door_x, variant)
 	_light_and_probe(h, w, d, partition_x)
 
+	var door := _door(h, w, d, door_x)
 	var xf := h.transform
 	houses.append({
+		"door": door,
 		"name": h.name,
 		"door_out": xf * Vector3(door_x, 0.0, d * 0.5 + 3.0),
 		"inside": xf * Vector3(door_x, 0.0, d * 0.5 - 2.5),
@@ -127,13 +129,11 @@ func _shell(h: Node3D, w: float, d: float, door_x: float, partition_x: float, va
 		_wall(h, false, partition_x, -hd + t, hd - t, [[-d * 0.12, 1.2, 0.0, 2.1]], wall_mat, 0.35)
 		PropFactory.box(h, Vector3(0.45, 0.16, 1.5), Vector3(partition_x, FLOOR_Y + 2.2, -d * 0.12), wood, Vector3.ZERO, false)
 
-	# Door: timber frame, ajar leaf, stone threshold.
+	# Door: timber frame and stone threshold (the hinged leaf is added by _door()).
 	var dz := hd - t * 0.5
 	for sx in [-1.0, 1.0]:
 		PropFactory.box(h, Vector3(0.14, DOOR_H + 0.1, t + 0.12), Vector3(door_x + sx * (DOOR_W * 0.5 + 0.02), FLOOR_Y + DOOR_H * 0.5, dz), wood, Vector3.ZERO, false)
 	PropFactory.box(h, Vector3(DOOR_W + 0.5, 0.2, t + 0.2), Vector3(door_x, FLOOR_Y + DOOR_H + 0.08, dz), wood, Vector3.ZERO, false)
-	var leaf := PropFactory.box(h, Vector3(DOOR_W * 0.5, DOOR_H - 0.1, 0.07), Vector3(door_x - DOOR_W * 0.5 + 0.28, FLOOR_Y + (DOOR_H - 0.1) * 0.5, dz - 0.5), wood, Vector3(0, 62, 0), false)
-	leaf.name = "DoorLeaf"
 	PropFactory.box(h, Vector3(DOOR_W + 0.4, 0.14, 0.8), Vector3(door_x, FLOOR_Y - 0.03, dz + 0.1), trim, Vector3.ZERO, true)
 
 	# Window sills, lintels and open shutters.
@@ -166,6 +166,42 @@ func _window_trim(h: Node3D, along_x: bool, fixed: float, c: float, width: float
 			sp = Vector3(fixed + out * 0.32, FLOOR_Y + y0 + leaf_h * 0.5, c + s * (width * 0.5 + 0.28))
 			size = Vector3(0.04, leaf_h, width * 0.5)
 		PropFactory.box(h, size, sp, wood, rot, false)
+
+
+## Hinged, solid door leaf with an Interactable. Starts closed; interacting swings it open/shut.
+func _door(h: Node3D, w: float, d: float, door_x: float) -> Interactable:
+	var wood := PropFactory.wood()
+	var dz := d * 0.5 - WALL_T * 0.5
+	var leaf_w := DOOR_W - 0.06
+	var leaf_h := DOOR_H - 0.1
+	var pivot := Node3D.new()
+	pivot.name = "DoorPivot"
+	pivot.position = Vector3(door_x - DOOR_W * 0.5 + 0.03, FLOOR_Y, dz)
+	h.add_child(pivot)
+	var leaf := PropFactory.box(pivot, Vector3(leaf_w, leaf_h, 0.07), Vector3(leaf_w * 0.5, leaf_h * 0.5, 0.0), wood)
+	leaf.name = "DoorLeaf"
+	# Iron straps and a handle.
+	for yy in [0.35, leaf_h - 0.35]:
+		PropFactory.box(pivot, Vector3(leaf_w * 0.9, 0.08, 0.085), Vector3(leaf_w * 0.5, yy, 0.0), PropFactory.iron(), Vector3.ZERO, false, false)
+	PropFactory.box(pivot, Vector3(0.05, 0.16, 0.12), Vector3(leaf_w - 0.12, 1.0, 0.0), PropFactory.iron(), Vector3.ZERO, false, false)
+
+	var it := Interactable.new()
+	it.name = "DoorInteract"
+	it.position = Vector3(door_x, FLOOR_Y + 1.0, dz)
+	it.reach = 3.6
+	it.prompt = "Open door"
+	h.add_child(it)
+	var state := {"open": false, "tween": null}
+	it.set_meta("state", state)
+	it.on_interact = func(_by: Node3D, me: Interactable) -> void:
+		state.open = not state.open
+		me.prompt = "Close door" if state.open else "Open door"
+		if state.tween != null:
+			(state.tween as Tween).kill()
+		var tw := pivot.create_tween()
+		tw.tween_property(pivot, "rotation_degrees:y", 100.0 if state.open else 0.0, 0.5).set_trans(Tween.TRANS_SINE)
+		state.tween = tw
+	return it
 
 
 # --- roof, stairs ------------------------------------------------------------------------
@@ -206,7 +242,8 @@ func _roof_stairs(h: Node3D, w: float, d: float) -> Vector3:
 	var z0 := d * 0.5 - 0.4
 	for i in steps:
 		var top := rise * (i + 1)
-		PropFactory.box(h, Vector3(1.2, top + 0.6, run), Vector3(x, (top - 0.6) * 0.5, z0 - i * run), stone, Vector3.ZERO, false)
+		var step := PropFactory.box(h, Vector3(1.2, top + 0.6, run), Vector3(x, (top - 0.6) * 0.5, z0 - i * run), stone, Vector3.ZERO, false)
+		step.set_meta("no_auto_collide", true)   # climbed via the ramp collider below
 	# Landing at the top, level with the roof.
 	var zl := z0 - (steps - 1) * run
 	PropFactory.box(h, Vector3(1.2, roof_top + 0.6, 1.2), Vector3(x, (roof_top - 0.6) * 0.5, zl - 0.9), stone)

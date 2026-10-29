@@ -13,6 +13,7 @@ var touch: TouchControls
 var atmosphere := Atmosphere.new()
 var houses: HouseBuilder
 var railway: RailwayBuilder
+var npcs: Array[Npc] = []
 
 
 func _ready() -> void:
@@ -27,11 +28,18 @@ func _ready() -> void:
 	railway = RailwayBuilder.new(terrain)
 	railway.build(self)
 	atmosphere.build(self)
+	var auto_colliders := CollisionFixer.apply(self, terrain)
+	print("[LostKingdom] auto colliders added: %d" % auto_colliders)
 	_spawn_player()
+	npcs = NpcBuilder.build(self, terrain, houses, railway, player)
+	_build_interactables()
 	_build_ui()
 	print("[LostKingdom] world built in %d ms" % (Time.get_ticks_msec() - t0))
 
 	var args := OS.get_cmdline_user_args()
+	if "--audit" in args:
+		_run_audit.call_deferred()
+		return
 	if "--selftest" in args:
 		_run_selftest.call_deferred()
 		return
@@ -49,6 +57,28 @@ func _spawn_player() -> void:
 	add_child(player)
 	_look_at_point(Vector3(0.0, 22.0, -168.0), -0.07)
 	atmosphere.make_dust(player)
+
+
+## Neutral test interactions for Phase 2 (no story text): they exist to exercise the system.
+func _add_interactable(pos: Vector3, prompt: String, reach: float, text: String) -> Interactable:
+	var it := Interactable.new()
+	it.position = pos
+	it.prompt = prompt
+	it.reach = reach
+	it.on_interact = func(by: Node3D, _me: Interactable) -> void: (by as Player).say(text)
+	add_child(it)
+	return it
+
+
+func _build_interactables() -> void:
+	_add_interactable(Vector3(0, EntranceBuilder.PLATFORM_Y + 1.2, -172.5), "Examine sealed door", 5.0,
+		"The door is sealed. (placeholder interaction)")
+	for sx in [-27.0, 27.0]:
+		_add_interactable(Vector3(sx, terrain.sample_height(sx, -154.0) + 1.2, -154.0), "Examine statue", 5.0,
+			"A weathered stone statue. (placeholder interaction)")
+	var wp := Vector2(-90.0, 12.0)
+	_add_interactable(Vector3(wp.x, terrain.sample_height(wp.x, wp.y) + 1.0, wp.y), "Look into well", 3.5,
+		"The well is dry. (placeholder interaction)")
 
 
 func _build_ui() -> void:
@@ -128,7 +158,7 @@ func _run_selftest() -> void:
 	player.set_look(0.0, -0.1)
 	player.move_input = Vector2(0.0, 1.0)
 	player.sprint = true
-	for i in 480:
+	for i in 1100:
 		await get_tree().physics_frame
 	player.move_input = Vector2.ZERO
 	var pp := player.global_position
@@ -147,6 +177,120 @@ func _run_selftest() -> void:
 		fails.append("player did not reach the platform (z=%.1f)" % pp.z)
 	if pp.z < -173.5:
 		fails.append("player walked through the sealed door (z=%.1f)" % pp.z)
+
+	# 5a. Phase 2 controller checks on a flat test slab high above the world.
+	var slab := StaticBody3D.new()
+	slab.name = "TestSlab"
+	var slab_shape := CollisionShape3D.new()
+	var sbox := BoxShape3D.new()
+	sbox.size = Vector3(80, 1, 80)
+	slab_shape.shape = sbox
+	slab.add_child(slab_shape)
+	slab.position = Vector3(0, 500, 0)
+	add_child(slab)
+	var top := 500.5
+	var fixtures := {"step": Vector3(0, top + 0.2, -4), "wall": Vector3(20, top + 0.75, -4)}
+	for k in fixtures:
+		var b := StaticBody3D.new()
+		var cs := CollisionShape3D.new()
+		var bs := BoxShape3D.new()
+		bs.size = Vector3(6, 0.4 if k == "step" else 1.5, 2.0)
+		cs.shape = bs
+		b.add_child(cs)
+		b.position = fixtures[k]
+		add_child(b)
+	player.global_position = Vector3(0, top + 0.3, 6)
+	player.velocity = Vector3.ZERO
+	for i in 40:
+		await get_tree().physics_frame
+	player.set_look(0.0, -0.1)
+	player.move_input = Vector2(0, 1)
+	player.sprint = false
+	var step_max_y := top
+	for i in 360:
+		await get_tree().physics_frame
+		step_max_y = maxf(step_max_y, player.global_position.y)
+	player.move_input = Vector2.ZERO
+	notes.append("step test: player %s, highest point %.2f m above slab" % [player.global_position.snappedf(0.01), step_max_y - top])
+	if player.global_position.z > -5.5 or step_max_y < top + 0.38:
+		fails.append("player did not step up a 0.4 m ledge (%s)" % [player.global_position])
+	player.global_position = Vector3(20, top + 0.3, 6)
+	player.velocity = Vector3.ZERO
+	for i in 30:
+		await get_tree().physics_frame
+	player.move_input = Vector2(0, 1)
+	for i in 360:
+		await get_tree().physics_frame
+	player.move_input = Vector2.ZERO
+	notes.append("wall test: player %s" % [player.global_position.snappedf(0.01)])
+	if player.global_position.z < -3.0 or player.global_position.y > top + 0.3:
+		fails.append("player passed or climbed a 1.5 m wall (%s)" % [player.global_position])
+	# Jump with coyote time: walk off the slab edge and jump just after leaving it.
+	player.global_position = Vector3(0, top + 0.3, 6)
+	player.velocity = Vector3.ZERO
+	for i in 30:
+		await get_tree().physics_frame
+	player.jump_requested = true
+	await get_tree().physics_frame
+	var jump_y0 := player.global_position.y
+	var apex := jump_y0
+	for i in 60:
+		await get_tree().physics_frame
+		apex = maxf(apex, player.global_position.y)
+	notes.append("jump apex %.2f m" % (apex - top))
+	if apex - top < 1.2:
+		fails.append("jump too low (%.2f m)" % (apex - top))
+	# Camera collision: in a corner of a box room the camera must be pulled in.
+	var room := StaticBody3D.new()
+	for sp in [[Vector3(0, 3, -6), Vector3(12, 6, 0.5)], [Vector3(-6, 3, 0), Vector3(0.5, 6, 12)], [Vector3(6, 3, 0), Vector3(0.5, 6, 12)], [Vector3(0, 6.2, 0), Vector3(12, 0.4, 12)]]:
+		var cs2 := CollisionShape3D.new()
+		var bs2 := BoxShape3D.new()
+		bs2.size = sp[1]
+		cs2.shape = bs2
+		cs2.position = sp[0]
+		room.add_child(cs2)
+	room.position = Vector3(0, top, 0)
+	add_child(room)
+	player.global_position = Vector3(0, top + 0.3, -4.5)
+	player.velocity = Vector3.ZERO
+	player.set_distance(7.5)
+	player.set_look(PI, -0.1)          # looking +z, camera sits behind (towards the -z wall)
+	for i in 30:
+		await get_tree().physics_frame
+	notes.append("camera distance with wall behind: %.2f m" % player.camera_distance())
+	if player.camera_distance() > 3.0:
+		fails.append("camera did not collide with the wall (%.2f m)" % player.camera_distance())
+	player.set_distance(Player.DEFAULT_DISTANCE)
+	room.queue_free()
+
+	# 5a2. Interaction range: focus a house door, open it, and see the prompt change.
+	var hs0: Dictionary = houses.houses[0]
+	var door_it: Interactable = hs0.door
+	var hn0: Node3D = hs0.node
+	player.global_position = door_it.global_position + (hn0.global_transform.basis * Vector3(0, 0, 3.0)) - Vector3(0, 1.0, 0) + Vector3(0, 0.3, 0)
+	player.velocity = Vector3.ZERO
+	for i in 40:
+		await get_tree().physics_frame
+	_look_at_point(door_it.global_position, 0.0)
+	for i in 20:
+		await get_tree().physics_frame
+	if player.focus != door_it:
+		fails.append("door not focused within reach (focus=%s)" % [player.focus])
+	else:
+		if door_it.prompt != "Open door":
+			fails.append("unexpected door prompt: %s" % door_it.prompt)
+		player.interact()
+		for i in 60:
+			await get_tree().physics_frame
+		if door_it.prompt != "Close door":
+			fails.append("door prompt did not change after interacting")
+		notes.append("door interaction ok, prompt now '%s'" % door_it.prompt)
+	# Out of range: nothing focused far away.
+	_teleport(120.0, 160.0)
+	for i in 40:
+		await get_tree().physics_frame
+	if player.focus != null:
+		fails.append("focus should be empty far from any interactable")
 
 	# 5b. Enter the first house through its door, then climb the outside stairs to the roof.
 	var hs: Dictionary = houses.houses[0]
@@ -177,9 +321,13 @@ func _run_selftest() -> void:
 		await get_tree().physics_frame
 	player.set_look(atan2(-inward.x, -inward.z), 0.0)
 	player.move_input = Vector2(0.0, 1.0)
-	for i in 130:
+	player.sprint = true
+	for i in 400:
 		await get_tree().physics_frame
+		if (hn.global_transform.affine_inverse() * player.global_position).y >= HouseBuilder.WALL_H + 0.3:
+			break
 	player.move_input = Vector2.ZERO
+	player.sprint = false
 	var rp: Vector3 = hn.global_transform.affine_inverse() * player.global_position
 	notes.append("house 0 stairs: player local position %s" % [rp.snappedf(0.1)])
 	if rp.y < HouseBuilder.WALL_H:
@@ -192,8 +340,10 @@ func _run_selftest() -> void:
 		await get_tree().physics_frame
 	player.set_look(-PI * 0.5, 0.0)
 	player.move_input = Vector2(0.0, 1.0)
-	for i in 150:
+	for i in 400:
 		await get_tree().physics_frame
+		if player.global_position.y > RailwayBuilder.RAIL_Y + RailwayBuilder.DOCK_H - 0.2:
+			break
 	player.move_input = Vector2.ZERO
 	notes.append("dock: player at %s" % [player.global_position.snappedf(0.1)])
 	if player.global_position.y < RailwayBuilder.RAIL_Y + RailwayBuilder.DOCK_H - 0.3:
@@ -205,12 +355,35 @@ func _run_selftest() -> void:
 		await get_tree().physics_frame
 	player.set_look(PI, 0.0)
 	player.move_input = Vector2(0.0, 1.0)
-	for i in 90:
+	for i in 120:
 		await get_tree().physics_frame
 	player.move_input = Vector2.ZERO
 	notes.append("boxcar: player at %s" % [player.global_position.snappedf(0.1)])
 	if player.global_position.z < RailwayBuilder.RAIL_Z - 1.2 or player.global_position.y < RailwayBuilder.RAIL_Y + RailwayBuilder.DOCK_H - 0.3:
 		fails.append("player did not enter the boxcar")
+
+	# 5d. NPCs are solid: walking straight at one must stop short of its body.
+	var elder: Npc = null
+	for np in npcs:
+		if np.name == "Elder":
+			elder = np
+	if elder != null:
+		var front: Vector3 = elder.global_transform.basis * Vector3(0, 0, -1)
+		player.global_position = elder.global_position + front * 3.2 + Vector3(0, 0.5, 0)
+		player.velocity = Vector3.ZERO
+		for i in 30:
+			await get_tree().physics_frame
+		var to_npc := elder.global_position - player.global_position
+		player.set_look(atan2(-to_npc.x, -to_npc.z), 0.0)
+		player.move_input = Vector2(0, 1)
+		var min_d := 99.0
+		for i in 240:
+			await get_tree().physics_frame
+			min_d = minf(min_d, Vector2(player.global_position.x - elder.global_position.x, player.global_position.z - elder.global_position.z).length())
+		player.move_input = Vector2.ZERO
+		notes.append("closest approach to NPC: %.2f m" % min_d)
+		if min_d < 0.7:
+			fails.append("player walked into an NPC (%.2f m)" % min_d)
 
 	# 6. Scene census, for the performance notes.
 	var meshes := 0
@@ -237,6 +410,49 @@ func _run_selftest() -> void:
 		for f in fails:
 			printerr("[selftest] FAIL: ", f)
 		get_tree().quit(1)
+
+
+## Lists visible meshes that have no collision, so walk-through-able objects can be found.
+func _run_audit() -> void:
+	await get_tree().physics_frame
+	var rows := []
+	var stack: Array[Node] = [self]
+	while not stack.is_empty():
+		var n: Node = stack.pop_back()
+		stack.append_array(n.get_children())
+		var mi := n as MeshInstance3D
+		if mi == null or not mi.visible or mi.mesh == null:
+			continue
+		# Does the mesh sit under / beside a collision body?
+		var solid := false
+		var a: Node = mi
+		while a != null and a != self:
+			if a is StaticBody3D or a is CharacterBody3D:
+				solid = true
+				break
+			for c in a.get_children():
+				if c is StaticBody3D:
+					solid = true
+					break
+			if solid:
+				break
+			a = a.get_parent()
+		if solid:
+			continue
+		var bb := mi.global_transform * mi.get_aabb()
+		var sz := bb.size
+		if sz.y < 0.5 or maxf(sz.x, sz.z) < 0.35 or sz.x > 300.0 or sz.z > 300.0:
+			continue
+		var low := bb.position.y - terrain.sample_height(bb.get_center().x, bb.get_center().z)
+		if low > 2.0:
+			continue
+		rows.append([sz.x * sz.y * sz.z, str(mi.get_path()), bb])
+	rows.sort_custom(func(p, q): return p[0] > q[0])
+	print("[audit] %d meshes without collision and larger than 0.5 m" % rows.size())
+	for i in mini(rows.size(), 80):
+		var bb2: AABB = rows[i][2]
+		print("[audit] vol=%.1f size=%s at %s  %s" % [rows[i][0], bb2.size.snappedf(0.1), bb2.get_center().snappedf(1.0), rows[i][1]])
+	get_tree().quit(0)
 
 
 # --- screenshot capture (needs a rendering backend, e.g. xvfb + software GL) ------------
@@ -287,4 +503,67 @@ func _run_capture(dir: String) -> void:
 		await RenderingServer.frame_post_draw
 		var img2 := get_viewport().get_texture().get_image()
 		print("[capture] %s -> %s" % [v2[0], "ok" if img2.save_png("%s/%s.png" % [dir, v2[0]]) == OK else "error"])
+	# Phase 2 UI shots: touch overlay with an interaction prompt, and a message toast.
+	touch.visible = true
+	player.set_distance(Player.DEFAULT_DISTANCE)
+	var hs1: Dictionary = houses.houses[0]
+	var d1: Interactable = hs1.door
+	var hn1: Node3D = hs1.node
+	player.global_position = d1.global_position + hn1.global_transform.basis * Vector3(0, 0, 2.6) - Vector3(0, 0.7, 0)
+	player.velocity = Vector3.ZERO
+	_look_at_point(d1.global_position, -0.1)
+	for i in 40:
+		await get_tree().physics_frame
+	for i in 6:
+		await get_tree().process_frame
+	await RenderingServer.frame_post_draw
+	print("[capture] 12_ui_door_prompt -> ", get_viewport().get_texture().get_image().save_png("%s/12_ui_door_prompt.png" % dir))
+	_teleport(0.0, -120.0)
+	player.global_position = Vector3(0.0, EntranceBuilder.PLATFORM_Y + 0.3, -170.0)
+	player.velocity = Vector3.ZERO
+	_look_at_point(Vector3(0, 8, -176), -0.1)
+	for i in 40:
+		await get_tree().physics_frame
+	player.interact()
+	for i in 6:
+		await get_tree().process_frame
+	await RenderingServer.frame_post_draw
+	print("[capture] 13_ui_message -> ", get_viewport().get_texture().get_image().save_png("%s/13_ui_message.png" % dir))
+	# Characters: walking player (profile) and close-ups of each NPC.
+	touch.visible = false
+	var model := player.get_node("Model") as Node3D
+	_teleport(130.0, 150.0)
+	for i in 40:
+		await get_tree().physics_frame
+	player.set_look(0.0, -0.08)
+	player.set_distance(3.6)
+	player.move_input = Vector2(1, 0)
+	player.sprint = false
+	for i in 50:
+		await get_tree().physics_frame
+	await RenderingServer.frame_post_draw
+	print("[capture] 14_player_walk -> ", get_viewport().get_texture().get_image().save_png("%s/14_player_walk.png" % dir))
+	player.sprint = true
+	for i in 50:
+		await get_tree().physics_frame
+	await RenderingServer.frame_post_draw
+	print("[capture] 14b_player_run -> ", get_viewport().get_texture().get_image().save_png("%s/14b_player_run.png" % dir))
+	player.move_input = Vector2.ZERO
+	player.sprint = false
+	model.visible = false
+	var idx := 0
+	for np2 in npcs:
+		var front2: Vector3 = np2.global_transform.basis * Vector3(0, 0, -1)
+		player.global_position = np2.global_position + front2 * 1.3 + Vector3(0, 0.4, 0)
+		player.velocity = Vector3.ZERO
+		player.set_distance(1.25)
+		_look_at_point(np2.global_position + Vector3(0, 1.2, 0), 0.0)
+		for i in 40:
+			await get_tree().physics_frame
+		for i in 4:
+			await get_tree().process_frame
+		await RenderingServer.frame_post_draw
+		idx += 1
+		print("[capture] npc_%s -> " % np2.name, get_viewport().get_texture().get_image().save_png("%s/15_npc_%d_%s.png" % [dir, idx, np2.name]))
+	model.visible = true
 	get_tree().quit(0)

@@ -48,7 +48,7 @@ func _random_point(margin: float = 20.0) -> Vector2:
 
 
 func _scatter(parent: Node3D, mesh: Mesh, name_: String, points: Array, scale_min: Vector3,
-		scale_max: Vector3, color_a: Color, color_b: Color, sink: float) -> void:
+		scale_max: Vector3, color_a: Color, color_b: Color, sink: float, solid: bool = false) -> void:
 	if points.is_empty():
 		return
 	var mm := MultiMesh.new()
@@ -66,6 +66,15 @@ func _scatter(parent: Node3D, mesh: Mesh, name_: String, points: Array, scale_mi
 		b = b * Basis.from_scale(s)
 		mm.set_instance_transform(i, Transform3D(b, Vector3(p.x, _ground(p.x, p.y) - sink * s.y, p.y)))
 		mm.set_instance_color(i, color_a.lerp(color_b, _rng.randf()))
+		if solid:
+			var body := StaticBody3D.new()
+			body.position = Vector3(p.x, _ground(p.x, p.y) + s.y * (0.35 - sink), p.y)
+			var cs := CollisionShape3D.new()
+			var sh := SphereShape3D.new()
+			sh.radius = minf(s.x, s.z) * 0.85
+			cs.shape = sh
+			body.add_child(cs)
+			parent.add_child(body)
 	var mmi := MultiMeshInstance3D.new()
 	mmi.name = name_
 	mmi.multimesh = mm
@@ -210,7 +219,7 @@ func _boulders(root: Node3D) -> void:
 	mesh.radial_segments = 8
 	mesh.rings = 4
 	_scatter(root, mesh, "Boulders", pts, Vector3(0.6, 0.4, 0.6), Vector3(2.6, 1.6, 2.4),
-		Color(0.56, 0.40, 0.27), Color(0.74, 0.58, 0.40), 0.25)
+		Color(0.56, 0.40, 0.27), Color(0.74, 0.58, 0.40), 0.25, true)
 
 
 func _riverbed_stones(root: Node3D) -> void:
@@ -250,7 +259,7 @@ func _dead_trees(root: Node3D) -> void:
 		var g := _ground(p.x, p.y)
 		var h := _rng.randf_range(3.0, 5.0)
 		var yaw := _rng.randf_range(0.0, 360.0)
-		var trunk := PropFactory.cylinder(trees, 0.12, 0.3, h, Vector3(p.x, g + h * 0.5 - 0.2, p.y), wood, Vector3(_rng.randf_range(-12, 12), yaw, _rng.randf_range(-12, 12)), false, 6)
+		var trunk := PropFactory.cylinder(trees, 0.12, 0.3, h, Vector3(p.x, g + h * 0.5 - 0.2, p.y), wood, Vector3(_rng.randf_range(-12, 12), yaw, _rng.randf_range(-12, 12)), true, 6)
 		for k in 3:
 			var br := PropFactory.cylinder(trunk, 0.04, 0.12, 1.6, Vector3(0, h * (0.1 + 0.2 * k), 0), wood, Vector3(0, k * 120.0, 50.0), false, 5)
 			br.name = "Branch"
