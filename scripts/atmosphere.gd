@@ -25,8 +25,15 @@ func build(parent: Node3D) -> void:
 	environment = Environment.new()
 	environment.background_mode = Environment.BG_SKY
 	environment.sky = sky
-	environment.ambient_light_source = Environment.AMBIENT_SOURCE_SKY
-	environment.ambient_light_energy = 0.8
+	# Shadows are lit by a blend of blue sky and warm light bounced off the sand.
+	environment.ambient_light_source = Environment.AMBIENT_SOURCE_COLOR
+	environment.ambient_light_color = Color(0.74, 0.64, 0.52)
+	environment.ambient_light_sky_contribution = 0.55
+	environment.ambient_light_energy = 1.0
+	environment.glow_enabled = true
+	environment.glow_intensity = 0.5
+	environment.glow_bloom = 0.04
+	environment.glow_hdr_threshold = 1.1
 	environment.reflected_light_source = Environment.REFLECTION_SOURCE_SKY
 	environment.tonemap_mode = Environment.TONE_MAPPER_FILMIC
 	environment.tonemap_exposure = 0.85
@@ -37,7 +44,7 @@ func build(parent: Node3D) -> void:
 	environment.fog_sun_scatter = 0.25
 	environment.adjustment_enabled = true
 	environment.adjustment_contrast = 1.06
-	environment.adjustment_saturation = 1.05
+	environment.adjustment_saturation = 0.9
 
 	var we := WorldEnvironment.new()
 	we.name = "WorldEnvironment"

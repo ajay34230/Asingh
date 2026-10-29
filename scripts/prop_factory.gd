@@ -226,6 +226,34 @@ static func aged_wood(tint: Color) -> StandardMaterial3D:
 	_materials[key] = m
 	return m
 
+## Fine wind-ripple + grain detail for sand (tileable). Albedo is centred near white so it only darkens slightly and can be
+## applied with a multiply detail blend; the normal map carries the ripple relief.
+static func sand_ripple_textures() -> Array:
+	if _textures.has("sand_ripple_a"):
+		return [_textures["sand_ripple_a"], _textures["sand_ripple_n"]]
+	var size := 256
+	var warp := _noise_img(921, 0.02, size)
+	var patch := _noise_img(922, 0.012, size)
+	var albedo := Image.create_empty(size, size, false, Image.FORMAT_RGB8)
+	var hts := PackedFloat32Array()
+	hts.resize(size * size)
+	for y in size:
+		for x in size:
+			var w := warp.get_pixel(x, y).r
+			var ph := (float(x) / size * 22.0 + w * 2.2) * TAU
+			var rip := sin(ph)
+			rip = rip * (1.0 - 0.35 * absf(rip))            # sharper crests, flatter troughs
+			var amp := smoothstep(0.35, 0.7, patch.get_pixel(x, y).r)
+			var grain := _hash2(x, y) - 0.5
+			var hh := rip * 0.5 * amp + grain * 0.12
+			hts[y * size + x] = hh
+			var v := 0.92 + hh * 0.16 + grain * 0.04
+			albedo.set_pixel(x, y, Color(v, v * 0.99, v * 0.97))
+	_textures["sand_ripple_a"] = ImageTexture.create_from_image(albedo)
+	_textures["sand_ripple_n"] = ImageTexture.create_from_image(_normal_from_heights(hts, size, 1.2))
+	return [_textures["sand_ripple_a"], _textures["sand_ripple_n"]]
+
+
 static func sandstone() -> StandardMaterial3D:
 	return stone(Color(0.62, 0.47, 0.31))
 

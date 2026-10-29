@@ -201,6 +201,17 @@ func _make_material() -> StandardMaterial3D:
 	m.uv1_triplanar = true
 	m.uv1_world_triplanar = true
 	m.uv1_scale = Vector3(0.07, 0.07, 0.07)
+	# Fine wind ripples and grain on a second, smaller-scale triplanar layer.
+	var rip := PropFactory.sand_ripple_textures()
+	m.detail_enabled = true
+	m.detail_uv_layer = BaseMaterial3D.DETAIL_UV_2
+	m.detail_blend_mode = BaseMaterial3D.BLEND_MODE_MUL
+	m.detail_albedo = rip[0]
+	m.detail_normal = rip[1]
+	m.uv2_triplanar = true
+	m.uv2_world_triplanar = true
+	m.uv2_triplanar_sharpness = 3.0
+	m.uv2_scale = Vector3(0.3, 0.3, 0.3)
 	return m
 
 
