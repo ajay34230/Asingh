@@ -19,6 +19,10 @@ var _wind: AudioStreamPlayer
 var _crickets: AudioStreamPlayer
 var _room: AudioStreamPlayer
 var _pad: AudioStreamPlayer
+var _music_night: AudioStreamPlayer
+var _music_village: AudioStreamPlayer
+var _bell_t := 30.0
+var _chime_t := 10.0
 var atmo: Atmosphere
 var _ui: AudioStreamPlayer
 var _bird_t := 4.0
@@ -43,6 +47,8 @@ func setup(p: Player, h: HouseBuilder) -> Sfx:
 	_music = _loop_player("music_desert", -12.0)
 	_wind = _loop_player("wind_loop", -10.0)
 	_pad = _loop_player("ambient_pad", -15.0)
+	_music_night = _loop_player("music_night", -60.0)
+	_music_village = _loop_player("music_village", -60.0)
 	_crickets = _loop_player("crickets_loop", -24.0)
 	_room = _loop_player("room_tone", -80.0)
 	_ui = AudioStreamPlayer.new()
@@ -152,6 +158,28 @@ func _process(delta: float) -> void:
 				indoors = true
 				break
 	var k := 1.0 - exp(-3.0 * delta)
+	var night0 := atmo.night if atmo != null else 0.0
+	var near_house := INF
+	var near_pos := Vector3.ZERO
+	if houses != null:
+		for hs in houses.houses:
+			var hn: Node3D = hs.node
+			var hd := hn.global_position.distance_to(player.global_position)
+			if hd < near_house:
+				near_house = hd
+				near_pos = hn.global_position
+	_music.volume_db = lerpf(_music.volume_db, lerpf(-12.0, -42.0, night0) - (6.0 if near_house < 40.0 else 0.0), k)
+	_music_night.volume_db = lerpf(_music_night.volume_db, lerpf(-48.0, -12.0, night0), k)
+	_music_village.volume_db = lerpf(_music_village.volume_db, (-15.0 - night0 * 8.0) if near_house < 45.0 else -52.0, k * 0.5)
+	_bell_t -= delta
+	if _bell_t <= 0.0:
+		_bell_t = _rng.randf_range(50.0, 100.0)
+		ui_at("temple_bell", -15.0)
+	_chime_t -= delta
+	if _chime_t <= 0.0:
+		_chime_t = _rng.randf_range(9.0, 22.0)
+		if near_house < 35.0 and not indoors:
+			_play3d("wind_chime_%d" % _rng.randi_range(0, 2), near_pos + Vector3(0, 3.2, 0), -6.0, _rng.randf_range(0.95, 1.05))
 	_wind.volume_db = lerpf(_wind.volume_db, -22.0 if indoors else -10.0, k)
 	var night := atmo.night if atmo != null else 0.0
 	_crickets.volume_db = lerpf(_crickets.volume_db, -60.0 if indoors else lerpf(-34.0, -14.0, night), k)

@@ -213,3 +213,60 @@ for k, a in [(1760, 1.0), (2640, 0.7), (3520, 0.55), (5280, 0.3), (7040, 0.18)]:
         lfo = 0.65 + 0.35 * np.sin(2 * np.pi * rng.integers(1, 5) * t / d + rng.uniform(0, 6.28))
         pad += a * lfo * np.sin(2 * np.pi * (k + det) / d * t + ph)
 save("ambient_pad", pad, 0.5)
+
+# --- more music and bells (Phase 4) -----------------------------------------------------------
+def bell(freq, dur, bright=1.0):
+    t = t_(dur); y = np.zeros(len(t))
+    for ratio, amp, tau in ((1.0, 1.0, 1.8), (2.76, 0.55, 1.1), (5.4, 0.3, 0.6), (8.93, 0.15, 0.3), (0.5, 0.35, 2.4)):
+        y += amp * np.sin(2 * np.pi * freq * ratio * t + rng.uniform(0, 6.28)) * np.exp(-t / (tau * (0.8 + 0.2 * bright)))
+    y[: int(0.004 * SR)] *= np.linspace(0, 1, int(0.004 * SR))
+    return y
+
+def reverb(x, taps=((0.13, 0.4), (0.23, 0.32), (0.37, 0.24), (0.53, 0.18), (0.71, 0.12))):
+    r = np.zeros_like(x)
+    for dl, g in taps: r += g * np.roll(x, int(dl * SR))
+    return x + r
+
+# temple bell: single deep strike with long ring
+b = bell(196.0, 7.0); b = reverb(np.pad(b, (0, int(2 * SR))))
+save("temple_bell", b, 0.7)
+# wind chimes: three short random-pitch clusters
+for v in range(3):
+    seg = np.zeros(int(5.0 * SR)); pent = [1, 9 / 8, 5 / 4, 3 / 2, 5 / 3, 2]
+    st = 0.0
+    for k in range(6):
+        f = 880 * pent[rng.integers(0, 6)] * (1 if v < 2 else 1.5)
+        nb = bell(f, 2.2, 0.4) * 0.5; s0 = int(st * SR); seg[s0: s0 + len(nb)] += nb[: len(seg) - s0]
+        st += rng.uniform(0.12, 0.55)
+    save(f"wind_chime_{v}", reverb(seg), 0.5)
+
+def loop_music(D, notes, root, ratios, dec, vol_beat, pulse=None):
+    n = int(D * SR); m = np.zeros(n); t = t_(D)
+    for f, g in ((root / 2, 0.45), (root * 0.75, 0.25)):
+        m += g * np.sin(2 * np.pi * f * t) * (0.6 + 0.4 * np.sin(2 * np.pi * t / D * 2 + f))
+    for name, st, ln in notes:
+        f = root * 2 * ratios[name]
+        note = bell(f, 3.5 + ln * 0.4, 0.2) * vol_beat if dec == "bell" else pluck(f, 3.0 + ln * 0.5, 0.7) * vol_beat
+        s0 = int(st * SR)
+        seg = note[: n - s0] if s0 + len(note) > n else note
+        m[s0: s0 + len(seg)] += seg
+        if len(note) > n - s0:
+            tail = note[n - s0:]; m[: len(tail)] += tail
+    if pulse:
+        for k in range(0, int(D), pulse):
+            tt = t_(0.35); h = np.sin(2 * np.pi * (110 - 40 * tt) * tt) * expdec(tt, 0.1) * 0.3
+            s0 = k * SR; m[s0: s0 + len(h)] += h[: n - s0]
+    return lp(reverb(m, ((0.17, 0.4), (0.29, 0.35), (0.43, 0.28), (0.61, 0.2), (0.83, 0.14))), 5200, 2)
+
+# night: slow celesta-like bells, minor pentatonic over a soft drone
+pent_minor = {"A": 1, "C": 6 / 5, "D": 4 / 3, "E": 3 / 2, "G": 9 / 5}
+night = [("A", 0, 2), ("E", 3.5, 2), ("D", 7, 2), ("C", 10.5, 2), ("A", 14, 3), ("G", 19, 2), ("E", 22.5, 2), ("C", 26, 2),
+         ("D", 30, 2), ("E", 34, 3), ("A", 39, 4), ("G", 44, 2)]
+save("music_night", loop_music(48.0, night, 110.0, pent_minor, "bell", 0.5), 0.55)
+# village: brighter major pentatonic (Bhupali) plucks with a light pulse
+bhup = {"S": 1, "R": 9 / 8, "G": 5 / 4, "P": 3 / 2, "D": 5 / 3, "S2": 2}
+village = [("S", 0, 1), ("R", 1, 1), ("G", 2, 2), ("P", 4, 1), ("G", 5, 1), ("R", 6, 1), ("S", 7, 2),
+           ("D", 10, 1), ("P", 11, 1), ("G", 12, 2), ("R", 14, 1), ("S", 15, 1), ("R", 16, 1), ("G", 17, 2),
+           ("P", 20, 1), ("D", 21, 1), ("S2", 22, 2), ("D", 24, 1), ("P", 25, 1), ("G", 26, 1), ("R", 27, 1), ("S", 28, 3),
+           ("G", 32, 1), ("P", 33, 1), ("D", 34, 2), ("P", 36, 1), ("G", 37, 1), ("R", 38, 2)]
+save("music_village", loop_music(40.0, village, 164.81, bhup, "pluck", 0.6, pulse=2), 0.55)
