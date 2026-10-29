@@ -14,6 +14,10 @@ var _panel: PanelContainer
 var _timer := 0.0
 var _vol: HSlider
 var _quality: OptionButton
+var _sens: HSlider
+var _fov: HSlider
+var _invert: CheckButton
+var _fp: CheckButton
 
 
 func _ready() -> void:
@@ -48,9 +52,12 @@ func _ready() -> void:
 	_panel.anchor_bottom = 0.92
 	_panel.visible = false
 	root.add_child(_panel)
+	var sc := ScrollContainer.new()
+	_panel.add_child(sc)
 	var vb := VBoxContainer.new()
 	vb.add_theme_constant_override("separation", 14)
-	_panel.add_child(vb)
+	vb.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	sc.add_child(vb)
 	var h := Label.new()
 	h.text = "PAUSED"
 	h.add_theme_font_size_override("font_size", 40)
@@ -82,12 +89,54 @@ func _ready() -> void:
 	_quality.add_item("Low", 2)
 	_quality.item_selected.connect(_set_quality)
 	vb.add_child(_quality)
+	vb.add_child(_label("Look speed"))
+	_sens = _slider(0.4, 2.5, 1.0, func(v: float) -> void:
+		player.look_sens = v
+		_save_settings())
+	vb.add_child(_sens)
+	vb.add_child(_label("Field of view"))
+	_fov = _slider(60.0, 95.0, 70.0, func(v: float) -> void:
+		player.base_fov = v
+		_save_settings())
+	vb.add_child(_fov)
+	_invert = CheckButton.new()
+	_invert.text = "Invert look up/down"
+	_invert.add_theme_font_size_override("font_size", 26)
+	_invert.toggled.connect(func(on: bool) -> void:
+		player.invert_y = on
+		_save_settings())
+	vb.add_child(_invert)
+	_fp = CheckButton.new()
+	_fp.text = "First-person view"
+	_fp.add_theme_font_size_override("font_size", 26)
+	_fp.toggled.connect(func(on: bool) -> void:
+		player.set_first_person(on)
+		_save_settings())
+	vb.add_child(_fp)
 	vb.add_child(_button("New game (erase save)", _new_game))
 	vb.add_child(_button("Quit", func() -> void:
 		save()
 		get_tree().quit()))
 	_load_settings()
 	story.changed.connect(save)
+
+
+func _label(t: String) -> Label:
+	var l := Label.new()
+	l.text = t
+	l.add_theme_font_size_override("font_size", 26)
+	return l
+
+
+func _slider(lo: float, hi: float, v: float, fn: Callable) -> HSlider:
+	var h := HSlider.new()
+	h.min_value = lo
+	h.max_value = hi
+	h.step = (hi - lo) / 40.0
+	h.value = v
+	h.custom_minimum_size = Vector2(0, 44)
+	h.value_changed.connect(fn)
+	return h
 
 
 func _button(t: String, fn: Callable) -> Button:
@@ -122,6 +171,10 @@ func _save_settings() -> void:
 	var cfg := ConfigFile.new()
 	cfg.set_value("s", "volume", _vol.value)
 	cfg.set_value("s", "quality", _quality.selected)
+	cfg.set_value("s", "sens", _sens.value)
+	cfg.set_value("s", "fov", _fov.value)
+	cfg.set_value("s", "invert", _invert.button_pressed)
+	cfg.set_value("s", "fp", _fp.button_pressed)
 	cfg.save("user://settings.cfg")
 
 
@@ -134,6 +187,14 @@ func _load_settings() -> void:
 	var q: int = cfg.get_value("s", "quality", 0)
 	_quality.select(q)
 	_set_quality(q)
+	_sens.set_value_no_signal(cfg.get_value("s", "sens", 1.0))
+	player.look_sens = _sens.value
+	_fov.set_value_no_signal(cfg.get_value("s", "fov", 70.0))
+	player.base_fov = _fov.value
+	_invert.set_pressed_no_signal(cfg.get_value("s", "invert", false))
+	player.invert_y = _invert.button_pressed
+	_fp.set_pressed_no_signal(cfg.get_value("s", "fp", false))
+	player.set_first_person(_fp.button_pressed)
 
 
 func _process(delta: float) -> void:
@@ -147,7 +208,7 @@ func save() -> void:
 	if player == null or story == null or not story.get_flag("intro_done"):
 		return
 	var p := player.global_position
-	var d := {"flags": story.flags, "pos": [p.x, p.y, p.z], "yaw": player.look_yaw()}
+	var d := {"flags": story.flags, "pos": [p.x, p.y, p.z], "yaw": player.look_yaw(), "tod": main.atmosphere.time_of_day}
 	var f := FileAccess.open(SAVE_PATH, FileAccess.WRITE)
 	if f != null:
 		f.store_string(JSON.stringify(d))
@@ -173,6 +234,8 @@ func load_save() -> bool:
 	player.global_position = Vector3(p[0], p[1] + 0.3, p[2])
 	player.velocity = Vector3.ZERO
 	player.set_look(float(d.get("yaw", 0.0)), -0.05)
+	main.atmosphere.time_of_day = float(d.get("tod", 0.33))
+	main.atmosphere.apply_time()
 	story.changed.emit()
 	return true
 

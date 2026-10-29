@@ -140,6 +140,58 @@ func _define_quests() -> void:
 		],
 	})
 
+	quests.append({
+		"id": "shards", "title": "Side: Sun-Pattern Shards",
+		"blurb": "Meera the weaver studies the old twelve-rayed sun pattern. She needs six fragments of painted pottery from around the valley.",
+		"show": func() -> bool: return get_flag("met_chief"),
+		"objs": [
+			{"text": func() -> String: return "Speak to Meera the weaver",
+			 "done": func() -> bool: return get_flag("shards_ask"), "target": func() -> Vector3: return _pos("Weaver")},
+			{"text": func() -> String: return "Find painted pottery shards (%d/6)" % int(get_flag("shards", 0)),
+			 "done": func() -> bool: return int(get_flag("shards", 0)) >= 6, "target": func() -> Vector3: return _nearest("shards", _pos("player"))},
+			{"text": func() -> String: return "Bring the shards to Meera",
+			 "done": func() -> bool: return get_flag("shards_done"), "target": func() -> Vector3: return _pos("Weaver")},
+		],
+	})
+	quests.append({
+		"id": "cow", "title": "Side: The Lost Cow",
+		"blurb": "Hari the farmer lost a cow in the western dunes. Find her before the night comes.",
+		"show": func() -> bool: return get_flag("met_chief"),
+		"objs": [
+			{"text": func() -> String: return "Speak to Hari the farmer",
+			 "done": func() -> bool: return get_flag("cow_ask"), "target": func() -> Vector3: return _pos("Farmer")},
+			{"text": func() -> String: return "Find the lost cow in the western dunes",
+			 "done": func() -> bool: return get_flag("cow_found"), "target": func() -> Vector3: return _pos("lostcow")},
+			{"text": func() -> String: return "Tell Hari she is safe",
+			 "done": func() -> bool: return get_flag("cow_done"), "target": func() -> Vector3: return _pos("Farmer")},
+		],
+	})
+	quests.append({
+		"id": "letter", "title": "Side: Anita's Letter",
+		"blurb": "Anita has a letter for the merchant at the caravan station. She cannot make the long walk herself.",
+		"show": func() -> bool: return get_flag("met_chief"),
+		"objs": [
+			{"text": func() -> String: return "Speak to Anita near the weaver's house",
+			 "done": func() -> bool: return get_flag("letter_ask"), "target": func() -> Vector3: return _pos("VillagerGreen")},
+			{"text": func() -> String: return "Deliver the letter to the merchant at the caravan station",
+			 "done": func() -> bool: return get_flag("letter_delivered"), "target": func() -> Vector3: return _pos("Merchant")},
+			{"text": func() -> String: return "Bring the merchant's reply to Anita",
+			 "done": func() -> bool: return get_flag("letter_done"), "target": func() -> Vector3: return _pos("VillagerGreen")},
+		],
+	})
+
+
+func _nearest(key: String, from: Vector3) -> Vector3:
+	var best := Vector3.ZERO
+	var bd := INF
+	for l in refs.get(key, []):
+		if is_instance_valid(l):
+			var d: float = from.distance_to((l as Node3D).global_position)
+			if d < bd:
+				bd = d
+				best = (l as Node3D).global_position
+	return best
+
 
 func _nearest_lantern(from: Vector3) -> Vector3:
 	var best := Vector3.ZERO
@@ -212,10 +264,14 @@ func dialogue_for(who: String) -> Dictionary:
 		"map": return _map()
 		"YardWorker": return _small("Salim", ["Mohan knows the goods yard better than the rails know him. Ask him.", "Heavy crates, light pay. Mind the dock ramp, friend."])
 		"Trader": return _small("Imran the trader", ["Salt, thread, rope: the road brings everything but rain.", "The caravan will be gone by dusk. Buy now, regret later!", "Dr. Rao bought four coils of rope from me. Strange for a man who studies old stones."])
-		"Merchant": return _small("Merchant", ["A scholar vanishes, and suddenly everyone wants maps. Business is good, sadly.", "I saw Dr. Rao's lantern at the ruins three nights ago. Then no more."])
-		"Weaver": return _small("Meera the weaver", ["Look at this pattern: a sun with twelve rays. It was my grandmother's, and her mother's.", "The twelve-rayed sun. Funny; the old disc in Dhruv's forge has the same mark."])
-		"VillagerGreen": return _small("Anita", ["Dr. Rao taught my son to read the old letters. Bring him back safe.", "At night the stairs glow, like a lamp left burning. I do not look."])
-		"Farmer": return _small("Hari the farmer", ["No rain for months. The barley is a prayer, not a crop.", "They say the Queen's kingdom drank the sun. I say it left none for us."])
+		"Merchant": return _merchant()
+		"MerchantOld": return _small("Merchant", ["A scholar vanishes, and suddenly everyone wants maps. Business is good, sadly.", "I saw Dr. Rao's lantern at the ruins three nights ago. Then no more."])
+		"Weaver": return _weaver()
+		"WeaverOld": return _small("Meera the weaver", ["Look at this pattern: a sun with twelve rays. It was my grandmother's, and her mother's.", "The twelve-rayed sun. Funny; the old disc in Dhruv's forge has the same mark."])
+		"VillagerGreen": return _anita()
+		"VillagerGreenOld": return _small("Anita", ["Dr. Rao taught my son to read the old letters. Bring him back safe.", "At night the stairs glow, like a lamp left burning. I do not look."])
+		"Farmer": return _hari()
+		"FarmerOld": return _small("Hari the farmer", ["No rain for months. The barley is a prayer, not a crop.", "They say the Queen's kingdom drank the sun. I say it left none for us."])
 		"Villager": return _small("Villager", ["Quiet day. Quiet days are the best days.", "My goats came back from the ruins yesterday, trembling. Goats know."])
 		"Villager2": return _small("Raju", ["I carried Dr. Rao's bags once. He tipped me with a story about a golden gate.", "If you go to the gate, take water. And a friend."])
 		"Villager3": return _small("Old Lakshmi", ["I remember when the well still sang. Child, listen to the old people about it.", "Kamla knows. Kamla always knows."])
@@ -415,3 +471,71 @@ func _arin() -> Dictionary:
 		if get_flag("arin_done"):
 			s = "after"
 	return {"start": s, "nodes": n}
+
+
+func _simple(who: String, text: String, sets: Dictionary = {}, sfx: String = "") -> Dictionary:
+	var n := {"who": who, "text": text, "choices": [{"t": "Farewell.", "go": ""}]}
+	if not sets.is_empty():
+		n["set"] = sets
+	if sfx != "":
+		n["sfx"] = sfx
+	return {"start": "a", "nodes": {"a": n}}
+
+
+func _weaver() -> Dictionary:
+	var w := "Meera the weaver"
+	if not get_flag("met_chief"):
+		return _simple(w, "Look at this pattern: a sun with twelve rays. It was my grandmother's, and her mother's.")
+	if not get_flag("shards_ask"):
+		return {"start": "a", "nodes": {
+			"a": {"who": w, "text": "The sun with twelve rays: I have only ever seen it in thread. The old pottery in the dunes carries it in paint. If you find six painted shards, I could finally weave it whole.",
+				"choices": [{"t": "I will bring you six shards.", "go": "b", "set": {"shards_ask": true}}, {"t": "Maybe later.", "go": ""}]},
+			"b": {"who": w, "text": "Look near old walls, dry riverbeds and the edge of the valley. They gleam when the light finds them.", "choices": [{"t": "I will look.", "go": ""}]}}}
+	if int(get_flag("shards", 0)) < 6:
+		return _simple(w, "%d of 6 shards. The valley hides them well, but the sun shows them to patient eyes." % int(get_flag("shards", 0)))
+	if not get_flag("shards_done"):
+		return {"start": "a", "nodes": {"a": {"who": w, "text": "Six! And they fit together: look, a sun with twelve rays and a tiny gate in its heart. The Queen's own mark. Thank you; I will weave it into the village banner.",
+			"set": {"shards_done": true}, "sfx": "seal_found", "choices": [{"t": "It is yours.", "go": ""}]}}}
+	return _simple(w, "The banner hangs on my loom, and the whole village visits to see it. You gave us back a piece of ourselves.")
+
+
+func _hari() -> Dictionary:
+	var w := "Hari the farmer"
+	if not get_flag("met_chief"):
+		return _simple(w, "No rain for months. The barley is a prayer, not a crop.")
+	if not get_flag("cow_ask"):
+		return {"start": "a", "nodes": {
+			"a": {"who": w, "text": "Lakshmi, my best cow, wandered off into the western dunes two days ago. I cannot leave the barley. If you pass that way... would you look for her?",
+				"choices": [{"t": "I will find her.", "go": "b", "set": {"cow_ask": true}}, {"t": "Not now.", "go": ""}]},
+			"b": {"who": w, "text": "She is brown with a white star. She answers to a calm voice and a patient hand.", "choices": [{"t": "I will bring good news.", "go": ""}]}}}
+	if not get_flag("cow_found"):
+		return _simple(w, "West of the village, past the last dry well. Lakshmi will not wander far from shade.")
+	if not get_flag("cow_done"):
+		return {"start": "a", "nodes": {"a": {"who": w, "text": "She is safe! She found the old shade stones, clever girl. You have done a farmer a kindness he will not forget.",
+			"set": {"cow_done": true}, "sfx": "seal_found", "choices": [{"t": "Glad to help.", "go": ""}]}}}
+	return _simple(w, "Lakshmi is back among the herd, chewing as if nothing happened. Thank you, friend.")
+
+
+func _anita() -> Dictionary:
+	var w := "Anita"
+	if not get_flag("met_chief"):
+		return _simple(w, "Dr. Rao taught my son to read the old letters. Bring him back safe.")
+	if not get_flag("letter_ask"):
+		return {"start": "a", "nodes": {
+			"a": {"who": w, "text": "Would you carry a letter for me to the merchant at the caravan station? It is about my brother. The walk is long, and my knees are not what they were.",
+				"choices": [{"t": "Of course. I will deliver it.", "go": "b", "set": {"letter_ask": true}}, {"t": "Not now.", "go": ""}]},
+			"b": {"who": w, "text": "Bless you. Give it to him and wait for his reply. He is slow with words but faithful.", "choices": [{"t": "Back soon.", "go": ""}]}}}
+	if not get_flag("letter_delivered"):
+		return _simple(w, "The merchant is at the caravan station, east of the railway. Please hurry; my brother's caravan leaves at dusk.")
+	if not get_flag("letter_done"):
+		return {"start": "a", "nodes": {"a": {"who": w, "text": "He says my brother will wait for me at the caravan! You have no idea what this means. Take these blessings; they are all I have.",
+			"set": {"letter_done": true}, "sfx": "seal_found", "choices": [{"t": "Safe travels, Anita.", "go": ""}]}}}
+	return _simple(w, "I am packing for the caravan road. The valley will miss you, friend.")
+
+
+func _merchant() -> Dictionary:
+	var w := "Merchant"
+	if get_flag("letter_ask") and not get_flag("letter_delivered"):
+		return {"start": "a", "nodes": {"a": {"who": w, "text": "A letter from Anita? Ah... tell her yes. Her brother's caravan waits one more night. Tell her I said so myself.",
+			"set": {"letter_delivered": true}, "sfx": "pickup", "choices": [{"t": "I will tell her.", "go": ""}]}}}
+	return _small(w, ["A scholar vanishes, and suddenly everyone wants maps. Business is good, sadly.", "I saw Dr. Rao's lantern at the ruins three nights ago. Then no more."])

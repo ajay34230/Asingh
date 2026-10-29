@@ -19,6 +19,7 @@ var _wind: AudioStreamPlayer
 var _crickets: AudioStreamPlayer
 var _room: AudioStreamPlayer
 var _pad: AudioStreamPlayer
+var atmo: Atmosphere
 var _ui: AudioStreamPlayer
 var _bird_t := 4.0
 var _rng := RandomNumberGenerator.new()
@@ -152,10 +153,11 @@ func _process(delta: float) -> void:
 				break
 	var k := 1.0 - exp(-3.0 * delta)
 	_wind.volume_db = lerpf(_wind.volume_db, -22.0 if indoors else -10.0, k)
-	_crickets.volume_db = lerpf(_crickets.volume_db, -60.0 if indoors else -22.0, k)
+	var night := atmo.night if atmo != null else 0.0
+	_crickets.volume_db = lerpf(_crickets.volume_db, -60.0 if indoors else lerpf(-34.0, -14.0, night), k)
 	_room.volume_db = lerpf(_room.volume_db, -16.0 if indoors else -80.0, k)
 	_bird_t -= delta
-	if _bird_t <= 0.0 and not indoors:
+	if _bird_t <= 0.0 and not indoors and (atmo == null or atmo.night < 0.5):
 		_bird_t = _rng.randf_range(5.0, 13.0)
 		var ang := _rng.randf() * TAU
 		var d := _rng.randf_range(14.0, 40.0)

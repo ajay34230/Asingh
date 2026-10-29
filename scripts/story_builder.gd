@@ -49,6 +49,8 @@ func build() -> void:
 	_crate()
 	_dig_site()
 	_gate()
+	_shards()
+	_lost_cow()
 	story.refs["player"] = player
 	story.changed.connect(_on_story_changed)
 	story.refresh()
@@ -500,3 +502,66 @@ func _flicker(l: OmniLight3D) -> void:
 	tw.tween_property(l, "light_energy", 2.2, 0.31)
 	tw.tween_property(l, "light_energy", 2.9, 0.23)
 	tw.tween_property(l, "light_energy", 2.4, 0.37)
+
+
+# --- side missions: pottery shards and the lost cow -----------------------------------------
+
+func _shards() -> void:
+	var spots := [Vector2(-60, -60), Vector2(42, -36), Vector2(88, 70), Vector2(-34, 58), Vector2(60, -112), Vector2(-120, -96)]
+	var list: Array = []
+	for sp in spots:
+		var n := Node3D.new()
+		n.position = _gp(sp.x, sp.y, 0.1)
+		n.rotation.y = randf() * TAU
+		main.add_child(n)
+		var m := MeshInstance3D.new()
+		var bm := BoxMesh.new()
+		bm.size = Vector3(0.32, 0.05, 0.22)
+		m.mesh = bm
+		m.material_override = PropFactory.material(Color(0.82, 0.38, 0.18), 0.7, 0.0, Color(1.0, 0.5, 0.2), 0.8)
+		m.rotation_degrees = Vector3(randf_range(-12, 12), 0, randf_range(-12, 12))
+		n.add_child(m)
+		var l := OmniLight3D.new()
+		l.light_color = Color(1.0, 0.6, 0.3)
+		l.omni_range = 4.0
+		l.light_energy = 0.7
+		l.position.y = 0.4
+		n.add_child(l)
+		# gentle bob and glow pulse so shards catch the eye
+		var tw := m.create_tween().set_loops()
+		tw.tween_property(m, "position:y", 0.12, 1.1).set_trans(Tween.TRANS_SINE)
+		tw.tween_property(m, "position:y", 0.0, 1.1).set_trans(Tween.TRANS_SINE)
+		var it := _it(n, Vector3(0, 0.3, 0), "Pick up pottery shard", 2.6, Callable())
+		it.on_interact = func(_by: Node3D, me: Interactable) -> void:
+			Sfx.ui("pickup", -2.0)
+			me.enabled = false
+			story.add("shards", 1)
+			list.erase(n)
+			story.refs["shards"] = list
+			_sparks(n, Color(1.0, 0.7, 0.35), 24, 2.0, 0.9, -1.0)
+			n.get_tree().create_timer(0.6).timeout.connect(n.queue_free)
+			m.visible = false
+			l.visible = false
+			player.say("A painted shard with a ray of the sun. (%d/6)" % int(story.get_flag("shards", 0)))
+		list.append(n)
+	story.refs["shards"] = list
+
+
+func _lost_cow() -> void:
+	var at := _gp(-150.0, -62.0, 0.0)
+	var cow := Animal.new().setup("cow", terrain, player, at, 3.0)
+	main.add_child(cow)
+	cow.global_position = at
+	story.refs["lostcow"] = cow
+	main.life.append(cow)
+	_it(cow, Vector3(0, 1.0, 0), "Calm the cow", 3.2, func(_by: Node3D, me: Interactable) -> void:
+		if story.get_flag("cow_found"):
+			player.say("Lakshmi chews contentedly in the shade.")
+			return
+		if not story.get_flag("cow_ask"):
+			player.say("A lone cow, far from the village. Someone must be missing her.")
+			return
+		Sfx.at("cow_moo", cow.global_position + Vector3(0, 1.2, 0), -2.0)
+		story.set_flag("cow_found", true)
+		hud.banner("FOUND LAKSHMI\nTell Hari she is safe", "pickup")
+		me.enabled = false)

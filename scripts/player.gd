@@ -46,6 +46,11 @@ var jump_requested := false
 var spawn_position := Vector3.ZERO
 var camera: Camera3D
 var focus: Interactable = null
+var look_sens := 1.0             # multiplier on LOOK_SENSITIVITY (settings)
+var invert_y := false
+var base_fov := BASE_FOV
+var first_person := false
+var _saved_distance := DEFAULT_DISTANCE
 var locked := false              # true during dialogue, digging and cinematics: no input is read
 
 var _yaw := 0.0
@@ -112,6 +117,8 @@ func set_distance(d: float) -> void:
 
 ## Zoom by `amount` metres (positive = further away). Smoothed in _physics_process.
 func zoom(amount: float) -> void:
+	if first_person:
+		return
 	_target_distance = clampf(_target_distance + amount, MIN_DISTANCE, MAX_DISTANCE)
 
 
@@ -121,13 +128,29 @@ func camera_distance() -> float:
 	return camera.global_position.distance_to(_pivot.global_position)
 
 
+## Switch between third person (orbit camera) and first person (camera at the eyes, body hidden).
+func set_first_person(on: bool) -> void:
+	if on == first_person:
+		return
+	first_person = on
+	if on:
+		_saved_distance = _target_distance
+		_target_distance = 0.02
+		_model.visible = false
+		_pitch = clampf(_pitch, -1.2, 0.45)
+	else:
+		_target_distance = _saved_distance
+		_model.visible = true
+
+
 func look_yaw() -> float:
 	return _yaw
 
 
 func add_look(delta_px: Vector2) -> void:
-	_yaw -= delta_px.x * LOOK_SENSITIVITY
-	_pitch = clampf(_pitch - delta_px.y * LOOK_SENSITIVITY, -1.2, 0.45)
+	var k := LOOK_SENSITIVITY * look_sens
+	_yaw -= delta_px.x * k
+	_pitch = clampf(_pitch - delta_px.y * k * (-1.0 if invert_y else 1.0), -1.2, 0.45)
 	_apply_look()
 
 
@@ -316,7 +339,7 @@ func _physics_process(delta: float) -> void:
 
 	# Smooth camera zoom and run FOV kick.
 	_arm.spring_length = lerpf(_arm.spring_length, _target_distance, 1.0 - exp(-10.0 * delta))
-	var want_fov := RUN_FOV if (fast and dir.length() > 0.1) else BASE_FOV
+	var want_fov := base_fov + (RUN_FOV - BASE_FOV) if (fast and dir.length() > 0.1) else base_fov
 	camera.fov = lerpf(camera.fov, want_fov, 1.0 - exp(-6.0 * delta))
 
 	_focus_timer -= delta

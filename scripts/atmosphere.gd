@@ -4,11 +4,16 @@ extends RefCounted
 ## Uses only features available in both the Mobile and Compatibility renderers.
 
 var sun: DirectionalLight3D
+var sky_mat: ProceduralSkyMaterial
+var time_of_day := 0.33          # 0..1, 0.5 = noon, 0 / 1 = midnight
+var night := 0.0                 # 0 (day) .. 1 (deep night), read by Sfx
+var day_length := 1200.0         # real seconds per full day
+var running := false
 var environment: Environment
 
 
 func build(parent: Node3D) -> void:
-	var sky_mat := ProceduralSkyMaterial.new()
+	sky_mat = ProceduralSkyMaterial.new()
 	sky_mat.sky_top_color = Color(0.26, 0.47, 0.80)
 	sky_mat.sky_horizon_color = Color(0.88, 0.78, 0.62)
 	sky_mat.sky_curve = 0.14
@@ -109,3 +114,39 @@ func make_dust(follow: Node3D) -> GPUParticles3D:
 	p.position = Vector3(0, 4, 0)
 	follow.add_child(p)
 	return p
+
+
+## Advance the day/night cycle. Colours are blended between day, dusk and night palettes.
+func update(delta: float) -> void:
+	if not running or sun == null:
+		return
+	time_of_day = fposmod(time_of_day + delta / day_length, 1.0)
+	apply_time()
+
+
+func apply_time() -> void:
+	var e := sin(TAU * (time_of_day - 0.25)) * 62.0           # sun elevation in degrees
+	sun.rotation_degrees = Vector3(-e, -35.0 + (time_of_day - 0.5) * 140.0, 0.0)
+	var day_k := clampf((e + 4.0) / 26.0, 0.0, 1.0)             # 0 below the horizon .. 1 high sun
+	var dusk_k := clampf(1.0 - absf(e) / 14.0, 0.0, 1.0)         # strongest at sunrise / sunset
+	night = clampf(1.0 - (e + 10.0) / 14.0, 0.0, 1.0)
+	sun.light_energy = 1.1 * day_k
+	sun.light_color = Color(1.0, 0.88, 0.68).lerp(Color(1.0, 0.55, 0.28), dusk_k)
+	if e < 0.0:        # moonlight: the same light, cool and dim, shining from above
+		sun.rotation_degrees.x = -42.0
+		sun.light_color = Color(0.55, 0.65, 1.0)
+		sun.light_energy = maxf(sun.light_energy, 0.3 * night)
+	var top_day := Color(0.26, 0.47, 0.80)
+	var top_night := Color(0.02, 0.03, 0.09)
+	var hor_day := Color(0.88, 0.78, 0.62)
+	var hor_dusk := Color(0.96, 0.52, 0.30)
+	var hor_night := Color(0.05, 0.06, 0.12)
+	sky_mat.sky_top_color = top_night.lerp(top_day, day_k)
+	var hor := hor_night.lerp(hor_day, day_k)
+	sky_mat.sky_horizon_color = hor.lerp(hor_dusk, dusk_k * 0.8)
+	sky_mat.ground_horizon_color = sky_mat.sky_horizon_color
+	sky_mat.ground_bottom_color = Color(0.58, 0.46, 0.32).lerp(Color(0.03, 0.03, 0.05), night)
+	environment.ambient_light_color = Color(0.74, 0.64, 0.52).lerp(Color(0.16, 0.20, 0.38), night)
+	environment.ambient_light_energy = lerpf(1.0, 0.55, night)
+	environment.fog_light_color = Color(0.84, 0.74, 0.60).lerp(Color(0.06, 0.08, 0.16), night)
+	environment.tonemap_exposure = lerpf(0.85, 1.1, night)

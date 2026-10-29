@@ -54,7 +54,9 @@ func _ready() -> void:
 	_spawn_player()
 	npcs = NpcBuilder.build(self, terrain, houses, railway, player)
 	life = LifeBuilder.build(self, terrain, houses, railway, player)
-	add_child(Sfx.new().setup(player, houses))
+	var sfx := Sfx.new().setup(player, houses)
+	sfx.atmo = atmosphere
+	add_child(sfx)
 	_build_interactables()
 	_build_ui()
 	_build_story()
@@ -71,6 +73,10 @@ func _ready() -> void:
 		if a.begins_with("--capture="):
 			_run_capture.call_deferred(a.trim_prefix("--capture="))
 			return
+
+
+func _process(delta: float) -> void:
+	atmosphere.update(delta)
 
 
 func _spawn_player() -> void:
@@ -143,6 +149,7 @@ func _build_story() -> void:
 	add_child(menu)
 	if testing:
 		return
+	atmosphere.running = true
 	if menu.load_save():
 		story_b.apply_loaded_state()
 	else:
