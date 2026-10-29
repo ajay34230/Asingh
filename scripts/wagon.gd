@@ -88,7 +88,29 @@ func _place(s: float) -> void:
 	rotation.x = clampf(atan2(dy, 6.0), -0.25, 0.25)
 
 
+var _snd: AudioStreamPlayer3D
+
+
+func _start_sound() -> void:
+	var st := load("res://assets/audio/cart_loop.wav") as AudioStreamWAV
+	if st == null:
+		return
+	st = st.duplicate() as AudioStreamWAV
+	st.loop_mode = AudioStreamWAV.LOOP_FORWARD
+	st.loop_begin = 0
+	st.loop_end = st.data.size() / 2
+	_snd = AudioStreamPlayer3D.new()
+	_snd.stream = st
+	_snd.unit_size = 6.0
+	_snd.max_distance = 45.0
+	_snd.volume_db = -9.0
+	add_child(_snd)
+	_snd.play()
+
+
 func _process(delta: float) -> void:
+	if _snd == null and is_inside_tree():
+		_start_sound()
 	if player == null:
 		return
 	var near := global_position.distance_squared_to(player.global_position) < ACTIVE_RANGE * ACTIVE_RANGE

@@ -203,6 +203,7 @@ func _door(h: Node3D, w: float, d: float, door_x: float) -> Interactable:
 		var tw := pivot.create_tween()
 		tw.tween_property(pivot, "rotation_degrees:y", 100.0 if state.open else 0.0, 0.5).set_trans(Tween.TRANS_SINE)
 		state.tween = tw
+		Sfx.at("door_creak" if state.open else "door_thud", pivot.global_position + Vector3(0, 1.0, 0), -2.0)
 	return it
 
 

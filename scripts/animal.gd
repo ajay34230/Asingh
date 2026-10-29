@@ -37,6 +37,24 @@ var _moving := false
 var _speed := 1.0
 var _rng := RandomNumberGenerator.new()
 var _inner: Node3D
+var _call_t := 0.0
+var _flee_t := 0.0
+var _eat_t := 0.0
+var _gallop := "Gallop"
+var _eating := "Eating"
+var _has_gallop := false
+var _has_eating := false
+
+## Behaviour: "prey" flees, "dog" befriends, "grazer" grazes and calls, "pack" = camels/horses (calm, curious).
+const BEHAVIOUR := {
+	"deer": "prey", "stag": "prey", "fox": "prey", "dog": "dog", "shiba": "dog",
+	"cow": "grazer", "bull": "grazer", "donkey": "grazer", "horse": "grazer", "horse_white": "grazer", "camel": "grazer",
+}
+const CALLS := {
+	"cow": ["cow_moo"], "bull": ["bull_moo"], "donkey": ["donkey_bray"], "horse": ["horse_whinny"],
+	"horse_white": ["horse_whinny"], "camel": ["camel_grunt"], "fox": ["fox_yip"],
+	"dog": ["dog_bark_0", "dog_bark_1", "dog_bark_2"], "shiba": ["dog_bark_0", "dog_bark_1", "dog_bark_2"],
+}
 
 
 func setup(kind: String, ter: TerrainBuilder, ply: Node3D, at: Vector3, wander_radius: float, tint: Color = Color(1, 1, 1)) -> Animal:
@@ -47,6 +65,7 @@ func setup(kind: String, ter: TerrainBuilder, ply: Node3D, at: Vector3, wander_r
 	home = at
 	radius = wander_radius
 	_rng.seed = hash(at)
+	_call_t = _rng.randf_range(4.0, 25.0)
 	var sp: Dictionary = SPECIES[kind]
 	_speed = sp["speed"]
 	_inner = Node3D.new()
@@ -100,6 +119,12 @@ func setup(kind: String, ter: TerrainBuilder, ply: Node3D, at: Vector3, wander_r
 				_walk = a
 			elif a.ends_with("|Idle"):
 				_idle = a
+			elif a.ends_with("|Gallop"):
+				_gallop = a
+				_has_gallop = true
+			elif a.ends_with("|Eating"):
+				_eating = a
+				_has_eating = true
 			var an := _anim.get_animation(a)
 			if a.ends_with("|Walk") or a.ends_with("|Idle") or a.ends_with("|Eating") or a.ends_with("|Gallop"):
 				an.loop_mode = Animation.LOOP_LINEAR
@@ -135,29 +160,98 @@ func ground() -> void:
 func _process(delta: float) -> void:
 	if driven or player == null:
 		return
-	var near := global_position.distance_squared_to(player.global_position) < ACTIVE_RANGE * ACTIVE_RANGE
+	var d2 := global_position.distance_squared_to(player.global_position)
+	var near := d2 < ACTIVE_RANGE * ACTIVE_RANGE
 	if _anim != null:
 		_anim.speed_scale = 1.0 if near else 0.0
 	if not near:
 		return
-	if _moving:
-		var to := _target - global_position
+	var dist := sqrt(d2)
+	var kind: String = BEHAVIOUR.get(species, "grazer")
+	var pspeed := Vector2((player as CharacterBody3D).velocity.x, (player as CharacterBody3D).velocity.z).length() if player is CharacterBody3D else 0.0
+	# calls
+	_call_t -= delta
+	if _call_t <= 0.0:
+		_call_t = _rng.randf_range(14.0, 40.0)
+		if dist < 30.0 and CALLS.has(species):
+			var l: Array = CALLS[species]
+			Sfx.at(l[_rng.randi() % l.size()], global_position + Vector3(0, 1.0, 0), -4.0, _rng.randf_range(0.93, 1.07))
+	# prey: bolt away when the player comes close or runs at them
+	if kind == "prey" and (dist < 5.0 or (dist < 14.0 and pspeed > 4.0)):
+		if _flee_t <= 0.0 and CALLS.has(species) and _rng.randf() < 0.4:
+			Sfx.at(CALLS[species][0], global_position, -6.0)
+		_flee_t = 3.0
+	if _flee_t > 0.0:
+		_flee_t -= delta
+		var away := global_position - player.global_position
+		away.y = 0.0
+		if away.length() > 0.1:
+			var want := atan2(-away.x, -away.z)
+			rotation.y = lerp_angle(rotation.y, want, minf(1.0, 6.0 * delta))
+			var fwd := Vector3(-sin(rotation.y), 0.0, -cos(rotation.y))
+			global_position += fwd * 4.6 * delta
+			ground()
+			_play(_gallop if _has_gallop else _walk)
+			if _anim != null:
+				_anim.speed_scale = 1.0
+		if _flee_t <= 0.0:
+			home = global_position
+			_moving = false
+			_wait = 2.0
+			play_walk(false)
+		return
+	# dogs: greet and trot after the player, keeping a polite distance
+	if kind == "dog" and dist < 18.0 and dist > 3.2:
+		var to := player.global_position - global_position
 		to.y = 0.0
-		if to.length() < 0.6:
+		rotation.y = lerp_angle(rotation.y, atan2(-to.x, -to.z), minf(1.0, 4.0 * delta))
+		var fwd2 := Vector3(-sin(rotation.y), 0.0, -cos(rotation.y))
+		global_position += fwd2 * (_speed * (2.2 if dist > 8.0 else 1.2)) * delta
+		ground()
+		_play(_gallop if (_has_gallop and dist > 8.0) else _walk)
+		home = global_position
+		_moving = false
+		return
+	if kind == "dog" and dist <= 3.2:
+		var to2 := player.global_position - global_position
+		rotation.y = lerp_angle(rotation.y, atan2(-to2.x, -to2.z), minf(1.0, 4.0 * delta))
+		_play(_idle)
+		return
+	# grazers glance at a close player
+	if kind == "grazer" and dist < 7.0 and not _moving:
+		var to3 := player.global_position - global_position
+		rotation.y = lerp_angle(rotation.y, atan2(-to3.x, -to3.z), minf(1.0, 1.5 * delta))
+	if _moving:
+		var to4 := _target - global_position
+		to4.y = 0.0
+		if to4.length() < 0.6:
 			_moving = false
 			_wait = _rng.randf_range(3.0, 10.0)
 			play_walk(false)
 		else:
-			var want_yaw := atan2(-to.x, -to.z)
+			var want_yaw := atan2(-to4.x, -to4.z)
 			rotation.y = lerp_angle(rotation.y, want_yaw, minf(1.0, 3.0 * delta))
-			var fwd := Vector3(-sin(rotation.y), 0.0, -cos(rotation.y))
-			global_position += fwd * _speed * delta
+			var fwd3 := Vector3(-sin(rotation.y), 0.0, -cos(rotation.y))
+			global_position += fwd3 * _speed * delta
 			ground()
+			_play(_walk)
 	else:
 		_wait -= delta
-		if _wait <= 0.0:
+		if kind == "grazer" and _has_eating and _eat_t <= 0.0 and _rng.randf() < 0.004:
+			_eat_t = _rng.randf_range(4.0, 9.0)
+		if _eat_t > 0.0:
+			_eat_t -= delta
+			_play(_eating)
+		elif _anim != null and _anim.current_animation == _eating:
+			_play(_idle)
+		if _wait <= 0.0 and _eat_t <= 0.0:
 			var ang := _rng.randf() * TAU
 			var r := _rng.randf_range(2.0, radius)
 			_target = home + Vector3(cos(ang) * r, 0.0, sin(ang) * r)
 			_moving = true
-			play_walk(true)
+			_play(_walk)
+
+
+func _play(clip: String) -> void:
+	if _anim != null and _anim.current_animation != clip:
+		_anim.play(clip, 0.25)
