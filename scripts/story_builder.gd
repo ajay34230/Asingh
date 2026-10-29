@@ -402,7 +402,7 @@ func seal_fx(at: Vector3) -> void:
 	tw.tween_property(root, "position:y", at.y + 1.6, 2.2).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_OUT)
 	tw.tween_property(disc, "rotation:y", TAU * 3.0, 2.2)
 	tw.tween_property(l, "light_energy", 4.0, 0.5)
-	tw.chain().tween_property(root, "scale", Vector3.ZERO, 0.5).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_IN)
+	tw.chain().tween_property(root, "scale", Vector3.ONE * 0.001, 0.5).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_IN)
 	tw.parallel().tween_property(l, "light_energy", 0.0, 0.5)
 	tw.chain().tween_callback(root.queue_free)
 
@@ -457,7 +457,7 @@ func _lantern(p2: Vector2) -> Node3D:
 	flame.mesh = sm
 	flame.material_override = PropFactory.glow_lamp()
 	flame.position = Vector3(0, 1.9, 0)
-	flame.scale = Vector3.ZERO
+	flame.scale = Vector3.ONE * 0.001
 	flame.name = "Flame"
 	n.add_child(flame)
 	var l := OmniLight3D.new()
