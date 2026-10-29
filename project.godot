@@ -9,7 +9,7 @@ config/name="The Lost Kingdom"
 config/description="Phase 1 prototype: procedural desert valley with an ancient entrance."
 run/main_scene="res://scenes/main.tscn"
 config/features=PackedStringArray("4.4", "Mobile")
-config/icon="res://icon.svg"
+config/icon="res://icon.png"
 
 [display]
 
