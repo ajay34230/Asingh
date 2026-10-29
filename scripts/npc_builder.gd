@@ -5,24 +5,24 @@ extends RefCounted
 ## movement AI or story role. That belongs to later phases.
 
 const PRESETS := {
-	"blacksmith": {"scale": 1.0, "build": 1.18, "skin": Color(0.62, 0.43, 0.32), "hair_color": Color(0.05, 0.04, 0.04),
-		"hair_style": 2, "beard": true, "top": Color(0.40, 0.33, 0.27), "bottom": Color(0.20, 0.17, 0.14),
-		"accent": Color(0.25, 0.17, 0.12), "apron": true, "sleeves_rolled": true},
-	"elder_woman": {"scale": 0.93, "build": 0.95, "female": true, "skin": Color(0.66, 0.48, 0.36), "hair_color": Color(0.62, 0.60, 0.58),
-		"hair_style": 4, "top": Color(0.52, 0.20, 0.17), "bottom": Color(0.30, 0.22, 0.18), "accent": Color(0.70, 0.55, 0.30),
-		"long_robe": true, "boots": false},
-	"villager_man": {"scale": 0.99, "build": 1.0, "skin": Color(0.70, 0.50, 0.36), "hair_color": Color(0.06, 0.05, 0.05),
-		"hair_style": 3, "beard": true, "top": Color(0.78, 0.74, 0.64), "bottom": Color(0.52, 0.46, 0.36),
-		"accent": Color(0.50, 0.30, 0.18), "tunic": true},
-	"rail_worker": {"scale": 1.0, "build": 1.06, "skin": Color(0.58, 0.40, 0.29), "hair_color": Color(0.05, 0.04, 0.03),
-		"hair_style": 5, "top": Color(0.30, 0.36, 0.44), "bottom": Color(0.27, 0.27, 0.30),
-		"accent": Color(0.55, 0.40, 0.20), "sleeves_rolled": true},
-	"trader": {"scale": 0.97, "build": 0.98, "skin": Color(0.74, 0.55, 0.40), "hair_color": Color(0.10, 0.07, 0.05),
-		"hair_style": 3, "top": Color(0.20, 0.40, 0.45), "bottom": Color(0.42, 0.33, 0.22),
-		"accent": Color(0.72, 0.58, 0.25), "long_robe": true, "satchel": true},
-	"weaver": {"scale": 0.95, "build": 0.97, "female": true, "skin": Color(0.72, 0.52, 0.38), "hair_color": Color(0.05, 0.04, 0.04),
-		"hair_style": 1, "top": Color(0.78, 0.60, 0.22), "bottom": Color(0.34, 0.22, 0.30), "accent": Color(0.55, 0.20, 0.18),
-		"tunic": true, "boots": false},
+	"blacksmith": {"role": "blacksmith", "voice": "deep", "body": "brute", "robe": true, "scale": 1.03, "tool": "hammer"},
+	"elder_woman": {"role": "elder", "voice": "old", "body": "elder", "robe": true, "scale": 0.93},
+	"villager_man": {"role": "villager", "voice": "man", "body": "veteran", "robe": true, "scale": 0.98},
+	"rail_worker": {"role": "worker", "voice": "man", "body": "whelp", "robe": true, "scale": 1.0, "tint": Color(0.72, 0.78, 0.9)},
+	"trader": {"role": "trader", "voice": "man", "body": "striker_mail", "robe": true, "scale": 0.97, "tint": Color(0.85, 0.95, 0.95)},
+	"weaver": {"role": "weaver", "voice": "woman", "body": "thief", "robe": true, "scale": 0.95},
+	"farmer": {"role": "farmer", "voice": "man", "body": "m_Farmer", "scale": 1.0},
+	"chief": {"role": "chief", "voice": "deep", "body": "m_King", "scale": 1.02},
+	"worker2": {"role": "worker", "voice": "deep", "body": "m_Worker", "scale": 1.0},
+	"guide": {"role": "guide", "voice": "man", "body": "m_Adventurer", "scale": 1.0},
+	"merchant": {"role": "trader", "voice": "man", "body": "m_Suit", "scale": 1.0},
+	"villager2": {"role": "villager", "voice": "man", "body": "m_Casual", "scale": 0.98},
+	"lady_green": {"role": "weaver", "voice": "woman", "body": "w_Formal", "scale": 0.96},
+	"lady_medieval": {"role": "villager", "voice": "old", "body": "w_Medieval", "scale": 0.96},
+	"worker_woman": {"role": "worker", "voice": "woman", "body": "w_Worker", "scale": 0.97},
+	"girl_casual": {"role": "girl", "voice": "girl", "body": "w_Casual", "scale": 0.94},
+	"huntress": {"role": "traveller", "voice": "woman", "body": "huntress", "robe": true, "scale": 0.97},
+	"sorceress": {"role": "traveller", "voice": "woman", "body": "sorceress", "robe": true, "scale": 0.97},
 }
 
 
@@ -43,9 +43,25 @@ static func build(parent: Node3D, terrain: TerrainBuilder, houses: HouseBuilder,
 	# Goods yard: a worker by the dock ramp and the trader near the caravan station well.
 	spots.append(["rail_worker", "idle", "RailWorker", _ground(terrain, railway.dock_ramp_foot.x - 2.5, railway.dock_ramp_foot.z - 3.0), deg_to_rad(-70.0)])
 	spots.append(["trader", "idle", "Trader", _ground(terrain, 44.0, 44.0), deg_to_rad(200.0)])
+	# More people: farmers and villagers about the houses, workers at the goods yard, a guide at the
+	# start, merchants at the caravan station.
+	var h1: Node3D = houses.houses[1].node
+	spots.append(["farmer", "idle", "Farmer", h1.global_transform * Vector3(4.5, 0.0, houses.houses[1].half.y + 5.0), h1.rotation.y + PI * 0.8])
+	spots.append(["chief", "idle", "Chief", _ground(terrain, -86.0, 18.5), deg_to_rad(-100.0)])
+	spots.append(["worker2", "idle", "YardWorker", _ground(terrain, railway.dock_ramp_foot.x - 6.0, railway.dock_ramp_foot.z - 5.0), deg_to_rad(120.0)])
+	spots.append(["lady_green", "idle", "VillagerGreen", h3.global_transform * Vector3(3.2, 0.0, houses.houses[3].half.y + 3.4), h3.rotation.y + 0.6])
+	var h4: Node3D = houses.houses[4].node
+	spots.append(["villager2", "idle", "Villager2", h4.global_transform * Vector3(-3.5, 0.0, houses.houses[4].half.y + 4.0), h4.rotation.y - 0.5])
+	spots.append(["lady_medieval", "idle", "Villager3", _ground(terrain, -94.0, 9.0), deg_to_rad(40.0)])
+	spots.append(["girl_casual", "idle", "Villager4", _ground(terrain, -80.0, -28.0), deg_to_rad(170.0)])
+	spots.append(["merchant", "idle", "Merchant", _ground(terrain, 47.5, 41.5), deg_to_rad(20.0)])
+	spots.append(["huntress", "idle", "Traveller", _ground(terrain, 40.0, 48.0), deg_to_rad(-40.0)])
+	var sp := TerrainBuilder.START_MOUND
+	spots.append(["guide", "idle", "Guide", _ground(terrain, sp.x + 3.0, sp.y - 3.5), deg_to_rad(200.0)])
 	for s in spots:
 		var n := Npc.new().setup(PRESETS[s[0]], s[1], s[2])
 		n.player = player
+		n.home_yaw = s[4]
 		parent.add_child(n)
 		n.global_position = s[3]
 		n.rotation.y = s[4]

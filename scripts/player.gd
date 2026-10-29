@@ -14,6 +14,9 @@ extends CharacterBody3D
 
 signal focus_changed(target: Interactable)
 signal message(text: String)
+signal stepped(run: bool)
+signal jumped
+signal landed(impact: float)
 
 const WALK_SPEED := 2.4
 const RUN_SPEED := 6.5
@@ -33,12 +36,8 @@ const BASE_FOV := 70.0
 const RUN_FOV := 77.0
 const FOCUS_ANGLE_DEG := 80.0
 
-## Placeholder explorer look (generic, not a story character).
-const PRESET := {
-	"scale": 0.98, "skin": Color(0.80, 0.60, 0.46), "hair_color": Color(0.07, 0.05, 0.04),
-	"hair_style": 0, "top": Color(0.62, 0.56, 0.40), "bottom": Color(0.30, 0.30, 0.24),
-	"accent": Color(0.40, 0.26, 0.15), "satchel": true, "sleeves_rolled": true, "boots": true,
-}
+## Placeholder explorer look (downloaded CC0 model) (generic, not a story character).
+const PRESET := {"body": "striker_mail", "robe": true, "scale": 0.99}
 
 ## Movement request: x = strafe right (+), y = forward (+). Length 0..1.
 var move_input := Vector2.ZERO
@@ -53,12 +52,15 @@ var _pitch := -0.2
 var _pivot: Node3D
 var _arm: SpringArm3D
 var _model: Node3D
-var _rig: HumanRig
+var _rig: RealHuman
 var _target_distance := DEFAULT_DISTANCE
 var _coyote := 0.0
 var _jump_buffer := 0.0
 var _focus_timer := 0.0
 var _e_was_down := false
+var _step_dist := 0.0
+var _was_floor := true
+var _fall_speed := 0.0
 
 
 func _ready() -> void:
@@ -77,7 +79,7 @@ func _ready() -> void:
 	_model = Node3D.new()
 	_model.name = "Model"
 	add_child(_model)
-	_rig = HumanRig.new().setup(PRESET, "Explorer")
+	_rig = RealHuman.new().setup(PRESET, "Explorer")
 	_model.add_child(_rig)
 
 	_pivot = Node3D.new()
@@ -274,11 +276,30 @@ func _physics_process(delta: float) -> void:
 		velocity.y = JUMP_SPEED
 		_jump_buffer = 0.0
 		_coyote = 0.0
+		jumped.emit()
 
 	if on_floor:
 		_try_step_up(Vector3(velocity.x, 0.0, velocity.z), delta)
 	move_and_slide()
 
+	var floor_now := is_on_floor()
+	if not floor_now:
+		_fall_speed = maxf(_fall_speed, -velocity.y)
+	elif not _was_floor:
+		if _fall_speed > 4.0:
+			landed.emit(_fall_speed)
+		_fall_speed = 0.0
+	_was_floor = floor_now
+	if floor_now:
+		var hv := Vector2(velocity.x, velocity.z).length()
+		if hv > 0.6:
+			_step_dist += hv * delta
+			var stride := 1.05 if hv < 4.0 else 1.7
+			if _step_dist >= stride:
+				_step_dist = 0.0
+				stepped.emit(hv >= 4.0)
+		else:
+			_step_dist = 0.6
 	if dir.length() > 0.1:
 		_model.rotation.y = lerp_angle(_model.rotation.y, atan2(-dir.x, -dir.z), minf(1.0, 12.0 * delta))
 	_rig.animate(delta, Vector2(velocity.x, velocity.z).length(), is_on_floor())

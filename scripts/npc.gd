@@ -1,20 +1,66 @@
 class_name Npc
 extends Node3D
-## A non-interactive ambient figure (no dialogue, no AI, no story role yet): a HumanRig that
-## idles or works, with a solid collider so the player cannot walk through it. Animation only
-## runs while the player is within ANIM_RANGE metres, to save frame time on phones.
+## An ambient villager (no story role yet): a RealHuman that idles, works and REACTS to the player:
+## turns to face and look at them, greets (namaste / wave), chats when they linger, startles when
+## they run past, laughs when they jump, says farewell as they leave, and does small random idle
+## actions when nobody is near. Speech is a floating line of text with voice babble (placeholder
+## lines, no plot). Animation and behaviour only run while the player is within ANIM_RANGE.
 
 const ANIM_RANGE := 70.0
+const NOTICE := 9.0
+const GREET := 6.0
 
-var rig: HumanRig
-var player: Node3D
+const GREETINGS := [
+	"Namaste, traveller!", "Welcome, friend. Safe journey!", "Ah, a new face. Namaste!",
+	"Salaam! The road is long, eh?", "Good day to you, musafir!", "Hello there! Mind the sun.",
+]
+const FAREWELLS := ["Safe travels!", "Come back soon, friend.", "May the road be kind.", "Khuda hafiz!", "Go well, traveller."]
+const STARTLES := ["Hey! Slow down!", "Careful, careful!", "Arre! Watch your step!", "Whoa, where is the fire?"]
+const LAUGHS := ["Ha ha! What a leap!", "Wah! Like a goat!", "Ha! Nicely jumped!", "Haha, show-off!"]
+const IDLE_ACTIONS := ["stretch", "look_around", "wipe_brow", "look_around", "stretch"]
+const ROLE_LINES := {
+	"blacksmith": ["Mind the sparks, friend!", "Good iron needs patience.", "A hammer never lies about the work.", "Need a tool mended?"],
+	"elder": ["The sand remembers what men forget.", "Sit, rest. The day is long.", "Water is worth more than gold here.", "I have seen many seasons pass."],
+	"villager": ["Quiet day, thank the heavens.", "The wind brings dust again.", "My goats know the weather better than I do.", "Have you eaten yet?"],
+	"farmer": ["No rain again. We wait.", "The soil is thirsty, so are we.", "A little barley, a little hope.", "Do you know the clouds, traveller?"],
+	"trader": ["Spices, cloth, rope: fair prices!", "Best salt on this side of the dunes!", "Take a look, no cost to look!", "The caravan leaves at dusk."],
+	"worker": ["The goods train is never on time.", "Heavy crates, light pay.", "Mind the rails, friend.", "Another load for the dock."],
+	"weaver": ["Thread by thread, day by day.", "This pattern is my grandmother's.", "Feel the cloth. Finest wool.", "The loom hums as I think."],
+	"chief": ["This village has stood a long time.", "Strangers are guests here. Be welcome.", "We keep our wells and our word.", "Walk wisely, traveller."],
+	"guide": ["The old ruins lie ahead, past the statues.", "Keep your water close.", "I know these dunes well.", "Stay on the path when the wind rises."],
+	"traveller": ["I have walked far to reach this place.", "Beautiful and strange, this land.", "Do you hear the wind sing?", "Rest your feet a while."],
+	"girl": ["Hello! Did you see the big cart?", "I like the animals best.", "Race you to the well!", "Do you have any sweets?"],
+}
+
+var rig: RealHuman
+var player: Player
+var role := "villager"
+var voice := "man"
+var home_yaw := 0.0
+var _base_mode := "idle"
+var _cd := {"greet": 0.0, "chat": 0.0, "run": 0.0, "jump": 0.0, "idle": 6.0, "say": 0.0}
+var _in_zone := false
+var _met := false
+var _linger := 0.0
+var _rng := RandomNumberGenerator.new()
+var _bubble: Label3D
+var _bubble_t := 0.0
+var _restore_t := 0.0
+var _busy := 0.0
 
 
 func setup(preset: Dictionary, mode: String, label: String) -> Npc:
 	name = label
-	rig = HumanRig.new().setup(preset, label)
+	role = preset.get("role", "villager")
+	voice = preset.get("voice", "man")
+	_base_mode = mode
+	_rng.seed = hash(label)
+	_cd["idle"] = _rng.randf_range(3.0, 12.0)
+	rig = RealHuman.new().setup(preset, label)
 	rig.mode = mode
 	add_child(rig)
+	rig.struck.connect(func() -> void:
+		Sfx.at("anvil", global_position + global_transform.basis * Vector3(0.0, 0.9, -0.9), -2.0, _rng.randf_range(0.95, 1.05)))
 	var body := StaticBody3D.new()
 	var cs := CollisionShape3D.new()
 	var cap := CapsuleShape3D.new()
@@ -24,13 +70,119 @@ func setup(preset: Dictionary, mode: String, label: String) -> Npc:
 	cs.position = Vector3(0, 0.9, 0)
 	body.add_child(cs)
 	add_child(body)
+	_bubble = Label3D.new()
+	_bubble.billboard = BaseMaterial3D.BILLBOARD_ENABLED
+	_bubble.no_depth_test = true
+	_bubble.fixed_size = false
+	_bubble.pixel_size = 0.0042
+	_bubble.font_size = 44
+	_bubble.outline_size = 14
+	_bubble.outline_modulate = Color(0.05, 0.04, 0.03, 0.95)
+	_bubble.modulate = Color(1.0, 0.96, 0.82, 1.0)
+	_bubble.autowrap_mode = TextServer.AUTOWRAP_WORD
+	_bubble.width = 620.0
+	_bubble.position = Vector3(0, 2.25, 0)
+	_bubble.visible = false
+	add_child(_bubble)
 	return self
+
+
+func _flat_dist() -> float:
+	var d := player.global_position - global_position
+	d.y = 0.0
+	return d.length()
+
+
+func say(text: String, dur: float = 0.0) -> void:
+	_bubble.text = text
+	_bubble.visible = true
+	_bubble.modulate.a = 1.0
+	_bubble_t = dur if dur > 0.0 else clampf(1.6 + text.length() * 0.055, 2.2, 5.0)
+	Sfx.speak(voice, text, self, -3.0)
+
+
+func _gesture(action: String, dur: float) -> void:
+	rig.play_action(action, dur)
+	if _base_mode == "hammer":
+		rig.mode = "idle"
+		_restore_t = dur + 0.4
+
+
+func _pick(lines: Array) -> String:
+	return lines[_rng.randi() % lines.size()]
 
 
 func _process(delta: float) -> void:
 	if player == null or rig == null:
 		return
-	var near := global_position.distance_squared_to(player.global_position) < ANIM_RANGE * ANIM_RANGE
-	rig.visible = near or true
-	if near:
-		rig.animate(delta, 0.0, true)
+	var dist := _flat_dist()
+	var near := dist < ANIM_RANGE
+	for k in _cd:
+		_cd[k] = maxf(0.0, _cd[k] - delta)
+	if _bubble_t > 0.0:
+		_bubble_t -= delta
+		_bubble.modulate.a = clampf(_bubble_t / 0.5, 0.0, 1.0)
+		if _bubble_t <= 0.0:
+			_bubble.visible = false
+	if _restore_t > 0.0:
+		_restore_t -= delta
+		if _restore_t <= 0.0:
+			rig.mode = _base_mode
+	if not near:
+		return
+	rig.animate(delta, 0.0, true)
+	var spd := Vector2(player.velocity.x, player.velocity.z).length()
+
+	# Face and look at the player when they are close; otherwise drift back to the home facing.
+	var want_look := 0.0
+	if dist < NOTICE:
+		var to := player.global_position - global_position
+		var yaw_to := atan2(-to.x, -to.z)
+		var diff := wrapf(yaw_to - rotation.y, -PI, PI)
+		if _base_mode != "hammer" or dist < GREET:
+			rotation.y = lerp_angle(rotation.y, yaw_to, 1.0 - exp(-2.5 * delta))
+		want_look = clampf(wrapf(yaw_to - rotation.y, -PI, PI), -1.2, 1.2)
+		var _unused := diff
+	else:
+		rotation.y = lerp_angle(rotation.y, home_yaw, 1.0 - exp(-0.8 * delta))
+	rig.look_yaw = lerpf(rig.look_yaw, want_look, 1.0 - exp(-6.0 * delta))
+
+	# Situations
+	if dist < GREET and not _in_zone:
+		_in_zone = true
+		_linger = 0.0
+		if _cd["greet"] <= 0.0:
+			_met = true
+			_cd["greet"] = 40.0
+			_cd["say"] = 3.0
+			var act := "namaste" if _rng.randf() < 0.5 else "wave"
+			_gesture(act, 2.4)
+			say(_pick(GREETINGS))
+	elif dist > 12.0 and _in_zone:
+		_in_zone = false
+		if _met and _cd["say"] <= 0.0 and dist < 22.0:
+			_gesture("wave", 2.0)
+			say(_pick(FAREWELLS))
+			_cd["say"] = 6.0
+		_met = false
+	if dist < 3.4:
+		_linger += delta
+		if _linger > 6.5 and _cd["chat"] <= 0.0 and _bubble_t <= 0.0:
+			_cd["chat"] = 14.0
+			_linger = 3.5
+			_gesture("talk", 4.0)
+			say(_pick(ROLE_LINES.get(role, ROLE_LINES["villager"])))
+	else:
+		_linger = 0.0
+	if dist < GREET and spd > 5.0 and _cd["run"] <= 0.0:
+		_cd["run"] = 12.0
+		_gesture("startle", 1.5)
+		say(_pick(STARTLES), 2.4)
+	if dist < 7.0 and player.velocity.y > 3.0 and _cd["jump"] <= 0.0:
+		_cd["jump"] = 10.0
+		_gesture("laugh", 2.2)
+		say(_pick(LAUGHS), 2.4)
+	# small random idle actions when nobody is close
+	if dist >= NOTICE and _cd["idle"] <= 0.0 and rig.action == "" and _base_mode != "hammer":
+		_cd["idle"] = _rng.randf_range(7.0, 16.0)
+		rig.play_action(IDLE_ACTIONS[_rng.randi() % IDLE_ACTIONS.size()], _rng.randf_range(2.0, 3.2))

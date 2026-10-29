@@ -14,6 +14,7 @@ var atmosphere := Atmosphere.new()
 var houses: HouseBuilder
 var railway: RailwayBuilder
 var npcs: Array[Npc] = []
+var life: Array = []
 
 
 func _ready() -> void:
@@ -32,6 +33,8 @@ func _ready() -> void:
 	print("[LostKingdom] auto colliders added: %d" % auto_colliders)
 	_spawn_player()
 	npcs = NpcBuilder.build(self, terrain, houses, railway, player)
+	life = LifeBuilder.build(self, terrain, houses, railway, player)
+	add_child(Sfx.new().setup(player, houses))
 	_build_interactables()
 	_build_ui()
 	print("[LostKingdom] world built in %d ms" % (Time.get_ticks_msec() - t0))
