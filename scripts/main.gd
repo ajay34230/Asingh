@@ -15,6 +15,11 @@ var houses: HouseBuilder
 var railway: RailwayBuilder
 var npcs: Array[Npc] = []
 var life: Array = []
+var story: Story
+var hud: QuestHUD
+var dlg: DialogueUI
+var cin: Cinematic
+var story_b: StoryBuilder
 
 
 func _ready() -> void:
@@ -37,6 +42,7 @@ func _ready() -> void:
 	add_child(Sfx.new().setup(player, houses))
 	_build_interactables()
 	_build_ui()
+	_build_story()
 	print("[LostKingdom] world built in %d ms" % (Time.get_ticks_msec() - t0))
 
 	var args := OS.get_cmdline_user_args()
@@ -74,8 +80,6 @@ func _add_interactable(pos: Vector3, prompt: String, reach: float, text: String)
 
 
 func _build_interactables() -> void:
-	_add_interactable(Vector3(0, EntranceBuilder.PLATFORM_Y + 1.2, -172.5), "Examine sealed door", 5.0,
-		"The door is sealed. (placeholder interaction)")
 	for sx in [-27.0, 27.0]:
 		_add_interactable(Vector3(sx, terrain.sample_height(sx, -154.0) + 1.2, -154.0), "Examine statue", 5.0,
 			"A weathered stone statue. (placeholder interaction)")
@@ -91,6 +95,34 @@ func _build_ui() -> void:
 	touch = TouchControls.new()
 	touch.player = player
 	layer.add_child(touch)
+
+
+func _build_story() -> void:
+	var args := OS.get_cmdline_user_args()
+	var testing := false
+	for a in args:
+		if a == "--selftest" or a == "--audit" or a.begins_with("--capture="):
+			testing = true
+	story = Story.new()
+	add_child(story)
+	dlg = DialogueUI.new()
+	dlg.player = player
+	dlg.story = story
+	dlg.touch = touch
+	add_child(dlg)
+	hud = QuestHUD.new()
+	hud.story = story
+	hud.player = player
+	hud.world = self
+	add_child(hud)
+	cin = Cinematic.new()
+	cin.player = player
+	cin.touch = touch
+	add_child(cin)
+	story_b = StoryBuilder.new(self, story, hud, dlg, cin)
+	story_b.build()
+	if not testing:
+		story_b.intro.call_deferred()
 
 
 func _look_at_point(target: Vector3, pitch: float) -> void:
@@ -404,6 +436,45 @@ func _run_selftest() -> void:
 		stack.append_array(node.get_children())
 	notes.append("MeshInstance3D=%d MultiMeshInstance3D=%d StaticBody3D=%d" % [meshes, multis, bodies])
 
+	# Story: flags, quests, dialogue data, interactables.
+	var sflow := Story.new()
+	add_child(sflow)
+	sflow.refresh()
+	if sflow.active_objectives(4).is_empty():
+		fails.append("story: no active objective at start")
+	for who in ["Guide", "Chief", "Blacksmith", "RailWorker", "Elder", "desk", "map", "Trader"]:
+		var d: Dictionary = sflow.dialogue_for(who)
+		if d.is_empty() or not d["nodes"].has(d["start"]):
+			fails.append("story: bad dialogue " + who)
+			continue
+		for k in d["nodes"]:
+			var nd: Dictionary = d["nodes"][k]
+			var gos: Array = [nd.get("go", "")]
+			for c in nd.get("choices", []):
+				gos.append(c.get("go", ""))
+			for g in gos:
+				if g != "" and not d["nodes"].has(g):
+					fails.append("story: %s node %s -> missing %s" % [who, k, g])
+	sflow.set_flag("journal"); sflow.set_flag("map"); sflow.set_flag("met_chief")
+	sflow.refresh()
+	if not sflow.quest_done(sflow.quests[0]):
+		fails.append("story: quest 1 not done after flags")
+	for sf in Story.SEALS:
+		sflow.set_flag(sf)
+	if sflow.seals_held() != 3:
+		fails.append("story: seals_held != 3")
+	sflow.free()
+	var talk := 0
+	var gate_it := 0
+	for it in get_tree().get_nodes_in_group("interactables"):
+		if (it as Interactable).prompt.begins_with("Talk to"):
+			talk += 1
+		if (it as Interactable).prompt.begins_with("Examine the Sun Gate"):
+			gate_it += 1
+	if talk < 10 or gate_it != 1:
+		fails.append("story: interactables talk=%d gate=%d" % [talk, gate_it])
+	notes.append("story ok: talk interactables=%d" % talk)
+
 	for s in notes:
 		print("[selftest] ", s)
 	if fails.is_empty():
@@ -463,6 +534,36 @@ func _run_audit() -> void:
 func _run_capture(dir: String) -> void:
 	DirAccess.make_dir_recursive_absolute(dir)
 	touch.visible = false
+	# Story shots: office, dialogue, HUD.
+	var ho: Node3D = houses.houses[5].node
+	player.set_distance(2.6)
+	player.global_position = ho.global_transform * Vector3(0.5, 0.3, 2.4)
+	player.velocity = Vector3.ZERO
+	_look_at_point(ho.global_transform * Vector3(-1.5, 1.0, -2.0), -0.1)
+	for i in 12:
+		await get_tree().process_frame
+	await RenderingServer.frame_post_draw
+	get_viewport().get_texture().get_image().save_png("%s/20_office.png" % dir)
+	player.set_distance(7.5)
+	dlg.open(story.dialogue_for("desk"), null, "man")
+	for i in 90:
+		await get_tree().process_frame
+	await RenderingServer.frame_post_draw
+	get_viewport().get_texture().get_image().save_png("%s/21_dialogue.png" % dir)
+	dlg.close()
+	story.set_flag("journal")
+	story.set_flag("map")
+	story.refresh()
+	hud._toggle_journal()
+	for i in 10:
+		await get_tree().process_frame
+	await RenderingServer.frame_post_draw
+	get_viewport().get_texture().get_image().save_png("%s/22_journal.png" % dir)
+	hud._toggle_journal()
+	for i in 200:
+		await get_tree().process_frame
+	await RenderingServer.frame_post_draw
+	get_viewport().get_texture().get_image().save_png("%s/23_hud.png" % dir)
 	var rx := terrain.river_x
 	var views := [
 		["01_start_viewpoint", Vector2(120, 160), Vector3(0, 22, -168), -0.07],

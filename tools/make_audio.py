@@ -168,4 +168,21 @@ for vn, f0 in voices.items():
         s = formant(saw(f, t), vow[v]) + 0.05 * hp(noise(len(t)), 3000)
         s *= env(len(t), 0.015, 0, 0, 0.04)
         save(f"voice_{vn}_{i}", s, 0.6)
+
+# --- story and action sounds -------------------------------------------------------------------
+t = t_(0.5); save("pickup", sum(g * np.sin(2 * np.pi * f * t) * expdec(t, tau) for f, g, tau in ((988, 1, 0.12), (1319, 0.7, 0.14), (1976, 0.4, 0.1))), 0.4)
+t = t_(0.9); save("seal_found", sum(g * np.sin(2 * np.pi * f * t) * expdec(t, tau) * (1 + 0.1 * np.sin(2 * np.pi * 5 * t)) for f, g, tau in ((392, 1, 0.5), (587, 0.8, 0.45), (784, 0.7, 0.4), (1175, 0.5, 0.35), (1568, 0.3, 0.3))), 0.5)
+t = t_(0.7); save("mission_new", (np.sin(2 * np.pi * 523 * t) * expdec(t, 0.12) * (t < 0.25) + np.sin(2 * np.pi * 784 * np.clip(t - 0.18, 0, None)) * expdec(np.clip(t - 0.18, 0, None), 0.2) * (t > 0.18)), 0.4)
+for i in range(3):
+    t = t_(0.45); n = len(t)
+    scr = bp(noise(n), 500 + 200 * i, 3500) * np.sin(np.pi * t / 0.45) ** 0.7 * (0.6 + 0.4 * np.sin(2 * np.pi * 9 * t))
+    thump = np.sin(2 * np.pi * 70 * t) * expdec(t, 0.05) * (t > 0.3)
+    save(f"dig_{i}", scr + 0.7 * thump, 0.55)
+t = t_(0.35); save("page_turn", bp(noise(len(t)), 1500, 6000) * np.sin(np.pi * t / 0.35) ** 2 * (0.5 + 0.5 * np.sin(2 * np.pi * 30 * t)), 0.35)
+d = 8.0; t = t_(d)
+rum = periodic_noise(d, 25, 160, 11) * (0.6 + 0.4 * np.sin(2 * np.pi * t / d * 3))
+grind = bp(periodic_noise(d, 100, 900, 12), 150, 700) * (0.5 + 0.5 * np.sin(2 * np.pi * t / d * 5))
+save("gate_rumble", rum + 0.45 * grind, 0.7)
+t = t_(2.0); save("stone_boom", np.sin(2 * np.pi * 48 * t) * expdec(t, 0.5) + 0.6 * lp(noise(len(t)), 400) * expdec(t, 0.25), 0.8)
+t = t_(1.6); save("reveal", sum(g * np.sin(2 * np.pi * f * t) * expdec(t, 0.9) * np.clip(t / 0.4, 0, 1) for f, g in ((146.8, 1), (220, 0.7), (293.7, 0.5), (369.9, 0.4), (440, 0.35))), 0.5)
 print("audio written to", out)

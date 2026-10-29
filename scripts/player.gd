@@ -46,6 +46,7 @@ var jump_requested := false
 var spawn_position := Vector3.ZERO
 var camera: Camera3D
 var focus: Interactable = null
+var locked := false              # true during dialogue, digging and cinematics: no input is read
 
 var _yaw := 0.0
 var _pitch := -0.2
@@ -153,6 +154,8 @@ func _unhandled_input(event: InputEvent) -> void:
 # --- interaction -------------------------------------------------------------------------
 
 func interact() -> void:
+	if locked:
+		return
 	if focus != null and is_instance_valid(focus):
 		focus.interact(self)
 		# The prompt may have changed ("Open door" -> "Close door").
@@ -235,16 +238,20 @@ func _physics_process(delta: float) -> void:
 	var key_move := _keyboard_input()
 	var input := move_input if move_input.length() > 0.05 else key_move
 	var fast := sprint or Input.is_physical_key_pressed(KEY_SHIFT)
-	if Input.is_physical_key_pressed(KEY_LEFT):
+	if locked:
+		input = Vector2.ZERO
+		fast = false
+		jump_requested = false
+	if not locked and Input.is_physical_key_pressed(KEY_LEFT):
 		add_look(Vector2(-300.0 * delta, 0.0))
-	if Input.is_physical_key_pressed(KEY_RIGHT):
+	if not locked and Input.is_physical_key_pressed(KEY_RIGHT):
 		add_look(Vector2(300.0 * delta, 0.0))
-	if Input.is_physical_key_pressed(KEY_UP):
+	if not locked and Input.is_physical_key_pressed(KEY_UP):
 		add_look(Vector2(0.0, -200.0 * delta))
-	if Input.is_physical_key_pressed(KEY_DOWN):
+	if not locked and Input.is_physical_key_pressed(KEY_DOWN):
 		add_look(Vector2(0.0, 200.0 * delta))
 	var e_down := Input.is_physical_key_pressed(KEY_E)
-	if e_down and not _e_was_down:
+	if e_down and not _e_was_down and not locked:
 		interact()
 	_e_was_down = e_down
 
@@ -258,7 +265,7 @@ func _physics_process(delta: float) -> void:
 
 	var on_floor := is_on_floor()
 	_coyote = COYOTE_TIME if on_floor else maxf(0.0, _coyote - delta)
-	if jump_requested or Input.is_physical_key_pressed(KEY_SPACE):
+	if not locked and (jump_requested or Input.is_physical_key_pressed(KEY_SPACE)):
 		_jump_buffer = JUMP_BUFFER
 	else:
 		_jump_buffer = maxf(0.0, _jump_buffer - delta)

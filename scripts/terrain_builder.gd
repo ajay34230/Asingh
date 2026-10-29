@@ -21,6 +21,7 @@ const START_MOUND := Vector2(120.0, 160.0)
 const HOUSE_SITES: Array[Vector2] = [
 	Vector2(-75.0, 10.0), Vector2(-102.0, -18.0), Vector2(-64.0, -38.0),
 	Vector2(-98.0, 38.0), Vector2(-128.0, 8.0),
+	Vector2(92.0, 150.0),
 ]
 const SITE_FLAT_RADIUS := 13.0
 const SITE_BLEND_RADIUS := 24.0

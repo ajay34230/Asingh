@@ -34,6 +34,7 @@ func build(parent: Node3D) -> Node3D:
 		[2, 11.0, 8.0, 74.0, 2],
 		[3, 8.0, 7.0, 108.0, 1],
 		[4, 10.0, 8.0, 92.0, 0],
+		[5, 9.0, 7.0, 180.0, 1],   # Arin's field office (furnished by StoryBuilder)
 	]
 	for s in specs:
 		_house(root, s[0], s[1], s[2], s[3], s[4])
@@ -55,7 +56,8 @@ func _house(parent: Node3D, index: int, w: float, d: float, yaw: float, variant:
 	_shell(h, w, d, door_x, partition_x, variant)
 	_roof(h, w, d)
 	var stair := _roof_stairs(h, w, d)
-	HouseInteriors.furnish(h, w, d, door_x, partition_x, variant, _rng)
+	if index != 5:
+		HouseInteriors.furnish(h, w, d, door_x, partition_x, variant, _rng)
 	_exterior(h, w, d, door_x, variant)
 	_light_and_probe(h, w, d, partition_x)
 

@@ -9,6 +9,7 @@ extends Control
 ## On a PC, mouse clicks are emulated as touches (see project.godot), so it can be tested there.
 
 var player: Player
+var blocked := false            # true while a dialogue / cinematic owns the screen
 
 var _vp := Vector2(1280, 720)
 var _stick_id := -1
