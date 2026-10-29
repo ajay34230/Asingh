@@ -186,3 +186,21 @@ save("gate_rumble", rum + 0.45 * grind, 0.7)
 t = t_(2.0); save("stone_boom", np.sin(2 * np.pi * 48 * t) * expdec(t, 0.5) + 0.6 * lp(noise(len(t)), 400) * expdec(t, 0.25), 0.8)
 t = t_(1.6); save("reveal", sum(g * np.sin(2 * np.pi * f * t) * expdec(t, 0.9) * np.clip(t / 0.4, 0, 1) for f, g in ((146.8, 1), (220, 0.7), (293.7, 0.5), (369.9, 0.4), (440, 0.35))), 0.5)
 print("audio written to", out)
+
+# --- extra ambience and stone footsteps (added in Phase 4) ---------------------------------
+for i in range(3):
+    n = int(0.15 * SR); t = t_(0.15)
+    s = hp(noise(n), 900) * expdec(t, 0.02) * 0.6 + np.sin(2 * np.pi * (180 + 14 * i) * t) * expdec(t, 0.02)
+    s += 0.5 * np.sin(2 * np.pi * (95 + 6 * i) * t) * expdec(t, 0.05)
+    save(f"step_stone_{i}", s, 0.6)
+# crickets: seamless 8 s loop of pulsed high chirps
+d = 8.0; t = t_(d); cr = np.zeros(len(t))
+for f0, rate, ph in [(4200, 11.0, 0.0), (4700, 9.0, 0.37), (3900, 13.0, 0.71)]:
+    gate = (np.sin(2 * np.pi * rate * t + ph * 6.28) > 0.55).astype(float)
+    gate = lp(gate, 90, 1)
+    cr += np.sin(2 * np.pi * f0 * t + 0.4 * np.sin(2 * np.pi * 6 * t)) * gate * (0.5 + 0.5 * np.sin(2 * np.pi * t / d * 2 + ph))
+save("crickets_loop", cr + 0.02 * periodic_noise(d, 2000, 7000, 11), 0.35)
+# indoor room tone: soft low hum with slow breathing
+d = 8.0; t = t_(d)
+room = periodic_noise(d, 60, 400, 21) * (0.8 + 0.2 * np.sin(2 * np.pi * t / d * 2))
+save("room_tone", room, 0.3)

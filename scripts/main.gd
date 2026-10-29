@@ -35,6 +35,20 @@ func _ready() -> void:
 	railway = RailwayBuilder.new(terrain)
 	railway.build(self)
 	atmosphere.build(self)
+	# Safety underlay: a huge sand-coloured slab far below the terrain, so any gap or hole in the
+	# world never shows the empty sky underneath.
+	var under := MeshInstance3D.new()
+	var um := PlaneMesh.new()
+	um.size = Vector2(6000, 6000)
+	under.mesh = um
+	var umat := StandardMaterial3D.new()
+	umat.albedo_color = Color(0.55, 0.42, 0.28)
+	umat.roughness = 1.0
+	umat.cull_mode = BaseMaterial3D.CULL_DISABLED
+	under.material_override = umat
+	under.position = Vector3(0, -6.0, 0)
+	under.name = "Underlay"
+	add_child(under)
 	var auto_colliders := CollisionFixer.apply(self, terrain)
 	print("[LostKingdom] auto colliders added: %d" % auto_colliders)
 	_spawn_player()
@@ -445,6 +459,24 @@ func _run_selftest() -> void:
 			multis += 1
 		stack.append_array(node.get_children())
 	notes.append("MeshInstance3D=%d MultiMeshInstance3D=%d StaticBody3D=%d" % [meshes, multis, bodies])
+
+	# Camera never ends up below the ground, even looking steeply up from below the horizon.
+	var below := 0
+	var crng := RandomNumberGenerator.new()
+	crng.seed = 5
+	for ci in 30:
+		var cx := crng.randf_range(-150.0, 150.0)
+		var cz := crng.randf_range(-150.0, 150.0)
+		_teleport(cx, cz)
+		player.set_look(crng.randf() * TAU, 0.45)
+		for f in 3:
+			await get_tree().physics_frame
+		var cp := player.camera.global_position
+		if cp.y < terrain.sample_height(cp.x, cp.z) - 0.02:
+			below += 1
+	notes.append("camera below ground: %d / 30" % below)
+	if below > 0:
+		fails.append("camera went below ground in %d cases" % below)
 
 	# Story: flags, quests, dialogue data, interactables.
 	var sflow := Story.new()
