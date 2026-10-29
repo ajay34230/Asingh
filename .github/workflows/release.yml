@@ -1,0 +1,74 @@
+name: Release AAB (manual, signed)
+
+# UNTESTED until the four secrets below exist. Run from Actions -> "Run workflow".
+# Secrets (Settings -> Secrets and variables -> Actions):
+#   RELEASE_KEYSTORE_B64   base64 of your upload keystore (.jks)
+#   RELEASE_KEYSTORE_PASS  keystore password
+#   RELEASE_KEY_ALIAS      key alias
+#   RELEASE_KEY_PASS       key password
+# The keystore is decoded to a temp file on the runner and never committed or uploaded.
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  GODOT_VERSION: "4.4.1"
+
+jobs:
+  aab:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+      - name: Check secrets exist
+        env:
+          K: ${{ secrets.RELEASE_KEYSTORE_B64 }}
+        run: |
+          if [ -z "$K" ]; then echo "RELEASE_KEYSTORE_B64 secret is missing. See docs/PLAY_STORE.md"; exit 1; fi
+      - name: Install Godot and templates
+        run: |
+          ci/install_godot.sh
+          ci/install_templates.sh
+      - name: Android SDK
+        run: |
+          SDKM="$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager"
+          yes | "$SDKM" --licenses > /dev/null || true
+          "$SDKM" "platform-tools" "build-tools;35.0.1" "platforms;android-35" "cmake;3.10.2.4988404"
+      - name: Godot settings, Android build template, keystore
+        env:
+          K: ${{ secrets.RELEASE_KEYSTORE_B64 }}
+        run: |
+          mkdir -p "$HOME/.config/godot" build
+          for f in editor_settings-4.4.tres editor_settings-4.tres; do
+            printf '[gd_resource type="EditorSettings" format=3]\n\n[resource]\nexport/android/android_sdk_path = "%s"\nexport/android/java_sdk_path = "%s"\n' \
+              "$ANDROID_HOME" "$JAVA_HOME" > "$HOME/.config/godot/$f"
+          done
+          echo "$K" | base64 -d > "$RUNNER_TEMP/release.jks"
+          # Gradle build template ships inside the export templates
+          mkdir -p android/build
+          unzip -q -o "$HOME/.local/share/godot/export_templates/${GODOT_VERSION}.stable/android_source.zip" -d android/build
+          echo "${GODOT_VERSION}.stable" > android/.build_version
+      - name: Export signed AAB
+        env:
+          GODOT_ANDROID_KEYSTORE_RELEASE_PATH: ${{ runner.temp }}/release.jks
+          GODOT_ANDROID_KEYSTORE_RELEASE_USER: ${{ secrets.RELEASE_KEY_ALIAS }}
+          GODOT_ANDROID_KEYSTORE_RELEASE_PASSWORD: ${{ secrets.RELEASE_KEYSTORE_PASS }}
+        run: |
+          set -o pipefail
+          GODOT=".ci/godot/Godot_v${GODOT_VERSION}-stable_linux.x86_64"
+          "$GODOT" --headless --path . --import
+          "$GODOT" --headless --path . --export-release "Android Release" build/TheLostKingdom.aab
+          test -s build/TheLostKingdom.aab
+          ls -l build
+      - uses: actions/upload-artifact@v4
+        with:
+          name: TheLostKingdom-release-aab
+          path: build/TheLostKingdom.aab
+          if-no-files-found: error
+          retention-days: 7
