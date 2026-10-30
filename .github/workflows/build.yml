@@ -138,6 +138,18 @@ jobs:
           "$SDKM" "platform-tools" "build-tools;35.0.1" "platforms;android-35" "cmake;3.10.2.4988404"
           ls "$ANDROID_HOME/build-tools"
 
+      - name: Restore the debug keystore (kept between runs so new APKs install over old ones)
+        id: kscache
+        uses: actions/cache@v4
+        with:
+          path: .ci/debug.keystore
+          key: debug-keystore-v1
+
+      - name: Stamp build id
+        run: |
+          printf 'class_name BuildInfo\nextends RefCounted\nconst BUILD := "%s"\nconst VERSION := "0.4"\n' "${GITHUB_SHA::7}" > scripts/build_info.gd
+          cat scripts/build_info.gd
+
       - name: Configure Godot editor settings and a throwaway debug keystore
         run: |
           mkdir -p "$HOME/.config/godot" logs build
@@ -148,7 +160,8 @@ jobs:
           cat "$HOME/.config/godot/editor_settings-4.4.tres"
           # Standard Android debug keystore, generated fresh on every run. It is not stored
           # anywhere, is not a secret, and signs only the debug APK for personal testing.
-          keytool -genkeypair -v -keystore "$RUNNER_TEMP/debug.keystore" \
+          mkdir -p .ci
+          [ -s .ci/debug.keystore ] || keytool -genkeypair -v -keystore ".ci/debug.keystore" \
             -alias androiddebugkey -keypass android -storepass android \
             -dname "CN=Android Debug,O=Android,C=US" -keyalg RSA -keysize 2048 -validity 10000 > /dev/null
 
@@ -162,7 +175,7 @@ jobs:
 
       - name: Import and export debug APK
         env:
-          GODOT_ANDROID_KEYSTORE_DEBUG_PATH: ${{ runner.temp }}/debug.keystore
+          GODOT_ANDROID_KEYSTORE_DEBUG_PATH: ${{ github.workspace }}/.ci/debug.keystore
           GODOT_ANDROID_KEYSTORE_DEBUG_USER: androiddebugkey
           GODOT_ANDROID_KEYSTORE_DEBUG_PASSWORD: android
         run: |

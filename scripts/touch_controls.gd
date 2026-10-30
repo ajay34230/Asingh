@@ -37,11 +37,25 @@ func _ready() -> void:
 	mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_refresh_layout()
 	get_viewport().size_changed.connect(_refresh_layout)
+	visibility_changed.connect(_reset_touches)
 	if player:
 		player.focus_changed.connect(func(t: Interactable) -> void: _focus = t)
 		player.message.connect(func(text: String) -> void:
 			_toast = text
 			_toast_time = 4.0)
+
+
+## Forget every finger when the controls are hidden (dialogue, cinematics) so nothing stays 'held'.
+func _reset_touches() -> void:
+	_stick_id = -1
+	_look_id = -1
+	_pinch_id = -1
+	_use_id = -1
+	_run_id = -1
+	_jump_id = -1
+	_pos.clear()
+	if player != null:
+		player.move_input = Vector2.ZERO
 
 
 func _refresh_layout() -> void:
@@ -67,7 +81,7 @@ func _process(delta: float) -> void:
 	_fps_timer -= delta
 	if _fps_timer <= 0.0:
 		_fps_timer = 0.5
-		_fps_text = "%d FPS" % int(Engine.get_frames_per_second())
+		_fps_text = "%d FPS   v%s %s" % [int(Engine.get_frames_per_second()), BuildInfo.VERSION, BuildInfo.BUILD]
 	queue_redraw()
 
 
