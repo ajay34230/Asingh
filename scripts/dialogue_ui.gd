@@ -170,8 +170,8 @@ func _show(id: String, replay: bool = false, push: bool = true) -> void:
 		c.queue_free()
 	_hint.visible = false
 	_update_nav()
-	if voice_node != null and is_instance_valid(voice_node):
-		Sfx.speak(voice, _cur["text"], voice_node, -2.0)
+	var vn: Node3D = voice_node if (voice_node != null and is_instance_valid(voice_node)) else null
+	Sfx.speak(voice, _cur["text"], vn, -2.0, true)
 
 
 func _process(delta: float) -> void:
@@ -233,6 +233,7 @@ func _on_panel_input(ev: InputEvent) -> void:
 
 
 func close() -> void:
+	Sfx.stop_speech()
 	is_open = false
 	_panel.visible = false
 	player.locked = false

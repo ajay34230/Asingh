@@ -18,6 +18,7 @@ var _sens: HSlider
 var _fov: HSlider
 var _invert: CheckButton
 var _fp: CheckButton
+var _voices: CheckButton
 
 
 func _ready() -> void:
@@ -113,6 +114,17 @@ func _ready() -> void:
 		player.set_first_person(on)
 		_save_settings())
 	vb.add_child(_fp)
+	_voices = CheckButton.new()
+	_voices.text = "Spoken NPC voices"
+	_voices.button_pressed = true
+	_voices.add_theme_font_size_override("font_size", 26)
+	_voices.toggled.connect(func(on: bool) -> void:
+		if Sfx.instance != null:
+			Sfx.instance.voices_on = on
+			if not on:
+				Sfx.stop_speech()
+		_save_settings())
+	vb.add_child(_voices)
 	vb.add_child(_button("New game (erase save)", _new_game))
 	vb.add_child(_button("Quit", func() -> void:
 		save()
@@ -175,6 +187,7 @@ func _save_settings() -> void:
 	cfg.set_value("s", "fov", _fov.value)
 	cfg.set_value("s", "invert", _invert.button_pressed)
 	cfg.set_value("s", "fp", _fp.button_pressed)
+	cfg.set_value("s", "voices", _voices.button_pressed)
 	cfg.save("user://settings.cfg")
 
 
@@ -195,6 +208,9 @@ func _load_settings() -> void:
 	player.invert_y = _invert.button_pressed
 	_fp.set_pressed_no_signal(cfg.get_value("s", "fp", false))
 	player.set_first_person(_fp.button_pressed)
+	_voices.set_pressed_no_signal(cfg.get_value("s", "voices", true))
+	if Sfx.instance != null:
+		Sfx.instance.voices_on = _voices.button_pressed
 
 
 func _process(delta: float) -> void:

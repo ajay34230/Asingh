@@ -24,6 +24,8 @@ var _music_village: AudioStreamPlayer
 var _bell_t := 30.0
 var _chime_t := 10.0
 var atmo: Atmosphere
+var voices_on := true             # NPC speech through the phone's text-to-speech engine
+var _tts_voices: Array = []
 var _ui: AudioStreamPlayer
 var _bird_t := 4.0
 var _rng := RandomNumberGenerator.new()
@@ -37,6 +39,7 @@ func setup(p: Player, h: HouseBuilder) -> Sfx:
 	player = p
 	houses = h
 	_rng.randomize()
+	_tts_voices = _find_voices()
 	for i in MAX_ONESHOTS:
 		var a := AudioStreamPlayer3D.new()
 		a.max_distance = 70.0
@@ -100,10 +103,61 @@ static func ui_at(n: String, db: float = 0.0) -> void:
 
 
 ## Speech babble: one blip per ~3 letters, pitch varied by the text so each line sounds different.
-static func speak(voice: String, text: String, pos_node: Node3D, db: float = 0.0) -> void:
-	if instance == null or pos_node == null:
+static func speak(voice: String, text: String, pos_node: Node3D, db: float = 0.0, dialogue: bool = false) -> void:
+	if instance == null:
+		return
+	if instance.voices_on and instance._say_tts(voice, text, pos_node, dialogue):
+		return
+	if pos_node == null:
 		return
 	instance._speak(voice, text, pos_node, db)
+
+
+static func stop_speech() -> void:
+	if instance != null and not instance._tts_voices.is_empty():
+		DisplayServer.tts_stop()
+
+
+## English voices installed on the device (Android: Google / Samsung TTS). Prefers Indian English.
+func _find_voices() -> Array:
+	var out: Array = []
+	var all: Array = DisplayServer.tts_get_voices()
+	for v in all:
+		var lang: String = str(v.get("language", "")).to_lower().replace("_", "-")
+		if lang.begins_with("en"):
+			out.append(v)
+	out.sort_custom(func(a: Dictionary, b: Dictionary) -> bool:
+		var ai := 0 if str(a.get("language", "")).to_lower().replace("_", "-").contains("in") else 1
+		var bi := 0 if str(b.get("language", "")).to_lower().replace("_", "-").contains("in") else 1
+		return ai < bi)
+	return out
+
+
+const VOICE_PITCH := {"man": 1.0, "deep": 0.7, "old": 0.82, "woman": 1.22, "girl": 1.55}
+const VOICE_RATE := {"man": 1.0, "deep": 0.92, "old": 0.85, "woman": 1.0, "girl": 1.08}
+
+
+## Speak with the system voice. Returns false when no voice exists (caller falls back to blips).
+func _say_tts(voice: String, text: String, node: Node3D, dialogue: bool) -> bool:
+	if _tts_voices.is_empty():
+		return false
+	var vol := 100
+	if not dialogue:
+		if node == null or player == null:
+			return true
+		var d := node.global_position.distance_to(player.global_position)
+		vol = int(clampf(1.0 - (d - 4.0) / 14.0, 0.0, 1.0) * 100.0)
+		if vol < 15 or DisplayServer.tts_is_speaking():
+			return true
+	else:
+		DisplayServer.tts_stop()
+	var who: String = node.name if node != null else "narrator"
+	var pool := _tts_voices
+	# distinct voices per person; spread the first few so neighbours differ
+	var v: Dictionary = pool[absi(hash(who)) % mini(pool.size(), 6)]
+	var clean := text.replace("...", ", ").replace("%", " percent")
+	DisplayServer.tts_speak(clean, str(v["id"]), vol, VOICE_PITCH.get(voice, 1.0), VOICE_RATE.get(voice, 1.0))
+	return true
 
 
 func _play3d(n: String, pos: Vector3, db: float, pitch: float) -> void:
