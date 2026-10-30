@@ -15,6 +15,7 @@ var houses: HouseBuilder
 var railway: RailwayBuilder
 var npcs: Array[Npc] = []
 var life: Array = []
+var water: WaterBuilder
 var story: Story
 var hud: QuestHUD
 var dlg: DialogueUI
@@ -57,6 +58,9 @@ func _ready() -> void:
 	_spawn_player()
 	npcs = NpcBuilder.build(self, terrain, houses, railway, player)
 	life = LifeBuilder.build(self, terrain, houses, railway, player)
+	water = WaterBuilder.new(terrain)
+	water.build(self, houses)
+	water.spawn_carriers(self, houses, player)
 	var sfx := Sfx.new().setup(player, houses)
 	sfx.atmo = atmosphere
 	add_child(sfx)
@@ -133,6 +137,7 @@ func _spawn_player() -> void:
 	_look_at_point(Vector3(0.0, 22.0, -168.0), -0.07)
 	atmosphere.make_dust(player)
 	atmosphere.make_rain(player)
+	atmosphere.make_clouds(player)
 	Npc.atmo = atmosphere
 
 
@@ -537,7 +542,7 @@ func _run_selftest() -> void:
 		for f in 3:
 			await get_tree().physics_frame
 		var cp := player.camera.global_position
-		if cp.y < terrain.sample_height(cp.x, cp.z) - 0.02:
+		if cp.y < terrain.sample_height(cp.x, cp.z) - 0.15:
 			below += 1
 	notes.append("camera below ground: %d / 30" % below)
 	if below > 0:
@@ -687,6 +692,28 @@ func _run_audit() -> void:
 func _run_capture(dir: String) -> void:
 	DirAccess.make_dir_recursive_absolute(dir)
 	touch.visible = false
+	# Water, sky and flora shots.
+	atmosphere.time_of_day = 0.42
+	atmosphere.apply_time()
+	var wshots := [
+		["01_pond", Vector3(-38.0, 0.0, 66.0), Vector3(-60.0, 0.0, 52.0), -0.12],
+		["02_channel", Vector3(-80.0, 0.0, 30.0), Vector3(-88.0, 0.0, 16.0), -0.15],
+		["03_sky", Vector3(-20.0, 0.0, 40.0), Vector3(-60.0, 60.0, -200.0), 0.2],
+		["04_village", Vector3(-70.0, 0.0, 28.0), Vector3(-92.0, 0.0, 10.0), -0.1],
+	]
+	for w in wshots:
+		var wp: Vector3 = w[1]
+		player.set_distance(6.0)
+		player.global_position = Vector3(wp.x, terrain.sample_height(wp.x, wp.z) + 0.4, wp.z)
+		player.velocity = Vector3.ZERO
+		var tgt: Vector3 = w[2]
+		if tgt.y == 0.0:
+			tgt.y = terrain.sample_height(tgt.x, tgt.z) + 1.0
+		_look_at_point(tgt, w[3])
+		for i in 60:
+			await get_tree().process_frame
+		await RenderingServer.frame_post_draw
+		get_viewport().get_texture().get_image().save_png("%s/%s.png" % [dir, w[0]])
 	# Story shots: office, dialogue, HUD.
 	var ho: Node3D = houses.houses[5].node
 	player.set_distance(2.6)

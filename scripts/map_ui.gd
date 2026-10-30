@@ -94,6 +94,10 @@ func _render_terrain() -> ImageTexture:
 			var base := Color(0.86, 0.74, 0.52).lerp(Color(0.62, 0.46, 0.30), t).lerp(Color(0.55, 0.50, 0.46), clampf((h - 28.0) / 40.0, 0.0, 1.0))
 			if absf(x - terrain.river_x(z)) < 5.0 and h < 3.0:
 				base = Color(0.52, 0.42, 0.33)        # dry riverbed
+			var pd := Vector2(x - TerrainBuilder.POND_C.x, z - TerrainBuilder.POND_C.y).length()
+			base = base.lerp(Color(0.42, 0.62, 0.30), 1.0 - smoothstep(TerrainBuilder.POND_R * 1.2, 38.0, pd))
+			if pd < TerrainBuilder.POND_R * 1.05:
+				base = Color(0.22, 0.55, 0.78)
 			img.set_pixel(i, j, Color(base.r * shade, base.g * shade, base.b * shade))
 	return ImageTexture.create_from_image(img)
 

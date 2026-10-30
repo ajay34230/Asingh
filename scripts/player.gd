@@ -109,7 +109,7 @@ func _ready() -> void:
 	add_child(_pivot)
 	_arm = SpringArm3D.new()
 	_arm.spring_length = _target_distance
-	_arm.margin = 0.4
+	_arm.margin = 0.6
 	_arm.add_excluded_object(get_rid())
 	_pivot.add_child(_arm)
 	camera = Camera3D.new()
