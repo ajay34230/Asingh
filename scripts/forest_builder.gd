@@ -51,7 +51,7 @@ func build() -> void:
 
 
 func _on_changed() -> void:
-	if state == "dormant" and story.get_flag("temple_blessed") and not story.get_flag("tara_saved"):
+	if state == "dormant" and story.get_flag("temple_blessed") and not story.get_flag("tara_talked"):
 		_activate()
 	elif state == "fight" and int(story.get_flag("forest_down", 0)) >= 4:
 		_won()
@@ -132,6 +132,20 @@ func _trees() -> void:
 
 
 func _camp() -> void:
+	var kn := Node3D.new()
+	kn.position = _c + Vector3(2.2, 0.0, 1.0)
+	_root.add_child(kn)
+	PropFactory.box(kn, Vector3(0.5, 0.06, 0.14), Vector3(0, 0.35, 0), PropFactory.stone(Color(0.7, 0.72, 0.78)), Vector3.ZERO, false, false)
+	PropFactory.box(kn, Vector3(0.7, 0.3, 0.4), Vector3(0, 0.15, 0), PropFactory.wood(), Vector3.ZERO, false, false)
+	var kit := Interactable.new()
+	kit.position = Vector3(0, 0.6, 0)
+	kit.prompt = "Take the hunter's knife"
+	kn.add_child(kit)
+	kit.on_interact = func(_by: Node3D, me: Interactable) -> void:
+		player.has_knife = true
+		player.say("A hunter's knife from the Reavers' stolen goods. Now I can hunt game in the wild.")
+		Sfx.ui_at("chime", -4.0)
+		kn.queue_free()
 	var fire := Node3D.new()
 	fire.position = _c + Vector3(0, 0.05, 0)
 	_root.add_child(fire)
@@ -227,7 +241,10 @@ func _npc_pos(nm: String) -> Vector3:
 
 
 func _activate() -> void:
-	state = "waiting"
+	var saved: bool = story.get_flag("tara_saved")
+	state = "done" if saved else "waiting"
+	if not saved:
+		story.flags["forest_down"] = 0
 	tara = Npc.new().setup(NpcBuilder.PRESETS["lady_green"], "idle", "Tara")
 	tara.player = player
 	main.add_child(tara)
@@ -245,6 +262,8 @@ func _activate() -> void:
 	tara.add_child(it)
 	it.on_interact = func(_by: Node3D, _me: Interactable) -> void:
 		dlg.open(story.dialogue_for("Tara"), tara, "woman")
+	if saved:
+		return
 	# four Reaver men around her; they stay put until the scene ends
 	for k in 4:
 		var a := 0.6 + k * TAU / 4.0

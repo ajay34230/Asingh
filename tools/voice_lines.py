@@ -4,7 +4,7 @@ import re, glob, os
 
 STR = re.compile(r'"((?:[^"\\]|\\.)*)"')
 SPOKEN = re.compile(r"^[A-Z\"'(‘“].{14,}[.!?…\"')]$")
-STORY_FILES = ["story.gd", "story_builder.gd", "story_links.gd", "race_builder.gd", "combat_builder.gd", "water_builder.gd", "temple_builder.gd"]
+STORY_FILES = ["story.gd", "story_builder.gd", "story_links.gd", "race_builder.gd", "combat_builder.gd", "water_builder.gd", "temple_builder.gd", "forest_builder.gd"]
 
 
 def unescape(s):

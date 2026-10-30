@@ -15,6 +15,7 @@ var houses: HouseBuilder
 var railway: RailwayBuilder
 var npcs: Array[Npc] = []
 var life: Array = []
+var mounts: MountSystem
 var water: WaterBuilder
 var story: Story
 var hud: QuestHUD
@@ -212,6 +213,69 @@ func _selftest_fight(fails: PackedStringArray, notes: PackedStringArray) -> void
 
 
 ## Forest rescue mission: activates after the temple clue, spawns Tara and four attackers, completes.
+func _selftest_hunt(fails: PackedStringArray, notes: PackedStringArray) -> void:
+	var d: Animal = null
+	for l in life:
+		if l is Animal and (l as Animal).species == "deer":
+			d = l
+			break
+	if d == null:
+		fails.append("hunt: no deer")
+		return
+	player.has_knife = false
+	player.global_position = d.global_position + Vector3(0, 0.5, 2.0)
+	player._model.rotation.y = 0.0
+	player._on_attack_hit()
+	if d.dead or d.hp > 0.0 and d.hp < 40.0:
+		fails.append("hunt: hurt without the knife")
+	player.has_knife = true
+	for i in 4:
+		player._on_attack_hit()
+	if not d.dead or player.hunted != 1:
+		fails.append("hunt: deer not killed with knife")
+	notes.append("hunt: ok")
+
+
+func _selftest_mount(fails: PackedStringArray, notes: PackedStringArray) -> void:
+	if mounts == null or int(mounts.get_meta("count", 0)) < 3:
+		fails.append("mount: too few rideable animals")
+		return
+	var a: Animal = null
+	for l in life:
+		if l is Animal and (l as Animal).species == "horse":
+			a = l
+			break
+	if a == null:
+		fails.append("mount: no horse")
+		return
+	var start := a.global_position
+	mounts.mount_animal(a)
+	if mounts.mount != a or not player.locked:
+		fails.append("mount: mounting failed")
+		return
+	player.move_input = Vector2(0, -1)
+	player.sprint = true
+	for i in 90:
+		await get_tree().physics_frame
+	var moved := a.global_position.distance_to(start)
+	var gy := terrain.sample_height(a.global_position.x, a.global_position.z)
+	if moved < 6.0:
+		fails.append("mount: horse barely moved (%.1f m)" % moved)
+	if absf(a.global_position.y - gy) > 0.3:
+		fails.append("mount: horse off ground")
+	var rd := player.global_position.y - a.global_position.y
+	if rd < 1.0 or rd > 3.0:
+		fails.append("mount: rider height %.2f" % rd)
+	player.move_input = Vector2.ZERO
+	player.sprint = false
+	player.jump_requested = true
+	await get_tree().physics_frame
+	await get_tree().physics_frame
+	if mounts.mount != null or player.locked:
+		fails.append("mount: dismount failed")
+	notes.append("mount: rode %.1f m, rider +%.2f" % [moved, rd])
+
+
 func _selftest_forest(fails: PackedStringArray, notes: PackedStringArray) -> void:
 	if forest == null:
 		fails.append("forest: not built")
@@ -472,6 +536,8 @@ func _build_story() -> void:
 	combat.build()
 	forest = ForestBuilder.new(self, story, hud, dlg, cin, terrain, player, combat)
 	forest.build()
+	mounts = MountSystem.new(self, player, terrain)
+	mounts.build()
 	combat_hud = CombatHUD.new()
 	combat_hud.player = player
 	add_child(combat_hud)
@@ -916,6 +982,8 @@ func _run_selftest() -> void:
 	_selftest_alignment(fails, notes)
 	_selftest_race(fails, notes)
 	await _selftest_forest(fails, notes)
+	await _selftest_mount(fails, notes)
+	await _selftest_hunt(fails, notes)
 	await _selftest_fight(fails, notes)
 
 	for s in notes:

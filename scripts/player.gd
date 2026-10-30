@@ -66,6 +66,9 @@ var _invuln := 0.0
 var carried_by: Node3D = null    # riding a cart: position follows this node
 var hammer_mult := 1.0              # 1.4 once Dhruv re-forges the hammer with the Queen's light
 var attack_override := Callable()   # set by the cart race: the HIT button swings the cart blades
+var has_knife := false            # hunter's knife from the Reaver camp: lets you hunt wild game
+var hunted := 0
+var mounted := false             # riding an animal: MountSystem owns movement, JUMP means dismount
 var locked := false              # true during dialogue, digging and cinematics: no input is read
 
 var _yaw := 0.0
@@ -295,6 +298,15 @@ func _on_attack_hit() -> void:
 		if to.length() < 3.0 and (to.length() < 0.6 or fwd.dot(to.normalized()) > 0.2):
 			(e as Enemy).take_hit("slam", dmg, fwd)
 			hit = true
+	if has_knife:
+		for an in get_tree().get_nodes_in_group("animals"):
+			var ani := an as Animal
+			if ani != null and ani.huntable():
+				var ta: Vector3 = ani.global_position - global_position
+				ta.y = 0.0
+				if ta.length() < 3.0 and fwd.dot(ta.normalized()) > 0.2:
+					ani.take_hit(dmg, fwd)
+					hit = true
 	if hit:
 		_combat_t = 0.0
 		Sfx.ui_at("hit_thud", -2.0)
@@ -503,7 +515,8 @@ func _physics_process(delta: float) -> void:
 	if locked:
 		input = Vector2.ZERO
 		fast = false
-		jump_requested = false
+		if not mounted:
+			jump_requested = false
 	if not locked and Input.is_physical_key_pressed(KEY_LEFT):
 		add_look(Vector2(-300.0 * delta, 0.0))
 	if not locked and Input.is_physical_key_pressed(KEY_RIGHT):
@@ -531,7 +544,8 @@ func _physics_process(delta: float) -> void:
 		_jump_buffer = JUMP_BUFFER
 	else:
 		_jump_buffer = maxf(0.0, _jump_buffer - delta)
-	jump_requested = false
+	if not mounted:
+		jump_requested = false
 
 	var accel := ACCEL_GROUND if on_floor else ACCEL_AIR
 	if dir.length() < 0.05 and on_floor:

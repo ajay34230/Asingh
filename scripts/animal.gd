@@ -52,13 +52,14 @@ const BEHAVIOUR := {
 }
 const CALLS := {
 	"cow": ["cow_moo"], "bull": ["bull_moo"], "donkey": ["donkey_bray"], "horse": ["horse_whinny"],
-	"horse_white": ["horse_whinny"], "camel": ["camel_grunt"], "fox": ["fox_yip"],
+	"horse_white": ["horse_whinny"], "camel": ["camel_grunt"], "fox": ["fox_yip"], "deer": ["deer_call"], "stag": ["deer_call"],
 	"dog": ["dog_bark_0", "dog_bark_1", "dog_bark_2"], "shiba": ["dog_bark_0", "dog_bark_1", "dog_bark_2"],
 }
 
 
 func setup(kind: String, ter: TerrainBuilder, ply: Node3D, at: Vector3, wander_radius: float, tint: Color = Color(1, 1, 1)) -> Animal:
 	species = kind
+	add_to_group("animals")
 	name = kind.capitalize()
 	terrain = ter
 	player = ply
@@ -250,6 +251,43 @@ func _process(delta: float) -> void:
 			_target = home + Vector3(cos(ang) * r, 0.0, sin(ang) * r)
 			_moving = true
 			_play(_walk)
+
+
+const HUNT_HP := {"deer": 40.0, "stag": 60.0, "fox": 25.0}
+var hp := 0.0
+var dead := false
+
+
+## Only huntable wild animals can be hurt, and only by a player carrying the hunter's knife.
+func huntable() -> bool:
+	return HUNT_HP.has(species) and not dead and not driven
+
+
+func take_hit(dmg: float, dir: Vector3) -> void:
+	if not huntable():
+		return
+	if hp <= 0.0:
+		hp = float(HUNT_HP[species])
+	hp -= dmg
+	Sfx.at("animal_pain", global_position + Vector3(0, 1, 0), 0.0, randf_range(0.85, 1.2))
+	if hp > 0.0:
+		_flee_t = 6.0
+		return
+	dead = true
+	driven = true
+	set_process(false)
+	if _anim != null:
+		_anim.stop()
+	Sfx.at("animal_thud", global_position, -2.0)
+	var tw := create_tween()
+	tw.tween_property(self, "rotation:z", deg_to_rad(88.0) * (1.0 if randf() < 0.5 else -1.0), 0.45).set_trans(Tween.TRANS_QUAD)
+	tw.tween_interval(12.0)
+	tw.tween_property(self, "scale", Vector3.ONE * 0.01, 1.5)
+	tw.tween_callback(queue_free)
+	var pl := player as Player
+	if pl != null:
+		pl.hunted += 1
+		pl.say("You bring down the %s." % species)
 
 
 func _play(clip: String) -> void:

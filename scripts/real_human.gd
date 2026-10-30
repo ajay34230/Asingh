@@ -495,6 +495,15 @@ func _react_pose() -> void:
 			_hips_dy = -0.12
 			_pz("hip_L", Vector3(-0.4, 0, 0)); _pz("hip_R", Vector3(-0.4, 0, 0))
 			_pz("kn_L", Vector3(-0.8, 0, 0)); _pz("kn_R", Vector3(-0.8, 0, 0))
+		"ride":
+			var bob := sin(t * 9.0) * 0.015
+			_hips_dy = -0.42 + bob
+			for tg in ["L", "R"]:
+				var sg := 1.0 if tg == "L" else -1.0
+				_pz("hip_" + tg, Vector3(1.25, 0, 0.45 * sg)); _pz("kn_" + tg, Vector3(-1.2, 0, 0))
+				_pz("sh_" + tg, Vector3(-0.85, 0, 0.12)); _pz("el_" + tg, Vector3(1.0, 0, 0))
+			_pose["spine"] = Vector3(-0.1 + 0.02 * sin(t * 4.5), 0, 0)
+			_pose["head"] = Vector3(0.05, 0, 0)
 		"dead":
 			_pz("sh_L", Vector3(-0.1, 0, 1.15)); _pz("sh_R", Vector3(-0.3, 0, 0.9))
 			_pz("el_L", Vector3(0.3, 0, 0)); _pz("el_R", Vector3(0.7, 0, 0))
