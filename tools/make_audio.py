@@ -270,3 +270,18 @@ village = [("S", 0, 1), ("R", 1, 1), ("G", 2, 2), ("P", 4, 1), ("G", 5, 1), ("R"
            ("P", 20, 1), ("D", 21, 1), ("S2", 22, 2), ("D", 24, 1), ("P", 25, 1), ("G", 26, 1), ("R", 27, 1), ("S", 28, 3),
            ("G", 32, 1), ("P", 33, 1), ("D", 34, 2), ("P", 36, 1), ("G", 37, 1), ("R", 38, 2)]
 save("music_village", loop_music(40.0, village, 164.81, bhup, "pluck", 0.6, pulse=2), 0.55)
+
+# --- combat sounds (Phase 5) ---------------------------------------------------------------------
+t = t_(0.25); save("swing", bp(noise(len(t)), 500, 4000) * np.sin(np.pi * t / 0.25) ** 2 * (0.2 + t / 0.25), 0.5)
+t = t_(0.3); save("hit_thud", (lp(noise(len(t)), 700) * expdec(t, 0.05) + 1.2 * np.sin(2 * np.pi * (140 - 60 * t) * t) * expdec(t, 0.09)), 0.8)
+t = t_(0.35); save("hit_hurt", lp(noise(len(t)), 1200) * expdec(t, 0.04) * 0.6 + np.sin(2 * np.pi * (260 - 120 * t) * t) * expdec(t, 0.12) * 0.7, 0.7)
+t = t_(0.5); save("player_hurt", (np.sin(2 * np.pi * (330 - 140 * t) * t) * expdec(t, 0.15) * 0.6 + lp(noise(len(t)), 900) * expdec(t, 0.05)), 0.75)
+t = t_(0.7); save("enemy_down", (np.sin(2 * np.pi * (200 - 150 * t) * t) * expdec(t, 0.25) * 0.8 + lp(noise(len(t)), 600) * expdec(t, 0.12)), 0.8)
+t = t_(0.7)
+pw = np.zeros(len(t))
+for k, f in enumerate((523.25, 659.25, 783.99, 1046.5)):
+    s0 = int(k * 0.07 * SR); tt = t_(0.5)
+    seg = np.sin(2 * np.pi * f * tt) * expdec(tt, 0.2) * 0.6 + np.sin(2 * np.pi * f * 2 * tt) * expdec(tt, 0.1) * 0.2
+    pw[s0: s0 + len(seg)] += seg[: len(pw) - s0]
+save("powerup", pw, 0.7)
+t = t_(1.2); save("raid_horn", (saw(110 * (1 + 0.04 * np.sin(2 * np.pi * 5 * t)), t) * np.sin(np.pi * t / 1.2) ** 0.7 * 0.5 + saw(165, t) * np.sin(np.pi * t / 1.2) * 0.25), 0.7)

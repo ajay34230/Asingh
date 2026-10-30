@@ -21,6 +21,9 @@ var dlg: DialogueUI
 var cin: Cinematic
 var story_b: StoryBuilder
 var menu: GameMenu
+var map_ui: MapUI
+var combat: CombatBuilder
+var combat_hud: CombatHUD
 
 
 func _ready() -> void:
@@ -142,6 +145,17 @@ func _build_story() -> void:
 	add_child(cin)
 	story_b = StoryBuilder.new(self, story, hud, dlg, cin)
 	story_b.build()
+	combat = CombatBuilder.new(self, story, hud)
+	combat.build()
+	combat_hud = CombatHUD.new()
+	combat_hud.player = player
+	add_child(combat_hud)
+	map_ui = MapUI.new()
+	map_ui.terrain = terrain
+	map_ui.player = player
+	map_ui.story = story
+	map_ui.main = self
+	add_child(map_ui)
 	menu = GameMenu.new()
 	menu.story = story
 	menu.player = player
@@ -485,6 +499,34 @@ func _run_selftest() -> void:
 	if below > 0:
 		fails.append("camera went below ground in %d cases" % below)
 
+	# Combat: enemy takes hits and dies, player takes damage, power-ups apply, pickups exist.
+	_teleport(100.0, 100.0)
+	var foe := combat.spawn_enemy(player.global_position + Vector3(0, 0, -1.6), false, 0.0, "test")
+	player.set_look(0.0, 0.0)
+	player._model.rotation.y = 0.0
+	var hp0 := foe.hp
+	player._on_attack_hit()
+	if foe.hp >= hp0:
+		fails.append("combat: player hit did not damage enemy")
+	player.take_damage(10.0, Vector3(0, 0, 1))
+	if player.hp >= 100.0:
+		fails.append("combat: player did not take damage")
+	player.apply_powerup("shield")
+	if not player.power.has("shield"):
+		fails.append("combat: power-up not applied")
+	foe.take_damage(999.0, Vector3.FORWARD)
+	if not foe.dead:
+		fails.append("combat: enemy did not die")
+	var pk := 0
+	for ch in get_children():
+		if ch is Pickup:
+			pk += 1
+	if pk < 6:
+		fails.append("combat: expected pickups, found %d" % pk)
+	player.hp = player.max_hp
+	player.power.clear()
+	notes.append("combat ok, pickups=%d" % pk)
+
 	# Story: flags, quests, dialogue data, interactables.
 	var sflow := Story.new()
 	add_child(sflow)
@@ -644,6 +686,12 @@ func _run_capture(dir: String) -> void:
 		await get_tree().process_frame
 	await RenderingServer.frame_post_draw
 	get_viewport().get_texture().get_image().save_png("%s/24_act2.png" % dir)
+	map_ui.toggle_full()
+	for i in 6:
+		await get_tree().process_frame
+	await RenderingServer.frame_post_draw
+	get_viewport().get_texture().get_image().save_png("%s/25_map.png" % dir)
+	map_ui.toggle_full()
 	var rx := terrain.river_x
 	var views := [
 		["01_start_viewpoint", Vector2(120, 160), Vector3(0, 22, -168), -0.07],

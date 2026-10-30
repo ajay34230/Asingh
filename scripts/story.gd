@@ -179,6 +179,30 @@ func _define_quests() -> void:
 			 "done": func() -> bool: return get_flag("letter_done"), "target": func() -> Vector3: return _pos("VillagerGreen")},
 		],
 	})
+	quests.append({
+		"id": "raid", "title": "Night of the Reavers",
+		"blurb": "Dust Reavers, hired raiders, have tracked Arin to the Sun Gate. Defend the platform with your hammer, and watch for power-ups the fallen drop.",
+		"show": func() -> bool: return get_flag("arin_done"),
+		"objs": [
+			{"text": func() -> String: return "Defeat the Dust Reavers (%d/7)" % int(get_flag("reavers_down", 0)),
+			 "done": func() -> bool: return int(get_flag("reavers_down", 0)) >= 7, "target": func() -> Vector3: return _pos("Arin")},
+			{"text": func() -> String: return "Defeat Captain Karan",
+			 "done": func() -> bool: return get_flag("captain_down"), "target": func() -> Vector3: return _pos("Arin")},
+			{"text": func() -> String: return "Speak to Arin",
+			 "done": func() -> bool: return get_flag("raid_done"), "target": func() -> Vector3: return _pos("Arin")},
+		],
+	})
+	quests.append({
+		"id": "camp", "title": "Side: The Bandit Camp",
+		"blurb": "Reavers have made a camp in the western dunes and robbed the caravans. Clear it (hit them with the HIT button) and tell the Chief.",
+		"show": func() -> bool: return get_flag("met_chief"),
+		"objs": [
+			{"text": func() -> String: return "Clear the bandit camp (%d/4)" % int(get_flag("camp_down", 0)),
+			 "done": func() -> bool: return int(get_flag("camp_down", 0)) >= 4, "target": func() -> Vector3: return _pos("camp")},
+			{"text": func() -> String: return "Tell Chief Bhairav",
+			 "done": func() -> bool: return get_flag("camp_done"), "target": func() -> Vector3: return _pos("Chief")},
+		],
+	})
 
 
 func _nearest(key: String, from: Vector3) -> Vector3:
@@ -276,6 +300,16 @@ func dialogue_for(who: String) -> Dictionary:
 		"Villager2": return _small("Raju", ["I carried Dr. Rao's bags once. He tipped me with a story about a golden gate.", "If you go to the gate, take water. And a friend."])
 		"Villager3": return _small("Old Lakshmi", ["I remember when the well still sang. Child, listen to the old people about it.", "Kamla knows. Kamla always knows."])
 		"Villager4": return _small("Pinky", ["Are you a treasure hunter? Dr. Rao said he was not, but he always smiled when I asked.", "Race you to the well! ...no? Fine."])
+		"Potter": return _small("Dev the potter", ["Every pot I fire has a ray of the sun painted on its base. My father did it too, and I never asked why.", "Mind the clay! Sand gets everywhere, but clay stays loyal.", "Painted shards? Meera's been asking about them. Look where the old walls meet the dunes."])
+		"Shepherd": return _small("Old Ganesh", ["My goats came back from the ruins trembling. They know what we pretend not to.", "Dust Reavers are camped west of the dunes. Do not go there with a stick, friend; go with a hammer.", "Sheep are better company than people, and they listen as well."])
+		"ChildA": return _small("Chhoti", ["I saw a golden light in the stairs last night! Mother says I dreamed it.", "Are you a hero? Heroes have hammers, and you have a hammer!", "Race you to the well! ...oh, you are busy. Later, then."])
+		"ChildB": return _small("Bholu", ["The big stone door sings when the wind is right. I heard it!", "Can I hold your hammer? Just for a second? No? Okay.", "If you find shiny things, you can give them to me. For safekeeping."])
+		"Priest": return _small("Pandit Rishi", ["The twelve-rayed sun is not a symbol; it is a promise. The Queen swore to return with the dawn.", "Light a lantern for the lost, child. Even a small flame is a prayer.", "I will not enter the ruins. But I will pray at their edge for you."])
+		"Cook": return _small("Shanta", ["Hungry? There is flatbread, lentils, and no complaints about the salt.", "The caravan folk eat well and pay badly. The villagers eat badly and pay in stories.", "Dr. Rao ate here every night, always staring at that map. Poor man."])
+		"Dancer": return _small("Roshni", ["I dance for the caravans, and tonight I will dance for the sun gate, if it opens.", "Music, color, a little danger: that is what makes a story worth telling.", "Watch the road at dusk. The Reavers prefer the dark."])
+		"Scholar": return _small("Scholar Vikram", ["I was Dr. Rao's student. I keep his field office tidy and waiting for him.", "He once said: the past does not hide. It waits for people patient enough to listen.", "If you find anything with a twelve-rayed sun on it, bring it to the map table."])
+		"GuardA": return _small("Guard Veer", ["Halt! ...Ah, the one who opened the gate. Forgive me; we are on edge since the Reavers were spotted.", "Hold the stairs, and nothing gets past us. Or past you, I suppose.", "Take any glowing gems you find. They are blessings left by the old kingdom."])
+		"GuardB": return _small("Guard Shera", ["The Reavers come at night, in groups. Fight with your back to a wall.", "That hammer of yours: keep swinging. Hesitation is what gets you hurt.", "Gems that glow are power. Red heals, blue quickens, orange strengthens, gold shields."])
 		"Traveller": return _small("Traveller", ["I came for the legend. I stayed for the silence. Be careful, friend.", "The wind sings at the stairs. Different from other winds."])
 	return {}
 
@@ -361,10 +395,14 @@ func _chief() -> Dictionary:
 			"choices": [{"t": "I will return.", "go": ""}]},
 		"ready": {"who": "Chief Bhairav", "text": "You carry the sun in your hands. The stairs are at the north end of the valley. Open the gate at first light if you can; the old stories say it is kinder then.",
 			"choices": [{"t": "Thank you, Chief.", "go": ""}]},
+		"bounty": {"who": "Chief Bhairav", "text": "The camp is cleared? Then the caravans can pass, and my people sleep easier. Take this, from the village: you have earned every coin and more.",
+			"set": {"camp_done": true}, "sfx": "seal_found", "choices": [{"t": "Glad to help.", "go": ""}]},
 		"after": {"who": "Chief Bhairav", "text": "The gate stands open. Whatever happens next, you have already done what we could not do in a hundred years.",
 			"choices": [{"t": "Thank you, Chief.", "go": ""}]},
 	}
 	var s := "intro"
+	if get_flag("met_chief") and int(get_flag("camp_down", 0)) >= 4 and not get_flag("camp_done"):
+		return {"start": "bounty", "nodes": n}
 	if get_flag("met_chief"):
 		s = "again"
 		if seals_held() >= 3:
@@ -462,7 +500,13 @@ func _arin() -> Dictionary:
 			"set": {"arin_done": true}, "choices": [{"t": "Together, then.", "go": "end"}]},
 		"end": {"who": "Dr. Arin Rao", "text": "Together. Rest tonight; at dawn we walk the Queen's road. That is the next chapter of the valley's story, and I want you beside me for it.",
 			"choices": [{"t": "At dawn.", "go": ""}]},
-		"after": {"who": "Dr. Arin Rao", "text": "The lanterns will burn until dawn. I will bring the maps. Go, breathe, and thank the village.",
+		"after": {"who": "Dr. Arin Rao", "text": "Reavers! Torches on the forecourt, coming up the stairs. They want the gate, and they want it before we understand it. Hold the platform; I will stay behind the pillar!",
+			"choices": [{"t": "Stay safe. I will handle them.", "go": ""}]},
+		"raid_end": {"who": "Dr. Arin Rao", "text": "It is over. Karan carried a letter; the Reavers were paid by someone who knew about the seals. Someone inside the village, or very near it. When the lanterns burned down the corridor, I saw a door at its end, and it was already open.",
+			"set": {"raid_done": true}, "sfx": "seal_found", "choices": [{"t": "Then we go through it, together.", "go": "raid_end2"}]},
+		"raid_end2": {"who": "Dr. Arin Rao", "text": "Together. Act Three begins at dawn: the Queen's road, the sleeping city, and whoever hired those men. Rest, my friend. You have earned it.",
+			"choices": [{"t": "Until dawn.", "go": ""}]},
+		"done": {"who": "Dr. Arin Rao", "text": "Dawn will come. When it does, the Queen's road is ours. For now: breathe. Heal. You have more than earned it.",
 			"choices": [{"t": "Rest well, Arin.", "go": ""}]},
 	}
 	var s := "first"
@@ -470,6 +514,10 @@ func _arin() -> Dictionary:
 		s = "waiting" if lit < 3 else "finale"
 		if get_flag("arin_done"):
 			s = "after"
+			if get_flag("captain_down"):
+				s = "raid_end"
+			if get_flag("raid_done"):
+				s = "done"
 	return {"start": s, "nodes": n}
 
 

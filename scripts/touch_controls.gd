@@ -18,6 +18,7 @@ var _stick_pos := Vector2.ZERO
 var _look_id := -1
 var _run_id := -1
 var _jump_id := -1
+var _attack_id := -1
 var _use_id := -1
 var _pinch_id := -1
 var _pos := {}                 # touch index -> last position (right-side fingers)
@@ -53,6 +54,7 @@ func _reset_touches() -> void:
 	_use_id = -1
 	_run_id = -1
 	_jump_id = -1
+	_attack_id = -1
 	_pos.clear()
 	if player != null:
 		player.move_input = Vector2.ZERO
@@ -69,6 +71,10 @@ func _run_button_centre() -> Vector2:
 
 func _use_button_centre() -> Vector2:
 	return Vector2(_vp.x - 110.0, _vp.y - 225.0)
+
+
+func _attack_button_centre() -> Vector2:
+	return Vector2(_vp.x - 245.0, _vp.y - 285.0)
 
 
 func _jump_button_centre() -> Vector2:
@@ -98,7 +104,9 @@ func _input(event: InputEvent) -> void:
 
 
 func _on_press(idx: int, pos: Vector2) -> void:
-	if pos.y < 90.0 and pos.x > _vp.x - 270.0:      # Pause / Journal buttons live here
+	if pos.y < 90.0 and pos.x > _vp.x - 350.0:      # Map / Pause / Journal buttons live here
+		return
+	if pos.y < 330.0 and pos.x > _vp.x - 250.0:     # minimap
 		return
 	if pos.distance_to(_run_button_centre()) < 60.0:
 		_run_id = idx
@@ -108,6 +116,10 @@ func _on_press(idx: int, pos: Vector2) -> void:
 	if _focus != null and is_instance_valid(_focus) and pos.distance_to(_use_button_centre()) < 62.0:
 		_use_id = idx
 		player.interact()
+		return
+	if pos.distance_to(_attack_button_centre()) < 60.0:
+		_attack_id = idx
+		player.attack()
 		return
 	if pos.distance_to(_jump_button_centre()) < 55.0:
 		_jump_id = idx
@@ -142,6 +154,8 @@ func _on_release(idx: int) -> void:
 		_run_id = -1
 	elif idx == _jump_id:
 		_jump_id = -1
+	elif idx == _attack_id:
+		_attack_id = -1
 
 
 func _on_drag(idx: int, pos: Vector2, rel: Vector2) -> void:
@@ -202,6 +216,7 @@ func _draw() -> void:
 		draw_arc(Vector2(150.0, _vp.y - 150.0), STICK_RADIUS, 0.0, TAU, 40, Color(1, 1, 1, 0.18), 2.0)
 	_draw_button(font, _run_button_centre(), 50.0, "RUN", _run_on)
 	_draw_button(font, _jump_button_centre(), 45.0, "JUMP", _jump_id != -1)
+	_draw_button(font, _attack_button_centre(), 48.0, "HIT", _attack_id != -1)
 
 
 func _draw_button(font: Font, c: Vector2, r: float, label: String, active: bool) -> void:

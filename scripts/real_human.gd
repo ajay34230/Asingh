@@ -1,6 +1,7 @@
 class_name RealHuman
 extends Node3D
 
+signal attack_hit                # the swing reaches its impact frame (combat)
 signal struck                    # the hammer hits the anvil (hammer mode)
 ## A downloaded, skinned human model (Quaternius "Universal Base Characters", CC0, see ASSETS.md)
 ## driven by code: walk/run cycle from real ground speed, idle breathing and head looks, a hammer
@@ -31,6 +32,8 @@ const BONES_MOD := {
 const BONES := BONES_UBC
 
 var preset: Dictionary = {}
+var attack_t := -1.0             # >= 0 while a combat swing plays (seconds since start)
+var _attack_hit_sent := false
 var mode := "locomotion"        # "locomotion", "idle", "hammer"
 var _t := 0.0
 var _phase := 0.0
@@ -278,8 +281,40 @@ func animate(delta: float, speed: float, grounded: bool) -> void:
 				_idle(delta)
 			else:
 				_locomotion(delta)
+	if attack_t >= 0.0:
+		attack_t += delta
+		_attack_pose()
+		if attack_t >= 0.34 and not _attack_hit_sent:
+			_attack_hit_sent = true
+			attack_hit.emit()
+		if attack_t > 0.75:
+			attack_t = -1.0
 	_overlay(delta)
 	_apply()
+
+
+func start_attack() -> void:
+	if attack_t < 0.0:
+		attack_t = 0.0
+		_attack_hit_sent = false
+
+
+## Overhead smash: wind up (0..0.3 s), fast strike (0.3..0.42), recover.
+func _attack_pose() -> void:
+	var t := attack_t
+	var wind := smoothstep(0.0, 0.3, t)
+	var strike := smoothstep(0.3, 0.4, t)
+	var rec := smoothstep(0.45, 0.75, t)
+	var up := wind * (1.0 - strike) + strike * 0.0
+	var down := strike * (1.0 - rec)
+	_pose["spine"] = Vector3(0.25 * wind * (1.0 - strike) - 0.38 * down, -0.2 * wind * (1.0 - rec), 0.0)
+	_pose["chest"] = Vector3(0.1 * wind - 0.12 * down, 0.0, 0.0)
+	_pose["head"] = Vector3(-0.1 * wind + 0.2 * down, 0.0, 0.0)
+	_pose["sh_R"] = Vector3(-0.5 - 2.4 * up - 0.4 * down, 0.0, 0.2)
+	_pose["el_R"] = Vector3(0.5 + 0.9 * up - 0.5 * down, 0.0, 0.0)
+	_pose["sh_L"] = Vector3(-0.7 - 0.6 * up, 0.0, 0.0)
+	_pose["el_L"] = Vector3(0.9, 0.0, 0.0)
+	_hips_dy = -0.05 * down
 
 
 ## Start a one-shot gesture ("wave", "namaste", "talk", "startle", "laugh", "point", "stretch",

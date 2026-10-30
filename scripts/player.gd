@@ -17,6 +17,10 @@ signal message(text: String)
 signal stepped(run: bool)
 signal jumped
 signal landed(impact: float)
+signal hp_changed(hp: float, max_hp: float)
+signal powerup_changed
+signal died_signal
+signal damaged(amount: float)
 
 const WALK_SPEED := 2.4
 const RUN_SPEED := 6.5
@@ -37,7 +41,7 @@ const RUN_FOV := 77.0
 const FOCUS_ANGLE_DEG := 80.0
 
 ## Placeholder explorer look (downloaded CC0 model) (generic, not a story character).
-const PRESET := {"body": "striker_mail", "robe": true, "scale": 0.99}
+const PRESET := {"body": "striker_mail", "robe": true, "scale": 0.99, "tool": "hammer"}
 
 ## Movement request: x = strafe right (+), y = forward (+). Length 0..1.
 var move_input := Vector2.ZERO
@@ -51,6 +55,14 @@ var invert_y := false
 var base_fov := BASE_FOV
 var first_person := false
 var _saved_distance := DEFAULT_DISTANCE
+var hp := 100.0
+var max_hp := 100.0
+var dead := false
+var checkpoint := Vector3.ZERO
+var power := {}                  # kind -> seconds left ("speed", "power", "shield")
+var _attack_cd := 0.0
+var _combat_t := 99.0            # seconds since last hit taken / dealt
+var _invuln := 0.0
 var locked := false              # true during dialogue, digging and cinematics: no input is read
 
 var _yaw := 0.0
@@ -87,6 +99,8 @@ func _ready() -> void:
 	add_child(_model)
 	_rig = RealHuman.new().setup(PRESET, "Explorer")
 	_model.add_child(_rig)
+	_rig.attack_hit.connect(_on_attack_hit)
+	checkpoint = global_position
 
 	_pivot = Node3D.new()
 	_pivot.name = "CameraPivot"
@@ -141,6 +155,112 @@ func set_first_person(on: bool) -> void:
 	else:
 		_target_distance = _saved_distance
 		_model.visible = true
+
+
+# --- combat ------------------------------------------------------------------------------------
+
+## Swing the hammer: turns toward the nearest enemy (auto-aim) and hits those in front.
+func attack() -> void:
+	if locked or dead or _attack_cd > 0.0:
+		return
+	_attack_cd = 0.7
+	var near: Node3D = null
+	var best := 4.5
+	for e in get_tree().get_nodes_in_group("enemies"):
+		var d := global_position.distance_to((e as Node3D).global_position)
+		if d < best:
+			best = d
+			near = e
+	if near != null:
+		var to := near.global_position - global_position
+		_model.rotation.y = atan2(-to.x, -to.z)
+	_rig.start_attack()
+	Sfx.ui_at("swing", -4.0)
+
+
+func _on_attack_hit() -> void:
+	var fwd := Vector3(-sin(_model.rotation.y), 0.0, -cos(_model.rotation.y))
+	var dmg := 22.0 * (2.0 if power.has("power") else 1.0)
+	var hit := false
+	for e in get_tree().get_nodes_in_group("enemies"):
+		var to: Vector3 = (e as Node3D).global_position - global_position
+		to.y = 0.0
+		if to.length() < 3.0 and (to.length() < 0.6 or fwd.dot(to.normalized()) > 0.2):
+			(e as Enemy).take_damage(dmg, to)
+			hit = true
+	if hit:
+		_combat_t = 0.0
+		Sfx.ui_at("hit_thud", -2.0)
+
+
+func take_damage(amount: float, from: Vector3) -> void:
+	if dead or _invuln > 0.0:
+		return
+	if power.has("shield"):
+		amount *= 0.2
+	hp = maxf(0.0, hp - amount)
+	_combat_t = 0.0
+	_invuln = 0.35
+	velocity += from.normalized() * 4.0 + Vector3(0, 1.5, 0)
+	Sfx.ui_at("player_hurt", -3.0)
+	_rig.play_action("startle", 0.4)
+	damaged.emit(amount)
+	hp_changed.emit(hp, max_hp)
+	if hp <= 0.0:
+		_die()
+
+
+func heal(amount: float) -> void:
+	hp = minf(max_hp, hp + amount)
+	hp_changed.emit(hp, max_hp)
+
+
+func apply_powerup(kind: String) -> void:
+	match kind:
+		"health":
+			heal(40.0)
+			say("Health restored.")
+		"speed":
+			power["speed"] = 15.0
+			say("Speed boost for 15 seconds!")
+		"power":
+			power["power"] = 20.0
+			say("Double damage for 20 seconds!")
+		"shield":
+			power["shield"] = 15.0
+			say("Shield: you take far less damage for 15 seconds.")
+	powerup_changed.emit()
+
+
+func _die() -> void:
+	dead = true
+	locked = true
+	died_signal.emit()
+	await get_tree().create_timer(2.6).timeout
+	global_position = checkpoint + Vector3(0, 0.5, 0)
+	velocity = Vector3.ZERO
+	hp = max_hp
+	dead = false
+	locked = false
+	_invuln = 2.0
+	hp_changed.emit(hp, max_hp)
+
+
+func _tick_combat(delta: float) -> void:
+	_attack_cd = maxf(0.0, _attack_cd - delta)
+	_invuln = maxf(0.0, _invuln - delta)
+	_combat_t += delta
+	if _combat_t > 6.0 and hp < max_hp and not dead:
+		hp = minf(max_hp, hp + 3.0 * delta)
+		hp_changed.emit(hp, max_hp)
+	var changed := false
+	for k in power.keys():
+		power[k] -= delta
+		if power[k] <= 0.0:
+			power.erase(k)
+			changed = true
+	if changed:
+		powerup_changed.emit()
 
 
 func look_yaw() -> float:
@@ -257,6 +377,7 @@ func _try_step_up(horizontal: Vector3, delta: float) -> void:
 
 
 func _physics_process(delta: float) -> void:
+	_tick_combat(delta)
 	# Optional keyboard controls (handy when testing on a PC); touch sets move_input.
 	var key_move := _keyboard_input()
 	var input := move_input if move_input.length() > 0.05 else key_move
@@ -283,7 +404,7 @@ func _physics_process(delta: float) -> void:
 	var dir := (forward * input.y + right * input.x)
 	if dir.length() > 1.0:
 		dir = dir.normalized()
-	var speed := RUN_SPEED if fast else WALK_SPEED
+	var speed := (RUN_SPEED if fast else WALK_SPEED) * (1.45 if power.has("speed") else 1.0)
 	var target := dir * speed
 
 	var on_floor := is_on_floor()

@@ -22,6 +22,15 @@ const PRESETS := {
 	"worker_woman": {"role": "worker", "voice": "woman", "body": "w_Worker", "scale": 0.97},
 	"girl_casual": {"role": "girl", "voice": "girl", "body": "w_Casual", "scale": 0.94},
 	"huntress": {"role": "traveller", "voice": "woman", "body": "huntress", "robe": true, "scale": 0.97},
+	"potter": {"role": "worker", "voice": "man", "body": "m_Worker", "scale": 0.99, "tint": Color(1.0, 0.85, 0.7)},
+	"shepherd": {"role": "villager", "voice": "old", "body": "m_Casual", "scale": 0.97, "tint": Color(0.8, 1.0, 0.8)},
+	"child_a": {"role": "girl", "voice": "girl", "body": "w_Casual", "scale": 0.68, "tint": Color(1.0, 0.8, 0.9)},
+	"child_b": {"role": "boy", "voice": "girl", "body": "m_Casual", "scale": 0.7, "tint": Color(0.8, 0.9, 1.0)},
+	"guard": {"role": "guard", "voice": "deep", "body": "veteran", "robe": true, "scale": 1.03, "tint": Color(0.75, 0.82, 0.95)},
+	"priest": {"role": "priest", "voice": "old", "body": "elder", "robe": true, "scale": 0.99, "tint": Color(1.0, 0.95, 0.85)},
+	"cook": {"role": "worker", "voice": "woman", "body": "w_Worker", "scale": 1.0, "tint": Color(1.0, 0.9, 0.75)},
+	"scholar": {"role": "scholar", "voice": "man", "body": "m_Suit", "scale": 0.97, "tint": Color(0.8, 0.85, 1.0)},
+	"dancer": {"role": "villager", "voice": "woman", "body": "w_Formal", "scale": 0.98, "tint": Color(1.0, 0.7, 0.7)},
 	"sorceress": {"role": "traveller", "voice": "woman", "body": "sorceress", "robe": true, "scale": 0.97},
 }
 
@@ -58,6 +67,17 @@ static func build(parent: Node3D, terrain: TerrainBuilder, houses: HouseBuilder,
 	spots.append(["huntress", "idle", "Traveller", _ground(terrain, 40.0, 48.0), deg_to_rad(-40.0)])
 	var sp := TerrainBuilder.START_MOUND
 	spots.append(["guide", "idle", "Guide", _ground(terrain, sp.x + 3.0, sp.y - 3.5), deg_to_rad(200.0)])
+	# Phase 5: more people. Village life around the well, the caravan stop and the gate forecourt.
+	spots.append(["potter", "idle", "Potter", _ground(terrain, -99.0, 4.0), deg_to_rad(60.0)])
+	spots.append(["shepherd", "idle", "Shepherd", _ground(terrain, -74.0, 6.0), deg_to_rad(-120.0)])
+	spots.append(["child_a", "idle", "ChildA", _ground(terrain, -88.0, 22.0), deg_to_rad(10.0)])
+	spots.append(["child_b", "idle", "ChildB", _ground(terrain, -86.0, 24.5), deg_to_rad(190.0)])
+	spots.append(["priest", "idle", "Priest", _ground(terrain, -104.0, 24.0), deg_to_rad(90.0)])
+	spots.append(["cook", "idle", "Cook", _ground(terrain, 51.0, 51.5), deg_to_rad(250.0)])
+	spots.append(["dancer", "idle", "Dancer", _ground(terrain, 37.0, 41.0), deg_to_rad(120.0)])
+	spots.append(["scholar", "idle", "Scholar", _ground(terrain, 104.0, 152.0), deg_to_rad(200.0)])
+	spots.append(["guard", "idle", "GuardA", _ground(terrain, -6.0, -126.0), deg_to_rad(180.0)])
+	spots.append(["guard", "idle", "GuardB", _ground(terrain, 6.0, -126.0), deg_to_rad(180.0)])
 	for s in spots:
 		var n := Npc.new().setup(PRESETS[s[0]], s[1], s[2])
 		n.player = player
