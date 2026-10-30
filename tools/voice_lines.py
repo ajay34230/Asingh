@@ -51,6 +51,17 @@ def bark_lines(root="scripts"):
     return sorted(set(out))
 
 
+def enemy_lines(root="scripts"):
+    """Begging / confession lines of beaten attackers (rendered in two male voices)."""
+    src = open(os.path.join(root, "enemy.gd"), encoding="utf-8").read()
+    out = []
+    for s in STR.findall(src):
+        t = unescape(s)
+        if SPOKEN.match(t) and "%" not in t and "res://" not in t:
+            out.append(t)
+    return sorted(set(out))
+
+
 if __name__ == "__main__":
     sl = story_lines(); bl = bark_lines()
     print(len(sl), "story lines;", len(bl), "bark lines")

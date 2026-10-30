@@ -81,3 +81,14 @@ static func shake(player: Player, amount: float = 0.15, dur: float = 0.5) -> voi
 		var k := 1.0 - float(i) / n
 		tw.tween_property(piv, "position", base + Vector3(randf_range(-1, 1), randf_range(-1, 1), 0) * amount * k, 0.04)
 	tw.tween_property(piv, "position", base, 0.05)
+
+
+## Brief freeze-frame on a heavy blow.
+static func hitstop(dur: float) -> void:
+	if Engine.time_scale < 0.9:
+		return
+	Engine.time_scale = 0.12
+	var tree := Engine.get_main_loop() as SceneTree
+	if tree == null:
+		return
+	tree.create_timer(dur, true, false, true).timeout.connect(func() -> void: Engine.time_scale = 1.0)

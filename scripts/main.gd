@@ -23,6 +23,7 @@ var cin: Cinematic
 var story_b: StoryBuilder
 var race: RaceBuilder
 var links: StoryLinks
+var forest: ForestBuilder
 var menu: GameMenu
 var map_ui: MapUI
 var combat: CombatBuilder
@@ -85,7 +86,9 @@ func _ready() -> void:
 		_run_selftest.call_deferred()
 		return
 	for a in args:
-		if a.begins_with("--capture-race="):
+		if a.begins_with("--capture-fight="):
+			_run_capture_fight.call_deferred(a.trim_prefix("--capture-fight="))
+		elif a.begins_with("--capture-race="):
 			_run_capture_race.call_deferred(a.trim_prefix("--capture-race="))
 		elif a.begins_with("--capture="):
 			_run_capture.call_deferred(a.trim_prefix("--capture="))
@@ -150,6 +153,46 @@ func _selftest_alignment(fails: PackedStringArray, notes: PackedStringArray) -> 
 			if bad <= 3:
 				fails.append("alignment: %s is %.2f m off the ground at %s" % [n.name, gap, n.global_position])
 	notes.append("alignment: worst house-site spread %.2f m, worst NPC gap %.2f m" % [worst, worst_gap])
+
+
+## Forest rescue mission: activates after the temple clue, spawns Tara and four attackers, completes.
+func _selftest_forest(fails: PackedStringArray, notes: PackedStringArray) -> void:
+	if forest == null:
+		fails.append("forest: not built")
+		return
+	story.set_flag("temple_blessed", true)
+	if forest.state != "waiting" or forest.tara == null or forest.enemies.size() != 4:
+		fails.append("forest: did not activate (state %s)" % forest.state)
+		return
+	var fy := terrain.sample_height(forest.tara.global_position.x, forest.tara.global_position.z)
+	if absf(forest.tara.global_position.y - fy) > 0.5:
+		fails.append("forest: Tara is %.2f m off the ground" % (forest.tara.global_position.y - fy))
+	var trees := get_tree().get_nodes_in_group("foliage_palm").size()
+	forest.state = "fight"
+	story.flags["forest_down"] = 4
+	story.changed.emit()
+	if forest.state != "done" or not story.get_flag("tara_saved"):
+		fails.append("forest: rescue did not complete")
+	var d: Dictionary = story.dialogue_for("Tara")
+	if d.is_empty() or d["start"] != "a":
+		fails.append("forest: Tara has no thank-you dialogue")
+	story.set_flag("tara_talked", true)
+	var p: Dictionary = story.dialogue_for("Priest")
+	if p.is_empty() or not str(p["nodes"]["a"]["text"]).begins_with("You found her"):
+		fails.append("forest: Rishi ledger dialogue missing")
+	notes.append("forest: activated, 4 attackers, rescue completes, dialogue chain ok (%d tree cells)" % trees)
+	for e in forest.enemies:
+		if is_instance_valid(e):
+			e.queue_free()
+	forest.enemies.clear()
+	if forest.tara != null:
+		npcs.erase(forest.tara)
+		story.refs.erase("Tara")
+		forest.tara.queue_free()
+		forest.tara = null
+	for k in ["temple_blessed", "forest_down", "tara_saved", "tara_talked"]:
+		story.flags.erase(k)
+	Sfx.set_mood("")
 
 
 ## Bull cart race: one lap, manual stepping.
@@ -371,6 +414,8 @@ func _build_story() -> void:
 	links.build()
 	combat = CombatBuilder.new(self, story, hud)
 	combat.build()
+	forest = ForestBuilder.new(self, story, hud, dlg, cin, terrain, player, combat)
+	forest.build()
 	combat_hud = CombatHUD.new()
 	combat_hud.player = player
 	add_child(combat_hud)
@@ -814,6 +859,7 @@ func _run_selftest() -> void:
 	await _selftest_temple(fails, notes)
 	_selftest_alignment(fails, notes)
 	_selftest_race(fails, notes)
+	await _selftest_forest(fails, notes)
 
 	for s in notes:
 		print("[selftest] ", s)
@@ -870,6 +916,45 @@ func _run_audit() -> void:
 
 
 # --- screenshot capture (needs a rendering backend, e.g. xvfb + software GL) ------------
+
+func _run_capture_fight(dir: String) -> void:
+	DirAccess.make_dir_recursive_absolute(dir)
+	touch.visible = false
+	atmosphere.time_of_day = 0.42
+	atmosphere.apply_time()
+	_teleport(-60.0, 20.0)
+	for i in 30:
+		await get_tree().physics_frame
+	player.set_distance(4.2)
+	player.set_look(0.0, -0.1)                  # side view
+	var pp := player.global_position
+	var foe := combat.spawn_enemy(pp + Vector3(-1.5, 0.3, 0.0), false, 0.0, "test")
+	foe.rotation.y = -PI * 0.5
+	foe.set_physics_process(false)
+	foe.hp = 99999.0
+	foe.max_hp = 99999.0
+	player._model.rotation.y = PI * 0.5 * 1.0 + PI * 0.5 + PI * 0.5 - PI * 0.5
+	player._model.rotation.y = atan2(1.0, 0.0)
+	for i in 10:
+		await get_tree().physics_frame
+	var shots := [["jab", 9], ["cross", 10], ["hook", 11], ["uppercut", 13], ["kick_front", 14], ["kick_round", 18], ["kick_side", 15], ["grab", 22], ["lift", 24], ["throw", 6]]
+	for sh in shots:
+		player._rig.play_move(sh[0])
+		for i in int(sh[1]):
+			await get_tree().physics_frame
+		await RenderingServer.frame_post_draw
+		print("[capture] ", sh[0], " -> ", get_viewport().get_texture().get_image().save_png("%s/m_%s.png" % [dir, sh[0]]))
+		for i in 40:
+			await get_tree().physics_frame
+	for r in ["flinch", "stagger", "plead", "sob", "held", "clutch", "dead"]:
+		foe.rig.set_react(r)
+		for i in 30:
+			await get_tree().physics_frame
+			foe.rig.animate(1.0 / 60.0, 0.0, true)
+		await RenderingServer.frame_post_draw
+		print("[capture] ", r, " -> ", get_viewport().get_texture().get_image().save_png("%s/r_%s.png" % [dir, r]))
+	get_tree().quit()
+
 
 func _run_capture_race(dir: String) -> void:
 	DirAccess.make_dir_recursive_absolute(dir)

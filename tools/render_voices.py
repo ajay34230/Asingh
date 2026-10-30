@@ -29,7 +29,7 @@ CAST = {
     "Merchant": ("bm_fable", 1.0), "Dev the potter": ("am_echo", 1.0), "Old Ganesh": ("bm_lewis", 0.88),
     "Chhoti": ("af_sky", 1.12), "Bholu": ("am_liam", 1.1), "Pandit Rishi": ("bm_daniel", 0.92), "Shanta": ("bf_isabella", 0.95),
     "Roshni": ("af_bella", 1.0), "Scholar Vikram": ("am_michael", 0.98), "Guard Veer": ("am_onyx", 1.0), "Guard Shera": ("af_heart", 1.0),
-    "The map table": ("bm_george", 0.9), "Salim": ("am_eric", 1.0), "Villager": ("am_liam", 1.0), "Raju": ("am_liam", 1.05),
+    "The map table": ("bm_george", 0.9), "You": ("am_michael", 1.0), "Reaver Garr": ("bm_lewis", 0.95), "Reaver Naag": ("am_eric", 1.0), "Tara": ("af_heart", 0.98), "Salim": ("am_eric", 1.0), "Villager": ("am_liam", 1.0), "Raju": ("am_liam", 1.05),
     "Old Lakshmi": ("bf_emma", 0.88), "Pinky": ("af_sky", 1.1), "Traveller": ("af_heart", 1.0), "Narrator": ("bm_george", 0.92),
 }
 BARK = {"man": ("am_michael", 1.0), "deep": ("am_onyx", 0.95), "old": ("bm_lewis", 0.88), "woman": ("af_bella", 1.0), "girl": ("af_sky", 1.12)}
@@ -78,6 +78,10 @@ for who, text in voice_lines.story_lines():
     jobs.append((key_of(text), text, v, sp))
 for text in voice_lines.bark_lines():
     for vt, (v, sp) in BARK.items():
+        jobs.append((key_of(text, vt), text, v, sp))
+for text in voice_lines.enemy_lines():
+    for vt in ("deep", "man"):
+        v, sp = BARK[vt]
         jobs.append((key_of(text, vt), text, v, sp))
 manifest = {}
 n = 0

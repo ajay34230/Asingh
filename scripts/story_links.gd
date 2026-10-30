@@ -14,6 +14,7 @@ var race: RaceBuilder
 var _hammer := false
 var _won := false
 var _blessed := false
+var _ledger := false
 
 
 func _init(m: Node3D, s: Story, h: QuestHUD, c: Cinematic, p: Player, t: TerrainBuilder, r: RaceBuilder) -> void:
@@ -32,6 +33,7 @@ func build() -> void:
 	_hammer = story.get_flag("sun_hammer")
 	_won = story.get_flag("race_won")
 	_blessed = story.get_flag("temple_blessed")
+	_ledger = story.get_flag("ledger_given")
 	player.hammer_mult = 1.4 if _hammer else 1.0
 	story.changed.connect(_on_changed)
 	_altar_pennant()
@@ -50,6 +52,12 @@ func _on_changed() -> void:
 	if w and not _won:
 		_won = true
 		call_deferred("_victory_scene")
+	var lg: bool = story.get_flag("ledger_given")
+	if lg and not _ledger:
+		_ledger = true
+		story.add("coins", 120)
+		hud.banner("LEDGER DELIVERED  +120 coins", "seal_found")
+		Sfx.sting("reveal")
 	var b: bool = story.get_flag("temple_blessed")
 	if b and not _blessed:
 		_blessed = true
@@ -103,6 +111,8 @@ func _blessing_scene() -> void:
 		 "who": "Narrator", "text": "The pennant slides into the altar. Twelve rays of light climb the mural, and the old plaster remembers."},
 		{"from": at + Vector3(0, 3.0, 5), "look": at + Vector3(0, 1.8, 0), "dur": 6.0,
 		 "who": "Narrator", "text": "Beneath the sun is a row of pressed coins, each with the council's mark. The Reavers' gold left this valley's own treasury."},
+		{"from": at + Vector3(0, 3.0, 5), "to": at + Vector3(-4, 2.5, 8), "look": at + Vector3(-1, 1.2, 0), "dur": 6.5,
+		 "who": "Pandit Rishi", "voice": "old", "text": "The full record is in the old ledger, kept at the forest shrine. My scribe Tara went for it at dawn, and she has not returned. The forest road is no place to be alone. Please find her."},
 	]
 	cin.play(shots, "THE TEMPLE REMEMBERS", func() -> void:
 		StoryFX.sun_burst(main, at, 1.6)

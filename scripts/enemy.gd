@@ -29,6 +29,26 @@ var _rng := RandomNumberGenerator.new()
 var _flash := 0.0
 var _hp_bar: Label3D
 var _spawn_pickup := Callable()      # set by whoever creates enemies: func(pos, kind)
+var surrendered := false
+var held := false                    # being carried by the player
+var on_surrender := Callable()       # optional: func(enemy) when this man begs for mercy (story hooks)
+var confesses := false               # surrenders at low health and talks (the forest ringleader)
+var voice_type := "deep"
+var _stun := 0.0
+var _down := 0.0                     # seconds left lying after a knockdown
+var _flying := false
+var _bubble: Label3D
+var _bubble_t := 0.0
+var _flee_dir := Vector3.ZERO
+var _plead_t := 0.0
+var _death_style := -1
+
+const PLEAS := [
+	"Please, no more! I surrender!", "Mercy! I have children at home!", "I'm sorry, I'm sorry! Don't kill me!",
+	"It was only for the gold! Let me go!", "Stop! Please stop! I give up!", "Have mercy, I beg you!",
+]
+const CONFESSION := "Please! The man who paid us wore a council ring with the sun on it. I never saw his face, I swear it!"
+const CRIES := ["It hurts, it hurts...", "I did not want this...", "Mother..."]
 
 
 func setup(preset: Dictionary, at: Vector3, label: String) -> Enemy:
@@ -56,6 +76,20 @@ func setup(preset: Dictionary, at: Vector3, label: String) -> Enemy:
 	_hp_bar.position.y = 2.25 * float(preset.get("scale", 1.0))
 	add_child(_hp_bar)
 	rig.attack_hit.connect(_on_swing)
+	voice_type = str(preset.get("voice", "deep"))
+	_bubble = Label3D.new()
+	_bubble.billboard = BaseMaterial3D.BILLBOARD_ENABLED
+	_bubble.no_depth_test = true
+	_bubble.pixel_size = 0.0042
+	_bubble.font_size = 42
+	_bubble.outline_size = 14
+	_bubble.outline_modulate = Color(0.05, 0.04, 0.03, 0.95)
+	_bubble.modulate = Color(1.0, 0.9, 0.8, 1.0)
+	_bubble.autowrap_mode = TextServer.AUTOWRAP_WORD
+	_bubble.width = 560.0
+	_bubble.position = Vector3(0, 2.7, 0)
+	_bubble.visible = false
+	add_child(_bubble)
 	_refresh_bar()
 	global_position = at
 	return self
@@ -66,31 +100,208 @@ func _refresh_bar() -> void:
 	_hp_bar.text = ("BOSS " if is_boss else "") + "▮".repeat(n) + "▯".repeat(10 - n)
 
 
+func say(text: String) -> void:
+	_bubble.text = text
+	_bubble.visible = true
+	_bubble_t = clampf(1.8 + text.length() * 0.06, 2.5, 6.0)
+	Sfx.speak(voice_type, text, self, -2.0)
+
+
+func _pain_sfx(strong: bool) -> void:
+	var n := "pain_%d" % _rng.randi_range(0, 2) if strong else "grunt_%d" % _rng.randi_range(0, 2)
+	Sfx.at(n, global_position + Vector3(0, 1.5, 0), 0.0, _rng.randf_range(0.9, 1.1))
+
+
+## Generic hit (hammer): small reaction.
 func take_damage(amount: float, from_dir: Vector3) -> void:
-	if dead:
+	take_hit("hammer", amount, from_dir)
+
+
+## kind: punch, kick, round, hammer, slam. Plays the right reaction, then dies or begs if low.
+func take_hit(kind: String, amount: float, from_dir: Vector3) -> void:
+	if dead or surrendered:
 		return
 	hp -= amount
 	_flash = 0.25
-	velocity += from_dir.normalized() * 4.5
+	var dir := from_dir
+	dir.y = 0.0
+	dir = dir.normalized() if dir.length() > 0.01 else Vector3.ZERO
 	_winding = -1.0
-	rig.play_action("startle", 0.5)
-	Sfx.at("hit_hurt", global_position + Vector3(0, 1.2, 0), -2.0, _rng.randf_range(0.9, 1.1))
 	_refresh_bar()
 	if hp <= 0.0:
-		_die()
+		_die(kind, dir)
+		return
+	if (confesses or (not is_boss and _rng.randf() < 0.35)) and hp < max_hp * (0.4 if confesses else 0.25):
+		_surrender()
+		return
+	match kind:
+		"punch":
+			velocity += dir * 2.5
+			_stun = 0.35
+			rig.set_react("flinch")
+			_pain_sfx(false)
+		"kick":
+			velocity += dir * 6.0
+			_stun = 0.7
+			rig.set_react("stagger")
+			_pain_sfx(true)
+		"round", "slam":
+			velocity += dir * 9.0
+			velocity.y = 3.0
+			_knockdown(1.8)
+			_pain_sfx(true)
+		_:
+			velocity += dir * 4.5
+			_stun = 0.4
+			rig.set_react("flinch")
+			_pain_sfx(false)
 
 
-func _die() -> void:
+func _knockdown(dur: float) -> void:
+	_down = dur
+	_stun = dur
+	rig.set_react("")
+	var tw := create_tween()
+	tw.tween_property(rig, "rotation:x", -PI * 0.5, 0.25).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
+	tw.tween_property(rig, "position:y", 0.12, 0.05)
+	tw.tween_interval(maxf(0.1, dur - 0.9))
+	tw.tween_callback(func() -> void:
+		rig.set_react("stagger"))
+	tw.tween_property(rig, "rotation:x", 0.0, 0.5).set_trans(Tween.TRANS_SINE)
+	tw.parallel().tween_property(rig, "position:y", 0.0, 0.5)
+	tw.tween_callback(func() -> void:
+		if not dead:
+			rig.set_react(""))
+	Sfx.at("body_fall", global_position, -4.0, 1.1)
+
+
+## Grabbed by the player: dangles above the player's head until thrown.
+func begin_held() -> void:
+	held = true
+	_winding = -1.0
+	rig.set_react("held")
+	rig.rotation.x = -0.9
+	collision_layer = 0
+	_pain_sfx(true)
+	Sfx.at("scream", global_position + Vector3(0, 1.5, 0), -6.0, 1.0)
+
+
+func throw_from(thrower: Node3D, dir: Vector3) -> void:
+	held = false
+	_flying = true
+	collision_layer = 1
+	velocity = dir.normalized() * 11.0 + Vector3(0, 5.5, 0)
+	global_position += Vector3(0, 0.2, 0)
+	var tw := create_tween()
+	tw.tween_property(rig, "rotation:x", -PI * 1.5, 0.7).from(rig.rotation.x)
+	Sfx.at("whoosh_throw", global_position, -2.0)
+
+
+func _landed() -> void:
+	_flying = false
+	rig.rotation.x = -PI * 0.5
+	Sfx.at("body_slam", global_position, 0.0)
+	StoryFX.shake(player, 0.14, 0.35)
+	take_hit_ground(30.0)
+
+
+func take_hit_ground(amount: float) -> void:
+	hp -= amount
+	_flash = 0.3
+	_refresh_bar()
+	if hp <= 0.0:
+		_die("slam", Vector3.ZERO)
+		return
+	_pain_sfx(true)
+	rig.set_react("stagger")
+	_down = 2.2
+	_stun = 2.2
+	var tw := create_tween()
+	tw.tween_interval(1.4)
+	tw.tween_property(rig, "rotation:x", 0.0, 0.6).set_trans(Tween.TRANS_SINE)
+	tw.tween_callback(func() -> void:
+		if not dead:
+			rig.set_react(""))
+
+
+## The man is beaten: kneels, drops his weapon, begs and cries. Counts as defeated.
+func _surrender() -> void:
+	surrendered = true
+	remove_from_group("enemies")
+	_hp_bar.visible = false
+	_winding = -1.0
+	_down = 0.0
+	rig.set_react("plead")
+	Sfx.at("whimper_%d" % _rng.randi_range(0, 1), global_position + Vector3(0, 1.0, 0), -2.0)
+	var line: String = CONFESSION if confesses else str(PLEAS[_rng.randi() % PLEAS.size()])
+	get_tree().create_timer(0.6).timeout.connect(func() -> void:
+		if is_instance_valid(self):
+			say(line))
+	get_tree().create_timer(4.5).timeout.connect(func() -> void:
+		if is_instance_valid(self):
+			rig.set_react("sob")
+			Sfx.at("cry_loop", global_position + Vector3(0, 1.0, 0), -4.0))
+	_plead_t = 8.0
+	if on_surrender.is_valid():
+		on_surrender.call(self)
+	died.emit(self)
+
+
+func _die(kind: String, dir: Vector3) -> void:
 	dead = true
 	remove_from_group("enemies")
 	_hp_bar.visible = false
 	collision_layer = 0
 	collision_mask = 1
-	Sfx.at("enemy_down", global_position + Vector3(0, 1.0, 0), -2.0)
+	held = false
+	# a different way of dying each time
+	_death_style = _rng.randi() % 5
+	if kind == "slam" or kind == "round":
+		_death_style = 4
+	var back := dir
 	var tw := create_tween()
-	tw.tween_property(rig, "rotation:x", -PI * 0.5, 0.45).set_trans(Tween.TRANS_BOUNCE).set_ease(Tween.EASE_OUT)
-	tw.tween_interval(1.8)
-	tw.tween_property(rig, "position:y", -1.2, 1.2)
+	match _death_style:
+		0:   # staggers back and falls flat on his back
+			rig.set_react("stagger")
+			velocity += back * 5.0
+			Sfx.at("death_0", global_position + Vector3(0, 1.4, 0), 0.0)
+			tw.tween_interval(0.45)
+			tw.tween_callback(func() -> void: rig.set_react("dead"))
+			tw.tween_property(rig, "rotation:x", -PI * 0.5, 0.35).set_trans(Tween.TRANS_BOUNCE).set_ease(Tween.EASE_OUT)
+		1:   # clutches his body, drops to his knees and falls on his face
+			rig.set_react("clutch")
+			Sfx.at("death_1", global_position + Vector3(0, 1.2, 0), 0.0)
+			tw.tween_interval(1.1)
+			tw.tween_property(rig, "rotation:x", PI * 0.5, 0.4).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_IN)
+			tw.tween_callback(func() -> void: Sfx.at("body_fall", global_position, -2.0))
+		2:   # screams, spins and drops
+			rig.set_react("stagger")
+			Sfx.at("scream", global_position + Vector3(0, 1.5, 0), -2.0, 0.85)
+			tw.tween_property(rig, "rotation:y", rig.rotation.y + TAU * 0.8, 0.55)
+			tw.parallel().tween_property(rig, "rotation:z", PI * 0.5, 0.55).set_delay(0.2)
+			tw.tween_callback(func() -> void:
+				rig.set_react("dead")
+				Sfx.at("body_fall", global_position, -2.0))
+		3:   # kneels, sways, gasps and topples sideways
+			rig.set_react("plead")
+			Sfx.at("gasp", global_position + Vector3(0, 1.2, 0), 0.0)
+			Sfx.at("death_2", global_position + Vector3(0, 1.2, 0), -2.0, 0.9)
+			tw.tween_interval(1.4)
+			tw.tween_property(rig, "rotation:z", -PI * 0.5, 0.5).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_IN)
+			tw.tween_callback(func() -> void:
+				rig.set_react("dead")
+				Sfx.at("body_fall", global_position, -2.0))
+		_:   # hurled backwards and rolls to a stop
+			velocity += back * 9.0 + Vector3(0, 3.0, 0)
+			rig.set_react("stagger")
+			Sfx.at("scream", global_position + Vector3(0, 1.5, 0), -2.0, 1.1)
+			tw.tween_property(rig, "rotation:x", -PI * 0.5, 0.35)
+			tw.tween_callback(func() -> void:
+				rig.set_react("dead")
+				Sfx.at("body_slam", global_position, -3.0)
+				Sfx.at("death_0", global_position + Vector3(0, 0.6, 0), -2.0, 0.8))
+	tw.tween_interval(4.5)
+	tw.tween_property(rig, "position:y", -1.3, 1.5)
 	tw.tween_callback(queue_free)
 	if _spawn_pickup.is_valid() and (is_boss or _rng.randf() < drop_chance):
 		var kinds := ["health", "health", "speed", "power", "shield"]
@@ -109,7 +320,60 @@ func _on_swing() -> void:
 
 
 func _physics_process(delta: float) -> void:
+	if _bubble_t > 0.0:
+		_bubble_t -= delta
+		if _bubble_t <= 0.0:
+			_bubble.visible = false
+	if held:
+		rig.animate(delta, 0.0, false)
+		return
+	if surrendered:
+		_plead_t -= delta
+		if _plead_t < 3.0 and _flee_dir == Vector3.ZERO:
+			rig.set_react("crawl")
+			var away := global_position - player.global_position
+			away.y = 0.0
+			_flee_dir = away.normalized() if away.length() > 0.1 else Vector3.RIGHT
+			get_tree().create_timer(4.0).timeout.connect(func() -> void:
+				if is_instance_valid(self):
+					queue_free())
+		if _flee_dir != Vector3.ZERO:
+			rotation.y = lerp_angle(rotation.y, atan2(-_flee_dir.x, -_flee_dir.z), minf(1.0, 6.0 * delta))
+			velocity.x = _flee_dir.x * 1.6
+			velocity.z = _flee_dir.z * 1.6
+		else:
+			velocity.x = 0.0
+			velocity.z = 0.0
+		if not is_on_floor():
+			velocity.y -= GRAVITY * delta
+		move_and_slide()
+		rig.animate(delta, 0.0, true)
+		return
 	if dead:
+		if not is_on_floor():
+			velocity.y -= GRAVITY * delta
+		velocity.x = lerpf(velocity.x, 0.0, 1.0 - exp(-4.0 * delta))
+		velocity.z = lerpf(velocity.z, 0.0, 1.0 - exp(-4.0 * delta))
+		move_and_slide()
+		rig.animate(delta, 0.0, true)
+		return
+	if _flying:
+		velocity.y -= GRAVITY * delta
+		move_and_slide()
+		if is_on_floor():
+			_landed()
+		rig.animate(delta, 0.0, false)
+		return
+	if _stun > 0.0:
+		_stun -= delta
+		if not is_on_floor():
+			velocity.y -= GRAVITY * delta
+		velocity.x = lerpf(velocity.x, 0.0, 1.0 - exp(-6.0 * delta))
+		velocity.z = lerpf(velocity.z, 0.0, 1.0 - exp(-6.0 * delta))
+		move_and_slide()
+		if _stun <= 0.0 and _down <= 0.0:
+			rig.set_react("")
+		rig.animate(delta, 0.0, true)
 		return
 	if not is_on_floor():
 		velocity.y -= GRAVITY * delta

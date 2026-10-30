@@ -3,6 +3,7 @@ extends Node3D
 
 signal attack_hit                # the swing reaches its impact frame (combat)
 signal struck                    # the hammer hits the anvil (hammer mode)
+signal move_hit(move: String)    # impact frame of a punch / kick / throw
 ## A downloaded, skinned human model (Quaternius "Universal Base Characters", CC0, see ASSETS.md)
 ## driven by code: walk/run cycle from real ground speed, idle breathing and head looks, a hammer
 ## work loop and an airborne pose. Same interface as the old procedural HumanRig:
@@ -281,6 +282,17 @@ func animate(delta: float, speed: float, grounded: bool) -> void:
 				_idle(delta)
 			else:
 				_locomotion(delta)
+	if move != "":
+		move_t += delta
+		_move_pose()
+		if move_t >= _move_hit_at and not _move_sent:
+			_move_sent = true
+			move_hit.emit(move)
+		if move_t >= _move_dur:
+			move = ""
+	elif react != "":
+		react_t += delta
+		_react_pose()
 	if attack_t >= 0.0:
 		attack_t += delta
 		_attack_pose()
@@ -291,6 +303,211 @@ func animate(delta: float, speed: float, grounded: bool) -> void:
 			attack_t = -1.0
 	_overlay(delta)
 	_apply()
+
+
+# --- unarmed fighting and reactions ------------------------------------------------------------
+## Moves: jab, cross, hook, uppercut, kick_front, kick_round, kick_side, grab, lift, throw.
+## Reactions (looping until cleared): flinch, stagger, plead, held, clutch, sob, crawl.
+const MOVES := {
+	"jab": [0.38, 0.12], "cross": [0.42, 0.15], "hook": [0.46, 0.17], "uppercut": [0.5, 0.2],
+	"kick_front": [0.55, 0.22], "kick_round": [0.72, 0.3], "kick_side": [0.62, 0.26],
+	"grab": [0.4, 0.3], "lift": [0.5, 0.5], "throw": [0.45, 0.12],
+}
+var move := ""
+var move_t := 0.0
+var _move_dur := 0.0
+var _move_hit_at := 0.0
+var _move_sent := false
+var react := ""
+var react_t := 0.0
+
+
+func play_move(n: String) -> void:
+	if not MOVES.has(n):
+		return
+	move = n
+	move_t = 0.0
+	_move_dur = MOVES[n][0]
+	_move_hit_at = MOVES[n][1]
+	_move_sent = false
+
+
+func move_busy() -> bool:
+	return move != ""
+
+
+func set_react(n: String) -> void:
+	if react != n:
+		react = n
+		react_t = 0.0
+
+
+func _pz(key: String, v: Vector3, w: float = 1.0) -> void:
+	_pose[key] = (_pose[key] as Vector3).lerp(v, w)
+
+
+## Pose for the current move at time move_t. Arms/legs are written directly (no easing) so the
+## blows snap; an ease-in/out envelope keeps the transitions smooth.
+func _move_pose() -> void:
+	var t := move_t
+	var d := _move_dur
+	var hit := _move_hit_at
+	var wind := smoothstep(0.0, hit, t)                       # 0 -> 1 up to the impact
+	var out := 1.0 - smoothstep(hit + 0.04, d, t)             # 1 -> 0 afterwards
+	var e := wind * out                                       # overall strength
+	var snap := smoothstep(hit - 0.06, hit, t) * out          # the strike itself
+	var guard_l := Vector3(-0.95, 0.0, 0.12)
+	var guard_r := Vector3(-0.95, 0.0, 0.0)
+	match move:
+		"jab":
+			_pz("sh_L", guard_l.lerp(Vector3(-1.5, 0.0, 0.0), snap))
+			_pz("el_L", Vector3(1.7, 0, 0).lerp(Vector3(0.05, 0, 0), snap))
+			_pz("sh_R", guard_r); _pz("el_R", Vector3(1.7, 0, 0))
+			_pose["spine"] = Vector3(-0.1 * e, 0.28 * snap, 0)
+			_pose["hips"] = Vector3(0, 0.1 * snap, 0)
+			_pz("hip_L", Vector3(-0.25 * e, 0, 0)); _pz("kn_L", Vector3(-0.2 * e, 0, 0))
+			_pz("hip_R", Vector3(0.2 * e, 0, 0)); _pz("kn_R", Vector3(-0.15 * e, 0, 0))
+			_hips_dy = -0.04 * e
+		"cross":
+			_pz("sh_R", guard_r.lerp(Vector3(-1.55, 0.0, 0.0), snap))
+			_pz("el_R", Vector3(1.7, 0, 0).lerp(Vector3(0.05, 0, 0), snap))
+			_pz("sh_L", guard_l); _pz("el_L", Vector3(1.7, 0, 0))
+			_pose["spine"] = Vector3(-0.15 * e, -0.55 * snap + 0.2 * wind * (1.0 - snap), 0)
+			_pose["hips"] = Vector3(0, -0.3 * snap, 0)
+			_pz("hip_L", Vector3(-0.3 * e, 0, 0)); _pz("kn_L", Vector3(-0.3 * e, 0, 0))
+			_pz("hip_R", Vector3(0.35 * e, 0, 0)); _pz("kn_R", Vector3(-0.2 * e, 0, 0))
+			_hips_dy = -0.06 * e
+		"hook":
+			_pz("sh_L", Vector3(-1.35, 0.0, 1.35 * (1.0 - snap) + 0.25 * snap))
+			_pz("el_L", Vector3(1.55, 0, 0))
+			_pz("sh_R", guard_r); _pz("el_R", Vector3(1.7, 0, 0))
+			_pose["spine"] = Vector3(-0.1 * e, 0.6 * wind * (1.0 - snap) - 0.45 * snap, 0.12 * e)
+			_pose["hips"] = Vector3(0, 0.25 * wind * (1.0 - snap) - 0.3 * snap, 0)
+			_pz("hip_R", Vector3(0.25 * e, 0, 0)); _pz("kn_R", Vector3(-0.25 * e, 0, 0))
+			_hips_dy = -0.08 * e
+		"uppercut":
+			var crouch := smoothstep(0.0, hit * 0.7, t) * (1.0 - smoothstep(hit * 0.7, hit + 0.05, t))
+			_pz("sh_R", Vector3(-0.6 - 1.55 * snap, 0.0, 0.0))
+			_pz("el_R", Vector3(1.9 - 1.3 * snap, 0, 0))
+			_pz("sh_L", guard_l); _pz("el_L", Vector3(1.7, 0, 0))
+			_pose["spine"] = Vector3(0.2 * crouch - 0.25 * snap, -0.25 * snap, 0)
+			_hips_dy = -0.22 * crouch + 0.04 * snap
+			for tg in ["L", "R"]:
+				_pz("hip_" + tg, Vector3(-0.55 * crouch, 0, 0)); _pz("kn_" + tg, Vector3(-1.0 * crouch, 0, 0))
+		"kick_front":
+			var lift := smoothstep(0.0, hit, t) * out
+			_pz("hip_R", Vector3(1.5 * lift, 0, 0)); _pz("kn_R", Vector3(-1.1 * (1.0 - snap) * wind - 0.05, 0, 0))
+			_pz("hip_L", Vector3(-0.1 * lift, 0, 0)); _pz("kn_L", Vector3(-0.2 * lift, 0, 0))
+			_pose["spine"] = Vector3(0.28 * lift, 0, 0)
+			_pose["hips"] = Vector3(0.0, 0.0, 0.0)
+			_pz("sh_L", Vector3(-0.6, 0, 0.7 * lift)); _pz("sh_R", Vector3(0.2, 0, 0.6 * lift))
+			_pz("el_L", Vector3(0.9, 0, 0)); _pz("el_R", Vector3(0.9, 0, 0))
+			_hips_dy = -0.05 * lift
+		"kick_round":
+			var spin := smoothstep(0.0, hit + 0.08, t) * out
+			_pose["hips"] = Vector3(0, -1.2 * spin, 0)
+			_pose["spine"] = Vector3(0.1 * spin, -0.8 * spin, -0.15 * spin)
+			_pz("hip_R", Vector3(-1.45 * spin, 0, 0)); _pz("kn_R", Vector3(-0.2 * spin - 0.15 * (1.0 - snap) * wind, 0, 0))
+			_pz("hip_L", Vector3(0.05, 0, 0)); _pz("kn_L", Vector3(-0.3 * spin, 0, 0))
+			_pz("sh_L", Vector3(-0.5, 0, 1.2 * spin)); _pz("sh_R", Vector3(-0.3, 0, 1.0 * spin))
+			_pz("el_L", Vector3(0.5, 0, 0)); _pz("el_R", Vector3(0.5, 0, 0))
+			_hips_dy = -0.04 * spin
+		"kick_side":
+			var l2 := smoothstep(0.0, hit, t) * out
+			_pose["hips"] = Vector3(0, 0.8 * l2, 0.0)
+			_pose["spine"] = Vector3(0.0, 0.3 * l2, 0.5 * l2)
+			_pz("hip_R", Vector3(-1.2 * l2, 0, 1.1 * l2)); _pz("kn_R", Vector3(-0.15 * snap - 0.8 * (1.0 - snap) * wind, 0, 0))
+			_pz("hip_L", Vector3(0, 0, 0)); _pz("kn_L", Vector3(-0.25 * l2, 0, 0))
+			_pz("sh_L", Vector3(-0.8, 0, 0.9 * l2)); _pz("sh_R", Vector3(-0.8, 0, 0.9 * l2))
+			_pz("el_L", Vector3(1.0, 0, 0)); _pz("el_R", Vector3(1.0, 0, 0))
+		"grab":
+			var g := smoothstep(0.0, hit, t) * (1.0 - smoothstep(hit, d, t) * 0.3)
+			for tg in ["L", "R"]:
+				_pz("sh_" + tg, Vector3(-1.45 * g, 0, 0.25 * g)); _pz("el_" + tg, Vector3(0.6 * g, 0, 0))
+			_pose["spine"] = Vector3(-0.25 * g, 0, 0)
+			_hips_dy = -0.1 * g
+			for tg in ["L", "R"]:
+				_pz("hip_" + tg, Vector3(-0.3 * g, 0, 0)); _pz("kn_" + tg, Vector3(-0.5 * g, 0, 0))
+		"lift":
+			var l3 := smoothstep(0.0, d * 0.8, t)
+			for tg in ["L", "R"]:
+				_pz("sh_" + tg, Vector3(-1.45 - 1.4 * l3, 0, 0.3 * l3)); _pz("el_" + tg, Vector3(0.6 - 0.2 * l3, 0, 0))
+			_pose["spine"] = Vector3(-0.25 + 0.55 * l3, 0, 0)
+			_hips_dy = -0.1 + 0.1 * l3
+		"throw":
+			var th := smoothstep(0.0, hit, t) * (1.0 - smoothstep(hit, d, t))
+			for tg in ["L", "R"]:
+				_pz("sh_" + tg, Vector3(-2.85 + 1.7 * smoothstep(0.0, hit, t), 0, 0.3)); _pz("el_" + tg, Vector3(0.4, 0, 0))
+			_pose["spine"] = Vector3(0.3 - 0.75 * smoothstep(0.0, hit + 0.05, t) * (1.0 - smoothstep(hit + 0.1, d, t) * 0.6), 0, 0)
+			_hips_dy = -0.14 * smoothstep(0.0, hit, t) * out
+			_pz("hip_L", Vector3(-0.5 * th, 0, 0)); _pz("kn_L", Vector3(-0.6 * th, 0, 0))
+	# glance toward the blow
+	_pose["head"] = Vector3(0.05, 0, 0)
+
+
+## Pose for a reaction (looping). Written after the base pose so it wins.
+func _react_pose() -> void:
+	var t := react_t
+	match react:
+		"flinch":
+			var k := exp(-t * 6.0)
+			_pose["head"] = Vector3(-0.5 * k, 0.25 * k, 0)
+			_pose["spine"] = Vector3(0.3 * k, 0.15 * k, 0)
+			_pz("sh_L", Vector3(0.3 * k, 0, 0.5 * k)); _pz("sh_R", Vector3(0.3 * k, 0, 0.5 * k))
+		"stagger":
+			var k2 := 0.6 + 0.4 * sin(t * 9.0)
+			_pose["spine"] = Vector3(0.35, 0.12 * sin(t * 6.0), 0.08 * sin(t * 7.0))
+			_pose["head"] = Vector3(-0.3, 0.2 * sin(t * 5.0), 0)
+			_pz("sh_L", Vector3(-0.2, 0, 1.0 * k2)); _pz("sh_R", Vector3(-0.2, 0, 1.0 * (1.2 - k2)))
+			_pz("el_L", Vector3(0.6, 0, 0)); _pz("el_R", Vector3(0.6, 0, 0))
+			_pz("hip_L", Vector3(-0.35 * sin(t * 8.0), 0, 0)); _pz("hip_R", Vector3(0.35 * sin(t * 8.0), 0, 0))
+			_pz("kn_L", Vector3(-0.3, 0, 0)); _pz("kn_R", Vector3(-0.3, 0, 0))
+		"plead":
+			var sh := sin(t * 14.0) * 0.04
+			_hips_dy = -0.5
+			for tg in ["L", "R"]:
+				_pz("hip_" + tg, Vector3(-0.1, 0, 0)); _pz("kn_" + tg, Vector3(-2.3, 0, 0))
+				_pz("sh_" + tg, Vector3(-1.0 + sh, 0, 0.12)); _pz("el_" + tg, Vector3(1.9 + sh, 0, 0))
+			_pose["spine"] = Vector3(-0.2 + 0.03 * sin(t * 3.0), 0, 0)
+			_pose["head"] = Vector3(0.3 + 0.1 * sin(t * 3.4), 0.1 * sin(t * 1.6), 0)
+		"sob":
+			var b := sin(t * 5.2)
+			_hips_dy = -0.5
+			for tg in ["L", "R"]:
+				_pz("hip_" + tg, Vector3(-0.1, 0, 0)); _pz("kn_" + tg, Vector3(-2.3, 0, 0))
+				_pz("sh_" + tg, Vector3(-0.9, 0, 0.0)); _pz("el_" + tg, Vector3(2.3, 0, 0))
+			_pose["spine"] = Vector3(-0.45 + 0.06 * b, 0, 0)
+			_pose["head"] = Vector3(0.65 + 0.05 * b, 0, 0)
+		"held":
+			var w := t * 11.0
+			_hips_dy = 0.0
+			_pz("sh_L", Vector3(-0.2 + 0.6 * sin(w), 0, 0.9 + 0.5 * sin(w * 1.3))); _pz("sh_R", Vector3(-0.2 + 0.6 * sin(w + 2.0), 0, 0.9 + 0.5 * sin(w * 1.1)))
+			_pz("el_L", Vector3(0.5 + 0.4 * sin(w), 0, 0)); _pz("el_R", Vector3(0.5 + 0.4 * sin(w + 1.0), 0, 0))
+			_pz("hip_L", Vector3(-0.6 + 0.7 * sin(w * 1.2), 0, 0.2)); _pz("hip_R", Vector3(-0.2 + 0.7 * sin(w * 1.2 + 2.5), 0, -0.2))
+			_pz("kn_L", Vector3(-0.5 - 0.4 * sin(w), 0, 0)); _pz("kn_R", Vector3(-0.5 + 0.4 * sin(w), 0, 0))
+			_pose["spine"] = Vector3(0.1 * sin(w), 0, 0.15 * sin(w * 0.8))
+			_pose["head"] = Vector3(-0.4, 0.3 * sin(w * 0.7), 0)
+		"clutch":
+			_pz("sh_L", Vector3(-0.45, 0, 0.1)); _pz("sh_R", Vector3(-0.45, 0, 0.1))
+			_pz("el_L", Vector3(2.3, 0, 0)); _pz("el_R", Vector3(2.3, 0, 0))
+			_pose["spine"] = Vector3(-0.6, 0, 0.1 * sin(t * 12.0))
+			_pose["head"] = Vector3(0.5, 0, 0)
+			_hips_dy = -0.12
+			_pz("hip_L", Vector3(-0.4, 0, 0)); _pz("hip_R", Vector3(-0.4, 0, 0))
+			_pz("kn_L", Vector3(-0.8, 0, 0)); _pz("kn_R", Vector3(-0.8, 0, 0))
+		"dead":
+			_pz("sh_L", Vector3(-0.1, 0, 1.15)); _pz("sh_R", Vector3(-0.3, 0, 0.9))
+			_pz("el_L", Vector3(0.3, 0, 0)); _pz("el_R", Vector3(0.7, 0, 0))
+			_pz("hip_L", Vector3(0.0, 0, 0.3)); _pz("hip_R", Vector3(-0.1, 0, -0.2))
+			_pz("kn_L", Vector3(-0.1, 0, 0)); _pz("kn_R", Vector3(-0.3, 0, 0))
+			_pose["head"] = Vector3(-0.2, 0.5, 0.2)
+			_pose["spine"] = Vector3(0.0, 0.2, 0.1)
+		"crawl":
+			var c := sin(t * 7.0)
+			_pz("sh_L", Vector3(-2.3 + 0.5 * c, 0, 0.3)); _pz("sh_R", Vector3(-2.3 - 0.5 * c, 0, 0.3))
+			_pz("el_L", Vector3(0.5, 0, 0)); _pz("el_R", Vector3(0.5, 0, 0))
+			_pz("hip_L", Vector3(0.2 * c, 0, 0)); _pz("hip_R", Vector3(-0.2 * c, 0, 0))
+			_pose["head"] = Vector3(-0.8, 0, 0)
 
 
 func start_attack() -> void:

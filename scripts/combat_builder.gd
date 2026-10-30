@@ -111,6 +111,8 @@ func _on_enemy_died(e: Enemy) -> void:
 	var tag: String = e.get_meta("tag", "")
 	if tag == "camp":
 		story.add("camp_down", 1)
+	elif tag == "forest":
+		story.add("forest_down", 1)
 	elif tag == "raid":
 		story.add("reavers_down", 1)
 		var d := int(story.get_flag("reavers_down", 0))

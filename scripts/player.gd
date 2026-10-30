@@ -104,6 +104,7 @@ func _ready() -> void:
 	_rig = RealHuman.new().setup(PRESET, "Explorer")
 	_model.add_child(_rig)
 	_rig.attack_hit.connect(_on_attack_hit)
+	_rig.move_hit.connect(_on_move_hit)
 	checkpoint = global_position
 
 	_pivot = Node3D.new()
@@ -163,26 +164,123 @@ func set_first_person(on: bool) -> void:
 
 # --- combat ------------------------------------------------------------------------------------
 
-## Swing the hammer: turns toward the nearest enemy (auto-aim) and hits those in front.
+## Fighting: tap HIT for a combo: jab, cross, front kick, hook, roundhouse, then a grab-and-throw
+## (or a hammer smash when nobody is close enough to grab). Auto-aims at the nearest enemy.
+const COMBO := ["jab", "cross", "kick_front", "hook", "kick_round"]
+const MOVE_CD := {"jab": 0.34, "cross": 0.38, "hook": 0.42, "kick_front": 0.5, "kick_round": 0.65, "uppercut": 0.45}
+const MOVE_DMG := {"jab": 9.0, "cross": 12.0, "hook": 14.0, "uppercut": 16.0, "kick_front": 17.0, "kick_round": 24.0}
+const MOVE_KIND := {"jab": "punch", "cross": "punch", "hook": "punch", "uppercut": "punch", "kick_front": "kick", "kick_round": "round"}
+var _combo := 0
+var _combo_t := 9.0
+var _held: Enemy = null
+var _throwing := false
+
+
+func _nearest_enemy(rng: float) -> Enemy:
+	var near: Enemy = null
+	var best := rng
+	for e in get_tree().get_nodes_in_group("enemies"):
+		var en := e as Enemy
+		if en == null or en.dead or en.held:
+			continue
+		var d := global_position.distance_to(en.global_position)
+		if d < best:
+			best = d
+			near = en
+	return near
+
+
 func attack() -> void:
 	if attack_override.is_valid():
 		attack_override.call()
 		return
-	if locked or dead or _attack_cd > 0.0:
+	if locked or dead or _attack_cd > 0.0 or _throwing:
 		return
-	_attack_cd = 0.7
-	var near: Node3D = null
-	var best := 4.5
-	for e in get_tree().get_nodes_in_group("enemies"):
-		var d := global_position.distance_to((e as Node3D).global_position)
-		if d < best:
-			best = d
-			near = e
+	var near := _nearest_enemy(4.5)
 	if near != null:
 		var to := near.global_position - global_position
 		_model.rotation.y = atan2(-to.x, -to.z)
-	_rig.start_attack()
-	Sfx.ui_at("swing", -4.0)
+	if _combo_t > 1.4:
+		_combo = 0
+	_combo_t = 0.0
+	if _combo >= COMBO.size():
+		_combo = 0
+		var grab := _nearest_enemy(2.6)
+		if grab != null and not grab.is_boss and not grab.surrendered:
+			_grab_throw(grab)
+		else:
+			_attack_cd = 0.7
+			_rig.start_attack()
+			Sfx.ui_at("swing", -4.0)
+		return
+	var mv: String = COMBO[_combo]
+	_combo += 1
+	_attack_cd = MOVE_CD[mv]
+	_rig.play_move(mv)
+	Sfx.ui_at("whoosh_kick" if MOVE_KIND[mv] != "punch" else "whoosh_punch", -6.0)
+	if mv == "kick_round" or mv == "cross":
+		Sfx.ui_at("grunt_%d" % randi_range(0, 2), -14.0)
+
+
+func _on_move_hit(mv: String) -> void:
+	if not MOVE_DMG.has(mv):
+		return
+	var fwd := Vector3(-sin(_model.rotation.y), 0.0, -cos(_model.rotation.y))
+	var reach := 2.9 if MOVE_KIND[mv] != "punch" else 2.3
+	var dmg: float = MOVE_DMG[mv] * (2.0 if power.has("power") else 1.0)
+	var hit := false
+	for e in get_tree().get_nodes_in_group("enemies"):
+		var en := e as Enemy
+		if en == null or en.dead or en.held:
+			continue
+		var to := en.global_position - global_position
+		to.y = 0.0
+		if to.length() < reach and (to.length() < 0.6 or fwd.dot(to.normalized()) > 0.25):
+			en.take_hit(MOVE_KIND[mv], dmg, fwd)
+			hit = true
+	if hit:
+		_combat_t = 0.0
+		var heavy: bool = MOVE_KIND[mv] != "punch"
+		Sfx.ui_at("kick_hit" if heavy else "punch_hit_%d" % randi_range(0, 1), 0.0 if heavy else -2.0)
+		StoryFX.shake(self, 0.05 if not heavy else 0.1, 0.18)
+		StoryFX.hitstop(0.05 if not heavy else 0.09)
+
+
+## Grab an enemy, lift him over the head and hurl him.
+func _grab_throw(e: Enemy) -> void:
+	_throwing = true
+	_attack_cd = 2.0
+	_rig.play_move("grab")
+	Sfx.ui_at("cloth_grab", -3.0)
+	await get_tree().create_timer(0.42).timeout
+	if not is_instance_valid(e) or e.dead:
+		_throwing = false
+		return
+	_held = e
+	e.begin_held()
+	_rig.play_move("lift")
+	await get_tree().create_timer(0.55).timeout
+	if not is_instance_valid(e) or e.dead:
+		_held = null
+		_throwing = false
+		return
+	_rig.play_move("throw")
+	await get_tree().create_timer(0.16).timeout
+	var fwd := Vector3(-sin(_model.rotation.y), 0.0, -cos(_model.rotation.y))
+	if is_instance_valid(e):
+		e.throw_from(self, fwd)
+	Sfx.ui_at("whoosh_throw", -2.0)
+	_held = null
+	await get_tree().create_timer(0.35).timeout
+	_throwing = false
+	_attack_cd = 0.3
+
+
+func _update_held() -> void:
+	if _held != null and is_instance_valid(_held):
+		var fwd := Vector3(-sin(_model.rotation.y), 0.0, -cos(_model.rotation.y))
+		_held.global_position = global_position + Vector3(0, 1.75, 0) + fwd * 0.25
+		_held.rotation.y = _model.rotation.y
 
 
 func _on_attack_hit() -> void:
@@ -193,11 +291,13 @@ func _on_attack_hit() -> void:
 		var to: Vector3 = (e as Node3D).global_position - global_position
 		to.y = 0.0
 		if to.length() < 3.0 and (to.length() < 0.6 or fwd.dot(to.normalized()) > 0.2):
-			(e as Enemy).take_damage(dmg, to)
+			(e as Enemy).take_hit("slam", dmg, fwd)
 			hit = true
 	if hit:
 		_combat_t = 0.0
 		Sfx.ui_at("hit_thud", -2.0)
+		StoryFX.shake(self, 0.14, 0.25)
+		StoryFX.hitstop(0.1)
 
 
 func take_damage(amount: float, from: Vector3) -> void:
@@ -255,6 +355,8 @@ func _die() -> void:
 
 func _tick_combat(delta: float) -> void:
 	_attack_cd = maxf(0.0, _attack_cd - delta)
+	_combo_t += delta
+	_update_held()
 	_invuln = maxf(0.0, _invuln - delta)
 	_combat_t += delta
 	if _combat_t > 6.0 and hp < max_hp and not dead:

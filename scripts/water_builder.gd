@@ -226,6 +226,8 @@ func _flora(root: Node3D, houses: HouseBuilder) -> void:
 				return true
 		if absf(z - 96.0) < 22.0 and absf(x) < 155.0:
 			return true
+		if Vector2(x - TerrainBuilder.FOREST_C.x, z - TerrainBuilder.FOREST_C.y).length() < TerrainBuilder.FOREST_R + 6.0:
+			return true
 		if absf(x - TerrainBuilder.TRACK_C.x) < TerrainBuilder.TRACK_R + TerrainBuilder.TRACK_W + 14.0 and absf(z - TerrainBuilder.TRACK_C.y) < TerrainBuilder.TRACK_L + TerrainBuilder.TRACK_R + TerrainBuilder.TRACK_W + 14.0:
 			return true
 		if Vector2(x - TerrainBuilder.START_MOUND.x, z - TerrainBuilder.START_MOUND.y).length() < 20.0:

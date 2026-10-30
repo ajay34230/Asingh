@@ -304,7 +304,13 @@ func dialogue_for(who: String) -> Dictionary:
 		"Shepherd": return _small("Old Ganesh", ["My goats came back from the ruins trembling. They know what we pretend not to.", "Dust Reavers are camped west of the dunes. Do not go there with a stick, friend; go with a hammer.", "Sheep are better company than people, and they listen as well."])
 		"ChildA": return _small("Chhoti", ["I saw a golden light in the stairs last night! Mother says I dreamed it.", "Are you a hero? Heroes have hammers, and you have a hammer!", "Race you to the well! ...oh, you are busy. Later, then."])
 		"ChildB": return _small("Bholu", ["The big stone door sings when the wind is right. I heard it!", "Can I hold your hammer? Just for a second? No? Okay.", "If you find shiny things, you can give them to me. For safekeeping."])
-		"Priest": return _small("Pandit Rishi", ["The twelve-rayed sun is not a symbol; it is a promise. The Queen swore to return with the dawn.", "Light a lantern for the lost, child. Even a small flame is a prayer.", "I will not enter the ruins. But I will pray at their edge for you."])
+		"Tara": return _tara()
+		"Priest":
+			if get_flag("tara_talked") and not get_flag("ledger_given"):
+				return _rishi_ledger()
+			if get_flag("temple_blessed") and not get_flag("tara_saved"):
+				return _simple("Pandit Rishi", "Tara has not come back from the forest shrine. Take the trail north-west of the village. Go quickly, and go armed.")
+			return _small("Pandit Rishi", ["The twelve-rayed sun is not a symbol; it is a promise. The Queen swore to return with the dawn.", "Light a lantern for the lost, child. Even a small flame is a prayer.", "I will not enter the ruins. But I will pray at their edge for you."])
 		"Cook": return _small("Shanta", ["Hungry? There is flatbread, lentils, and no complaints about the salt.", "The caravan folk eat well and pay badly. The villagers eat badly and pay in stories.", "Dr. Rao ate here every night, always staring at that map. Poor man."])
 		"Dancer": return _small("Roshni", ["I dance for the caravans, and tonight I will dance for the sun gate, if it opens.", "Music, color, a little danger: that is what makes a story worth telling.", "Watch the road at dusk. The Reavers prefer the dark."])
 		"Scholar": return _small("Scholar Vikram", ["I was Dr. Rao's student. I keep his field office tidy and waiting for him.", "He once said: the past does not hide. It waits for people patient enough to listen.", "If you find anything with a twelve-rayed sun on it, bring it to the map table."])
@@ -514,7 +520,7 @@ func _arin() -> Dictionary:
 			"set": {"raid_done": true}, "sfx": "seal_found", "choices": [{"t": "Then we go through it, together.", "go": "raid_end2"}]},
 		"raid_end2": {"who": "Dr. Arin Rao", "text": "Together. Act Three begins at dawn: the Queen's road, the sleeping city, and whoever hired those men. Rest, my friend. You have earned it.",
 			"choices": [{"t": "Until dawn.", "go": ""}]},
-		"done": {"who": "Dr. Arin Rao", "text": ("Council coins? Then the traitor sits close to the Chief's fire. Say nothing yet. At dawn we walk the Queen's road and we watch who follows." if get_flag("clue_coins") else "Dawn will come. When it does, the Queen's road is ours. For now: breathe. Heal. You have more than earned it."),
+		"done": {"who": "Dr. Arin Rao", "text": ("A K on the council's ledger? Then Karan was only the blade. Say nothing yet. At dawn we walk the Queen's road and we watch who follows." if get_flag("ledger_given") else "Council coins? Then the traitor sits close to the Chief's fire. Say nothing yet. At dawn we walk the Queen's road and we watch who follows." if get_flag("clue_coins") else "Dawn will come. When it does, the Queen's road is ours. For now: breathe. Heal. You have more than earned it."),
 			"choices": [{"t": "Rest well, Arin.", "go": ""}]},
 	}
 	var s := "first"
@@ -570,6 +576,32 @@ func _hari() -> Dictionary:
 		return {"start": "a", "nodes": {"a": {"who": w, "text": "She is safe! She found the old shade stones, clever girl. You have done a farmer a kindness he will not forget.",
 			"set": {"cow_done": true}, "sfx": "seal_found", "choices": [{"t": "Glad to help.", "go": ""}]}}}
 	return _simple(w, "Lakshmi is back among the herd, chewing as if nothing happened. Thank you, friend.")
+
+
+func _tara() -> Dictionary:
+	var w := "Tara"
+	if not get_flag("tara_saved"):
+		return _simple(w, "Behind you! Please, help me!")
+	if not get_flag("tara_talked"):
+		return {"start": "a", "nodes": {
+			"a": {"who": w, "text": "I... thank you. I thought no one would come. They followed me from the crossroads. They knew about the ledger before I did.",
+				"choices": [{"t": "Are you hurt?", "go": "b"}, {"t": "Who sent them?", "go": "c"}]},
+			"b": {"who": w, "text": "Frightened, bruised, alive. That is more than I had hoped for an hour ago. You did not hesitate. Most people would have.",
+				"choices": [{"t": "Who sent them?", "go": "c"}]},
+			"c": {"who": w, "text": "Whoever paid for Karan's riders. The ledger records every coin the council has paid or taken since Ila's day. Read the last page: a payment to the Reavers, sealed with the council's sun and one letter. A K.",
+				"choices": [{"t": "Take me through it.", "go": "d"}]},
+			"d": {"who": w, "text": "Take the ledger to Pandit Rishi. He will know whom to trust. And thank you. Not everyone stops when a stranger screams.",
+				"set": {"tara_talked": true, "has_ledger": true, "clue_ledger": true}, "sfx": "seal_found", "choices": [{"t": "Stay safe, Tara.", "go": ""}]}}}
+	return _simple(w, "Pandit Rishi will know what to do with the ledger. I will walk back to the village once my hands stop shaking.")
+
+
+func _rishi_ledger() -> Dictionary:
+	var w := "Pandit Rishi"
+	return {"start": "a", "nodes": {
+		"a": {"who": w, "text": "You found her. Thank the sun. And the book? Let me see... yes. The council's seal, and beneath it a single K. The Reavers' hire was paid from inside this valley." + (" And the man you spared spoke of a council ring bearing the sun. It all points the same way." if get_flag("garr_confessed") else ""),
+			"choices": [{"t": "Who is K?", "go": "b"}]},
+		"b": {"who": w, "text": "I will not name a man on one letter. Half this valley has a K in its names, and Karan was the blade, not the hand that paid him. Tell no one but Dr. Rao. Keep your eyes open, and keep this close.",
+			"set": {"ledger_given": true}, "sfx": "seal_found", "choices": [{"t": "I will watch and listen.", "go": ""}]}}}
 
 
 func _anita() -> Dictionary:
