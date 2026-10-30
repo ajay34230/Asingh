@@ -35,6 +35,7 @@ const BONES := BONES_UBC
 var preset: Dictionary = {}
 var attack_t := -1.0             # >= 0 while a combat swing plays (seconds since start)
 var _attack_hit_sent := false
+const WORK_MODES := ["hammer", "scrub", "sweep", "stir", "knead", "chop", "hawk", "haggle", "sit", "sit_talk"]
 var mode := "locomotion"        # "locomotion", "idle", "hammer"
 var _t := 0.0
 var _phase := 0.0
@@ -82,6 +83,8 @@ func setup(p: Dictionary, name_: String = "Human") -> RealHuman:
 	_tint()
 	if p.get("tool", "") == "hammer":
 		_add_hammer()
+	elif p.get("tool", "") != "":
+		_add_prop(String(p["tool"]))
 	_apply()
 	return self
 
@@ -277,6 +280,8 @@ func animate(delta: float, speed: float, grounded: bool) -> void:
 			_idle(delta)
 		"hammer":
 			_hammer()
+		"scrub", "sweep", "stir", "knead", "chop", "hawk", "haggle", "sit", "sit_talk":
+			_work(mode)
 		_:
 			if _speed_smooth < 0.15 and _air < 0.05:
 				_idle(delta)
@@ -646,6 +651,173 @@ func _idle(delta: float) -> void:
 		_ease("hip_" + tag, Vector3.ZERO, 10.0, delta)
 		_ease("kn_" + tag, Vector3(-0.02, 0.0, 0.0), 10.0, delta)
 		_ease("an_" + tag, Vector3.ZERO, 10.0, delta)
+
+
+
+## Simple hand-held props for market work: broom, ladle, knife, cloth, basket.
+func _add_prop(kind: String) -> void:
+	if _skins.is_empty() or _bone_idx[0]["wr_R"] < 0:
+		return
+	var att := BoneAttachment3D.new()
+	att.bone_name = _skins[0].get_bone_name(_bone_idx[0]["wr_R"])
+	_skins[0].add_child(att)
+	var wood := StandardMaterial3D.new()
+	wood.albedo_color = Color(0.4, 0.28, 0.14)
+	var root := Node3D.new()
+	root.position = Vector3(0, 0.08, 0.04)
+	att.add_child(root)
+	var add := func(size: Vector3, pos: Vector3, col: Color) -> void:
+		var m := MeshInstance3D.new()
+		var b := BoxMesh.new()
+		b.size = size
+		m.mesh = b
+		var mt := StandardMaterial3D.new()
+		mt.albedo_color = col
+		m.material_override = mt
+		m.position = pos
+		root.add_child(m)
+	match kind:
+		"broom":
+			add.call(Vector3(0.025, 1.2, 0.025), Vector3(0, -0.2, 0), Color(0.4, 0.28, 0.14))
+			add.call(Vector3(0.28, 0.2, 0.08), Vector3(0, -0.85, 0), Color(0.75, 0.62, 0.3))
+		"ladle":
+			add.call(Vector3(0.02, 0.5, 0.02), Vector3(0, -0.1, 0), Color(0.4, 0.28, 0.14))
+			add.call(Vector3(0.09, 0.05, 0.09), Vector3(0, -0.36, 0), Color(0.3, 0.2, 0.1))
+		"knife":
+			add.call(Vector3(0.03, 0.3, 0.01), Vector3(0, -0.15, 0), Color(0.75, 0.78, 0.82))
+			add.call(Vector3(0.03, 0.1, 0.03), Vector3(0, 0.05, 0), Color(0.3, 0.2, 0.1))
+		"cloth":
+			add.call(Vector3(0.3, 0.02, 0.22), Vector3(0, -0.1, 0), Color(0.9, 0.9, 0.85))
+		"basket":
+			add.call(Vector3(0.3, 0.16, 0.3), Vector3(0, -0.12, 0), Color(0.7, 0.55, 0.25))
+
+
+var _beat_prev := false
+
+
+func _beat(on: bool) -> void:
+	if on and not _beat_prev:
+		struck.emit()
+	_beat_prev = on
+
+
+## Market and household work. Angle conventions: shoulder forward = negative rx, elbow flex =
+## positive rx, spine forward lean = negative rx, thigh forward = positive rx, knee flex = negative.
+func _work(kind: String) -> void:
+	var t := _t * 1.0 + _seed
+	var legs_stand := true
+	match kind:
+		"scrub":
+			var s := sin(t * 5.5)
+			_hips_dy = -0.5
+			_pose["spine"] = Vector3(-0.55, 0.0, 0.0)
+			_pose["chest"] = Vector3(-0.1, 0.0, 0.0)
+			_pose["head"] = Vector3(0.4, 0.0, 0.0)
+			_pose["sh_R"] = Vector3(-1.15 - 0.35 * s, 0.0, 0.0)
+			_pose["sh_L"] = Vector3(-1.15 + 0.35 * s, 0.0, 0.0)
+			_pose["el_R"] = Vector3(0.5 + 0.3 * s, 0.0, 0.0)
+			_pose["el_L"] = Vector3(0.5 - 0.3 * s, 0.0, 0.0)
+			_kneel()
+			legs_stand = false
+			_beat(s > 0.9)
+		"sweep":
+			var s2 := sin(t * 2.6)
+			_hips_dy = 0.0
+			_pose["spine"] = Vector3(-0.28, 0.35 * s2, 0.0)
+			_pose["chest"] = Vector3(-0.05, 0.2 * s2, 0.0)
+			_pose["head"] = Vector3(0.35, -0.2 * s2, 0.0)
+			_pose["sh_R"] = Vector3(-0.95, 0.0, 0.0)
+			_pose["sh_L"] = Vector3(-0.8, 0.0, 0.0)
+			_pose["el_R"] = Vector3(0.7, 0.0, 0.0)
+			_pose["el_L"] = Vector3(0.9, 0.0, 0.0)
+			_beat(s2 > 0.95 or s2 < -0.95)
+		"stir":
+			var c := t * 3.2
+			_hips_dy = 0.0
+			_pose["spine"] = Vector3(-0.25, 0.0, 0.0)
+			_pose["chest"] = Vector3.ZERO
+			_pose["head"] = Vector3(0.45, 0.0, 0.0)
+			_pose["sh_R"] = Vector3(-1.0 + 0.15 * cos(c), 0.2 * sin(c), 0.0)
+			_pose["el_R"] = Vector3(1.0 + 0.2 * sin(c), 0.0, 0.0)
+			_pose["sh_L"] = Vector3(-0.55, 0.0, 0.0)
+			_pose["el_L"] = Vector3(1.2, 0.0, 0.0)
+			_beat(sin(c) > 0.97)
+		"knead":
+			var s3 := sin(t * 4.0)
+			_hips_dy = -0.04
+			_pose["spine"] = Vector3(-0.42 - 0.08 * s3, 0.0, 0.0)
+			_pose["chest"] = Vector3.ZERO
+			_pose["head"] = Vector3(0.4, 0.0, 0.0)
+			for tg in ["L", "R"]:
+				_pose["sh_" + tg] = Vector3(-1.05 + 0.4 * s3, 0.0, 0.0)
+				_pose["el_" + tg] = Vector3(0.6 - 0.3 * s3, 0.0, 0.0)
+			_beat(s3 > 0.95)
+		"chop":
+			var c2 := fmod(t * 3.0, TAU)
+			var up := 0.5 + 0.5 * sin(c2)
+			var strike := pow(maxf(0.0, -sin(c2 + 0.4)), 3.0)
+			_hips_dy = 0.0
+			_pose["spine"] = Vector3(-0.3 - 0.1 * strike, 0.1, 0.0)
+			_pose["chest"] = Vector3.ZERO
+			_pose["head"] = Vector3(0.5, 0.0, 0.0)
+			_pose["sh_R"] = Vector3(-0.8 - 0.8 * up, 0.0, 0.0)
+			_pose["el_R"] = Vector3(0.7 + 0.8 * up - 0.7 * strike, 0.0, 0.0)
+			_pose["sh_L"] = Vector3(-0.75, 0.0, 0.0)
+			_pose["el_L"] = Vector3(1.0, 0.0, 0.0)
+			_beat(strike > 0.85)
+		"hawk":
+			var w := sin(t * 3.0)
+			_hips_dy = 0.0
+			_pose["spine"] = Vector3(0.06, 0.0, 0.0)
+			_pose["chest"] = Vector3(0.04, 0.0, 0.0)
+			_pose["head"] = Vector3(-0.12, 0.25 * sin(t * 0.7), 0.0)
+			_pose["sh_R"] = Vector3(-2.5 + 0.15 * w, 0.0, 0.25 + 0.1 * w)
+			_pose["el_R"] = Vector3(0.35, 0.0, 0.0)
+			_pose["sh_L"] = Vector3(-0.3, 0.0, 0.25)
+			_pose["el_L"] = Vector3(1.6, 0.0, 0.0)
+		"haggle":
+			var h1 := sin(t * 2.2)
+			var h2 := sin(t * 2.2 + 2.0)
+			_hips_dy = 0.0
+			_pose["spine"] = Vector3(-0.05, 0.12 * h1, 0.0)
+			_pose["chest"] = Vector3.ZERO
+			_pose["head"] = Vector3(0.1 * h2, 0.3 * h1, 0.0)
+			_pose["sh_R"] = Vector3(-0.9 - 0.35 * h1, 0.0, 0.15)
+			_pose["el_R"] = Vector3(1.2 + 0.3 * h1, 0.0, 0.0)
+			_pose["sh_L"] = Vector3(-0.8 - 0.35 * h2, 0.0, 0.15)
+			_pose["el_L"] = Vector3(1.2 + 0.3 * h2, 0.0, 0.0)
+		"sit", "sit_talk":
+			var talk := kind == "sit_talk"
+			var br := sin(t * 1.7)
+			_hips_dy = -0.52
+			_pose["spine"] = Vector3(-0.05 + 0.01 * br, 0.0, 0.0)
+			_pose["chest"] = Vector3.ZERO
+			_pose["head"] = Vector3(0.05, 0.3 * sin(t * 0.5), 0.0)
+			if talk:
+				var g := sin(t * 2.4)
+				_pose["sh_R"] = Vector3(-0.8 - 0.3 * g, 0.0, 0.15)
+				_pose["el_R"] = Vector3(1.3 + 0.3 * g, 0.0, 0.0)
+			else:
+				_pose["sh_R"] = Vector3(-0.35, 0.0, 0.0)
+				_pose["el_R"] = Vector3(1.0, 0.0, 0.0)
+			_pose["sh_L"] = Vector3(-0.35, 0.0, 0.0)
+			_pose["el_L"] = Vector3(1.0, 0.0, 0.0)
+			_kneel()
+			legs_stand = false
+	if legs_stand:
+		for tg2 in ["L", "R"]:
+			_pose["hip_" + tg2] = Vector3(0.1 if tg2 == "L" else -0.08, 0.0, 0.0)
+			_pose["kn_" + tg2] = Vector3(-0.12, 0.0, 0.0)
+			_pose["an_" + tg2] = Vector3.ZERO
+
+
+## Sitting / kneeling legs: thighs forward, knees folded.
+func _kneel() -> void:
+	for tg in ["L", "R"]:
+		var sg := 1.0 if tg == "L" else -1.0
+		_pose["hip_" + tg] = Vector3(1.4, 0.0, 0.5 * sg)
+		_pose["kn_" + tg] = Vector3(-2.0, 0.0, 0.0)
+		_pose["an_" + tg] = Vector3.ZERO
 
 
 func _hammer() -> void:

@@ -17,6 +17,17 @@ const GREETINGS := [
 const FAREWELLS := ["Safe travels!", "Come back soon, friend.", "May the road be kind.", "Khuda hafiz!", "Go well, traveller."]
 const STARTLES := ["Hey! Slow down!", "Careful, careful!", "Arre! Watch your step!", "Whoa, where is the fire?"]
 const LAUGHS := ["Ha ha! What a leap!", "Wah! Like a goat!", "Ha! Nicely jumped!", "Haha, show-off!"]
+const WORK_SOUND := {"hammer": "anvil", "scrub": "scrub", "sweep": "sweep", "stir": "pot_clink", "knead": "knead", "chop": "chop"}
+const HAWK_LINES := {
+	"fruit": ["Fresh mangoes! Sweet as honey!", "Pomegranates, come and taste!", "Bananas, bananas, two for a coin!"],
+	"spice": ["Turmeric, cumin, pepper, buy buy!", "Fresh spices, the best in the land!"],
+	"cloth": ["Silk and cotton, come and feel!", "Colours that never fade!"],
+	"pot": ["Clay pots, strong and cool!", "Water stays sweet in my pots!"],
+	"tea": ["Hot chai, hot chai!", "Ginger tea, warm your bones!"],
+	"sweet": ["Fresh jalebi, hot and crisp!", "Laddoos! Sweets for the little ones!"],
+	"general": ["Come, come, look at my wares!", "Best price in the bazaar!", "For you, special price!"],
+}
+const HAGGLE_LINES := ["Too much! Half the price!", "Arre, you ruin me! Fine, take it.", "Last price, final!", "Add one more and we have a deal.", "Twenty? You joke!"]
 const IDLE_ACTIONS := ["stretch", "look_around", "wipe_brow", "look_around", "stretch"]
 const ROLE_LINES := {
 	"blacksmith": ["Mind the sparks, friend!", "Good iron needs patience.", "A hammer never lies about the work.", "Need a tool mended?"],
@@ -59,6 +70,8 @@ var _bubble: Label3D
 var _bubble_t := 0.0
 var _restore_t := 0.0
 var _busy := 0.0
+var stall_kind := "general"      # what a hawker sells (HAWK_LINES key)
+var _chat_t := 0.0
 
 
 func setup(preset: Dictionary, mode: String, label: String) -> Npc:
@@ -72,7 +85,8 @@ func setup(preset: Dictionary, mode: String, label: String) -> Npc:
 	rig.mode = mode
 	add_child(rig)
 	rig.struck.connect(func() -> void:
-		Sfx.at("anvil", global_position + global_transform.basis * Vector3(0.0, 0.9, -0.9), -2.0, _rng.randf_range(0.95, 1.05)))
+		var snd: String = WORK_SOUND.get(_base_mode, "anvil")
+		Sfx.at(snd, global_position + global_transform.basis * Vector3(0.0, 0.9, -0.9), -2.0 if snd == "anvil" else -7.0, _rng.randf_range(0.92, 1.08)))
 	var body := StaticBody3D.new()
 	var cs := CollisionShape3D.new()
 	var cap := CapsuleShape3D.new()
@@ -115,7 +129,7 @@ func say(text: String, dur: float = 0.0) -> void:
 
 func _gesture(action: String, dur: float) -> void:
 	rig.play_action(action, dur)
-	if _base_mode == "hammer":
+	if RealHuman.WORK_MODES.has(_base_mode):
 		rig.mode = "idle"
 		_restore_t = dur + 0.4
 
@@ -125,8 +139,23 @@ func _pick(lines: Array) -> String:
 
 
 func _ground_follow(delta: float) -> void:
-	var q := PhysicsRayQueryParameters3D.create(global_position + Vector3(0, 3.0, 0), global_position + Vector3(0, -6.0, 0))
-	var hit := get_world_3d().direct_space_state.intersect_ray(q)
+	# Ray down for the ground, skipping people, animals and the player (their capsules would lift us).
+	var space := get_world_3d().direct_space_state
+	var ex: Array[RID] = []
+	var hit := {}
+	for i in 5:
+		var q := PhysicsRayQueryParameters3D.create(global_position + Vector3(0, 2.2, 0), global_position + Vector3(0, -6.0, 0))
+		q.exclude = ex
+		hit = space.intersect_ray(q)
+		if hit.is_empty():
+			break
+		var col := hit["collider"] as Node
+		var owner_node: Node = col.get_parent() if col != null else null
+		if owner_node is Npc or owner_node is Animal or col is CharacterBody3D:
+			ex.append(hit["rid"])
+			hit = {}
+			continue
+		break
 	if not hit.is_empty():
 		global_position.y = lerpf(global_position.y, hit["position"].y, 1.0 - exp(-12.0 * delta))
 
@@ -264,7 +293,7 @@ func _process(delta: float) -> void:
 			rig.mode = _base_mode
 	if not near:
 		return
-	rig.mode = "locomotion" if (_move_speed > 0.1 and _base_mode != "hammer") else _base_mode
+	rig.mode = "locomotion" if (_move_speed > 0.1 and not RealHuman.WORK_MODES.has(_base_mode)) else _base_mode
 	rig.animate(delta, _move_speed, true)
 	var spd := Vector2(player.velocity.x, player.velocity.z).length()
 
@@ -276,7 +305,7 @@ func _process(delta: float) -> void:
 		var to := player.global_position - global_position
 		var yaw_to := atan2(-to.x, -to.z)
 		var diff := wrapf(yaw_to - rotation.y, -PI, PI)
-		if _base_mode != "hammer" or dist < GREET:
+		if not RealHuman.WORK_MODES.has(_base_mode) or dist < GREET:
 			rotation.y = lerp_angle(rotation.y, yaw_to, 1.0 - exp(-2.5 * delta))
 		want_look = clampf(wrapf(yaw_to - rotation.y, -PI, PI), -1.2, 1.2)
 		var _unused := diff
@@ -319,7 +348,21 @@ func _process(delta: float) -> void:
 		_cd["jump"] = 10.0
 		_gesture("laugh", 2.2)
 		say(_pick(LAUGHS), 2.4)
+	# market chatter: hawkers cry their wares, haggling pairs argue; heard as babble, bubble when near
+	if (_base_mode == "hawk" or _base_mode == "haggle" or _base_mode == "sit_talk") and dist < 40.0:
+		_chat_t -= delta
+		if _chat_t <= 0.0:
+			_chat_t = _rng.randf_range(4.0, 9.0)
+			var ls: Array = HAWK_LINES.get(stall_kind, HAWK_LINES["general"]) if _base_mode == "hawk" else HAGGLE_LINES
+			var ln: String = _pick(ls)
+			if dist < 14.0:
+				_bubble.text = ln
+				_bubble.visible = true
+				_bubble.modulate.a = 1.0
+				_bubble_t = 3.0
+			if Sfx.instance != null:
+				Sfx.instance._speak(voice, ln, self, -9.0 + clampf((14.0 - dist) * 0.2, 0.0, 3.0))
 	# small random idle actions when nobody is close
-	if dist >= NOTICE and _cd["idle"] <= 0.0 and rig.action == "" and _base_mode != "hammer":
+	if dist >= NOTICE and _cd["idle"] <= 0.0 and rig.action == "" and not RealHuman.WORK_MODES.has(_base_mode):
 		_cd["idle"] = _rng.randf_range(7.0, 16.0)
 		rig.play_action(IDLE_ACTIONS[_rng.randi() % IDLE_ACTIONS.size()], _rng.randf_range(2.0, 3.2))

@@ -511,7 +511,7 @@ func _flicker(l: OmniLight3D) -> void:
 # --- side missions: pottery shards and the lost cow -----------------------------------------
 
 func _shards() -> void:
-	var spots := [Vector2(-60, -60), Vector2(42, -36), Vector2(88, 70), Vector2(-34, 58), Vector2(60, -112), Vector2(-120, -96)]
+	var spots := [Vector2(-60, -60), Vector2(58, -36), Vector2(88, 70), Vector2(-34, 58), Vector2(60, -112), Vector2(-120, -96)]
 	var list: Array = []
 	for sp in spots:
 		var n := Node3D.new()

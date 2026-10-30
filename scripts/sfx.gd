@@ -106,6 +106,25 @@ static func at(n: String, pos: Vector3, db: float = 0.0, pitch: float = 1.0) -> 
 		instance._play3d(n, pos, db, pitch)
 
 
+## A looping positional sound (fountain, crowd, fire...). Quiet and stopped when far away: call
+## `tick_emitters` or just let `max_dist` fade it out; `playing` is toggled by TownBuilder.
+static func emitter(parent: Node3D, n: String, pos: Vector3, db: float, max_dist: float, unit: float = 6.0) -> AudioStreamPlayer3D:
+	var a := AudioStreamPlayer3D.new()
+	var s := (instance._stream(n) as AudioStreamWAV).duplicate() as AudioStreamWAV
+	s.loop_mode = AudioStreamWAV.LOOP_FORWARD
+	s.loop_begin = 0
+	s.loop_end = s.data.size() / 2
+	a.stream = s
+	a.volume_db = db
+	a.max_distance = max_dist
+	a.unit_size = unit
+	a.attenuation_model = AudioStreamPlayer3D.ATTENUATION_INVERSE_DISTANCE
+	a.autoplay = false
+	parent.add_child(a)
+	a.position = pos
+	return a
+
+
 static func ui(n: String, db: float = 0.0) -> void:
 	if instance != null:
 		instance._ui.stream = instance._stream(n)

@@ -18,7 +18,7 @@ var _mini: Control
 var _full: Control
 var _btn: Button
 var landmarks := [
-	["Sun Gate", Vector2(0, -168)], ["Village", Vector2(-90, 12)], ["Temple", Vector2(-35, -10)], ["Race Track", Vector2(118, -48)], ["Sal Forest", Vector2(-150, -110)], ["Goods yard", Vector2(-20, 96)],
+	["Sun Gate", Vector2(0, -168)], ["Village", Vector2(-90, 12)], ["Temple", Vector2(-35, -10)], ["Race Track", Vector2(118, -48)], ["Bazaar Town", Vector2(22, -42)], ["Sal Forest", Vector2(-150, -110)], ["Goods yard", Vector2(-20, 96)],
 	["Caravan", Vector2(47, 45)], ["Arin's office", Vector2(92, 150)], ["Dig site", Vector2(-95, 25)],
 ]
 

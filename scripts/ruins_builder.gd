@@ -183,6 +183,8 @@ func _formations(root: Node3D) -> void:
 			continue
 		if p.distance_to(STATION_CENTRE) < 35.0:
 			continue
+		if p.distance_to(TerrainBuilder.TOWN_C) < TerrainBuilder.TOWN_R + 14.0:
+			continue
 		# Keep the sight-line from the start viewpoint to the entrance clear.
 		var cp := Geometry2D.get_closest_point_to_segment(p, TerrainBuilder.START_MOUND, Vector2(0.0, -168.0))
 		if p.distance_to(cp) < 45.0:

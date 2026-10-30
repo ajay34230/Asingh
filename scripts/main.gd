@@ -16,6 +16,8 @@ var railway: RailwayBuilder
 var npcs: Array[Npc] = []
 var life: Array = []
 var mounts: MountSystem
+var town: TownBuilder
+var town_houses: HouseBuilder
 var water: WaterBuilder
 var story: Story
 var hud: QuestHUD
@@ -89,6 +91,8 @@ func _ready() -> void:
 	for a in args:
 		if a.begins_with("--capture-fight="):
 			_run_capture_fight.call_deferred(a.trim_prefix("--capture-fight="))
+		elif a.begins_with("--capture-town="):
+			_run_capture_town.call_deferred(a.trim_prefix("--capture-town="))
 		elif a.begins_with("--capture-race="):
 			_run_capture_race.call_deferred(a.trim_prefix("--capture-race="))
 		elif a.begins_with("--capture="):
@@ -234,6 +238,68 @@ func _selftest_hunt(fails: PackedStringArray, notes: PackedStringArray) -> void:
 	if not d.dead or player.hunted != 1:
 		fails.append("hunt: deer not killed with knife")
 	notes.append("hunt: ok")
+
+
+func _selftest_town(fails: PackedStringArray, notes: PackedStringArray) -> void:
+	if town == null:
+		fails.append("town: not built")
+		return
+	if town.buildings < 28:
+		fails.append("town: only %d buildings" % town.buildings)
+	if town.stalls.size() < 14:
+		fails.append("town: only %d stalls" % town.stalls.size())
+	if town.npcs.size() < 40:
+		fails.append("town: only %d people" % town.npcs.size())
+	if town.enterable.size() != 4:
+		fails.append("town: %d enterable houses" % town.enterable.size())
+	# every kind of work is actually being done by somebody
+	var modes := {}
+	for n in town.npcs:
+		modes[n._base_mode] = int(modes.get(n._base_mode, 0)) + 1
+	for need in ["hawk", "haggle", "scrub", "sweep", "stir", "knead", "chop", "sit_talk", "sit"]:
+		if not modes.has(need):
+			fails.append("town: nobody does '%s'" % need)
+	# no two buildings, stalls or props overlap
+	var fps: Array[PackedVector2Array] = town.footprints
+	var overlaps := 0
+	for i in fps.size():
+		for j in range(i + 1, fps.size()):
+			if not Geometry2D.intersect_polygons(fps[i], fps[j]).is_empty():
+				overlaps += 1
+				if overlaps <= 3:
+					fails.append("town: %s and %s overlap" % [town.fp_names[i], town.fp_names[j]])
+	# people stand on the ground, not inside buildings: ray down must hit terrain-level geometry
+	var space := get_world_3d().direct_space_state
+	var bad := 0
+	for n in town.npcs:
+		var q := PhysicsRayQueryParameters3D.create(n.global_position + Vector3(0, 2.0, 0), n.global_position + Vector3(0, -3.0, 0))
+		var ex: Array[RID] = []
+		for c in n.get_children():
+			if c is CollisionObject3D:
+				ex.append((c as CollisionObject3D).get_rid())
+		q.exclude = ex
+		var hit := space.intersect_ray(q)
+		if hit.is_empty() or absf((hit["position"] as Vector3).y - n.global_position.y) > 0.6:
+			bad += 1
+			if bad <= 4:
+				notes.append("town: off-ground %s at %s hit %s" % [n.name, str(n.global_position), str(hit.get("position", "none"))])
+	if bad > 0:
+		fails.append("town: %d people not on the ground" % bad)
+	# sounds exist
+	for s in ["market_crowd_loop", "street_murmur_loop", "water_splash_loop", "sizzle_loop", "fire_crackle_loop", "music_bazaar", "scrub", "sweep", "chop", "knead", "pot_clink", "coin_clink", "tink", "cloth_flap", "goat_bleat", "hen_cluck", "child_laugh", "cart_creak", "bicycle_bell"]:
+		if not ResourceLoader.exists("res://assets/audio/%s.wav" % s):
+			fails.append("town: missing sound %s" % s)
+	if town.emitters.size() < 8:
+		fails.append("town: only %d sound emitters" % town.emitters.size())
+	# the player can buy food at a stall
+	story.set_flag("coins", 10)
+	var hp0 := player.hp
+	player.hp = 50.0
+	town._trade("fruit", 3)
+	if int(story.get_flag("coins", 0)) != 7 or player.hp <= 50.0:
+		fails.append("town: buying fruit failed")
+	player.hp = maxf(hp0, 50.0)
+	notes.append("town: %d buildings, %d stalls, %d people, %d emitters, modes %s" % [town.buildings, town.stalls.size(), town.npcs.size(), town.emitters.size(), str(modes)])
 
 
 func _selftest_mount(fails: PackedStringArray, notes: PackedStringArray) -> void:
@@ -536,6 +602,11 @@ func _build_story() -> void:
 	combat.build()
 	forest = ForestBuilder.new(self, story, hud, dlg, cin, terrain, player, combat)
 	forest.build()
+	town_houses = HouseBuilder.new(terrain, 909)
+	town = TownBuilder.new(terrain, player, story)
+	town.hb = town_houses
+	town.build(self)
+	npcs.append_array(town.npcs)
 	mounts = MountSystem.new(self, player, terrain)
 	mounts.build()
 	combat_hud = CombatHUD.new()
@@ -983,6 +1054,7 @@ func _run_selftest() -> void:
 	_selftest_race(fails, notes)
 	await _selftest_forest(fails, notes)
 	await _selftest_mount(fails, notes)
+	_selftest_town(fails, notes)
 	await _selftest_hunt(fails, notes)
 	await _selftest_fight(fails, notes)
 
@@ -1078,6 +1150,36 @@ func _run_capture_fight(dir: String) -> void:
 			foe.rig.animate(1.0 / 60.0, 0.0, true)
 		await RenderingServer.frame_post_draw
 		print("[capture] ", r, " -> ", get_viewport().get_texture().get_image().save_png("%s/r_%s.png" % [dir, r]))
+	get_tree().quit()
+
+
+func _run_capture_town(dir: String) -> void:
+	DirAccess.make_dir_recursive_absolute(dir)
+	touch.visible = false
+	atmosphere.time_of_day = 0.42
+	atmosphere.apply_time()
+	var c := TerrainBuilder.TOWN_C
+	var shots := [
+		["t1_square", Vector3(c.x - 3.0, 0.0, c.y + 20.0), Vector3(c.x, 1.5, c.y - 4.0), -0.08],
+		["t2_stalls", Vector3(c.x + 2.0, 0.0, c.y + 4.0), Vector3(c.x + 4.0, 1.4, c.y + 12.0), -0.05],
+		["t3_street_e", Vector3(c.x + 17.0, 0.0, c.y + 0.0), Vector3(c.x + 42.0, 2.0, c.y + 0.0), -0.05],
+		["t4_street_n", Vector3(c.x - 1.0, 0.0, c.y - 17.0), Vector3(c.x, 3.0, c.y - 44.0), -0.03],
+		["t5_wash", Vector3(c.x - 2.0, 0.0, c.y + 8.0), Vector3(c.x - 6.4, 0.8, c.y + 2.6), -0.2],
+		["t6_tea", Vector3(c.x + 1.0, 0.0, c.y - 1.0), Vector3(c.x + 5.0, 1.0, c.y - 6.0), -0.15],
+		["t7_over", Vector3(c.x - 6.0, 22.0, c.y + 34.0), Vector3(c.x, 1.0, c.y - 4.0), -0.35],
+	]
+	for s in shots:
+		var sp: Vector3 = s[1]
+		player.set_distance(5.0)
+		var gy := terrain.sample_height(sp.x, sp.z)
+		player.global_position = Vector3(sp.x, maxf(gy + 0.4, sp.y), sp.z)
+		player.velocity = Vector3.ZERO
+		player.locked = true
+		_look_at_point(s[2], s[3])
+		for i in 70:
+			await get_tree().process_frame
+		await RenderingServer.frame_post_draw
+		print("[capture] ", s[0], " -> ", get_viewport().get_texture().get_image().save_png("%s/%s.png" % [dir, s[0]]))
 	get_tree().quit()
 
 

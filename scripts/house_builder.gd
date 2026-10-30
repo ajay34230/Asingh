@@ -42,8 +42,13 @@ func build(parent: Node3D) -> Node3D:
 	return root
 
 
-func _house(parent: Node3D, index: int, w: float, d: float, yaw: float, variant: int) -> void:
-	var site := TerrainBuilder.HOUSE_SITES[index]
+## Extra enterable houses at arbitrary ground positions (the bazaar town). `index` >= 20.
+func build_extra(parent: Node3D, index: int, at: Vector2, w: float, d: float, yaw: float, variant: int) -> void:
+	_house(parent, index, w, d, yaw, variant, at)
+
+
+func _house(parent: Node3D, index: int, w: float, d: float, yaw: float, variant: int, at: Vector2 = Vector2(INF, INF)) -> void:
+	var site: Vector2 = TerrainBuilder.HOUSE_SITES[index] if at.x == INF else at
 	var ground := terrain.sample_height(site.x, site.y)
 	var h := Node3D.new()
 	h.name = "House_%d" % index
