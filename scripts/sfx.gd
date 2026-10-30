@@ -19,11 +19,16 @@ var _wind: AudioStreamPlayer
 var _crickets: AudioStreamPlayer
 var _room: AudioStreamPlayer
 var _pad: AudioStreamPlayer
+var _rain_loop: AudioStreamPlayer
 var _music_night: AudioStreamPlayer
 var _music_village: AudioStreamPlayer
 var _bell_t := 30.0
 var _chime_t := 10.0
-var atmo: Atmosphere
+var atmo: Atmosphere:
+	set(v):
+		atmo = v
+		if v != null:
+			v.thunder.connect(func() -> void: ui_at("thunder", -4.0))
 var voices_on := true             # NPC speech through the phone's text-to-speech engine
 var _tts_voices: Array = []
 var _ui: AudioStreamPlayer
@@ -50,6 +55,7 @@ func setup(p: Player, h: HouseBuilder) -> Sfx:
 	_music = _loop_player("music_desert", -12.0)
 	_wind = _loop_player("wind_loop", -10.0)
 	_pad = _loop_player("ambient_pad", -15.0)
+	_rain_loop = _loop_player("rain_loop", -80.0)
 	_music_night = _loop_player("music_night", -60.0)
 	_music_village = _loop_player("music_village", -60.0)
 	_crickets = _loop_player("crickets_loop", -24.0)
@@ -213,6 +219,8 @@ func _process(delta: float) -> void:
 				break
 	var k := 1.0 - exp(-3.0 * delta)
 	var night0 := atmo.night if atmo != null else 0.0
+	var rain0 := atmo.rain if atmo != null else 0.0
+	_rain_loop.volume_db = lerpf(_rain_loop.volume_db, (-80.0 if rain0 < 0.02 else (lerpf(-34.0, -11.0, rain0) - (12.0 if indoors else 0.0))), k)
 	var near_house := INF
 	var near_pos := Vector3.ZERO
 	if houses != null:

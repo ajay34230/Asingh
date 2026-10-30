@@ -285,3 +285,13 @@ for k, f in enumerate((523.25, 659.25, 783.99, 1046.5)):
     pw[s0: s0 + len(seg)] += seg[: len(pw) - s0]
 save("powerup", pw, 0.7)
 t = t_(1.2); save("raid_horn", (saw(110 * (1 + 0.04 * np.sin(2 * np.pi * 5 * t)), t) * np.sin(np.pi * t / 1.2) ** 0.7 * 0.5 + saw(165, t) * np.sin(np.pi * t / 1.2) * 0.25), 0.7)
+
+# --- weather (Phase 6) ----------------------------------------------------------------------------
+d = 8.0
+rl = periodic_noise(d, 500, 9000, 31) + 0.6 * periodic_noise(d, 100, 600, 32)
+save("rain_loop", rl, 0.5)
+t = t_(5.0)
+th = lp(noise(len(t)), 220) * np.exp(-t / 1.6) * (0.5 + 0.5 * np.sin(2 * np.pi * 7 * t) ** 2)
+th += 0.8 * lp(noise(len(t)), 90) * np.exp(-t / 2.4)
+th[: int(0.05 * SR)] *= np.linspace(0, 1, int(0.05 * SR))
+save("thunder", th, 0.85)

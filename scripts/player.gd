@@ -63,6 +63,7 @@ var power := {}                  # kind -> seconds left ("speed", "power", "shie
 var _attack_cd := 0.0
 var _combat_t := 99.0            # seconds since last hit taken / dealt
 var _invuln := 0.0
+var carried_by: Node3D = null    # riding a cart: position follows this node
 var locked := false              # true during dialogue, digging and cinematics: no input is read
 
 var _yaw := 0.0
@@ -378,6 +379,13 @@ func _try_step_up(horizontal: Vector3, delta: float) -> void:
 
 func _physics_process(delta: float) -> void:
 	_tick_combat(delta)
+	if carried_by != null and is_instance_valid(carried_by):
+		global_position = carried_by.global_position
+		velocity = Vector3.ZERO
+		_model.rotation.y = lerp_angle(_model.rotation.y, carried_by.global_rotation.y, 1.0 - exp(-6.0 * delta))
+		_rig.animate(delta, 0.0, true)
+		_arm.spring_length = lerpf(_arm.spring_length, _target_distance, 1.0 - exp(-10.0 * delta))
+		return
 	# Optional keyboard controls (handy when testing on a PC); touch sets move_input.
 	var key_move := _keyboard_input()
 	var input := move_input if move_input.length() > 0.05 else key_move

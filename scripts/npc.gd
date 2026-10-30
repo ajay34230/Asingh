@@ -37,6 +37,16 @@ var player: Player
 var role := "villager"
 var voice := "man"
 var home_yaw := 0.0
+static var atmo: Atmosphere            # set by Main: lets villagers go home at night
+var routine := {}                # {"type": "walk"|"play", points / centre / radius, home}
+var _move_speed := 0.0
+var _rt_i := 0
+var _rt_wait := 0.0
+var _rt_target := Vector3.ZERO
+var _home_state := 0             # 0 out, 1 heading home, 2 inside (hidden)
+var _start_pos := Vector3.ZERO
+var companion := false           # follows the player and fights beside them
+var _atk_cd := 0.0
 var _base_mode := "idle"
 var _cd := {"greet": 0.0, "chat": 0.0, "run": 0.0, "jump": 0.0, "idle": 6.0, "say": 0.0}
 var _in_zone := false
@@ -112,9 +122,115 @@ func _pick(lines: Array) -> String:
 	return lines[_rng.randi() % lines.size()]
 
 
+func _ground_follow(delta: float) -> void:
+	var q := PhysicsRayQueryParameters3D.create(global_position + Vector3(0, 3.0, 0), global_position + Vector3(0, -6.0, 0))
+	var hit := get_world_3d().direct_space_state.intersect_ray(q)
+	if not hit.is_empty():
+		global_position.y = lerpf(global_position.y, hit["position"].y, 1.0 - exp(-12.0 * delta))
+
+
+func _walk_toward(target: Vector3, spd: float, delta: float) -> bool:
+	var to := target - global_position
+	to.y = 0.0
+	if to.length() < 0.6:
+		return true
+	rotation.y = lerp_angle(rotation.y, atan2(-to.x, -to.z), 1.0 - exp(-7.0 * delta))
+	global_position += Vector3(-sin(rotation.y), 0.0, -cos(rotation.y)) * spd * delta
+	_ground_follow(delta)
+	_move_speed = spd
+	return false
+
+
+## Daily routine: walkers follow waypoints and pause to chat or work; kids dash about playing;
+## at night everyone heads home and disappears indoors until morning.
+func _routine_step(delta: float) -> void:
+	_move_speed = 0.0
+	if _start_pos == Vector3.ZERO:
+		_start_pos = global_position
+	var night := atmo.night if atmo != null else 0.0
+	var home: Vector3 = routine.get("home", _start_pos)
+	if _home_state == 2:
+		if night < 0.35:
+			_home_state = 0
+			visible = true
+			global_position = _start_pos
+		return
+	if night > 0.75 and _home_state == 0:
+		_home_state = 1
+	if _home_state == 1:
+		if _walk_toward(home, 2.2, delta):
+			_home_state = 2
+			visible = false
+		return
+	if _rt_wait > 0.0:
+		_rt_wait -= delta
+		return
+	match routine.get("type", ""):
+		"walk":
+			var pts: Array = routine["points"]
+			if _walk_toward(pts[_rt_i], 1.35, delta):
+				_rt_i = (_rt_i + 1) % pts.size()
+				_rt_wait = _rng.randf_range(3.0, 8.0)
+				var acts := ["talk", "stretch", "wipe_brow", "look_around"]
+				rig.play_action(acts[_rng.randi() % acts.size()], minf(_rt_wait, 3.0))
+		"play":
+			if _rt_target == Vector3.ZERO or _walk_toward(_rt_target, 3.6, delta):
+				var c: Vector3 = routine["centre"]
+				var a := _rng.randf() * TAU
+				_rt_target = c + Vector3(cos(a), 0.0, sin(a)) * _rng.randf_range(1.0, float(routine.get("radius", 6.0)))
+				if _rt_target != Vector3.ZERO and _rng.randf() < 0.35:
+					_rt_wait = _rng.randf_range(0.6, 1.6)
+					rig.play_action("laugh", 1.4)
+
+
+func _companion_step(delta: float) -> void:
+	var to := player.global_position - global_position
+	to.y = 0.0
+	var dist := to.length()
+	var spd := 0.0
+	if dist > 3.2:
+		spd = 5.8 if dist > 9.0 else 3.0
+		rotation.y = lerp_angle(rotation.y, atan2(-to.x, -to.z), 1.0 - exp(-8.0 * delta))
+		var fwd := Vector3(-sin(rotation.y), 0.0, -cos(rotation.y))
+		global_position += fwd * spd * delta
+		var q := PhysicsRayQueryParameters3D.create(global_position + Vector3(0, 3.0, 0), global_position + Vector3(0, -6.0, 0))
+		var hit := get_world_3d().direct_space_state.intersect_ray(q)
+		if not hit.is_empty():
+			global_position.y = lerpf(global_position.y, hit["position"].y, 1.0 - exp(-12.0 * delta))
+	if dist > 40.0:                      # lost: catch up
+		global_position = player.global_position + Vector3(2.0, 0.0, 2.0)
+	_atk_cd -= delta
+	var foe: Node3D = null
+	var best := 3.4
+	for e in get_tree().get_nodes_in_group("enemies"):
+		var d := global_position.distance_to((e as Node3D).global_position)
+		if d < best:
+			best = d
+			foe = e
+	if foe != null:
+		var tf := foe.global_position - global_position
+		rotation.y = lerp_angle(rotation.y, atan2(-tf.x, -tf.z), 1.0 - exp(-10.0 * delta))
+		if _atk_cd <= 0.0:
+			_atk_cd = 1.5
+			rig.start_attack()
+			get_tree().create_timer(0.36).timeout.connect(func() -> void:
+				if is_instance_valid(foe) and not (foe as Enemy).dead:
+					(foe as Enemy).take_damage(16.0, foe.global_position - global_position)
+					Sfx.at("hit_thud", foe.global_position + Vector3(0, 1.0, 0), -5.0))
+	rig.mode = "locomotion"
+	rig.animate(delta, spd, true)
+
+
 func _process(delta: float) -> void:
 	if player == null or rig == null:
 		return
+	if companion:
+		_companion_step(delta)
+		return
+	if not routine.is_empty():
+		_routine_step(delta)
+		if _home_state == 2:
+			return
 	var dist := _flat_dist()
 	var near := dist < ANIM_RANGE
 	for k in _cd:
@@ -130,12 +246,15 @@ func _process(delta: float) -> void:
 			rig.mode = _base_mode
 	if not near:
 		return
-	rig.animate(delta, 0.0, true)
+	rig.mode = "locomotion" if (_move_speed > 0.1 and _base_mode != "hammer") else _base_mode
+	rig.animate(delta, _move_speed, true)
 	var spd := Vector2(player.velocity.x, player.velocity.z).length()
 
 	# Face and look at the player when they are close; otherwise drift back to the home facing.
 	var want_look := 0.0
-	if dist < NOTICE:
+	if _move_speed > 0.1:
+		pass
+	elif dist < NOTICE:
 		var to := player.global_position - global_position
 		var yaw_to := atan2(-to.x, -to.z)
 		var diff := wrapf(yaw_to - rotation.y, -PI, PI)

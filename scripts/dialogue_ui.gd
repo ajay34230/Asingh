@@ -193,6 +193,9 @@ func _finish_typing() -> void:
 	for c in ch:
 		var b := Button.new()
 		b.text = c["t"]
+		if c.has("cost"):
+			b.text += "   (%d coins)" % int(c["cost"])
+			b.disabled = int(story.get_flag("coins", 0)) < int(c["cost"])
 		b.custom_minimum_size = Vector2(0, 62)
 		b.add_theme_font_size_override("font_size", 27)
 		b.alignment = HORIZONTAL_ALIGNMENT_LEFT
@@ -202,6 +205,11 @@ func _finish_typing() -> void:
 
 func _choose(c: Dictionary) -> void:
 	Sfx.ui("ui_blip", -8.0)
+	if c.has("cost"):
+		story.add("coins", -int(c["cost"]))
+		Sfx.ui("pickup", -4.0)
+	if c.has("give"):
+		player.apply_powerup(c["give"])
 	var st: Dictionary = c.get("set", {})
 	for k in st:
 		story.set_flag(k, st[k])

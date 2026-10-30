@@ -108,7 +108,11 @@ func _next() -> void:
 		finish()
 		return
 	var s: Dictionary = _shots[_i]
-	_sub.text = s.get("text", "")
+	var who: String = s.get("who", "")
+	_sub.text = (who + ":  " if who != "" else "") + s.get("text", "")
+	if who != "" and s.has("text"):
+		s["dur"] = maxf(float(s.get("dur", 3.0)), 1.2 + String(s["text"]).length() * 0.062)
+		Sfx.speak(s.get("voice", "man"), s["text"], null, 0.0, true)
 	cam.fov = s.get("fov", 62.0)
 	cam.make_current()
 	_place(0.0)
@@ -153,6 +157,7 @@ func _process(delta: float) -> void:
 func finish() -> void:
 	if not playing:
 		return
+	Sfx.stop_speech()
 	playing = false
 	visible = false
 	_fade.modulate.a = 0.0

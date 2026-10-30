@@ -90,6 +90,8 @@ func _spawn_player() -> void:
 	add_child(player)
 	_look_at_point(Vector3(0.0, 22.0, -168.0), -0.07)
 	atmosphere.make_dust(player)
+	atmosphere.make_rain(player)
+	Npc.atmo = atmosphere
 
 
 ## Neutral test interactions for Phase 2 (no story text): they exist to exercise the system.

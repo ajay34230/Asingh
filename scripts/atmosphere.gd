@@ -9,6 +9,16 @@ var time_of_day := 0.33          # 0..1, 0.5 = noon, 0 / 1 = midnight
 var night := 0.0                 # 0 (day) .. 1 (deep night), read by Sfx
 var day_length := 1200.0         # real seconds per full day
 var running := false
+signal thunder
+var rain := 0.0                  # 0 clear .. 1 downpour (smoothed)
+var rain_target := 0.0
+var _rain_p: GPUParticles3D
+var _weather_t := 120.0          # seconds until the weather changes
+var _bolt_t := 6.0
+var _flash := 0.0
+var _rainbow: Node3D
+var _base_fog := 0.0009
+var _world: Node3D
 var environment: Environment
 
 
@@ -48,8 +58,8 @@ func build(parent: Node3D) -> void:
 	environment.fog_sky_affect = 0.45
 	environment.fog_sun_scatter = 0.25
 	environment.adjustment_enabled = true
-	environment.adjustment_contrast = 1.06
-	environment.adjustment_saturation = 0.9
+	environment.adjustment_contrast = 1.1
+	environment.adjustment_saturation = 1.1
 
 	var we := WorldEnvironment.new()
 	we.name = "WorldEnvironment"
@@ -69,6 +79,7 @@ func build(parent: Node3D) -> void:
 	sun.shadow_bias = 0.06
 	sun.shadow_normal_bias = 1.5
 	parent.add_child(sun)
+	_world = parent
 
 
 ## A small cloud of slow dust motes that follows `follow` (usually the player).
@@ -118,10 +129,111 @@ func make_dust(follow: Node3D) -> GPUParticles3D:
 
 ## Advance the day/night cycle. Colours are blended between day, dusk and night palettes.
 func update(delta: float) -> void:
-	if not running or sun == null:
+	if sun == null:
 		return
-	time_of_day = fposmod(time_of_day + delta / day_length, 1.0)
-	apply_time()
+	if running:
+		time_of_day = fposmod(time_of_day + delta / day_length, 1.0)
+		_update_weather(delta)
+	if running or rain > 0.01:
+		apply_time()
+
+
+## Rain: a particle curtain that follows the player, plus thunder and lightning while it pours.
+func make_rain(follow: Node3D) -> void:
+	var pm := ParticleProcessMaterial.new()
+	pm.emission_shape = ParticleProcessMaterial.EMISSION_SHAPE_BOX
+	pm.emission_box_extents = Vector3(16.0, 0.5, 16.0)
+	pm.direction = Vector3(0.12, -1.0, 0.05)
+	pm.spread = 3.0
+	pm.initial_velocity_min = 24.0
+	pm.initial_velocity_max = 30.0
+	pm.gravity = Vector3(0, -12.0, 0)
+	var quad := QuadMesh.new()
+	quad.size = Vector2(0.025, 0.7)
+	var mat := StandardMaterial3D.new()
+	mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	mat.billboard_mode = BaseMaterial3D.BILLBOARD_PARTICLES
+	mat.albedo_color = Color(0.78, 0.86, 1.0, 0.5)
+	mat.disable_receive_shadows = true
+	quad.material = mat
+	_rain_p = GPUParticles3D.new()
+	_rain_p.name = "Rain"
+	_rain_p.amount = 1400
+	_rain_p.lifetime = 0.9
+	_rain_p.local_coords = false
+	_rain_p.visibility_aabb = AABB(Vector3(-30, -25, -30), Vector3(60, 40, 60))
+	_rain_p.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	_rain_p.process_material = pm
+	_rain_p.draw_pass_1 = quad
+	_rain_p.position = Vector3(0, 14, 0)
+	_rain_p.emitting = false
+	follow.add_child(_rain_p)
+
+
+func _update_weather(delta: float) -> void:
+	_weather_t -= delta
+	if _weather_t <= 0.0:
+		if rain_target < 0.5:
+			rain_target = randf_range(0.6, 1.0)
+			_weather_t = randf_range(50.0, 90.0)
+		else:
+			rain_target = 0.0
+			_weather_t = randf_range(150.0, 300.0)
+			_show_rainbow()
+	var was := rain
+	rain = move_toward(rain, rain_target, delta / 12.0)
+	if _rain_p != null:
+		_rain_p.emitting = rain > 0.03
+		_rain_p.amount_ratio = clampf(rain, 0.05, 1.0)
+	if rain > 0.6:
+		_bolt_t -= delta
+		if _bolt_t <= 0.0:
+			_bolt_t = randf_range(7.0, 18.0)
+			_flash = 1.0
+			thunder.emit()
+	_flash = maxf(0.0, _flash - delta * 3.0)
+	if was != rain or _flash > 0.0:
+		apply_time()
+
+
+func _show_rainbow() -> void:
+	if _world == null or time_of_day < 0.25 or time_of_day > 0.75:
+		return
+	if _rainbow != null and is_instance_valid(_rainbow):
+		_rainbow.queue_free()
+	_rainbow = Node3D.new()
+	_rainbow.position = Vector3(60, 0, -520)
+	_world.add_child(_rainbow)
+	var cols := [Color(1, 0.15, 0.15), Color(1, 0.55, 0.1), Color(1, 0.95, 0.2), Color(0.25, 0.9, 0.3), Color(0.2, 0.6, 1), Color(0.35, 0.3, 0.9), Color(0.7, 0.3, 0.85)]
+	for i in cols.size():
+		var t := MeshInstance3D.new()
+		var tm := TorusMesh.new()
+		tm.outer_radius = 300.0 - i * 7.0
+		tm.inner_radius = 300.0 - i * 7.0 - 7.0
+		tm.rings = 48
+		tm.ring_segments = 4
+		t.mesh = tm
+		t.rotation_degrees.x = 90.0
+		var m := StandardMaterial3D.new()
+		m.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+		m.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+		m.albedo_color = Color(cols[i].r, cols[i].g, cols[i].b, 0.0)
+		m.no_depth_test = false
+		t.material_override = m
+		t.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		_rainbow.add_child(t)
+		var tw := t.create_tween()
+		tw.tween_property(m, "albedo_color:a", 0.33, 6.0)
+		tw.tween_interval(55.0)
+		tw.tween_property(m, "albedo_color:a", 0.0, 10.0)
+	get_tree_free_later(_rainbow, 80.0)
+
+
+func get_tree_free_later(n: Node, secs: float) -> void:
+	n.get_tree().create_timer(secs).timeout.connect(func() -> void:
+		if is_instance_valid(n):
+			n.queue_free())
 
 
 func apply_time() -> void:
@@ -150,3 +262,17 @@ func apply_time() -> void:
 	environment.ambient_light_energy = lerpf(1.0, 0.55, night)
 	environment.fog_light_color = Color(0.84, 0.74, 0.60).lerp(Color(0.06, 0.08, 0.16), night)
 	environment.tonemap_exposure = lerpf(0.85, 1.1, night)
+	# weather: overcast, desaturated, foggier, with a lightning flash
+	if rain > 0.0 or _flash > 0.0:
+		sun.light_energy *= 1.0 - 0.6 * rain
+		sky_mat.sky_top_color = sky_mat.sky_top_color.lerp(Color(0.32, 0.35, 0.4) * (1.0 - night * 0.8), rain * 0.8)
+		sky_mat.sky_horizon_color = sky_mat.sky_horizon_color.lerp(Color(0.45, 0.47, 0.5) * (1.0 - night * 0.8), rain * 0.8)
+		environment.fog_density = lerpf(_base_fog, 0.0038, rain)
+		environment.ambient_light_energy *= 1.0 - 0.25 * rain
+		environment.adjustment_saturation = lerpf(1.1, 0.8, rain)
+		if _flash > 0.0:
+			environment.ambient_light_energy += 2.5 * _flash
+			sky_mat.sky_top_color = sky_mat.sky_top_color.lerp(Color(0.9, 0.92, 1.0), _flash * 0.6)
+	else:
+		environment.fog_density = _base_fog
+		environment.adjustment_saturation = 1.1

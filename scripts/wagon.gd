@@ -15,6 +15,11 @@ var _seg: Array[float] = []
 var _animals: Array[Animal] = []
 var _cart: Node3D
 var _heading := 0.0
+var open_route := false          # true: runs once from first to last point (rideable cart)
+var running := true
+var seat: Node3D
+var rider: Player
+signal arrived
 
 
 func setup(ter: TerrainBuilder, ply: Node3D, kind: String, points: Array[Vector2], spd: float) -> Wagon:
@@ -23,7 +28,7 @@ func setup(ter: TerrainBuilder, ply: Node3D, kind: String, points: Array[Vector2
 	route = points
 	speed = spd
 	name = "Wagon_" + kind
-	for i in route.size():
+	for i in (route.size() - 1 if open_route else route.size()):
 		var d := route[i].distance_to(route[(i + 1) % route.size()])
 		_seg.append(d)
 		_len += d
@@ -60,17 +65,43 @@ func setup(ter: TerrainBuilder, ply: Node3D, kind: String, points: Array[Vector2
 	beam.material_override = wm
 	beam.position = Vector3(0, 1.25, -2.4)
 	add_child(beam)
+	seat = Node3D.new()
+	seat.position = Vector3(0, 1.25, 1.1)
+	_cart.add_child(seat)
 	_place(0.0)
 	return self
 
 
+## Rideable cart: the player climbs on and is carried to the end of the route.
+func start_run(p: Player) -> void:
+	rider = p
+	running = true
+	p.carried_by = seat
+	for a in _animals:
+		a.play_walk(true)
+
+
+func _finish_run() -> void:
+	running = false
+	for a in _animals:
+		a.play_walk(false)
+	if rider != null:
+		rider.carried_by = null
+		var out := seat.global_position + Vector3(2.6, 0.0, 0.0)
+		out.y = terrain.sample_height(out.x, out.z) + 0.4
+		rider.global_position = out
+		rider.velocity = Vector3.ZERO
+		rider = null
+	arrived.emit()
+
+
 func _point_at(s: float) -> Vector2:
-	var d := fposmod(s, _len)
-	for i in route.size():
+	var d := clampf(s, 0.0, _len) if open_route else fposmod(s, _len)
+	for i in _seg.size():
 		if d <= _seg[i]:
 			return route[i].lerp(route[(i + 1) % route.size()], d / maxf(_seg[i], 0.001))
 		d -= _seg[i]
-	return route[0]
+	return route[route.size() - 1] if open_route else route[0]
 
 
 func _place(s: float) -> void:
@@ -119,5 +150,9 @@ func _process(delta: float) -> void:
 			a._anim.speed_scale = 1.0 if near else 0.0
 	if not near:
 		return
+	if not running:
+		return
 	_s += speed * delta
 	_place(_s)
+	if open_route and _s >= _len:
+		_finish_run()
