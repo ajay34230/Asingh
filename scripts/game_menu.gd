@@ -174,8 +174,7 @@ func _set_volume(v: float) -> void:
 
 
 func _set_quality(i: int) -> void:
-	var scale: float = [1.0, 0.8, 0.62][i]
-	get_viewport().scaling_3d_scale = scale
+	main.apply_quality(i)
 	_save_settings()
 
 

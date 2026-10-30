@@ -61,6 +61,7 @@ func _ready() -> void:
 	water = WaterBuilder.new(terrain)
 	water.build(self, houses)
 	water.spawn_carriers(self, houses, player)
+	TempleBuilder.new(terrain, player).build(self)
 	var sfx := Sfx.new().setup(player, houses)
 	sfx.atmo = atmosphere
 	add_child(sfx)
@@ -80,6 +81,28 @@ func _ready() -> void:
 		if a.begins_with("--capture="):
 			_run_capture.call_deferred(a.trim_prefix("--capture="))
 			return
+
+
+## Temple: the node and its two interactions exist, and the player can stand on the top tier.
+func _selftest_temple(fails: PackedStringArray, notes: PackedStringArray) -> void:
+	var altar := 0
+	var bell := 0
+	for it in get_tree().get_nodes_in_group("interactables"):
+		if (it as Interactable).prompt == "Pray at the altar":
+			altar += 1
+		elif (it as Interactable).prompt == "Ring the temple bell":
+			bell += 1
+	if get_node_or_null("Temple") == null or altar != 1 or bell != 1:
+		fails.append("temple: missing parts (altar=%d bell=%d)" % [altar, bell])
+	var c := TerrainBuilder.TEMPLE_C
+	_teleport(c.x, c.y + 5.5)
+	player.global_position.y = terrain.sample_height(c.x, c.y) + 3.0
+	for i in 40:
+		await get_tree().physics_frame
+	var rise := player.global_position.y - terrain.sample_height(c.x, c.y)
+	if rise < 0.7 or rise > 1.3:
+		fails.append("temple: player not standing on the top tier (rise %.2f)" % rise)
+	notes.append("temple: altar=%d bell=%d standing height %.2f m above ground" % [altar, bell, rise])
 
 
 ## Save v2 checks: version stamp, old-format migration, backup fallback, corruption handling.
@@ -122,6 +145,24 @@ func _selftest_save_v2(fails: PackedStringArray, notes: PackedStringArray) -> vo
 	for suffix in ["", ".bak", ".tmp", ".corrupt"]:
 		DirAccess.remove_absolute(abs_ + suffix)
 	notes.append("save v2 checks: %s" % ("ok" if ok else "FAILED"))
+
+
+## Real graphics tiers: 0 High, 1 Medium, 2 Low. Controls render scale, shadows, glow, foliage
+## draw distance and rain density. Called by GameMenu whenever the setting changes.
+func apply_quality(tier: int) -> void:
+	atmosphere.quality = tier
+	get_viewport().scaling_3d_scale = [1.0, 0.8, 0.62][tier]
+	atmosphere.sun.shadow_enabled = true
+	atmosphere.sun.directional_shadow_max_distance = [260.0, 150.0, 70.0][tier]
+	atmosphere.sun.directional_shadow_mode = [DirectionalLight3D.SHADOW_PARALLEL_2_SPLITS, DirectionalLight3D.SHADOW_PARALLEL_2_SPLITS, DirectionalLight3D.SHADOW_ORTHOGONAL][tier]
+	atmosphere.environment.glow_enabled = tier < 2
+	var ranges := {"foliage_grass": [130.0, 75.0, 40.0], "foliage_reeds": [160.0, 100.0, 60.0], "foliage_palm": [420.0, 260.0, 150.0]}
+	for g in ranges:
+		for n in get_tree().get_nodes_in_group(g):
+			var gi := n as GeometryInstance3D
+			gi.visibility_range_end = ranges[g][tier]
+			gi.visibility_range_end_margin = 8.0
+			gi.visibility_range_fade_mode = GeometryInstance3D.VISIBILITY_RANGE_FADE_SELF
 
 
 func _process(delta: float) -> void:
@@ -632,6 +673,7 @@ func _run_selftest() -> void:
 		player.global_position = keep_pos
 	notes.append("save/load checked")
 	_selftest_save_v2(fails, notes)
+	await _selftest_temple(fails, notes)
 
 	for s in notes:
 		print("[selftest] ", s)
@@ -700,6 +742,8 @@ func _run_capture(dir: String) -> void:
 		["02_channel", Vector3(-80.0, 0.0, 30.0), Vector3(-88.0, 0.0, 16.0), -0.15],
 		["03_sky", Vector3(-20.0, 0.0, 40.0), Vector3(-60.0, 60.0, -200.0), 0.2],
 		["04_village", Vector3(-70.0, 0.0, 28.0), Vector3(-92.0, 0.0, 10.0), -0.1],
+		["05_temple", Vector3(-35.0, 0.0, 24.0), Vector3(-35.0, 0.0, -10.0), 0.12],
+		["06_temple_side", Vector3(-12.0, 0.0, 8.0), Vector3(-35.0, 0.0, -10.0), 0.1],
 	]
 	for w in wshots:
 		var wp: Vector3 = w[1]
@@ -714,6 +758,19 @@ func _run_capture(dir: String) -> void:
 			await get_tree().process_frame
 		await RenderingServer.frame_post_draw
 		get_viewport().get_texture().get_image().save_png("%s/%s.png" % [dir, w[0]])
+	for tier in 3:
+		apply_quality(tier)
+		var tp := Vector3(-34.0, terrain.sample_height(-34.0, 70.0) + 0.4, 70.0)
+		player.set_distance(6.0)
+		player.global_position = tp
+		player.velocity = Vector3.ZERO
+		_look_at_point(Vector3(-60.0, terrain.pond_level, 52.0), -0.1)
+		for i in 45:
+			await get_tree().process_frame
+		await RenderingServer.frame_post_draw
+		get_viewport().get_texture().get_image().save_png("%s/tier_%d_pond.png" % [dir, tier])
+		print("[capture] tier %d fps %.1f" % [tier, Engine.get_frames_per_second()])
+	apply_quality(0)
 	# Story shots: office, dialogue, HUD.
 	var ho: Node3D = houses.houses[5].node
 	player.set_distance(2.6)

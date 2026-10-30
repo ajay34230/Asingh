@@ -6,43 +6,50 @@ extends RefCounted
 const WATER_SHADER := """
 shader_type spatial;
 render_mode blend_mix, cull_disabled, specular_schlick_ggx;
+// Dark green-grey water with strong sky reflection at glancing angles, big slow swells with fine
+// ripples on top, sun glints, depth-based colour and white foam where the water meets the shore.
 uniform sampler2D nrm_a : hint_normal, repeat_enable, filter_linear_mipmap;
 uniform sampler2D nrm_b : hint_normal, repeat_enable, filter_linear_mipmap;
-uniform vec4 deep_col : source_color = vec4(0.03, 0.26, 0.32, 1.0);
-uniform vec4 shallow_col : source_color = vec4(0.20, 0.66, 0.60, 1.0);
-uniform vec4 sky_col : source_color = vec4(0.55, 0.75, 0.95, 1.0);
-uniform vec2 centre = vec2(0.0);
-uniform float radius = 0.0;
-uniform vec2 flow = vec2(0.015, 0.008);
-uniform float wave_amp = 0.04;
+uniform sampler2D depth_tex : hint_depth_texture, repeat_disable, filter_nearest;
+global uniform vec3 water_sky;
+global uniform float wind_strength;
+uniform vec4 shallow_col : source_color = vec4(0.20, 0.34, 0.28, 1.0);
+uniform vec4 deep_col : source_color = vec4(0.02, 0.09, 0.10, 1.0);
+uniform vec2 flow = vec2(0.012, 0.006);
+uniform float wave_amp = 0.06;
+uniform float gl_depth = 0.0;
 varying vec3 wpos;
 void vertex() {
 	vec3 w = (MODEL_MATRIX * vec4(VERTEX, 1.0)).xyz;
-	VERTEX.y += (sin(w.x * 0.9 + TIME * 1.3) + sin(w.z * 1.1 + TIME * 1.7)) * wave_amp * 0.5;
+	float k = 0.6 + wind_strength;
+	VERTEX.y += (sin(w.x * 0.35 + TIME * 0.9) * 0.6 + sin(w.z * 0.5 - TIME * 1.1) * 0.5 + sin((w.x + w.z) * 1.1 + TIME * 1.9) * 0.25) * wave_amp * k;
 	wpos = w;
 }
 void fragment() {
-	vec2 uv = wpos.xz * 0.12;
-	vec3 a = texture(nrm_a, uv + flow * TIME).rgb;
-	vec3 b = texture(nrm_b, uv * 1.7 - flow.yx * TIME * 1.3 + 0.31).rgb;
-	vec3 n = normalize((a * 2.0 - 1.0) + (b * 2.0 - 1.0));
+	vec2 uv = wpos.xz * 0.06;
+	vec3 a = texture(nrm_a, uv * 0.6 + flow * TIME).rgb;
+	vec3 b = texture(nrm_b, uv * 1.9 - flow.yx * TIME * 1.4 + 0.31).rgb;
+	vec3 c = texture(nrm_b, uv * 5.3 + vec2(0.27, -0.11) * TIME * 0.2).rgb;
+	vec3 n = normalize((a * 2.0 - 1.0) * 1.0 + (b * 2.0 - 1.0) * 0.7 + (c * 2.0 - 1.0) * 0.35);
 	NORMAL_MAP = n * 0.5 + 0.5;
-	NORMAL_MAP_DEPTH = 0.9;
-	float fres = pow(1.0 - clamp(dot(normalize(NORMAL), normalize(VIEW)), 0.0, 1.0), 3.0);
-	float d = length(wpos.xz - centre);
-	float edge = 0.0;
-	float foam = 0.0;
-	if (radius > 0.0) {
-		edge = smoothstep(radius * 0.55, radius, d);
-		float ripple = a.r * 0.5 + b.g * 0.5 + 0.12 * sin(TIME * 1.5 + wpos.x * 2.0);
-		foam = smoothstep(radius * 0.92, radius, d) * smoothstep(0.38, 0.62, ripple);
-	}
-	vec3 col = mix(deep_col.rgb, shallow_col.rgb, edge);
-	col = mix(col, sky_col.rgb, fres * 0.6);
-	ALBEDO = mix(col, vec3(0.95), foam);
-	ALPHA = clamp(mix(0.84, 0.97, max(edge, fres)), 0.0, 1.0);
-	ROUGHNESS = 0.05;
-	SPECULAR = 0.9;
+	NORMAL_MAP_DEPTH = 1.1 + wind_strength * 0.6;
+	float depth = texture(depth_tex, SCREEN_UV).r;
+	vec3 ndc = vec3(SCREEN_UV * 2.0 - 1.0, mix(depth, depth * 2.0 - 1.0, gl_depth));
+	vec4 view = INV_PROJECTION_MATRIX * vec4(ndc, 1.0);
+	view.xyz /= view.w;
+	float thick = max(-view.z + VERTEX.z, 0.0);
+	float ndv = clamp(dot(normalize(NORMAL), normalize(VIEW)), 0.0, 1.0);
+	float fres = 0.03 + 0.97 * pow(1.0 - ndv, 4.0);
+	float tint = 1.0 - exp(-thick * 0.55);
+	vec3 body = mix(shallow_col.rgb, deep_col.rgb, tint);
+	float foam_line = (1.0 - smoothstep(0.0, 0.45, thick)) * smoothstep(0.30, 0.60, a.g * 0.6 + b.r * 0.5 + 0.1 * sin(TIME * 1.3 + wpos.x * 3.0));
+	float foam_edge = (1.0 - smoothstep(0.0, 0.12, thick));
+	float foam = clamp(foam_line + foam_edge, 0.0, 1.0);
+	ALBEDO = mix(body, vec3(0.92, 0.94, 0.92), foam);
+	EMISSION = water_sky * fres * 0.85 * (1.0 - foam);
+	ALPHA = clamp(mix(0.35 + tint * 0.6, 1.0, max(fres, foam)), 0.0, 0.98);
+	ROUGHNESS = mix(0.06, 0.8, foam);
+	SPECULAR = 1.0;
 	METALLIC = 0.0;
 }
 """
@@ -61,17 +68,16 @@ func _init(t: TerrainBuilder) -> void:
 	water_level = t.pond_level - 0.55
 
 
-func _make_mat(radius: float, flow: Vector2, amp: float) -> ShaderMaterial:
+func _make_mat(flow: Vector2, amp: float) -> ShaderMaterial:
 	var sh := Shader.new()
 	sh.code = WATER_SHADER
 	var m := ShaderMaterial.new()
 	m.shader = sh
-	m.set_shader_parameter("nrm_a", PropFactory._noise_texture("water_a", 0.02, 3, 91, true, 4.0, 0.6, false, 256))
-	m.set_shader_parameter("nrm_b", PropFactory._noise_texture("water_b", 0.035, 2, 93, true, 3.0, 0.6, false, 256))
-	m.set_shader_parameter("centre", TerrainBuilder.POND_C)
-	m.set_shader_parameter("radius", radius)
+	m.set_shader_parameter("nrm_a", PropFactory._noise_texture("water_a", 0.02, 3, 91, true, 5.0, 0.6, false, 256))
+	m.set_shader_parameter("nrm_b", PropFactory._noise_texture("water_b", 0.035, 2, 93, true, 3.5, 0.6, false, 256))
 	m.set_shader_parameter("flow", flow)
 	m.set_shader_parameter("wave_amp", amp)
+	m.set_shader_parameter("gl_depth", 1.0 if RenderingServer.get_current_rendering_method() == "gl_compatibility" else 0.0)
 	return m
 
 
@@ -86,13 +92,13 @@ func build(parent: Node3D, houses: HouseBuilder) -> void:
 
 func _pond(root: Node3D) -> void:
 	var c := TerrainBuilder.POND_C
-	pond_mat = _make_mat(TerrainBuilder.POND_R * 1.08, Vector2(0.015, 0.008), 0.035)
+	pond_mat = _make_mat(Vector2(0.012, 0.006), 0.06)
 	var mi := MeshInstance3D.new()
 	mi.name = "PondWater"
 	var pm := PlaneMesh.new()
-	pm.size = Vector2(40.0, 40.0)
-	pm.subdivide_width = 40
-	pm.subdivide_depth = 40
+	pm.size = Vector2(54.0, 54.0)
+	pm.subdivide_width = 64
+	pm.subdivide_depth = 64
 	mi.mesh = pm
 	mi.material_override = pond_mat
 	mi.position = Vector3(c.x, water_level, c.y)
@@ -155,8 +161,7 @@ func _channel(root: Node3D) -> void:
 	channel_end = b
 	var total := a.distance_to(b)
 	var count := int(total / 1.6)
-	chan_mat = _make_mat(0.0, Vector2(0.0, 0.35), 0.0)
-	chan_mat.set_shader_parameter("shallow_col", Color(0.22, 0.62, 0.62))
+	chan_mat = _make_mat(Vector2(0.0, 0.35), 0.0)
 	var stone := PropFactory.sandstone()
 	var wall_mesh := BoxMesh.new()
 	wall_mesh.size = Vector3(0.22, 0.42, 1.66)
@@ -223,6 +228,8 @@ func _flora(root: Node3D, houses: HouseBuilder) -> void:
 			return true
 		if Vector2(x - TerrainBuilder.START_MOUND.x, z - TerrainBuilder.START_MOUND.y).length() < 20.0:
 			return true
+		if Vector2(x - TerrainBuilder.TEMPLE_C.x, z - TerrainBuilder.TEMPLE_C.y).length() < 22.0:
+			return true
 		if Vector2(x - well_pos.x, z - well_pos.y).length() < 6.0:
 			return true
 		return false
@@ -254,7 +261,7 @@ func _flora(root: Node3D, houses: HouseBuilder) -> void:
 		cs.shape = cyl
 		cs.position = Vector3(sp.x, y + 2.0, sp.y)
 		palm_body.add_child(cs)
-	Flora.scatter(root, Flora.palm_mesh(), Flora.sway_material("palm", 0.012, 1.1), palms, "Palms")
+	Flora.scatter_cells(root, Flora.palm_mesh(), Flora.sway_material("palm", 0.012, 1.1), palms, "Palms", "foliage_palm", 60.0)
 	# Grass tufts across the green ground, and tall reeds at the water's edge.
 	var grass: Array[Transform3D] = []
 	var reeds: Array[Transform3D] = []
@@ -278,8 +285,8 @@ func _flora(root: Node3D, houses: HouseBuilder) -> void:
 		var x := c.x + cos(a) * r
 		var z := c.y + sin(a) * r
 		reeds.append(Transform3D(Basis.from_euler(Vector3(0, rng.randf() * TAU, 0)).scaled(Vector3(1, rng.randf_range(0.9, 1.5), 1)), Vector3(x, terrain.sample_height(x, z) - 0.1, z)))
-	Flora.scatter(root, Flora.clump_mesh(7, 0.3, 0.6, 5, Color(0.36, 0.62, 0.20)), Flora.sway_material("grass", 0.18, 1.8), grass, "Grass")
-	Flora.scatter(root, Flora.clump_mesh(5, 1.2, 2.1, 9, Color(0.30, 0.52, 0.18)), Flora.sway_material("reeds", 0.06, 1.2), reeds, "Reeds")
+	Flora.scatter_cells(root, Flora.clump_mesh(7, 0.3, 0.6, 5, Color(0.30, 0.44, 0.16)), Flora.sway_material("grass", 0.18, 1.8), grass, "Grass", "foliage_grass", 30.0)
+	Flora.scatter_cells(root, Flora.clump_mesh(5, 1.2, 2.1, 9, Color(0.28, 0.42, 0.15)), Flora.sway_material("reeds", 0.06, 1.2), reeds, "Reeds", "foliage_reeds", 30.0)
 
 
 ## Villagers fetch water from the pond and carry clay pots on their heads to the houses and the trough.

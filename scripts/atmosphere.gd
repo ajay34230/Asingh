@@ -20,6 +20,9 @@ var _rainbow: Node3D
 var _base_fog := 0.0009
 var _world: Node3D
 var environment: Environment
+var wind := 0.5                  # 0 calm .. 1 gale; read by sway shaders, water and Sfx
+var quality := 0                 # 0 High, 1 Medium, 2 Low (see Main.apply_quality)
+var _wind_t := 0.0
 var _cloud_mat: ShaderMaterial
 var _clouds: MeshInstance3D
 var _follow: Node3D
@@ -79,7 +82,16 @@ func make_clouds(follow: Node3D) -> void:
 	apply_time()
 
 
+static func _gparam(nm: String, type: int, v: Variant) -> void:
+	if not (nm in RenderingServer.global_shader_parameter_get_list()):
+		RenderingServer.global_shader_parameter_add(nm, type, v)
+	else:
+		RenderingServer.global_shader_parameter_set(nm, v)
+
+
 func build(parent: Node3D) -> void:
+	_gparam("water_sky", RenderingServer.GLOBAL_VAR_TYPE_VEC3, Vector3(0.55, 0.7, 0.9))
+	_gparam("wind_strength", RenderingServer.GLOBAL_VAR_TYPE_FLOAT, 0.5)
 	sky_mat = ProceduralSkyMaterial.new()
 	sky_mat.sky_top_color = Color(0.26, 0.47, 0.80)
 	sky_mat.sky_horizon_color = Color(0.88, 0.78, 0.62)
@@ -190,6 +202,10 @@ func update(delta: float) -> void:
 		return
 	if _clouds != null and _follow != null:
 		_clouds.global_position = Vector3(_follow.global_position.x, 320.0, _follow.global_position.z)
+	_wind_t += delta
+	var target := 0.35 + 0.25 * sin(_wind_t * 0.11) * sin(_wind_t * 0.037 + 1.0) + 0.45 * rain
+	wind = lerpf(wind, clampf(target, 0.05, 1.0), 1.0 - exp(-0.5 * delta))
+	RenderingServer.global_shader_parameter_set("wind_strength", wind)
 	if running:
 		time_of_day = fposmod(time_of_day + delta / day_length, 1.0)
 		_update_weather(delta)
@@ -244,7 +260,7 @@ func _update_weather(delta: float) -> void:
 	rain = move_toward(rain, rain_target, delta / 12.0)
 	if _rain_p != null:
 		_rain_p.emitting = rain > 0.03
-		_rain_p.amount_ratio = clampf(rain, 0.05, 1.0)
+		_rain_p.amount_ratio = clampf(rain, 0.05, 1.0) * [1.0, 0.65, 0.35][quality]
 	if rain > 0.6:
 		_bolt_t -= delta
 		if _bolt_t <= 0.0:
@@ -346,3 +362,5 @@ func apply_time() -> void:
 		_cloud_mat.set_shader_parameter("shade_col", Vector3(shd.r, shd.g, shd.b))
 		_cloud_mat.set_shader_parameter("cover", lerpf(0.40, 0.8, rain))
 		_cloud_mat.set_shader_parameter("alpha_mul", lerpf(0.9, 0.97, rain))
+	var sky_c: Color = sky_mat.sky_horizon_color.lerp(sky_mat.sky_top_color, 0.45)
+	RenderingServer.global_shader_parameter_set("water_sky", Vector3(sky_c.r, sky_c.g, sky_c.b))

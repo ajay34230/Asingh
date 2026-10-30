@@ -9,11 +9,13 @@ shader_type spatial;
 render_mode cull_disabled;
 uniform float amp = 0.1;
 uniform float speed = 1.4;
+global uniform float wind_strength;
 void vertex() {
 	vec3 wp = MODEL_MATRIX[3].xyz;
 	float h = max(VERTEX.y, 0.0);
-	VERTEX.x += sin(TIME * speed + wp.x * 0.7 + wp.z * 0.5) * amp * h;
-	VERTEX.z += cos(TIME * speed * 0.8 + wp.z * 0.6) * amp * h * 0.6;
+	float w = 0.45 + wind_strength;
+	VERTEX.x += sin(TIME * speed * (0.8 + 0.5 * w) + wp.x * 0.7 + wp.z * 0.5) * amp * h * w;
+	VERTEX.z += cos(TIME * speed * 0.8 + wp.z * 0.6) * amp * h * 0.6 * w;
 }
 void fragment() {
 	ALBEDO = COLOR.rgb;
@@ -150,3 +152,26 @@ static func scatter(parent: Node3D, mesh: Mesh, mat: Material, xforms: Array[Tra
 	mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	parent.add_child(mi)
 	return mi
+
+
+## Like `scatter`, but splits the instances into square cells so each cell is its own MultiMesh.
+## That lets the engine cull cells outside the view and hide far cells (`visibility_range_end`),
+## which is how foliage density and view distance are controlled per graphics tier.
+static func scatter_cells(parent: Node3D, mesh: Mesh, mat: Material, xforms: Array[Transform3D],
+		nm: String, group: String, cell: float = 40.0) -> void:
+	var buckets := {}
+	for t in xforms:
+		var key := Vector2i(floori(t.origin.x / cell), floori(t.origin.z / cell))
+		if not buckets.has(key):
+			buckets[key] = [] as Array[Transform3D]
+		buckets[key].append(t)
+	for key in buckets:
+		var centre := Vector3((key.x + 0.5) * cell, 0.0, (key.y + 0.5) * cell)
+		var local: Array[Transform3D] = []
+		for t in buckets[key]:
+			var lt: Transform3D = t
+			lt.origin -= centre
+			local.append(lt)
+		var mi := scatter(parent, mesh, mat, local, "%s_%d_%d" % [nm, key.x, key.y])
+		mi.position = centre
+		mi.add_to_group(group)

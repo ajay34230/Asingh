@@ -25,7 +25,9 @@ const HOUSE_SITES: Array[Vector2] = [
 ]
 ## Village pond: the ground is levelled around it and a basin is carved; water sits just below the rim.
 const POND_C := Vector2(-60.0, 52.0)
-const POND_R := 13.0
+const POND_R := 16.0
+## The village temple stands on levelled ground here.
+const TEMPLE_C := Vector2(-35.0, -10.0)
 const SITE_FLAT_RADIUS := 13.0
 const SITE_BLEND_RADIUS := 24.0
 
@@ -46,6 +48,7 @@ var _ridge := FastNoiseLite.new()
 var _mountain := FastNoiseLite.new()
 var _site_y := PackedFloat32Array()
 var pond_level := 0.0
+var temple_y := 0.0
 var _pond_ready := false
 
 
@@ -74,9 +77,10 @@ func _init(seed_value: int = 1337) -> void:
 	var acc := 0.0
 	for k in 8:
 		var a := TAU * k / 8.0
-		acc += _ground_base(POND_C.x + cos(a) * 30.0, POND_C.y + sin(a) * 30.0)
+		acc += _ground_base(POND_C.x + cos(a) * 38.0, POND_C.y + sin(a) * 38.0)
 	pond_level = acc / 8.0
 	_pond_ready = true
+	temple_y = _ground_base(TEMPLE_C.x, TEMPLE_C.y)
 	for s in HOUSE_SITES:
 		_site_y.append(_ground_base(s.x, s.y))
 
@@ -94,6 +98,9 @@ func height_at(x: float, z: float) -> float:
 	for i in HOUSE_SITES.size():
 		var ds_ := Vector2(x - HOUSE_SITES[i].x, z - HOUSE_SITES[i].y).length()
 		h = lerpf(_site_y[i], h, smoothstep(SITE_FLAT_RADIUS, SITE_BLEND_RADIUS, ds_))
+
+	# Level ground for the temple.
+	h = lerpf(temple_y, h, smoothstep(17.0, 32.0, Vector2(x - TEMPLE_C.x, z - TEMPLE_C.y).length()))
 
 	# Railway cutting/embankment: a level strip along the goods line that fades out at both ends.
 	var rail_w := (1.0 - smoothstep(6.0, 18.0, absf(z - 96.0))) * (1.0 - smoothstep(105.0, 150.0, absf(x)))
@@ -135,8 +142,8 @@ func _ground_base(x: float, z: float) -> float:
 	# Village pond: level the surroundings, then carve the basin.
 	if _pond_ready:
 		var dp := Vector2(x - POND_C.x, z - POND_C.y).length()
-		h = lerpf(pond_level, h, smoothstep(24.0, 44.0, dp))
-		h = lerpf(pond_level - 2.4, h, smoothstep(POND_R * 0.5, POND_R * 1.25, dp))
+		h = lerpf(pond_level, h, smoothstep(30.0, 52.0, dp))
+		h = lerpf(pond_level - 2.8, h, smoothstep(POND_R * 0.5, POND_R * 1.25, dp))
 	return h
 
 
@@ -251,8 +258,8 @@ func _color_at(p: Vector3, n: Vector3) -> Color:
 	c = c.lerp(GRAVEL, 1.0 - smoothstep(6.0, 20.0, rv))
 	# Green oasis grass around the pond, darker wet earth at the water's edge.
 	var dp := Vector2(p.x - POND_C.x, p.z - POND_C.y).length()
-	var grass := Color(0.30, 0.52, 0.20).lerp(Color(0.46, 0.60, 0.26), t)
-	c = c.lerp(grass, (1.0 - smoothstep(POND_R * 1.1, 40.0, dp)) * clampf(1.0 - (1.0 - n.y) * 3.0, 0.0, 1.0))
+	var grass := Color(0.36, 0.45, 0.20).lerp(Color(0.50, 0.52, 0.27), t)
+	c = c.lerp(grass, (1.0 - smoothstep(POND_R * 1.1, 46.0, dp)) * 0.8 * clampf(1.0 - (1.0 - n.y) * 3.0, 0.0, 1.0))
 	c = c.lerp(Color(0.30, 0.22, 0.14), 1.0 - smoothstep(POND_R * 0.8, POND_R * 1.3, dp))
 	return c
 

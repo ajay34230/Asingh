@@ -242,7 +242,8 @@ func _process(delta: float) -> void:
 		_chime_t = _rng.randf_range(9.0, 22.0)
 		if near_house < 35.0 and not indoors:
 			_play3d("wind_chime_%d" % _rng.randi_range(0, 2), near_pos + Vector3(0, 3.2, 0), -6.0, _rng.randf_range(0.95, 1.05))
-	_wind.volume_db = lerpf(_wind.volume_db, -22.0 if indoors else -10.0, k)
+	var gust := (atmo.wind - 0.4) * 14.0 if atmo != null else 0.0
+	_wind.volume_db = lerpf(_wind.volume_db, (-22.0 if indoors else -10.0) + (gust * (0.3 if indoors else 1.0)), k)
 	var night := atmo.night if atmo != null else 0.0
 	_crickets.volume_db = lerpf(_crickets.volume_db, -60.0 if indoors else lerpf(-34.0, -14.0, night), k)
 	_room.volume_db = lerpf(_room.volume_db, -16.0 if indoors else -80.0, k)
