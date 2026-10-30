@@ -20,6 +20,63 @@ var _rainbow: Node3D
 var _base_fog := 0.0009
 var _world: Node3D
 var environment: Environment
+var _cloud_mat: ShaderMaterial
+var _clouds: MeshInstance3D
+var _follow: Node3D
+const CLOUD_SHADER := """
+shader_type spatial;
+render_mode unshaded, cull_disabled, depth_draw_never, blend_mix, fog_disabled;
+uniform sampler2D noise_tex : repeat_enable, filter_linear_mipmap;
+uniform vec3 lit_col = vec3(1.0, 0.98, 0.95);
+uniform vec3 shade_col = vec3(0.62, 0.68, 0.80);
+uniform float cover = 0.45;
+uniform vec2 wind = vec2(1.0, 0.35);
+uniform float alpha_mul = 1.0;
+varying vec3 wpos;
+void vertex() {
+	wpos = (MODEL_MATRIX * vec4(VERTEX, 1.0)).xyz;
+}
+void fragment() {
+	vec2 uv = wpos.xz * 0.00035 + wind * TIME * 0.0012;
+	float n = texture(noise_tex, uv).r * 0.55 + texture(noise_tex, uv * 2.3 + 0.37).r * 0.30 + texture(noise_tex, uv * 5.1 + 0.71).r * 0.15;
+	float n2 = texture(noise_tex, uv + vec2(0.006, 0.004)).r * 0.55 + texture(noise_tex, (uv + vec2(0.006, 0.004)) * 2.3 + 0.37).r * 0.30 + texture(noise_tex, (uv + vec2(0.006, 0.004)) * 5.1 + 0.71).r * 0.15;
+	float c = smoothstep(1.0 - cover, 1.0 - cover + 0.22, n);
+	float shade = clamp((n - n2) * 6.0 + 0.45, 0.0, 1.0);
+	float fade = 1.0 - smoothstep(900.0, 2300.0, length(wpos.xz - CAMERA_POSITION_WORLD.xz));
+	ALBEDO = mix(lit_col, shade_col, shade);
+	ALPHA = c * fade * alpha_mul;
+}
+"""
+
+
+## Drifting cloud layer high above the player (follows them horizontally, scrolls with the wind).
+func make_clouds(follow: Node3D) -> void:
+	_follow = follow
+	var fn := FastNoiseLite.new()
+	fn.seed = 12
+	fn.noise_type = FastNoiseLite.TYPE_SIMPLEX_SMOOTH
+	fn.frequency = 0.012
+	fn.fractal_octaves = 4
+	var tex := NoiseTexture2D.new()
+	tex.noise = fn
+	tex.width = 512
+	tex.height = 512
+	tex.seamless = true
+	var sh := Shader.new()
+	sh.code = CLOUD_SHADER
+	_cloud_mat = ShaderMaterial.new()
+	_cloud_mat.shader = sh
+	_cloud_mat.set_shader_parameter("noise_tex", tex)
+	_clouds = MeshInstance3D.new()
+	_clouds.name = "Clouds"
+	var pm := PlaneMesh.new()
+	pm.size = Vector2(5000, 5000)
+	_clouds.mesh = pm
+	_clouds.material_override = _cloud_mat
+	_clouds.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	_clouds.extra_cull_margin = 16384.0
+	_world.add_child(_clouds)
+	apply_time()
 
 
 func build(parent: Node3D) -> void:
@@ -131,6 +188,8 @@ func make_dust(follow: Node3D) -> GPUParticles3D:
 func update(delta: float) -> void:
 	if sun == null:
 		return
+	if _clouds != null and _follow != null:
+		_clouds.global_position = Vector3(_follow.global_position.x, 320.0, _follow.global_position.z)
 	if running:
 		time_of_day = fposmod(time_of_day + delta / day_length, 1.0)
 		_update_weather(delta)
@@ -276,3 +335,14 @@ func apply_time() -> void:
 	else:
 		environment.fog_density = _base_fog
 		environment.adjustment_saturation = 1.1
+	if _cloud_mat != null:
+		var lit := Color(1.0, 0.98, 0.95).lerp(Color(1.0, 0.62, 0.40), dusk_k * 0.8)
+		var shd := Color(0.62, 0.68, 0.80).lerp(Color(0.55, 0.38, 0.45), dusk_k * 0.7)
+		var dark := Color(0.5, 0.52, 0.56)
+		lit = lit.lerp(dark, rain * 0.6) * lerpf(0.04, 1.0, day_k) 
+		shd = shd.lerp(Color(0.3, 0.32, 0.36), rain * 0.6) * lerpf(0.04, 0.9, day_k)
+		lit = lit + Color(0.03, 0.04, 0.08) * night + Color(1, 1, 1) * _flash * 0.6
+		_cloud_mat.set_shader_parameter("lit_col", Vector3(lit.r, lit.g, lit.b))
+		_cloud_mat.set_shader_parameter("shade_col", Vector3(shd.r, shd.g, shd.b))
+		_cloud_mat.set_shader_parameter("cover", lerpf(0.40, 0.8, rain))
+		_cloud_mat.set_shader_parameter("alpha_mul", lerpf(0.9, 0.97, rain))

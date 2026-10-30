@@ -43,6 +43,8 @@ var _move_speed := 0.0
 var _rt_i := 0
 var _rt_wait := 0.0
 var _rt_target := Vector3.ZERO
+var pot: Node3D                  # water pot carried on the head (water carriers)
+var _carry_dir := -1
 var _home_state := 0             # 0 out, 1 heading home, 2 inside (hidden)
 var _start_pos := Vector3.ZERO
 var companion := false           # follows the player and fights beside them
@@ -173,6 +175,22 @@ func _routine_step(delta: float) -> void:
 				_rt_wait = _rng.randf_range(3.0, 8.0)
 				var acts := ["talk", "stretch", "wipe_brow", "look_around"]
 				rig.play_action(acts[_rng.randi() % acts.size()], minf(_rt_wait, 3.0))
+		"carry":
+			var cp: Array = routine["points"]
+			if _walk_toward(cp[_rt_i], 1.25, delta):
+				if _rt_i == cp.size() - 1 and _carry_dir == 1:
+					if pot != null:
+						pot.visible = false
+					_carry_dir = -1
+					_rt_wait = 4.0
+					rig.play_action("wipe_brow", 3.0)
+				elif _rt_i == 0 and _carry_dir == -1:
+					if pot != null:
+						pot.visible = true
+					_carry_dir = 1
+					_rt_wait = 3.5
+					rig.play_action("stretch", 3.0)
+				_rt_i = clampi(_rt_i + _carry_dir, 0, cp.size() - 1)
 		"play":
 			if _rt_target == Vector3.ZERO or _walk_toward(_rt_target, 3.6, delta):
 				var c: Vector3 = routine["centre"]
