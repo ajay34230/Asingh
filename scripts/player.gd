@@ -64,6 +64,7 @@ var _attack_cd := 0.0
 var _combat_t := 99.0            # seconds since last hit taken / dealt
 var _invuln := 0.0
 var carried_by: Node3D = null    # riding a cart: position follows this node
+var hammer_mult := 1.0              # 1.4 once Dhruv re-forges the hammer with the Queen's light
 var attack_override := Callable()   # set by the cart race: the HIT button swings the cart blades
 var locked := false              # true during dialogue, digging and cinematics: no input is read
 
@@ -186,7 +187,7 @@ func attack() -> void:
 
 func _on_attack_hit() -> void:
 	var fwd := Vector3(-sin(_model.rotation.y), 0.0, -cos(_model.rotation.y))
-	var dmg := 22.0 * (2.0 if power.has("power") else 1.0)
+	var dmg := 22.0 * hammer_mult * (2.0 if power.has("power") else 1.0)
 	var hit := false
 	for e in get_tree().get_nodes_in_group("enemies"):
 		var to: Vector3 = (e as Node3D).global_position - global_position

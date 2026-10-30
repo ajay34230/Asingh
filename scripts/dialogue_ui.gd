@@ -171,7 +171,7 @@ func _show(id: String, replay: bool = false, push: bool = true) -> void:
 	_hint.visible = false
 	_update_nav()
 	var vn: Node3D = voice_node if (voice_node != null and is_instance_valid(voice_node)) else null
-	Sfx.speak(voice, _cur["text"], vn, -2.0, true)
+	Sfx.speak(voice, _cur["text"], vn, -2.0, true, str(_cur.get("who", "")))
 
 
 func _process(delta: float) -> void:

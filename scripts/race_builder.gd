@@ -323,7 +323,7 @@ func _dialogue() -> Dictionary:
 		return {"start": "a", "nodes": {"a": {"who": w, "text": "Champion! The crowd still sings your name. Want to race again just for the thrill? The bulls are rested.",
 			"choices": [{"t": "One more race!", "go": "", "set": {"race_go": true}}, {"t": "Not now.", "go": ""}]}}}
 	return {"start": "a", "nodes": {
-		"a": {"who": w, "text": "Welcome to the Sand Circuit! Three laps, four carts, no rules except this: the cart that crosses the line first wins.",
+		"a": {"who": w, "text": "Welcome to the Sand Circuit! Queen Ila ran this race every midsummer, and my family kept the track alive when the kingdom slept. Three laps, four carts, no rules except one: first across the line wins.",
 			"choices": [{"t": "Sounds easy enough.", "go": "b"}, {"t": "Not now.", "go": ""}]},
 		"b": {"who": w, "text": "Easy? The dunes have made humps in the track, and the other drivers carry iron blades on their carts. Steer with the stick, pull back to brake, tap JUMP for a burst of speed, and HIT to swing your blades at anyone beside you.",
 			"choices": [{"t": "Let me at them.", "go": "c", "set": {"race_ask": true}}]},
@@ -340,13 +340,15 @@ func _after_dialogue() -> void:
 func _quest() -> void:
 	story.quests.append({
 		"id": "race", "title": "Side: The Sand Circuit",
-		"blurb": "Race Master Bhim runs a bull-cart race on the Sand Circuit in the east. Win three laps against three armed rivals.",
-		"show": func() -> bool: return story.get_flag("met_chief"),
+		"blurb": "Race Master Bhim keeps Queen Ila's midsummer race alive on the Sand Circuit. Win it, carry the Sun Pennant to the temple and learn who paid the Reavers.",
+		"show": func() -> bool: return story.get_flag("seal_forge"),
 		"objs": [
 			{"text": func() -> String: return "Speak to the Race Master at the Sand Circuit",
 			 "done": func() -> bool: return story.get_flag("race_ask"), "target": func() -> Vector3: return master.global_position if master != null else Vector3.ZERO},
 			{"text": func() -> String: return "Win the bull cart race (%d laps)" % LAPS,
 			 "done": func() -> bool: return story.get_flag("race_won"), "target": func() -> Vector3: return master.global_position if master != null else Vector3.ZERO},
+			{"text": func() -> String: return "Place the Sun Pennant on the temple altar",
+			 "done": func() -> bool: return story.get_flag("temple_blessed"), "target": func() -> Vector3: return Vector3(TerrainBuilder.TEMPLE_C.x, terrain.temple_y, TerrainBuilder.TEMPLE_C.y)},
 		],
 	})
 	story.changed.emit()
@@ -429,6 +431,7 @@ func start_race() -> void:
 	_saved_dist = player._target_distance
 	player.set_distance(12.5)
 	mine = _spawn("You", Color(1.0, 0.82, 0.25), NpcBuilder.PRESETS["villager_man"], true)
+	mine.blade_damage = 30.0 if story.get_flag("sun_hammer") else 22.0
 	mine.max_hp = 150.0
 	mine.hp = 150.0
 	var grid := [[0.0, 0.0], [6.0, 1.9], [3.0, -1.9], [8.0, 0.2]]
@@ -447,6 +450,7 @@ func start_race() -> void:
 	state = "countdown"
 	_t = 3.99
 	hud.banner("Sand Circuit race", "reveal")
+	Sfx.set_mood("race")
 	Sfx.ui("raid_horn", -4.0)
 
 
@@ -464,6 +468,9 @@ func _yaw_of(r: CartRacer) -> float:
 
 
 func _on_destroyed(r: CartRacer) -> void:
+	Sfx.sting("surprise", -6.0)
+	StoryFX.shake(player, 0.2, 0.5)
+	StoryFX.sun_burst(main, r.global_position + Vector3(0, 1.0, 0), 0.5) if false else null
 	if r == mine:
 		hud.banner("Your cart is wrecked!", "enemy_down")
 
@@ -661,6 +668,8 @@ func _follow(delta: float) -> void:
 func _finish() -> void:
 	var won := result == "win"
 	state = "idle"
+	Sfx.set_mood("")
+	Sfx.sting("victory" if won else "sad", -2.0)
 	_layer.visible = false
 	hud._tracker.visible = true
 	_lbl_big.text = ""

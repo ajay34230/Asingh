@@ -125,6 +125,9 @@ func _ready() -> void:
 				Sfx.stop_speech()
 		_save_settings())
 	vb.add_child(_voices)
+	vb.add_child(_button("Test voices", func() -> void:
+		Sfx.speak("man", "Welcome, traveller. The Queen's road is waiting for you.", null, 0.0, true, "Test")
+		(main as Node).get("hud").banner(Sfx.voice_status())))
 	vb.add_child(_button("New game (erase save)", _new_game))
 	vb.add_child(_button("Quit", func() -> void:
 		save()

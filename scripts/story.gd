@@ -427,6 +427,10 @@ func _blacksmith() -> Dictionary:
 			"sfx": "anvil", "set": {"seal_forge": true}, "choices": [{"t": "Thank you, Dhruv.", "go": "", "sfx": "seal_found"}]},
 		"after": {"who": "Dhruv the blacksmith", "text": "The sun-disc travels with you now. Strike true, traveller.",
 			"choices": [{"t": "I will.", "go": ""}]},
+		"reforge_ask": {"who": "Dhruv the blacksmith", "text": "The disc's rim left filings in my forge. Queen Ila's own smiths worked the same iron. Hand me your hammer; I will fold the sun into it. And tell Bhim at the Sand Circuit: his cart blades want the same treatment.",
+			"sfx": "anvil", "set": {"sun_hammer": true}, "choices": [{"t": "It feels lighter and hotter. Thank you.", "go": ""}]},
+		"reforged": {"who": "Dhruv the blacksmith", "text": "The Sun-Hammer rings true. If the Reavers come again, let them hear it from a long way off.",
+			"choices": [{"t": "I will.", "go": ""}]},
 	}
 	var s := "first"
 	if get_flag("forge_asked"):
@@ -437,6 +441,10 @@ func _blacksmith() -> Dictionary:
 			s = "give"
 	if get_flag("seal_forge"):
 		s = "after"
+		if get_flag("sun_hammer"):
+			s = "reforged"
+		else:
+			(n["after"]["choices"] as Array).insert(0, {"t": "Could you re-forge my hammer with the disc's light?", "go": "reforge_ask"})
 	return {"start": s, "nodes": n}
 
 
@@ -506,7 +514,7 @@ func _arin() -> Dictionary:
 			"set": {"raid_done": true}, "sfx": "seal_found", "choices": [{"t": "Then we go through it, together.", "go": "raid_end2"}]},
 		"raid_end2": {"who": "Dr. Arin Rao", "text": "Together. Act Three begins at dawn: the Queen's road, the sleeping city, and whoever hired those men. Rest, my friend. You have earned it.",
 			"choices": [{"t": "Until dawn.", "go": ""}]},
-		"done": {"who": "Dr. Arin Rao", "text": "Dawn will come. When it does, the Queen's road is ours. For now: breathe. Heal. You have more than earned it.",
+		"done": {"who": "Dr. Arin Rao", "text": ("Council coins? Then the traitor sits close to the Chief's fire. Say nothing yet. At dawn we walk the Queen's road and we watch who follows." if get_flag("clue_coins") else "Dawn will come. When it does, the Queen's road is ours. For now: breathe. Heal. You have more than earned it."),
 			"choices": [{"t": "Rest well, Arin.", "go": ""}]},
 	}
 	var s := "first"

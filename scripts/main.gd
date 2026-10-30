@@ -22,6 +22,7 @@ var dlg: DialogueUI
 var cin: Cinematic
 var story_b: StoryBuilder
 var race: RaceBuilder
+var links: StoryLinks
 var menu: GameMenu
 var map_ui: MapUI
 var combat: CombatBuilder
@@ -218,6 +219,20 @@ func _selftest_race(fails: PackedStringArray, notes: PackedStringArray) -> void:
 	race.manual_step = false
 	race.laps_override = 0
 	race.mine = null
+	# story links: Sun-Hammer upgrade, race quest gating, clue flags
+	story.flags.erase("seal_forge")
+	var vis_before: bool = story.quests.filter(func(q: Dictionary) -> bool: return q["id"] == "race")[0]["show"].call()
+	story.set_flag("seal_forge", true)
+	var vis_after: bool = story.quests.filter(func(q: Dictionary) -> bool: return q["id"] == "race")[0]["show"].call()
+	if vis_before or not vis_after:
+		fails.append("story: race quest should unlock after the Hammer-Seal")
+	story.set_flag("sun_hammer", true)
+	if absf(player.hammer_mult - 1.4) > 0.01:
+		fails.append("story: sun-hammer did not raise hammer damage (%.2f)" % player.hammer_mult)
+	story.flags.erase("sun_hammer")
+	story.flags.erase("seal_forge")
+	player.hammer_mult = 1.0
+	links._hammer = false
 
 
 ## Save v2 checks: version stamp, old-format migration, backup fallback, corruption handling.
@@ -352,6 +367,8 @@ func _build_story() -> void:
 	story_b.build()
 	race = RaceBuilder.new(self, story, hud, dlg, terrain, player)
 	race.build()
+	links = StoryLinks.new(self, story, hud, cin, player, terrain, race)
+	links.build()
 	combat = CombatBuilder.new(self, story, hud)
 	combat.build()
 	combat_hud = CombatHUD.new()

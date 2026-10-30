@@ -134,6 +134,7 @@ func _on_story_changed() -> void:
 func start_raid() -> void:
 	_raid_started = true
 	Sfx.ui("raid_horn", -2.0)
+	Sfx.sting("danger", -2.0)
 	hud.banner("THE DUST REAVERS HAVE FOUND THE GATE!\nDefend the platform", "mission_new")
 	_start_wave(1)
 
@@ -153,6 +154,7 @@ func _start_wave(w: int) -> void:
 			spawn_enemy(p, false, 90.0, "raid")
 	elif w == 2:
 		hud.banner("SECOND WAVE", "raid_horn")
+		Sfx.sting("surprise", -3.0)
 		for p in _wave_spots(4):
 			spawn_enemy(p, false, 90.0, "raid")
 	else:

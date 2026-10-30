@@ -277,7 +277,8 @@ func open_gate() -> void:
 	cin.play(shots, "ACT 2: THE LANTERN TRAIL", func() -> void:
 		story.set_flag("gate_open", true)
 		start_act2()
-		hud.banner("ACT 1 COMPLETE", "mission_new"))
+		hud.banner("ACT 1 COMPLETE", "mission_new")
+		Sfx.sting("victory", -3.0))
 
 
 # --- intro ---------------------------------------------------------------------------------
@@ -337,6 +338,7 @@ func _on_story_changed() -> void:
 	if held > _seals_seen:
 		_seals_seen = held
 		hud.banner("SUN-SEAL FOUND (%d/3)" % held, "seal_found")
+		Sfx.sting("discovery")
 		seal_fx(player.global_position + Vector3(0, 1.0, 0))
 
 
@@ -400,6 +402,8 @@ func seal_fx(at: Vector3) -> void:
 	l.light_energy = 0.0
 	root.add_child(l)
 	_sparks(root, Color(1.0, 0.85, 0.4), 60, 3.5, 1.6, -1.5)
+	StoryFX.sun_burst(main, at, 0.8)
+	StoryFX.shake(player, 0.1, 0.4)
 	var tw := root.create_tween().set_parallel(true)
 	tw.tween_property(root, "position:y", at.y + 1.6, 2.2).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_OUT)
 	tw.tween_property(disc, "rotation:y", TAU * 3.0, 2.2)

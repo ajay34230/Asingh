@@ -112,7 +112,7 @@ func _next() -> void:
 	_sub.text = (who + ":  " if who != "" else "") + s.get("text", "")
 	if who != "" and s.has("text"):
 		s["dur"] = maxf(float(s.get("dur", 3.0)), 1.2 + String(s["text"]).length() * 0.062)
-		Sfx.speak(s.get("voice", "man"), s["text"], null, 0.0, true)
+		Sfx.speak(s.get("voice", "man"), s["text"], null, 0.0, true, who)
 	cam.fov = s.get("fov", 62.0)
 	cam.make_current()
 	_place(0.0)
