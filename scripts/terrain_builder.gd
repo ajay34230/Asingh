@@ -49,6 +49,13 @@ var _mountain := FastNoiseLite.new()
 var _site_y := PackedFloat32Array()
 var pond_level := 0.0
 var temple_y := 0.0
+## Worn tracks between the places people actually go (polylines in world X,Z).
+const PATHS: Array = [
+	[Vector2(-90, 12), Vector2(-62, 6), Vector2(-35, -10), Vector2(-20, -60), Vector2(0, -126)],
+	[Vector2(-90, 12), Vector2(-70, 50), Vector2(-40, 82), Vector2(-20, 96)],
+	[Vector2(-20, 96), Vector2(20, 70), Vector2(44, 44), Vector2(80, 110), Vector2(120, 160)],
+	[Vector2(-90, 12), Vector2(-110, -20), Vector2(-100, 38)],
+]
 var _pond_ready := false
 
 
@@ -256,12 +263,29 @@ func _color_at(p: Vector3, n: Vector3) -> Color:
 	c = c.lerp(ROCK, smoothstep(0.22, 0.5, 1.0 - n.y))
 	var rv := absf(p.x - river_x(p.z))
 	c = c.lerp(GRAVEL, 1.0 - smoothstep(6.0, 20.0, rv))
+	# Worn paths: packed pale earth along the tracks, ragged at the edges.
+	var pd2 := _path_distance(p.x, p.z)
+	var pw := 1.0 - smoothstep(1.4, 3.2 + t * 0.8, pd2)
+	c = c.lerp(Color(0.62, 0.52, 0.38) * (0.92 + 0.1 * t), pw * 0.85)
 	# Green oasis grass around the pond, darker wet earth at the water's edge.
 	var dp := Vector2(p.x - POND_C.x, p.z - POND_C.y).length()
 	var grass := Color(0.36, 0.45, 0.20).lerp(Color(0.50, 0.52, 0.27), t)
 	c = c.lerp(grass, (1.0 - smoothstep(POND_R * 1.1, 46.0, dp)) * 0.8 * clampf(1.0 - (1.0 - n.y) * 3.0, 0.0, 1.0))
 	c = c.lerp(Color(0.30, 0.22, 0.14), 1.0 - smoothstep(POND_R * 0.8, POND_R * 1.3, dp))
 	return c
+
+
+func _path_distance(x: float, z: float) -> float:
+	var best := 1e9
+	var q := Vector2(x, z)
+	for path in PATHS:
+		for i in path.size() - 1:
+			var a: Vector2 = path[i]
+			var b: Vector2 = path[i + 1]
+			var ab := b - a
+			var t := clampf((q - a).dot(ab) / ab.length_squared(), 0.0, 1.0)
+			best = minf(best, q.distance_to(a + ab * t))
+	return best
 
 
 func _trimesh(verts: PackedVector3Array, idx: PackedInt32Array) -> ConcavePolygonShape3D:

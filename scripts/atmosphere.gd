@@ -13,6 +13,8 @@ signal thunder
 var rain := 0.0                  # 0 clear .. 1 downpour (smoothed)
 var rain_target := 0.0
 var _rain_p: GPUParticles3D
+var _splash_p: GPUParticles3D
+var terrain_mat: StandardMaterial3D        # set by Main; gets wet in the rain
 var _weather_t := 120.0          # seconds until the weather changes
 var _bolt_t := 6.0
 var _flash := 0.0
@@ -244,6 +246,38 @@ func make_rain(follow: Node3D) -> void:
 	_rain_p.position = Vector3(0, 14, 0)
 	_rain_p.emitting = false
 	follow.add_child(_rain_p)
+	# Splashes where drops hit the ground: tiny quick white puffs scattered around the player.
+	var sm := ParticleProcessMaterial.new()
+	sm.emission_shape = ParticleProcessMaterial.EMISSION_SHAPE_BOX
+	sm.emission_box_extents = Vector3(14.0, 0.05, 14.0)
+	sm.direction = Vector3(0, 1, 0)
+	sm.spread = 60.0
+	sm.initial_velocity_min = 0.4
+	sm.initial_velocity_max = 1.2
+	sm.gravity = Vector3(0, -6.0, 0)
+	sm.scale_min = 0.5
+	sm.scale_max = 1.2
+	var sq := QuadMesh.new()
+	sq.size = Vector2(0.14, 0.14)
+	var smat := StandardMaterial3D.new()
+	smat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	smat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	smat.billboard_mode = BaseMaterial3D.BILLBOARD_PARTICLES
+	smat.albedo_color = Color(0.85, 0.9, 1.0, 0.55)
+	smat.disable_receive_shadows = true
+	sq.material = smat
+	_splash_p = GPUParticles3D.new()
+	_splash_p.name = "RainSplash"
+	_splash_p.amount = 260
+	_splash_p.lifetime = 0.4
+	_splash_p.local_coords = false
+	_splash_p.visibility_aabb = AABB(Vector3(-20, -5, -20), Vector3(40, 10, 40))
+	_splash_p.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	_splash_p.process_material = sm
+	_splash_p.draw_pass_1 = sq
+	_splash_p.position = Vector3(0, -0.95, 0)
+	_splash_p.emitting = false
+	follow.add_child(_splash_p)
 
 
 func _update_weather(delta: float) -> void:
@@ -260,6 +294,9 @@ func _update_weather(delta: float) -> void:
 	rain = move_toward(rain, rain_target, delta / 12.0)
 	if _rain_p != null:
 		_rain_p.emitting = rain > 0.03
+		if _splash_p != null:
+			_splash_p.emitting = rain > 0.1 and quality < 2
+			_splash_p.amount_ratio = clampf(rain, 0.1, 1.0) * (1.0 if quality == 0 else 0.6)
 		_rain_p.amount_ratio = clampf(rain, 0.05, 1.0) * [1.0, 0.65, 0.35][quality]
 	if rain > 0.6:
 		_bolt_t -= delta
@@ -364,3 +401,52 @@ func apply_time() -> void:
 		_cloud_mat.set_shader_parameter("alpha_mul", lerpf(0.9, 0.97, rain))
 	var sky_c: Color = sky_mat.sky_horizon_color.lerp(sky_mat.sky_top_color, 0.45)
 	RenderingServer.global_shader_parameter_set("water_sky", Vector3(sky_c.r, sky_c.g, sky_c.b))
+	if terrain_mat != null:      # wet ground: darker and glossier while it rains
+		terrain_mat.roughness = lerpf(1.0, 0.5, rain)
+		terrain_mat.albedo_color = Color.WHITE.lerp(Color(0.68, 0.66, 0.64), rain)
+
+
+## A thin column of smoke rising and drifting from `pos` (chimneys, campfires).
+static func make_smoke(parent: Node3D, pos: Vector3, scale_m: float = 1.0) -> GPUParticles3D:
+	var pm := ParticleProcessMaterial.new()
+	pm.direction = Vector3(0.3, 1.0, 0.1)
+	pm.spread = 12.0
+	pm.initial_velocity_min = 0.8
+	pm.initial_velocity_max = 1.4
+	pm.gravity = Vector3(0.25, 0.15, 0.0)
+	pm.scale_min = 0.6 * scale_m
+	pm.scale_max = 1.2 * scale_m
+	var ramp := Gradient.new()
+	ramp.colors = PackedColorArray([Color(0.7, 0.7, 0.7, 0.0), Color(0.62, 0.62, 0.64, 0.42), Color(0.55, 0.55, 0.58, 0.0)])
+	ramp.offsets = PackedFloat32Array([0.0, 0.25, 1.0])
+	var rt := GradientTexture1D.new()
+	rt.gradient = ramp
+	pm.color_ramp = rt
+	var curve := Curve.new()
+	curve.add_point(Vector2(0, 0.4))
+	curve.add_point(Vector2(1, 2.6))
+	var ct := CurveTexture.new()
+	ct.curve = curve
+	pm.scale_curve = ct
+	var q := QuadMesh.new()
+	q.size = Vector2(0.9, 0.9)
+	var m := StandardMaterial3D.new()
+	m.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	m.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	m.billboard_mode = BaseMaterial3D.BILLBOARD_ENABLED
+	m.vertex_color_use_as_albedo = true
+	m.disable_receive_shadows = true
+	q.material = m
+	var p := GPUParticles3D.new()
+	p.name = "Smoke"
+	p.amount = 18
+	p.lifetime = 6.0
+	p.preprocess = 6.0
+	p.local_coords = false
+	p.visibility_aabb = AABB(Vector3(-6, -1, -6), Vector3(12, 14, 12))
+	p.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	p.process_material = pm
+	p.draw_pass_1 = q
+	p.position = pos
+	parent.add_child(p)
+	return p

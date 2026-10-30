@@ -175,3 +175,94 @@ static func scatter_cells(parent: Node3D, mesh: Mesh, mat: Material, xforms: Arr
 		var mi := scatter(parent, mesh, mat, local, "%s_%d_%d" % [nm, key.x, key.y])
 		mi.position = centre
 		mi.add_to_group(group)
+
+
+## Appends a squashed sphere (a lumpy canopy / bush blob / flower head) to a SurfaceTool.
+static func _blob(st: SurfaceTool, c: Vector3, r: Vector3, col: Color, segs: int = 8, rings: int = 5) -> void:
+	for j in rings:
+		var a0 := PI * float(j) / rings
+		var a1 := PI * float(j + 1) / rings
+		for i in segs:
+			var b0 := TAU * float(i) / segs
+			var b1 := TAU * float(i + 1) / segs
+			var p00 := Vector3(sin(a0) * cos(b0), cos(a0), sin(a0) * sin(b0))
+			var p01 := Vector3(sin(a0) * cos(b1), cos(a0), sin(a0) * sin(b1))
+			var p10 := Vector3(sin(a1) * cos(b0), cos(a1), sin(a1) * sin(b0))
+			var p11 := Vector3(sin(a1) * cos(b1), cos(a1), sin(a1) * sin(b1))
+			for v in [p00, p10, p01, p01, p10, p11]:
+				var vv: Vector3 = v
+				var shade := 0.75 + 0.25 * clampf(vv.y * 0.5 + 0.5, 0.0, 1.0)
+				st.set_color(Color(col.r * shade, col.g * shade, col.b * shade))
+				st.set_normal(vv)
+				st.add_vertex(c + vv * r)
+
+
+## Tapered branch segment from a to b (used by trees).
+static func _branch(st: SurfaceTool, a: Vector3, b: Vector3, ra: float, rb: float, col: Color, seg: int = 6) -> void:
+	var axis := (b - a).normalized()
+	var up := Vector3.UP if absf(axis.y) < 0.95 else Vector3.RIGHT
+	var s1 := axis.cross(up).normalized()
+	var s2 := axis.cross(s1).normalized()
+	for i in seg:
+		var t0 := TAU * float(i) / seg
+		var t1 := TAU * float(i + 1) / seg
+		var n0 := s1 * cos(t0) + s2 * sin(t0)
+		var n1 := s1 * cos(t1) + s2 * sin(t1)
+		var q := [[a + n0 * ra, n0], [b + n0 * rb, n0], [a + n1 * ra, n1], [a + n1 * ra, n1], [b + n0 * rb, n0], [b + n1 * rb, n1]]
+		for v in q:
+			st.set_color(col)
+			st.set_normal(v[1])
+			st.add_vertex(v[0])
+
+
+## Flat-topped acacia: forked trunk and a wide umbrella of leafy blobs.
+static func acacia_mesh() -> ArrayMesh:
+	var st := SurfaceTool.new()
+	st.begin(Mesh.PRIMITIVE_TRIANGLES)
+	var bark := Color(0.34, 0.25, 0.17)
+	_branch(st, Vector3.ZERO, Vector3(0.3, 2.6, 0.0), 0.28, 0.18, bark, 8)
+	_branch(st, Vector3(0.3, 2.6, 0.0), Vector3(-1.2, 4.2, 0.5), 0.17, 0.08, bark)
+	_branch(st, Vector3(0.3, 2.6, 0.0), Vector3(1.8, 4.0, -0.4), 0.15, 0.08, bark)
+	_branch(st, Vector3(0.3, 2.6, 0.0), Vector3(0.5, 4.5, 0.2), 0.12, 0.06, bark)
+	var leaf := Color(0.30, 0.42, 0.14)
+	_blob(st, Vector3(-1.2, 4.5, 0.5), Vector3(2.2, 0.7, 2.0), leaf, 9, 5)
+	_blob(st, Vector3(1.8, 4.3, -0.4), Vector3(2.4, 0.7, 2.1), leaf * 1.1, 9, 5)
+	_blob(st, Vector3(0.5, 4.8, 0.2), Vector3(2.0, 0.65, 1.8), leaf * 0.95, 9, 5)
+	return st.commit()
+
+
+static func dead_tree_mesh() -> ArrayMesh:
+	var st := SurfaceTool.new()
+	st.begin(Mesh.PRIMITIVE_TRIANGLES)
+	var wood := Color(0.50, 0.44, 0.36)
+	_branch(st, Vector3.ZERO, Vector3(0.2, 2.4, 0.1), 0.24, 0.13, wood, 7)
+	_branch(st, Vector3(0.2, 2.4, 0.1), Vector3(-1.1, 3.6, 0.3), 0.11, 0.04, wood)
+	_branch(st, Vector3(0.2, 2.4, 0.1), Vector3(1.2, 3.4, -0.3), 0.10, 0.04, wood)
+	_branch(st, Vector3(0.1, 1.6, 0.0), Vector3(-0.9, 2.3, -0.5), 0.08, 0.03, wood)
+	_branch(st, Vector3(0.2, 2.4, 0.1), Vector3(0.4, 3.9, 0.2), 0.09, 0.03, wood)
+	return st.commit()
+
+
+static func bush_mesh() -> ArrayMesh:
+	var st := SurfaceTool.new()
+	st.begin(Mesh.PRIMITIVE_TRIANGLES)
+	var g := Color(0.26, 0.38, 0.16)
+	_blob(st, Vector3(0, 0.35, 0), Vector3(0.7, 0.45, 0.65), g, 8, 5)
+	_blob(st, Vector3(0.5, 0.28, 0.2), Vector3(0.5, 0.35, 0.5), g * 1.15, 8, 4)
+	_blob(st, Vector3(-0.45, 0.3, -0.15), Vector3(0.5, 0.38, 0.45), g * 0.9, 8, 4)
+	return st.commit()
+
+
+## Wildflowers: thin stems with coloured round heads.
+static func flower_mesh(head: Color, seed_value: int) -> ArrayMesh:
+	var st := SurfaceTool.new()
+	st.begin(Mesh.PRIMITIVE_TRIANGLES)
+	var rng := RandomNumberGenerator.new()
+	rng.seed = seed_value
+	for i in 6:
+		var base := Vector3(rng.randf_range(-0.25, 0.25), 0.0, rng.randf_range(-0.25, 0.25))
+		var h := rng.randf_range(0.35, 0.6)
+		var tip := base + Vector3(rng.randf_range(-0.05, 0.05), h, rng.randf_range(-0.05, 0.05))
+		_branch(st, base, tip, 0.012, 0.008, Color(0.22, 0.4, 0.14), 4)
+		_blob(st, tip, Vector3(0.07, 0.05, 0.07), head, 6, 3)
+	return st.commit()

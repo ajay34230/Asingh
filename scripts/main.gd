@@ -62,6 +62,11 @@ func _ready() -> void:
 	water.build(self, houses)
 	water.spawn_carriers(self, houses, player)
 	TempleBuilder.new(terrain, player).build(self)
+	atmosphere.terrain_mat = terrain.material
+	for hi in 5:
+		var hn: Node3D = houses.houses[hi].node
+		var hh: Vector2 = houses.houses[hi].half
+		Atmosphere.make_smoke(self, hn.global_transform * Vector3(hh.x * 0.55, 4.6, -hh.y * 0.35))
 	var sfx := Sfx.new().setup(player, houses)
 	sfx.atmo = atmosphere
 	add_child(sfx)

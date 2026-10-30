@@ -262,6 +262,54 @@ func _flora(root: Node3D, houses: HouseBuilder) -> void:
 		cs.position = Vector3(sp.x, y + 2.0, sp.y)
 		palm_body.add_child(cs)
 	Flora.scatter_cells(root, Flora.palm_mesh(), Flora.sway_material("palm", 0.012, 1.1), palms, "Palms", "foliage_palm", 60.0)
+	# Acacias, dead trees, bushes and wildflowers add variety to the palms.
+	var acacias: Array[Transform3D] = []
+	var deads: Array[Transform3D] = []
+	var bushes: Array[Transform3D] = []
+	var flowers: Array[Array] = [[], [], []]
+	for i in 16:
+		var x := rng.randf_range(-150.0, -45.0)
+		var z := rng.randf_range(-62.0, 75.0)
+		if blocked.call(x, z) or Vector2(x - c.x, z - c.y).length() < TerrainBuilder.POND_R * 1.4:
+			continue
+		var y := terrain.sample_height(x, z)
+		var sc := rng.randf_range(0.8, 1.3)
+		acacias.append(Transform3D(Basis.from_euler(Vector3(0, rng.randf() * TAU, 0)).scaled(Vector3.ONE * sc), Vector3(x, y - 0.1, z)))
+		var cs2 := CollisionShape3D.new()
+		var cy2 := CylinderShape3D.new()
+		cy2.radius = 0.3 * sc
+		cy2.height = 3.0
+		cs2.shape = cy2
+		cs2.position = Vector3(x, y + 1.5, z)
+		palm_body.add_child(cs2)
+	for i in 14:
+		var x := rng.randf_range(20.0, 150.0)
+		var z := rng.randf_range(-110.0, 60.0)
+		if blocked.call(x, z):
+			continue
+		deads.append(Transform3D(Basis.from_euler(Vector3(0, rng.randf() * TAU, 0)).scaled(Vector3.ONE * rng.randf_range(0.8, 1.4)), Vector3(x, terrain.sample_height(x, z) - 0.1, z)))
+	for i in 150:
+		var x := rng.randf_range(-150.0, -40.0)
+		var z := rng.randf_range(-62.0, 78.0)
+		if blocked.call(x, z) or Vector2(x - c.x, z - c.y).length() < TerrainBuilder.POND_R * 1.25:
+			continue
+		bushes.append(Transform3D(Basis.from_euler(Vector3(0, rng.randf() * TAU, 0)).scaled(Vector3.ONE * rng.randf_range(0.7, 1.4)), Vector3(x, terrain.sample_height(x, z) - 0.05, z)))
+	for i in 420:
+		var a := rng.randf() * TAU
+		var r := TerrainBuilder.POND_R * 1.2 + sqrt(rng.randf()) * 24.0
+		var x := c.x + cos(a) * r
+		var z := c.y + sin(a) * r
+		if blocked.call(x, z):
+			continue
+		flowers[i % 3].append(Transform3D(Basis.from_euler(Vector3(0, rng.randf() * TAU, 0)).scaled(Vector3.ONE * rng.randf_range(0.8, 1.4)), Vector3(x, terrain.sample_height(x, z) - 0.02, z)))
+	Flora.scatter_cells(root, Flora.acacia_mesh(), Flora.sway_material("acacia", 0.006, 0.9), acacias, "Acacia", "foliage_palm", 60.0)
+	Flora.scatter_cells(root, Flora.dead_tree_mesh(), Flora.sway_material("dead", 0.0, 1.0), deads, "DeadTree", "foliage_palm", 60.0)
+	Flora.scatter_cells(root, Flora.bush_mesh(), Flora.sway_material("bush", 0.05, 1.3), bushes, "Bush", "foliage_grass", 30.0)
+	var head_cols := [Color(0.95, 0.85, 0.2), Color(0.9, 0.25, 0.45), Color(0.95, 0.95, 0.9)]
+	for k in 3:
+		var ft: Array[Transform3D] = []
+		ft.assign(flowers[k])
+		Flora.scatter_cells(root, Flora.flower_mesh(head_cols[k], 30 + k), Flora.sway_material("flower", 0.12, 1.6), ft, "Flowers%d" % k, "foliage_grass", 30.0)
 	# Grass tufts across the green ground, and tall reeds at the water's edge.
 	var grass: Array[Transform3D] = []
 	var reeds: Array[Transform3D] = []
