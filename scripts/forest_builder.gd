@@ -143,6 +143,7 @@ func _camp() -> void:
 	kn.add_child(kit)
 	kit.on_interact = func(_by: Node3D, me: Interactable) -> void:
 		player.has_knife = true
+		story.set_flag("hunting_knife", true)
 		player.say("A hunter's knife from the Reavers' stolen goods. Now I can hunt game in the wild.")
 		Sfx.ui_at("chime", -4.0)
 		kn.queue_free()

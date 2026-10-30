@@ -9,6 +9,7 @@ const SAVE_PATH := "user://save.json"
 var story: Story
 var player: Player
 var main: Node3D
+var _inv: Label
 var _btn: Button
 var _panel: PanelContainer
 var _timer := 0.0
@@ -66,6 +67,15 @@ func _ready() -> void:
 	h.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	vb.add_child(h)
 	vb.add_child(_button("Resume", toggle))
+	var ih := Label.new()
+	ih.text = "Inventory"
+	ih.add_theme_font_size_override("font_size", 26)
+	ih.add_theme_color_override("font_color", Color(0.95, 0.74, 0.32))
+	vb.add_child(ih)
+	_inv = Label.new()
+	_inv.add_theme_font_size_override("font_size", 22)
+	_inv.autowrap_mode = TextServer.AUTOWRAP_WORD
+	vb.add_child(_inv)
 	var vl := Label.new()
 	vl.text = "Volume"
 	vl.add_theme_font_size_override("font_size", 26)
@@ -163,7 +173,36 @@ func _button(t: String, fn: Callable) -> Button:
 	return b
 
 
+func _inventory_text() -> String:
+	var pl: Player = player
+	var c := int(story.get_flag("coins", 0))
+	var lines: Array[String] = ["Coins: %d" % c, "Sun-Seals: %d / 3" % story.seals_held()]
+	if int(story.get_flag("shards", 0)) > 0:
+		lines.append("Pottery shards: %d / 6" % int(story.get_flag("shards", 0)))
+	var gear: Array[String] = ["Sun-hammer" + (" (re-forged with the Queen's light, x1.4)" if story.get_flag("sun_hammer") else "")]
+	if story.get_flag("hunting_knife"):
+		gear.append("Hunter's knife (wild game can be hunted; hunted: %d)" % (pl.hunted if pl != null else 0))
+	lines.append("Gear: " + ", ".join(gear))
+	var keys: Array[String] = []
+	if story.get_flag("race_won"):
+		keys.append("Sun Pennant")
+	if story.get_flag("clue_coins"):
+		keys.append("Council coin clue")
+	if story.get_flag("ledger_given"):
+		keys.append("Reavers' ledger (delivered)")
+	elif story.get_flag("tara_talked"):
+		keys.append("Reavers' ledger")
+	if story.get_flag("temple_blessed"):
+		keys.append("Temple blessing")
+	if keys.size() > 0:
+		lines.append("Story items: " + ", ".join(keys))
+	lines.append("Riding: walk up to a horse, camel, donkey or bull and press the Ride prompt.")
+	return "\n".join(lines)
+
+
 func toggle() -> void:
+	if _inv != null:
+		_inv.text = _inventory_text()
 	var on := not _panel.visible
 	_panel.visible = on
 	get_tree().paused = on
@@ -245,6 +284,7 @@ func load_save() -> bool:
 		return false
 	for k in d["flags"]:
 		story.flags[k] = d["flags"][k]
+	player.has_knife = bool(story.get_flag("hunting_knife"))
 	var p: Array = d["pos"]
 	player.global_position = Vector3(p[0], p[1] + 0.3, p[2])
 	player.velocity = Vector3.ZERO

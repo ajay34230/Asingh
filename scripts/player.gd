@@ -535,8 +535,13 @@ func _physics_process(delta: float) -> void:
 	var dir := (forward * input.y + right * input.x)
 	if dir.length() > 1.0:
 		dir = dir.normalized()
-	var speed := (RUN_SPEED if fast else WALK_SPEED) * (1.45 if power.has("speed") else 1.0)
-	var target := dir * speed
+	# Analogue stick: a light push walks, a firm push eases into a run, a full push auto-sprints
+	# (no need to tap the run button); the run button still forces a run at any stick strength.
+	var m := clampf(dir.length(), 0.0, 1.0)
+	var run_blend := 1.0 if fast else smoothstep(0.82, 0.97, m)
+	var speed := lerpf(WALK_SPEED, RUN_SPEED, run_blend) * (1.45 if power.has("speed") else 1.0)
+	var push := m if fast else clampf(m / 0.82, 0.0, 1.0)
+	var target := (dir.normalized() * speed * push) if m > 0.001 else Vector3.ZERO
 
 	var on_floor := is_on_floor()
 	_coyote = COYOTE_TIME if on_floor else maxf(0.0, _coyote - delta)
@@ -598,7 +603,7 @@ func _physics_process(delta: float) -> void:
 	var under := not get_world_3d().direct_space_state.intersect_ray(gq).is_empty()
 	_cam_squeeze = move_toward(_cam_squeeze, 1.0 if under else 0.0, delta * (8.0 if under else 1.5))
 	_arm.spring_length = lerpf(_arm.spring_length, _target_distance * (1.0 - 0.7 * _cam_squeeze), 1.0 - exp(-10.0 * delta))
-	var want_fov := base_fov + (RUN_FOV - BASE_FOV) if (fast and dir.length() > 0.1) else base_fov
+	var want_fov := base_fov + (RUN_FOV - BASE_FOV) if ((fast or run_blend > 0.5) and dir.length() > 0.1) else base_fov
 	camera.fov = lerpf(camera.fov, want_fov, 1.0 - exp(-6.0 * delta))
 
 	_focus_timer -= delta

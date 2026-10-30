@@ -272,13 +272,20 @@ func _selftest_town(fails: PackedStringArray, notes: PackedStringArray) -> void:
 	var space := get_world_3d().direct_space_state
 	var bad := 0
 	for n in town.npcs:
-		var q := PhysicsRayQueryParameters3D.create(n.global_position + Vector3(0, 2.0, 0), n.global_position + Vector3(0, -3.0, 0))
 		var ex: Array[RID] = []
-		for c in n.get_children():
-			if c is CollisionObject3D:
-				ex.append((c as CollisionObject3D).get_rid())
-		q.exclude = ex
-		var hit := space.intersect_ray(q)
+		var hit := {}
+		for tries in 6:
+			var q := PhysicsRayQueryParameters3D.create(n.global_position + Vector3(0, 2.0, 0), n.global_position + Vector3(0, -3.0, 0))
+			q.exclude = ex
+			hit = space.intersect_ray(q)
+			if hit.is_empty():
+				break
+			var col := hit["collider"] as Node
+			if col != null and (col.get_parent() is Npc or col.get_parent() is Animal or col is CharacterBody3D):
+				ex.append(hit["rid"])
+				hit = {}
+				continue
+			break
 		if hit.is_empty() or absf((hit["position"] as Vector3).y - n.global_position.y) > 0.6:
 			bad += 1
 			if bad <= 4:
@@ -300,6 +307,19 @@ func _selftest_town(fails: PackedStringArray, notes: PackedStringArray) -> void:
 		fails.append("town: buying fruit failed")
 	player.hp = maxf(hp0, 50.0)
 	notes.append("town: %d buildings, %d stalls, %d people, %d emitters, modes %s" % [town.buildings, town.stalls.size(), town.npcs.size(), town.emitters.size(), str(modes)])
+
+
+func _selftest_inventory(fails: PackedStringArray, notes: PackedStringArray) -> void:
+	if menu == null:
+		fails.append("inventory: no menu")
+		return
+	story.set_flag("coins", 42)
+	story.set_flag("hunting_knife", true)
+	var t: String = menu._inventory_text()
+	if not t.contains("Coins: 42") or not t.contains("Hunter's knife") or not t.contains("Sun-Seals"):
+		fails.append("inventory: text incomplete: %s" % t)
+	else:
+		notes.append("inventory: ok")
 
 
 func _selftest_mount(fails: PackedStringArray, notes: PackedStringArray) -> void:
@@ -1055,6 +1075,7 @@ func _run_selftest() -> void:
 	await _selftest_forest(fails, notes)
 	await _selftest_mount(fails, notes)
 	_selftest_town(fails, notes)
+	_selftest_inventory(fails, notes)
 	await _selftest_hunt(fails, notes)
 	await _selftest_fight(fails, notes)
 
