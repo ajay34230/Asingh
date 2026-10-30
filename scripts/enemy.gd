@@ -76,6 +76,7 @@ func setup(preset: Dictionary, at: Vector3, label: String) -> Enemy:
 	_hp_bar.position.y = 2.25 * float(preset.get("scale", 1.0))
 	add_child(_hp_bar)
 	rig.attack_hit.connect(_on_swing)
+	rig.move_hit.connect(func(_m: String) -> void: _on_swing())
 	voice_type = str(preset.get("voice", "deep"))
 	_bubble = Label3D.new()
 	_bubble.billboard = BaseMaterial3D.BILLBOARD_ENABLED
@@ -396,8 +397,14 @@ func _physics_process(delta: float) -> void:
 		elif _cd <= 0.0:
 			_cd = attack_cd
 			_winding = 0.0
-			rig.start_attack()
-			Sfx.at("swing", global_position + Vector3(0, 1.2, 0), -6.0, _rng.randf_range(0.9, 1.1))
+			var r := _rng.randf()
+			if r < 0.3:
+				rig.play_move("cross")
+			elif r < 0.5:
+				rig.play_move("kick_front")
+			else:
+				rig.start_attack()
+			Sfx.at("swing" if r >= 0.5 else "whoosh_punch", global_position + Vector3(0, 1.2, 0), -6.0, _rng.randf_range(0.9, 1.1))
 	else:
 		_patrol_t -= delta
 		if _patrol_t <= 0.0:

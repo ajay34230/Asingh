@@ -35,7 +35,6 @@ var _bar_hp: ColorRect
 var _bar_boost: ColorRect
 var _ai_atk_t := {}
 var _saved_dist := 6.0
-var player_steer_test := 0.0
 
 
 func _init(m: Node3D, s: Story, h: QuestHUD, d: DialogueUI, ter: TerrainBuilder, p: Player) -> void:

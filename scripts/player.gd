@@ -166,10 +166,10 @@ func set_first_person(on: bool) -> void:
 
 ## Fighting: tap HIT for a combo: jab, cross, front kick, hook, roundhouse, then a grab-and-throw
 ## (or a hammer smash when nobody is close enough to grab). Auto-aims at the nearest enemy.
-const COMBO := ["jab", "cross", "kick_front", "hook", "kick_round"]
-const MOVE_CD := {"jab": 0.34, "cross": 0.38, "hook": 0.42, "kick_front": 0.5, "kick_round": 0.65, "uppercut": 0.45}
-const MOVE_DMG := {"jab": 9.0, "cross": 12.0, "hook": 14.0, "uppercut": 16.0, "kick_front": 17.0, "kick_round": 24.0}
-const MOVE_KIND := {"jab": "punch", "cross": "punch", "hook": "punch", "uppercut": "punch", "kick_front": "kick", "kick_round": "round"}
+const COMBO := ["jab", "cross", "hook", "kick_front", "uppercut", "kick_round"]
+const MOVE_CD := {"jab": 0.34, "cross": 0.38, "hook": 0.42, "kick_front": 0.5, "kick_side": 0.55, "kick_round": 0.65, "uppercut": 0.45}
+const MOVE_DMG := {"jab": 9.0, "cross": 12.0, "hook": 14.0, "uppercut": 16.0, "kick_front": 17.0, "kick_side": 19.0, "kick_round": 24.0}
+const MOVE_KIND := {"jab": "punch", "cross": "punch", "hook": "punch", "uppercut": "punch", "kick_front": "kick", "kick_side": "kick", "kick_round": "round"}
 var _combo := 0
 var _combo_t := 9.0
 var _held: Enemy = null
@@ -214,6 +214,8 @@ func attack() -> void:
 			Sfx.ui_at("swing", -4.0)
 		return
 	var mv: String = COMBO[_combo]
+	if mv == "kick_front" and randf() < 0.4:
+		mv = "kick_side"
 	_combo += 1
 	_attack_cd = MOVE_CD[mv]
 	_rig.play_move(mv)

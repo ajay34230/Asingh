@@ -155,6 +155,62 @@ func _selftest_alignment(fails: PackedStringArray, notes: PackedStringArray) -> 
 	notes.append("alignment: worst house-site spread %.2f m, worst NPC gap %.2f m" % [worst, worst_gap])
 
 
+## Fighting: reactions, five death styles, surrender (mercy), grab-and-throw.
+func _selftest_fight(fails: PackedStringArray, notes: PackedStringArray) -> void:
+	_teleport(-60.0, 20.0)
+	for i in 30:
+		await get_tree().physics_frame
+	var base := player.global_position + Vector3(0, 0.3, -6.0)
+	var e := combat.spawn_enemy(base, false, 0.0, "test")
+	var hp0 := e.hp
+	e.take_hit("punch", 5.0, Vector3(0, 0, -1))
+	if e.hp != hp0 - 5.0 or e._stun <= 0.0:
+		fails.append("fight: punch did not hurt/stun the enemy")
+	e.take_hit("round", 5.0, Vector3(0, 0, -1))
+	if e._down <= 0.0:
+		fails.append("fight: roundhouse did not knock the enemy down")
+	var styles := {}
+	var kills: Array[Enemy] = []
+	for k in 8:
+		var v := combat.spawn_enemy(base + Vector3(k * 1.2, 0, -2.0), false, 0.0, "test")
+		v.hp = 1.0
+		v.surrendered = false
+		v._rng.seed = 100 + k * 7
+		v.take_hit("kick", 999.0, Vector3(0, 0, -1))
+		styles[v._death_style] = true
+		kills.append(v)
+	for i in 120:
+		await get_tree().physics_frame
+	var all_dead := true
+	for v in kills:
+		if not v.dead or is_nan(v.global_position.y):
+			all_dead = false
+	if not all_dead:
+		fails.append("fight: killed enemies not dead / NaN")
+	if styles.size() < 3:
+		fails.append("fight: death styles not varied (%d)" % styles.size())
+	var m := combat.spawn_enemy(base + Vector3(-3, 0, 0), false, 0.0, "test")
+	m.confesses = true
+	m.take_hit("kick", m.max_hp * 0.7, Vector3(0, 0, -1))
+	if not m.surrendered:
+		fails.append("fight: beaten ringleader did not surrender")
+	var t := combat.spawn_enemy(base + Vector3(3, 0, 0), false, 0.0, "test")
+	var thp := t.hp
+	t.begin_held()
+	t.throw_from(player, Vector3(0, 0, -1))
+	for i in 150:
+		await get_tree().physics_frame
+	if t.hp >= thp and not t.dead:
+		fails.append("fight: thrown enemy took no damage")
+	notes.append("fight: reactions ok, %d death styles seen, surrender ok, throw dealt %.0f damage" % [styles.size(), thp - t.hp])
+	for n in [e, m, t]:
+		if is_instance_valid(n):
+			n.queue_free()
+	for v in kills:
+		if is_instance_valid(v):
+			v.queue_free()
+
+
 ## Forest rescue mission: activates after the temple clue, spawns Tara and four attackers, completes.
 func _selftest_forest(fails: PackedStringArray, notes: PackedStringArray) -> void:
 	if forest == null:
@@ -860,6 +916,7 @@ func _run_selftest() -> void:
 	_selftest_alignment(fails, notes)
 	_selftest_race(fails, notes)
 	await _selftest_forest(fails, notes)
+	await _selftest_fight(fails, notes)
 
 	for s in notes:
 		print("[selftest] ", s)
@@ -970,7 +1027,6 @@ func _run_capture_race(dir: String) -> void:
 	var shots := [["r1_start", 125], ["r2_race", 330], ["r3_hit", 90], ["r4_wreck", 60]]
 	for sh in shots:
 		for k in int(sh[1]):
-			race.player_steer_test = 0.0
 			race.step_race(1.0 / 30.0)
 			if sh[0] == "r3_hit" and k == 40:
 				for r in race.racers:
