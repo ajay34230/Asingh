@@ -84,6 +84,8 @@ func _input(event: InputEvent) -> void:
 
 
 func _on_press(idx: int, pos: Vector2) -> void:
+	if pos.y < 90.0 and pos.x > _vp.x - 270.0:      # Pause / Journal buttons live here
+		return
 	if pos.distance_to(_run_button_centre()) < 60.0:
 		_run_id = idx
 		_run_on = not _run_on
