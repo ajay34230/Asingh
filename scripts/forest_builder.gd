@@ -246,6 +246,8 @@ func _activate() -> void:
 	state = "done" if saved else "waiting"
 	if not saved:
 		story.flags["forest_down"] = 0
+	if not saved:
+		main.atmosphere.set_weather("drizzle", 1800.0)      # the sky darkens as the road turns dangerous
 	tara = Npc.new().setup(NpcBuilder.PRESETS["lady_green"], "idle", "Tara")
 	tara.player = player
 	main.add_child(tara)
@@ -313,6 +315,7 @@ func _scene() -> void:
 		{"from": player.global_position + Vector3(3.0, 1.5, 3.0), "to": player.global_position + Vector3(2.0, 1.4, 2.0), "look": player.global_position + Vector3(0, 1.5, 0), "dur": 5.5,
 		 "who": "You", "voice": "man", "text": "A woman cried out for help. That makes it my business. Let her go, or answer to my hammer."},
 	]
+	main.atmosphere.set_weather("storm", 1800.0)
 	cin.play(shots, "THE FOREST ROAD", func() -> void:
 		state = "fight"
 		Sfx.set_mood("tension")
@@ -326,6 +329,7 @@ func _won() -> void:
 	state = "done"
 	Sfx.set_mood("")
 	story.set_flag("tara_saved", true)
+	main.atmosphere.set_weather("clear", 300.0)          # the storm breaks, a rainbow appears
 	Sfx.sting("victory", -3.0)
 	hud.banner("TARA IS SAFE", "seal_found")
 	StoryFX.sun_burst(main, tara.global_position + Vector3(0, 1.0, 0), 0.7)

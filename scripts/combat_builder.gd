@@ -152,6 +152,7 @@ func _wave_spots(n: int) -> Array:
 func _start_wave(w: int) -> void:
 	_wave = w
 	if w == 1:
+		main.atmosphere.set_weather("drizzle", 150.0)       # dark skies over the Reaver raid
 		for p in _wave_spots(3):
 			spawn_enemy(p, false, 90.0, "raid")
 	elif w == 2:

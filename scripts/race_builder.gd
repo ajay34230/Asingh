@@ -416,6 +416,7 @@ func _label(sz: int, col: Color) -> Label:
 func start_race() -> void:
 	if state != "idle":
 		return
+	main.atmosphere.set_weather("clear", 420.0)          # bright, dry track for the race
 	result = ""
 	order.clear()
 	racers.clear()

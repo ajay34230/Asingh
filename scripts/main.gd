@@ -322,6 +322,24 @@ func _selftest_inventory(fails: PackedStringArray, notes: PackedStringArray) -> 
 		notes.append("inventory: ok")
 
 
+func _selftest_weather(fails: PackedStringArray, notes: PackedStringArray) -> void:
+	atmosphere.set_weather("storm", 60.0)
+	if atmosphere.rain_target < 0.99 or atmosphere.story_weather != "storm":
+		fails.append("weather: storm not set")
+	atmosphere.rain = 1.0
+	atmosphere._weather_t = -1.0
+	atmosphere._update_weather(0.5)
+	if atmosphere.rain_target < 0.99:
+		fails.append("weather: random weather overrode the story storm")
+	atmosphere.set_weather("clear", 5.0)
+	if atmosphere.rain_target != 0.0:
+		fails.append("weather: clear did not stop rain")
+	atmosphere._update_weather(6.0)
+	if atmosphere.story_weather != "":
+		fails.append("weather: story hold never released")
+	notes.append("weather: ok")
+
+
 func _selftest_mount(fails: PackedStringArray, notes: PackedStringArray) -> void:
 	if mounts == null or int(mounts.get_meta("count", 0)) < 3:
 		fails.append("mount: too few rideable animals")
@@ -374,11 +392,15 @@ func _selftest_forest(fails: PackedStringArray, notes: PackedStringArray) -> voi
 	if absf(forest.tara.global_position.y - fy) > 0.5:
 		fails.append("forest: Tara is %.2f m off the ground" % (forest.tara.global_position.y - fy))
 	var trees := get_tree().get_nodes_in_group("foliage_palm").size()
+	if atmosphere.story_weather != "drizzle":
+		fails.append("forest: sky did not darken when the forest road opened (%s)" % atmosphere.story_weather)
 	forest.state = "fight"
 	story.flags["forest_down"] = 4
 	story.changed.emit()
 	if forest.state != "done" or not story.get_flag("tara_saved"):
 		fails.append("forest: rescue did not complete")
+	if atmosphere.story_weather != "clear":
+		fails.append("forest: storm did not clear after the rescue (%s)" % atmosphere.story_weather)
 	var d: Dictionary = story.dialogue_for("Tara")
 	if d.is_empty() or d["start"] != "a":
 		fails.append("forest: Tara has no thank-you dialogue")
@@ -1076,6 +1098,7 @@ func _run_selftest() -> void:
 	await _selftest_mount(fails, notes)
 	_selftest_town(fails, notes)
 	_selftest_inventory(fails, notes)
+	_selftest_weather(fails, notes)
 	await _selftest_hunt(fails, notes)
 	await _selftest_fight(fails, notes)
 

@@ -15,6 +15,8 @@ var rain_target := 0.0
 var _rain_p: GPUParticles3D
 var _splash_p: GPUParticles3D
 var terrain_mat: StandardMaterial3D        # set by Main; gets wet in the rain
+var _story_t := 0.0              # >0: the story is holding the weather (see set_weather)
+var story_weather := ""
 var _weather_t := 120.0          # seconds until the weather changes
 var _bolt_t := 6.0
 var _flash := 0.0
@@ -280,9 +282,35 @@ func make_rain(follow: Node3D) -> void:
 	follow.add_child(_splash_p)
 
 
+## Story-driven weather. kind: "storm" (heavy rain, thunder), "rain", "drizzle", "clear".
+## While held for `secs`, the random weather is suspended; "clear" ends any rain with a rainbow.
+func set_weather(kind: String, secs: float = 240.0) -> void:
+	var was_wet := rain_target > 0.3
+	story_weather = kind
+	_story_t = secs
+	match kind:
+		"storm":
+			rain_target = 1.0
+			_bolt_t = minf(_bolt_t, 2.5)
+		"rain":
+			rain_target = 0.6
+		"drizzle":
+			rain_target = 0.3
+		_:
+			rain_target = 0.0
+			if was_wet:
+				_show_rainbow()
+
+
 func _update_weather(delta: float) -> void:
-	_weather_t -= delta
-	if _weather_t <= 0.0:
+	if _story_t > 0.0:
+		_story_t -= delta
+		if _story_t <= 0.0:
+			story_weather = ""
+			_weather_t = randf_range(90.0, 200.0)
+	else:
+		_weather_t -= delta
+	if _story_t <= 0.0 and _weather_t <= 0.0:
 		if rain_target < 0.5:
 			rain_target = randf_range(0.6, 1.0)
 			_weather_t = randf_range(50.0, 90.0)
@@ -301,7 +329,7 @@ func _update_weather(delta: float) -> void:
 	if rain > 0.6:
 		_bolt_t -= delta
 		if _bolt_t <= 0.0:
-			_bolt_t = randf_range(7.0, 18.0)
+			_bolt_t = randf_range(3.0, 7.0) if story_weather == "storm" else randf_range(7.0, 18.0)
 			_flash = 1.0
 			thunder.emit()
 	_flash = maxf(0.0, _flash - delta * 3.0)

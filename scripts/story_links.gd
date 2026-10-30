@@ -64,6 +64,7 @@ func _on_changed() -> void:
 
 
 func _victory_scene() -> void:
+	main.atmosphere.set_weather("clear", 300.0)
 	StoryFX.sun_burst(main, player.global_position + Vector3(0, 1.0, 0), 1.3)
 	StoryFX.shake(player, 0.18, 0.6)
 	hud.banner("SUN PENNANT EARNED", "mission_new")
@@ -103,6 +104,7 @@ func _altar_pennant() -> void:
 
 
 func _blessing_scene() -> void:
+	main.atmosphere.set_weather("drizzle", 90.0)        # a soft sacred rain while the altar wakes
 	var c := TerrainBuilder.TEMPLE_C
 	var at := Vector3(c.x, terrain.temple_y + 3.0, c.y - 4.0)
 	var shots := [
