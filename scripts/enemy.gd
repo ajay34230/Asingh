@@ -92,7 +92,7 @@ func setup(preset: Dictionary, at: Vector3, label: String) -> Enemy:
 	_bubble.visible = false
 	add_child(_bubble)
 	_refresh_bar()
-	global_position = at
+	position = at       # set_global_position needs the tree; setup runs before add_child (callers add us at the origin)
 	return self
 
 

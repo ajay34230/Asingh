@@ -162,8 +162,8 @@ func _decor() -> void:
 	line.material_override = _chequer()
 	line.position = Vector3(0, 0.06, 0)
 	arch.add_child(line)
-	arch.global_position = _gp(sp)
-	line.global_position.y = terrain.sample_height(sp.x, sp.y) + 0.07
+	arch.position = _gp(sp)
+	line.position.y = 0.07
 	_stands()
 	_hay_and_torches()
 
@@ -386,7 +386,6 @@ func _build_hud() -> void:
 	var t1 := _label(20, Color.WHITE)
 	t1.text = "CART"
 	t1.position = Vector2(34, 560)
-	_layer.add_child(t1)
 	_bar_hp = ColorRect.new()
 	_bar_hp.color = Color(0.3, 0.9, 0.3)
 	_bar_hp.position = Vector2(100, 568)
@@ -395,7 +394,6 @@ func _build_hud() -> void:
 	var t2 := _label(20, Color(1, 0.85, 0.4))
 	t2.text = "BOOST"
 	t2.position = Vector2(34, 590)
-	_layer.add_child(t2)
 	_bar_boost = ColorRect.new()
 	_bar_boost.color = Color(1.0, 0.75, 0.2)
 	_bar_boost.position = Vector2(100, 598)

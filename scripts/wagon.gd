@@ -110,11 +110,11 @@ func _place(s: float) -> void:
 	var want := atan2(-(q.x - p.x), -(q.y - p.y))
 	_heading = lerp_angle(_heading, want, 0.2) if s > 0.0 else want
 	rotation.y = _heading
-	global_position = Vector3(p.x, terrain.sample_height(p.x, p.y), p.y)
+	position = Vector3(p.x, terrain.sample_height(p.x, p.y), p.y)     # local: the parent sits at the origin, and _place also runs before we are in the tree
 	# follow the ground slope a little
 	var fwd := Vector3(-sin(_heading), 0.0, -cos(_heading))
-	var ahead := global_position + fwd * 3.0
-	var behind := global_position - fwd * 3.0
+	var ahead := position + fwd * 3.0
+	var behind := position - fwd * 3.0
 	var dy := terrain.sample_height(ahead.x, ahead.z) - terrain.sample_height(behind.x, behind.z)
 	rotation.x = clampf(atan2(dy, 6.0), -0.25, 0.25)
 

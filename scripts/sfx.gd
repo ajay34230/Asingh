@@ -94,8 +94,10 @@ func _loop_player(n: String, db: float) -> AudioStreamPlayer:
 	var a := AudioStreamPlayer.new()
 	a.stream = s
 	a.volume_db = db
+	a.autoplay = true            # Sfx is not in the tree yet during setup(): start when it enters it
 	add_child(a)
-	a.play()
+	if a.is_inside_tree():
+		a.play()
 	return a
 
 
