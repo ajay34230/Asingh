@@ -64,6 +64,7 @@ var _attack_cd := 0.0
 var _combat_t := 99.0            # seconds since last hit taken / dealt
 var _invuln := 0.0
 var carried_by: Node3D = null    # riding a cart: position follows this node
+var attack_override := Callable()   # set by the cart race: the HIT button swings the cart blades
 var locked := false              # true during dialogue, digging and cinematics: no input is read
 
 var _yaw := 0.0
@@ -163,6 +164,9 @@ func set_first_person(on: bool) -> void:
 
 ## Swing the hammer: turns toward the nearest enemy (auto-aim) and hits those in front.
 func attack() -> void:
+	if attack_override.is_valid():
+		attack_override.call()
+		return
 	if locked or dead or _attack_cd > 0.0:
 		return
 	_attack_cd = 0.7

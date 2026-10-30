@@ -49,6 +49,14 @@ var _mountain := FastNoiseLite.new()
 var _site_y := PackedFloat32Array()
 var pond_level := 0.0
 var temple_y := 0.0
+## Sand Circuit: a stadium-shaped bull-cart race track (two straights joined by two half circles).
+const TRACK_C := Vector2(118.0, -48.0)
+const TRACK_L := 30.0             # half length of each straight
+const TRACK_R := 22.0             # radius of the turns (centre line)
+const TRACK_W := 6.5              # half width of the racing surface
+## Bumps ("whoops") on the track: [distance along the track in metres, height in metres].
+const TRACK_HUMPS: Array = [[38.0, 0.9], [92.0, 1.0], [150.0, 0.8], [196.0, 0.95], [240.0, 0.8]]
+var track_y0 := 0.0
 ## Worn tracks between the places people actually go (polylines in world X,Z).
 const PATHS: Array = [
 	[Vector2(-90, 12), Vector2(-62, 6), Vector2(-35, -10), Vector2(-20, -60), Vector2(0, -126)],
@@ -88,6 +96,10 @@ func _init(seed_value: int = 1337) -> void:
 	pond_level = acc / 8.0
 	_pond_ready = true
 	temple_y = _ground_base(TEMPLE_C.x, TEMPLE_C.y)
+	var ta := 0.0
+	for k in 9:
+		ta += _ground_base(TRACK_C.x + (k % 3 - 1) * 16.0, TRACK_C.y + (k / 3 - 1) * 30.0)
+	track_y0 = ta / 9.0
 	for s in HOUSE_SITES:
 		_site_y.append(_ground_base(s.x, s.y))
 
@@ -105,6 +117,18 @@ func height_at(x: float, z: float) -> float:
 	for i in HOUSE_SITES.size():
 		var ds_ := Vector2(x - HOUSE_SITES[i].x, z - HOUSE_SITES[i].y).length()
 		h = lerpf(_site_y[i], h, smoothstep(SITE_FLAT_RADIUS, SITE_BLEND_RADIUS, ds_))
+
+	# Level the Sand Circuit arena and shape the track surface (rolling, with bumps to jump).
+	var tp := Vector2(x - TRACK_C.x, z - TRACK_C.y)
+	if absf(tp.x) < TRACK_R + TRACK_W + 16.0 and absf(tp.y) < TRACK_L + TRACK_R + TRACK_W + 16.0:
+		var tq := track_query(x, z)
+		var dcore := _track_core_dist(tp)
+		var target := track_elev(tq.x)
+		if dcore < TRACK_R and tq.z > TRACK_W:
+			target = lerpf(target, track_y0, smoothstep(TRACK_W, TRACK_W + 8.0, tq.z))
+		var tw := 1.0 if dcore <= TRACK_R + TRACK_W else 1.0 - smoothstep(0.0, 14.0, dcore - TRACK_R - TRACK_W)
+		target += _detail.get_noise_2d(x * 1.3, z * 1.3) * 0.2 * (1.0 - smoothstep(TRACK_W, TRACK_W + 3.0, tq.z))
+		h = lerpf(h, target, tw)
 
 	# Level ground for the temple.
 	h = lerpf(temple_y, h, smoothstep(17.0, 32.0, Vector2(x - TEMPLE_C.x, z - TEMPLE_C.y).length()))
@@ -263,6 +287,18 @@ func _color_at(p: Vector3, n: Vector3) -> Color:
 	c = c.lerp(ROCK, smoothstep(0.22, 0.5, 1.0 - n.y))
 	var rv := absf(p.x - river_x(p.z))
 	c = c.lerp(GRAVEL, 1.0 - smoothstep(6.0, 20.0, rv))
+	# Sand Circuit: packed dirt with wheel ruts, red/white kerbs and an infield of grass.
+	var tpp := Vector2(p.x - TRACK_C.x, p.z - TRACK_C.y)
+	if absf(tpp.x) < TRACK_R + TRACK_W + 6.0 and absf(tpp.y) < TRACK_L + TRACK_R + TRACK_W + 6.0:
+		var tq := track_query(p.x, p.z)
+		var dcore := _track_core_dist(tpp)
+		if tq.z < TRACK_W:
+			var rut := 0.5 + 0.5 * sin(tq.y * 2.4)
+			c = Color(0.47, 0.34, 0.23).lerp(Color(0.38, 0.27, 0.19), rut * 0.6) * (0.92 + 0.12 * t)
+			if tq.z > TRACK_W - 0.8:
+				c = Color(0.9, 0.9, 0.88) if int(floor(tq.x / 1.6)) % 2 == 0 else Color(0.78, 0.14, 0.12)
+		elif dcore < TRACK_R:
+			c = c.lerp(Color(0.33, 0.45, 0.20), smoothstep(TRACK_W, TRACK_W + 3.0, tq.z) * 0.9)
 	# Worn paths: packed pale earth along the tracks, ragged at the edges.
 	var pd2 := _path_distance(p.x, p.z)
 	var pw := 1.0 - smoothstep(1.4, 3.2 + t * 0.8, pd2)
@@ -273,6 +309,85 @@ func _color_at(p: Vector3, n: Vector3) -> Color:
 	c = c.lerp(grass, (1.0 - smoothstep(POND_R * 1.1, 46.0, dp)) * 0.8 * clampf(1.0 - (1.0 - n.y) * 3.0, 0.0, 1.0))
 	c = c.lerp(Color(0.30, 0.22, 0.14), 1.0 - smoothstep(POND_R * 0.8, POND_R * 1.3, dp))
 	return c
+
+
+static func track_length() -> float:
+	return 4.0 * TRACK_L + TAU * TRACK_R
+
+
+## Centre-line point at distance s along the track (travel is clockwise seen from above).
+static func track_point(s: float) -> Vector2:
+	var P := track_length()
+	s = fposmod(s, P)
+	var arc := PI * TRACK_R
+	var c := TRACK_C
+	if s < 2.0 * TRACK_L:
+		return Vector2(c.x + TRACK_R, c.y - TRACK_L + s)
+	if s < 2.0 * TRACK_L + arc:
+		var f := (s - 2.0 * TRACK_L) / TRACK_R
+		return Vector2(c.x + TRACK_R * cos(f), c.y + TRACK_L + TRACK_R * sin(f))
+	if s < 4.0 * TRACK_L + arc:
+		return Vector2(c.x - TRACK_R, c.y + TRACK_L - (s - 2.0 * TRACK_L - arc))
+	var f2 := PI + (s - 4.0 * TRACK_L - arc) / TRACK_R
+	return Vector2(c.x + TRACK_R * cos(f2), c.y - TRACK_L + TRACK_R * sin(f2))
+
+
+static func track_tangent(s: float) -> Vector2:
+	var P := track_length()
+	s = fposmod(s, P)
+	var arc := PI * TRACK_R
+	if s < 2.0 * TRACK_L:
+		return Vector2(0, 1)
+	if s < 2.0 * TRACK_L + arc:
+		var f := (s - 2.0 * TRACK_L) / TRACK_R
+		return Vector2(-sin(f), cos(f))
+	if s < 4.0 * TRACK_L + arc:
+		return Vector2(0, -1)
+	var f2 := PI + (s - 4.0 * TRACK_L - arc) / TRACK_R
+	return Vector2(-sin(f2), cos(f2))
+
+
+## Unit vector pointing to the driver's right at distance s.
+static func track_right(s: float) -> Vector2:
+	var t := track_tangent(s)
+	return Vector2(-t.y, t.x)
+
+
+func _track_core_dist(p: Vector2) -> float:
+	if absf(p.y) <= TRACK_L:
+		return absf(p.x)
+	return Vector2(p.x, absf(p.y) - TRACK_L).length()
+
+
+## For a world point: (distance along the track, lateral offset to the driver's right, |offset|).
+static func track_query(x: float, z: float) -> Vector3:
+	var p := Vector2(x - TRACK_C.x, z - TRACK_C.y)
+	var arc := PI * TRACK_R
+	if p.y > TRACK_L:
+		var v := Vector2(p.x, p.y - TRACK_L)
+		var lat := TRACK_R - v.length()
+		return Vector3(2.0 * TRACK_L + atan2(v.y, v.x) * TRACK_R, lat, absf(lat))
+	if p.y < -TRACK_L:
+		var v2 := Vector2(p.x, p.y + TRACK_L)
+		var f := atan2(v2.y, v2.x)
+		if f < 0.0:
+			f += TAU
+		var lat2 := TRACK_R - v2.length()
+		return Vector3(4.0 * TRACK_L + arc + (f - PI) * TRACK_R, lat2, absf(lat2))
+	if p.x >= 0.0:
+		return Vector3(p.y + TRACK_L, TRACK_R - p.x, absf(TRACK_R - p.x))
+	var lat3 := p.x + TRACK_R
+	return Vector3(2.0 * TRACK_L + arc + (TRACK_L - p.y), lat3, absf(lat3))
+
+
+## Height of the track surface centre line at distance s: gentle rolls plus the bumps.
+func track_elev(s: float) -> float:
+	var P := track_length()
+	var e := track_y0 + 0.35 * sin(s / P * TAU * 3.0 + 0.7)
+	for h in TRACK_HUMPS:
+		var d := absf(fposmod(s - float(h[0]) + P * 0.5, P) - P * 0.5)
+		e += float(h[1]) * exp(-pow(d / 2.1, 2.0))
+	return e
 
 
 func _path_distance(x: float, z: float) -> float:

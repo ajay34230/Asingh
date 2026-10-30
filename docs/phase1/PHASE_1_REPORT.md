@@ -26,3 +26,13 @@ First screenshots showed grass too bright (toned down afterwards, not re-photogr
 
 ## Approval status
 Waiting for your feedback on how it looks and plays on the S10 before applying more of this standard.
+
+## Addendum: Sand Circuit bull cart race + ground alignment
+
+- New east-side track (stadium shape, ~258 m lap, five humps, rolling surface, banked edges), finish arch, bunting, fences, hay, torches, grandstand with crowd.
+- Mission "Side: The Sand Circuit": talk to Race Master Bhim, win 3 laps against 3 armed rivals. Reward 150 coins, full heal.
+- Carts follow the real terrain (pitch/roll), bounce and fly off humps, land with squash, dust and thud; two bulls per cart gallop with speed-scaled animation.
+- Weapons: HIT swings spiked side blades (damage 22 you, 9 rivals). Cart-cart collisions push apart and cost speed/health. Health bars above carts; at 0 the cart bursts into planks, wheels, flames and smoke and the bulls bolt.
+- Controls: stick = steer/brake, JUMP = boost (8 s cooldown), HIT = blades.
+- Alignment audit (selftest): house sites levelled (spread 0.00 m), NPCs within 0.14 m of the ground.
+- Tested: automated selftest only (headless, desktop). NOT tested on a phone; software-render screenshots only. Handling and balance need on-device feel testing.

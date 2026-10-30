@@ -21,6 +21,7 @@ var hud: QuestHUD
 var dlg: DialogueUI
 var cin: Cinematic
 var story_b: StoryBuilder
+var race: RaceBuilder
 var menu: GameMenu
 var map_ui: MapUI
 var combat: CombatBuilder
@@ -83,7 +84,9 @@ func _ready() -> void:
 		_run_selftest.call_deferred()
 		return
 	for a in args:
-		if a.begins_with("--capture="):
+		if a.begins_with("--capture-race="):
+			_run_capture_race.call_deferred(a.trim_prefix("--capture-race="))
+		elif a.begins_with("--capture="):
 			_run_capture.call_deferred(a.trim_prefix("--capture="))
 			return
 
@@ -108,6 +111,113 @@ func _selftest_temple(fails: PackedStringArray, notes: PackedStringArray) -> voi
 	if rise < 0.7 or rise > 1.3:
 		fails.append("temple: player not standing on the top tier (rise %.2f)" % rise)
 	notes.append("temple: altar=%d bell=%d standing height %.2f m above ground" % [altar, bell, rise])
+
+
+## Buildings and people must sit on the ground, not float or sink.
+func _selftest_alignment(fails: PackedStringArray, notes: PackedStringArray) -> void:
+	var worst := 0.0
+	for hs in TerrainBuilder.HOUSE_SITES:
+		var lo := 1e9
+		var hi := -1e9
+		for dx in [-5.0, 0.0, 5.0]:
+			for dz in [-5.0, 0.0, 5.0]:
+				var h := terrain.sample_height(hs.x + dx, hs.y + dz)
+				lo = minf(lo, h)
+				hi = maxf(hi, h)
+		worst = maxf(worst, hi - lo)
+		if hi - lo > 0.45:
+			fails.append("alignment: house site %s ground spread %.2f m" % [hs, hi - lo])
+	var space := get_world_3d().direct_space_state
+	var bad := 0
+	var worst_gap := 0.0
+	for n in npcs:
+		if n.name == "Race Master" or n.get_parent() != self:
+			continue
+		var q := PhysicsRayQueryParameters3D.create(n.global_position + Vector3(0, 2.0, 0), n.global_position + Vector3(0, -6.0, 0))
+		var ex: Array[RID] = []
+		for c in n.get_children():
+			if c is CollisionObject3D:
+				ex.append((c as CollisionObject3D).get_rid())
+		q.exclude = ex
+		var hit := space.intersect_ray(q)
+		if hit.is_empty():
+			continue
+		var gap := n.global_position.y - float(hit["position"].y)
+		worst_gap = maxf(worst_gap, absf(gap))
+		if absf(gap) > 0.5:
+			bad += 1
+			if bad <= 3:
+				fails.append("alignment: %s is %.2f m off the ground at %s" % [n.name, gap, n.global_position])
+	notes.append("alignment: worst house-site spread %.2f m, worst NPC gap %.2f m" % [worst, worst_gap])
+
+
+## Bull cart race: one lap, manual stepping.
+func _selftest_race(fails: PackedStringArray, notes: PackedStringArray) -> void:
+	if race == null or race.master == null:
+		fails.append("race: not built")
+		return
+	race.manual_step = true
+	race.laps_override = 1
+	race.start_race()
+	if race.racers.size() != 4:
+		fails.append("race: expected 4 carts, got %d" % race.racers.size())
+		return
+	var max_air := 0.0
+	var worst_gap := 0.0
+	var damaged := false
+	var nan := false
+	for i in 20000:
+		race.step_race(1.0 / 30.0)
+		if i % 60 == 0 and race.mine != null:
+			print("[race-dbg] t=%d state=%s hp=%s s=%.0f lat=%.1f spd=%.1f lap=%d" % [i / 30, race.state, ",".join(race.racers.map(func(r: CartRacer) -> String: return "%d" % int(r.hp))), race.mine.s, race.mine.lat, race.mine.speed, race.mine.lap])
+		if race.state == "idle":
+			break
+		for r in race.racers:
+			var gy := terrain.sample_height(r.global_position.x, r.global_position.z)
+			var h := r.global_position.y - gy
+			max_air = maxf(max_air, h)
+			if not r.dead:
+				worst_gap = maxf(worst_gap, absf(minf(h, 0.0)))
+			if is_nan(r.global_position.x) or is_nan(r.global_position.y) or is_nan(r.speed):
+				nan = true
+			if r.hp < 100.0:
+				damaged = true
+	if nan:
+		fails.append("race: NaN in cart state")
+	if race.state != "idle":
+		fails.append("race: did not finish within the time limit (state %s)" % race.state)
+	if race.result == "":
+		pass
+	if max_air < 0.1:
+		fails.append("race: carts never left the ground on the humps (max air %.2f)" % max_air)
+	if worst_gap > 0.2:
+		fails.append("race: cart sank %.2f m below ground" % worst_gap)
+	notes.append("race: result=%s max air %.2f m, damage seen=%s" % [race.result, max_air, str(damaged)])
+	# weapons and destruction
+	race.start_race()
+	var a: CartRacer = race.racers[0]
+	var b: CartRacer = race.racers[1]
+	b.place(a.s + 0.5, a.lat + 1.0)
+	var hp0 := b.hp
+	a.atk_cd = 0.0
+	a.attack(race.racers)
+	if b.hp >= hp0:
+		fails.append("race: blade attack did not damage the rival")
+	for k in 6:
+		b.take_hit(22.0, 1.0)
+	if not b.dead:
+		fails.append("race: cart was not destroyed at 0 hp")
+	for r in race.racers:
+		r.cleanup()
+	race.racers.clear()
+	race.state = "idle"
+	race._layer.visible = false
+	hud._tracker.visible = true
+	player.locked = false
+	player._model.visible = true
+	race.manual_step = false
+	race.laps_override = 0
+	race.mine = null
 
 
 ## Save v2 checks: version stamp, old-format migration, backup fallback, corruption handling.
@@ -220,7 +330,7 @@ func _build_story() -> void:
 	var args := OS.get_cmdline_user_args()
 	var testing := false
 	for a in args:
-		if a == "--selftest" or a == "--audit" or a.begins_with("--capture="):
+		if a == "--selftest" or a == "--audit" or a.begins_with("--capture"):
 			testing = true
 	story = Story.new()
 	add_child(story)
@@ -240,6 +350,8 @@ func _build_story() -> void:
 	add_child(cin)
 	story_b = StoryBuilder.new(self, story, hud, dlg, cin)
 	story_b.build()
+	race = RaceBuilder.new(self, story, hud, dlg, terrain, player)
+	race.build()
 	combat = CombatBuilder.new(self, story, hud)
 	combat.build()
 	combat_hud = CombatHUD.new()
@@ -683,6 +795,8 @@ func _run_selftest() -> void:
 	notes.append("save/load checked")
 	_selftest_save_v2(fails, notes)
 	await _selftest_temple(fails, notes)
+	_selftest_alignment(fails, notes)
+	_selftest_race(fails, notes)
 
 	for s in notes:
 		print("[selftest] ", s)
@@ -739,6 +853,45 @@ func _run_audit() -> void:
 
 
 # --- screenshot capture (needs a rendering backend, e.g. xvfb + software GL) ------------
+
+func _run_capture_race(dir: String) -> void:
+	DirAccess.make_dir_recursive_absolute(dir)
+	touch.visible = false
+	atmosphere.time_of_day = 0.42
+	atmosphere.apply_time()
+	race.manual_step = true
+	race.start_race()
+	race._layer.visible = true
+	for k in 120:
+		race.step_race(1.0 / 30.0)
+	race.mine.speed = 14.0
+	var shots := [["r1_start", 125], ["r2_race", 330], ["r3_hit", 90], ["r4_wreck", 60]]
+	for sh in shots:
+		for k in int(sh[1]):
+			race.player_steer_test = 0.0
+			race.step_race(1.0 / 30.0)
+			if sh[0] == "r3_hit" and k == 40:
+				for r in race.racers:
+					if r != race.mine:
+						r.place(race.mine.s + 1.5, race.mine.lat + 1.2)
+						r.speed = race.mine.speed
+						break
+				race.mine.atk_cd = 0.0
+				race.mine.attack(race.racers)
+			if sh[0] == "r4_wreck" and k == 10:
+				for r in race.racers:
+					if r != race.mine and not r.dead:
+						r.take_hit(200.0, 1.0)
+						break
+			if k % 10 == 0:
+				await get_tree().process_frame
+		await RenderingServer.frame_post_draw
+		print("[race-state] ", race.state, " mine_hp ", race.mine.hp if race.mine != null else -1.0)
+		print("[capture] ", sh[0], " -> ", get_viewport().get_texture().get_image().save_png("%s/%s.png" % [dir, sh[0]]))
+	# overview of the whole circuit
+	race.mine.global_position = Vector3(TerrainBuilder.TRACK_C.x, 120.0, TerrainBuilder.TRACK_C.y)
+	get_tree().quit()
+
 
 func _run_capture(dir: String) -> void:
 	DirAccess.make_dir_recursive_absolute(dir)
