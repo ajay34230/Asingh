@@ -224,25 +224,22 @@ func save() -> void:
 	if player == null or story == null or not story.get_flag("intro_done"):
 		return
 	var p := player.global_position
-	var d := {"flags": story.flags, "pos": [p.x, p.y, p.z], "yaw": player.look_yaw(), "tod": main.atmosphere.time_of_day}
-	var f := FileAccess.open(SAVE_PATH, FileAccess.WRITE)
-	if f != null:
-		f.store_string(JSON.stringify(d))
+	var d := {"flags": story.flags, "pos": [p.x, p.y, p.z], "yaw": player.look_yaw(), "tod": main.atmosphere.time_of_day,
+		"hp": player.hp}
+	if not SaveSystem.write(SAVE_PATH, d):
+		push_warning("Save failed; the previous save is untouched.")
 
 
 static func has_save() -> bool:
-	return FileAccess.file_exists(SAVE_PATH)
+	return SaveSystem.exists(SAVE_PATH)
 
 
 ## Returns true if a save was applied.
 func load_save() -> bool:
 	if not has_save():
 		return false
-	var f := FileAccess.open(SAVE_PATH, FileAccess.READ)
-	if f == null:
-		return false
-	var d: Variant = JSON.parse_string(f.get_as_text())
-	if not (d is Dictionary) or not d.has("flags") or not d.has("pos"):
+	var d := SaveSystem.read(SAVE_PATH)
+	if d.is_empty():
 		return false
 	for k in d["flags"]:
 		story.flags[k] = d["flags"][k]
@@ -250,6 +247,8 @@ func load_save() -> bool:
 	player.global_position = Vector3(p[0], p[1] + 0.3, p[2])
 	player.velocity = Vector3.ZERO
 	player.set_look(float(d.get("yaw", 0.0)), -0.05)
+	var saved_hp := float(d.get("hp", -1.0))
+	player.hp = player.max_hp if saved_hp <= 0.0 else minf(saved_hp, player.max_hp)
 	main.atmosphere.time_of_day = float(d.get("tod", 0.33))
 	main.atmosphere.apply_time()
 	story.changed.emit()
@@ -257,6 +256,7 @@ func load_save() -> bool:
 
 
 func _new_game() -> void:
-	DirAccess.remove_absolute(ProjectSettings.globalize_path(SAVE_PATH))
+	for suffix in ["", ".bak", ".tmp"]:
+		DirAccess.remove_absolute(ProjectSettings.globalize_path(SAVE_PATH + suffix))
 	get_tree().paused = false
 	get_tree().reload_current_scene()

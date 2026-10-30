@@ -78,6 +78,48 @@ func _ready() -> void:
 			return
 
 
+## Save v2 checks: version stamp, old-format migration, backup fallback, corruption handling.
+func _selftest_save_v2(fails: PackedStringArray, notes: PackedStringArray) -> void:
+	var tp := "user://selftest_v2.json"
+	var abs_ := ProjectSettings.globalize_path(tp)
+	for suffix in ["", ".bak", ".tmp", ".corrupt"]:
+		DirAccess.remove_absolute(abs_ + suffix)
+	var ok := true
+	# 1. v1 file (no version, no hp) migrates forward.
+	var f := FileAccess.open(tp, FileAccess.WRITE)
+	f.store_string(JSON.stringify({"flags": {"met_chief": true}, "pos": [1, 2, 3], "yaw": 0.5, "tod": 0.4}))
+	f.close()
+	var m := SaveSystem.read(tp)
+	if m.is_empty() or int(m.get("version", 0)) != SaveSystem.VERSION or not m["flags"].get("met_chief", false) or float(m.get("hp", 0.0)) != -1.0:
+		ok = false
+		fails.append("save v2: v1 migration failed")
+	# 2. Write twice: stamped with the version, previous save kept as .bak.
+	SaveSystem.write(tp, {"flags": {"a": 1}, "pos": [0, 0, 0], "hp": 55.0})
+	SaveSystem.write(tp, {"flags": {"a": 2}, "pos": [0, 0, 0], "hp": 77.0})
+	var cur := SaveSystem.read(tp)
+	if int(cur.get("flags", {}).get("a", 0)) != 2 or float(cur.get("hp", 0.0)) != 77.0 or not FileAccess.file_exists(tp + ".bak"):
+		ok = false
+		fails.append("save v2: write/backup failed")
+	# 3. Truncate the main file: the backup is used and the damaged file is kept as .corrupt.
+	f = FileAccess.open(tp, FileAccess.WRITE)
+	f.store_string("{\"flags\": {\"a\"")
+	f.close()
+	var rec := SaveSystem.read(tp)
+	if int(rec.get("flags", {}).get("a", 0)) != 1 or not FileAccess.file_exists(tp + ".corrupt"):
+		ok = false
+		fails.append("save v2: corruption recovery failed")
+	# 4. Both damaged: nothing is returned and nothing is silently deleted.
+	f = FileAccess.open(tp + ".bak", FileAccess.WRITE)
+	f.store_string("garbage")
+	f.close()
+	if not SaveSystem.read(tp).is_empty() or not FileAccess.file_exists(tp):
+		ok = false
+		fails.append("save v2: double corruption handling failed")
+	for suffix in ["", ".bak", ".tmp", ".corrupt"]:
+		DirAccess.remove_absolute(abs_ + suffix)
+	notes.append("save v2 checks: %s" % ("ok" if ok else "FAILED"))
+
+
 func _process(delta: float) -> void:
 	atmosphere.update(delta)
 
@@ -580,9 +622,11 @@ func _run_selftest() -> void:
 		if not menu.load_save() or not story.get_flag("met_chief") or player.global_position.distance_to(keep_pos + Vector3(0, 0.3, 0)) > 0.5:
 			fails.append("save/load round trip failed")
 		DirAccess.remove_absolute(ProjectSettings.globalize_path(GameMenu.SAVE_PATH))
+		DirAccess.remove_absolute(ProjectSettings.globalize_path(GameMenu.SAVE_PATH + ".bak"))
 		story.flags.clear()
 		player.global_position = keep_pos
 	notes.append("save/load checked")
+	_selftest_save_v2(fails, notes)
 
 	for s in notes:
 		print("[selftest] ", s)
