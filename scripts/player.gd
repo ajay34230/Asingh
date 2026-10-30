@@ -70,6 +70,7 @@ var _yaw := 0.0
 var _pitch := -0.2
 var _pivot: Node3D
 var _arm: SpringArm3D
+var _cam_squeeze := 0.0
 var _model: Node3D
 var _rig: RealHuman
 var _target_distance := DEFAULT_DISTANCE
@@ -466,8 +467,14 @@ func _physics_process(delta: float) -> void:
 		global_position = spawn_position
 		velocity = Vector3.ZERO
 
-	# Smooth camera zoom and run FOV kick.
-	_arm.spring_length = lerpf(_arm.spring_length, _target_distance, 1.0 - exp(-10.0 * delta))
+	# Smooth camera zoom and run FOV kick. If the camera would end up at or under the ground (a
+	# slope behind the player), the arm is pulled in until the camera is clear again.
+	var cp := camera.global_position
+	var gq := PhysicsRayQueryParameters3D.create(cp + Vector3(0, 2.0, 0), cp - Vector3(0, 0.3, 0))
+	gq.exclude = [get_rid()]
+	var under := not get_world_3d().direct_space_state.intersect_ray(gq).is_empty()
+	_cam_squeeze = move_toward(_cam_squeeze, 1.0 if under else 0.0, delta * (8.0 if under else 1.5))
+	_arm.spring_length = lerpf(_arm.spring_length, _target_distance * (1.0 - 0.7 * _cam_squeeze), 1.0 - exp(-10.0 * delta))
 	var want_fov := base_fov + (RUN_FOV - BASE_FOV) if (fast and dir.length() > 0.1) else base_fov
 	camera.fov = lerpf(camera.fov, want_fov, 1.0 - exp(-6.0 * delta))
 

@@ -580,10 +580,14 @@ func _run_selftest() -> void:
 		var cz := crng.randf_range(-150.0, 150.0)
 		_teleport(cx, cz)
 		player.set_look(crng.randf() * TAU, 0.45)
-		for f in 3:
+		for f in 12:
 			await get_tree().physics_frame
 		var cp := player.camera.global_position
-		if cp.y < terrain.sample_height(cp.x, cp.z) - 0.15:
+		# Compare with the real collision surface (the terrain mesh's triangles differ slightly from
+		# the smooth height formula): a ray from just above the camera downwards must not hit
+		# anything higher than the camera.
+		var cr := _ray(cp + Vector3(0, 1.5, 0), cp - Vector3(0, 0.5, 0))
+		if not cr.is_empty() and cr["position"].y > cp.y + 0.03:
 			below += 1
 	notes.append("camera below ground: %d / 30" % below)
 	if below > 0:
