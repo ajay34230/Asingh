@@ -18,6 +18,7 @@ const DEFS := {
 	"night": ["Night Walker", "Walk the world after dark."],
 	"coins": ["Pockets Full", "Hold 200 coins."],
 	"beasts": ["Friend of Beasts", "Feed animals three times."],
+	"hunter": ["Treasure Hunter", "Find all five buried caches."],
 	"ending": ["The Last Sun", "Finish the story."],
 }
 

@@ -34,6 +34,7 @@ var rebuild: VillageRebuild
 var campaign: Campaign
 var festival: Festival
 var minigames: MiniGames
+var secrets: Secrets
 var companion_sys: CompanionSystem
 var bazaar: BazaarQuest
 var town_houses: HouseBuilder
@@ -898,6 +899,14 @@ func _build_story() -> void:
 	minigames.town = town
 	add_child(minigames)
 	minigames.build()
+	secrets = Secrets.new()
+	secrets.story = story
+	secrets.player = player
+	secrets.terrain = terrain
+	secrets.hud = hud
+	secrets.atmo = atmosphere
+	add_child(secrets)
+	secrets.build()
 	items = Items.new()
 	items.story = story
 	items.player = player
@@ -1361,6 +1370,29 @@ func _run_selftest() -> void:
 	await _selftest_map_route(fails, notes)
 	_selftest_cin_ground(fails)
 	_selftest_night_life(fails)
+	for k in 5:
+		story.flags.erase("cache_%d" % k)
+	story.flags.erase("night_chest")
+	secrets.nodes[0].visible = true
+	secrets.its[0].enabled = true
+	var coins0: int = int(story.get_flag("coins", 0))
+	if not secrets.open_cache(0) or secrets.open_cache(0) or int(story.get_flag("coins", 0)) != coins0 + 40:
+		fails.append("secrets: cache payout/once-only wrong")
+	atmosphere.time_of_day = 0.0
+	atmosphere.apply_time()
+	secrets._t = 0.0
+	secrets._process(0.1)
+	if not secrets.chest.visible or not secrets.chest_it.enabled:
+		fails.append("secrets: night chest not visible at midnight")
+	atmosphere.time_of_day = 0.5
+	atmosphere.apply_time()
+	secrets._t = 0.0
+	secrets._process(0.1)
+	if secrets.chest.visible:
+		fails.append("secrets: night chest visible at noon")
+	if not secrets.open_night_chest() or items.count("chain") < 1:
+		fails.append("secrets: night chest reward missing")
+	story.flags.erase("cache_0")
 	story.set_flag("coins", 100)
 	if minigames.dice_round(10, 9, 4) != "win" or int(story.get_flag("coins", 0)) != 110:
 		fails.append("dice: win did not pay")

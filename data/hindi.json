@@ -668,5 +668,11 @@
  "You cannot cover that bet.": "इतना दाँव लगाने को सिक्के नहीं हैं।",
  "Not enough coins for that bet.": "इस दाँव के लिए सिक्के कम हैं।",
  "Imran the trader": "सौदागर इमरान",
- "Imran the dice player": "पासे वाला इमरान"
+ "Imran the dice player": "पासे वाला इमरान",
+ "Treasure Hunter": "खज़ाना खोजी",
+ "Find all five buried caches.": "पाँचों दबे ख़ज़ाने खोजो।",
+ "Open the buried cache": "दबा ख़ज़ाना खोलो",
+ "Open the moonlit relic chest": "चाँदनी में चमकती पेटी खोलो",
+ "Cache found! +%d coins (%d/5)": "ख़ज़ाना मिला! +%d सिक्के (%d/5)",
+ "The relic chest holds 200 coins and chain mail!": "पेटी में 200 सिक्के और जंजीरों का कवच है!"
 }
