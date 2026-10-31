@@ -70,6 +70,7 @@ var _lunge_t := 0.0
 var _lunge_v := Vector3.ZERO
 var _hit_mult := 1.0
 var _roll_cd := 0.0
+var wanted_t := 0.0             # >0: the town knows; shops refuse you, guards attack once assaults reach 5
 var assaults := 0               # villagers the player has struck
 var _f_was := false
 var _q_was := false
@@ -474,6 +475,10 @@ func _on_move_hit(mv: String) -> void:
 			hit = true
 			if assaults == 3:
 				say("People are staring. Hitting villagers will make them fear you.")
+			if assaults >= 3 and np.role != "guard":
+				wanted_t = 120.0
+				if assaults == 5:
+					say("The guards have been called. Stay away from the town for two minutes.")
 	for an2 in get_tree().get_nodes_in_group("animals"):
 		var an3 := an2 as Animal
 		if an3 == null or an3.dead:
@@ -631,7 +636,12 @@ func _die() -> void:
 	hp_changed.emit(hp, max_hp)
 
 
+func hostile_to_guards() -> bool:
+	return wanted_t > 0.0 and assaults >= 5
+
+
 func _tick_combat(delta: float) -> void:
+	wanted_t = maxf(0.0, wanted_t - delta)
 	_attack_cd = maxf(0.0, _attack_cd - delta)
 	_roll_cd = maxf(0.0, _roll_cd - delta)
 	if _buffer > 0.0:

@@ -84,13 +84,35 @@ func take_hit(dmg: float, dir: Vector3) -> void:
 	if companion or _home_state == 2:
 		return
 	_stun_t = 0.45
-	_scared_t = 7.0 if dmg < 15.0 else 10.0
+	_scared_t = 0.0 if role == "guard" else (7.0 if dmg < 15.0 else 10.0)
 	_knock = Vector3(dir.x, 0.0, dir.z).normalized() * (2.5 + dmg * 0.12)
 	rig.mode = "idle"
 	rig.set_react("flinch")
 	say(OUCH[_rng.randi() % OUCH.size()], 2.0)
 	Sfx.ui_at("kick_hit", -8.0)
 	_restore_t = 0.0
+
+
+## After the player has beaten villagers, the town guards chase and strike him for a couple of minutes.
+func _guard_attack(delta: float) -> void:
+	_atk_cd -= delta
+	var to := player.global_position - global_position
+	to.y = 0.0
+	var dist := to.length()
+	if dist > 0.01:
+		rotation.y = lerp_angle(rotation.y, atan2(-to.x, -to.z), 1.0 - exp(-9.0 * delta))
+	var spd := 0.0
+	if dist > 1.6:
+		spd = 4.6
+		global_position += Vector3(-sin(rotation.y), 0.0, -cos(rotation.y)) * spd * delta
+		_ground_follow(delta)
+	elif _atk_cd <= 0.0 and not player.dead:
+		_atk_cd = 1.5
+		rig.play_move("jab")
+		player.take_damage(8.0, to.normalized())
+		say("Halt, ruffian!", 1.5)
+	rig.mode = "locomotion" if spd > 0.1 else "idle"
+	rig.animate(delta, spd, true)
 
 
 func _scared_step(delta: float) -> void:
@@ -102,6 +124,8 @@ func _scared_step(delta: float) -> void:
 		_ground_follow(delta)
 		if _stun_t <= 0.0:
 			rig.set_react("")
+		return
+	if _scared_t <= 0.0:
 		return
 	_scared_t -= delta
 	var away := global_position - player.global_position
@@ -332,8 +356,11 @@ func _step(delta: float) -> void:
 	if companion:
 		_companion_step(delta)
 		return
-	if _scared_t > 0.0:
+	if _stun_t > 0.0 or _scared_t > 0.0:
 		_scared_step(delta)
+		return
+	if role == "guard" and player.hostile_to_guards() and _flat_dist() < 28.0:
+		_guard_attack(delta)
 		return
 	if not routine.is_empty():
 		_routine_step(delta)

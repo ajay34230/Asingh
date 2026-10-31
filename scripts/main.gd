@@ -1457,6 +1457,24 @@ func _run_selftest() -> void:
 	if minigames.active or int(story.get_flag("arena_best", 0)) != 1:
 		fails.append("arena: end/best wave wrong")
 	story.flags.erase("animals_fed")
+	var guard: Npc = null
+	for f2 in get_tree().get_nodes_in_group("npcs"):
+		var gn := f2 as Npc
+		if gn != null and gn.role == "guard" and not gn.companion:
+			guard = gn
+			break
+	if guard != null:
+		var hp_g := player.hp
+		player.assaults = 5
+		player.wanted_t = 30.0
+		guard.global_position = player.global_position + Vector3(0.0, 0.0, 1.0)
+		guard._atk_cd = 0.0
+		guard._guard_attack(0.016)
+		if player.hp >= hp_g and player._invuln <= 0.0:
+			fails.append("hits: hostile guard did not strike")
+		player.heal(50.0)
+		player.assaults = 0
+		player.wanted_t = 0.0
 	var cow: Animal = null
 	for an in get_tree().get_nodes_in_group("animals"):
 		if String(Animal.BEHAVIOUR.get((an as Animal).species, "")) == "prey" and not (an as Animal).dead:

@@ -171,3 +171,6 @@ Tried blinking by swapping eye materials. The human models use one shared "atlas
 
 ## Hitting villagers and animals (31 Oct)
 Punches/kicks now affect NPCs (stagger, shout, flee 7-10 s; never damaged) and animals (shoved, yelp, bolt; never killed - hunting is still the knife+hammer). A hint appears after the third villager struck (`Player.assaults`). Selftest covers both reactions. Not device-tested.
+
+## Consequences for beating villagers (31 Oct)
+After 3 villagers struck the player is "wanted" for 120 s (refreshed by each further hit): stalls refuse service. From 5 hits, guards within 28 m chase and strike (8 damage, 1.5 s) until the timer ends. Guards can be punched but only stagger. Selftest covers the guard strike. Not device-tested.
