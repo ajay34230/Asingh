@@ -10,6 +10,7 @@ const DEFS := {
 	"iron": {"name": "Iron scrap", "type": "material", "desc": "Crafting material."},
 	"spear": {"name": "Spear", "type": "weapon", "dmg": 1.15, "reach": 0.7, "desc": "Longer reach."},
 	"axe": {"name": "Axe", "type": "weapon", "dmg": 1.4, "reach": 0.0, "desc": "Heavy hits."},
+	"bow": {"name": "Hunting bow", "type": "weapon", "dmg": 0.8, "reach": 0.0, "ranged": true, "desc": "Fires arrows at the nearest foe, even from the saddle."},
 	"leather": {"name": "Leather armour", "type": "armour", "armor": 0.8, "desc": "Takes 20% less damage."},
 	"chain": {"name": "Chain mail", "type": "armour", "armor": 0.62, "desc": "Takes 38% less damage."},
 }
@@ -19,6 +20,7 @@ const RECIPES := {
 	"potion": ["potion", {"herb": 3}],
 	"spear": ["spear", {"iron": 2, "hide": 1}],
 	"axe": ["axe", {"iron": 4}],
+	"bow": ["bow", {"hide": 3, "iron": 1}],
 	"leather": ["leather", {"hide": 4}],
 	"chain": ["chain", {"iron": 8, "hide": 2}],
 }
@@ -82,6 +84,7 @@ func apply_gear() -> void:
 	var a: String = equipped("armour")
 	player.gear_dmg = float(DEFS[w]["dmg"]) if DEFS.has(w) else 1.0
 	player.gear_reach = float(DEFS[w]["reach"]) if DEFS.has(w) else 0.0
+	player.gear_ranged = DEFS.has(w) and bool(DEFS[w].get("ranged", false))
 	player.armor_mult = float(DEFS[a]["armor"]) if DEFS.has(a) else 1.0
 
 

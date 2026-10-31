@@ -674,5 +674,7 @@
  "Open the buried cache": "दबा ख़ज़ाना खोलो",
  "Open the moonlit relic chest": "चाँदनी में चमकती पेटी खोलो",
  "Cache found! +%d coins (%d/5)": "ख़ज़ाना मिला! +%d सिक्के (%d/5)",
- "The relic chest holds 200 coins and chain mail!": "पेटी में 200 सिक्के और जंजीरों का कवच है!"
+ "The relic chest holds 200 coins and chain mail!": "पेटी में 200 सिक्के और जंजीरों का कवच है!",
+ "Hunting bow": "शिकारी धनुष",
+ "Fires arrows at the nearest foe, even from the saddle.": "सबसे पास के दुश्मन पर तीर चलाता है, काठी पर बैठे हुए भी।"
 }

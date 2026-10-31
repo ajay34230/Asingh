@@ -1370,6 +1370,21 @@ func _run_selftest() -> void:
 	await _selftest_map_route(fails, notes)
 	_selftest_cin_ground(fails)
 	_selftest_night_life(fails)
+	items.give("hide", 3)
+	items.give("iron", 1)
+	if not items.craft("bow") or not items.equip("bow") or not player.gear_ranged:
+		fails.append("bow craft/equip failed")
+	_teleport(180.0, 180.0)
+	var bt := combat.spawn_enemy(player.global_position + Vector3(0, 0, -9.0), false, 0.0, "test")
+	var bhp: float = bt.hp
+	player._attack_cd = 0.0
+	player.locked = false
+	if not player.fire_arrow() or player.arrows_fired < 1:
+		fails.append("bow did not fire at a foe 9 m away")
+	await get_tree().create_timer(0.8).timeout
+	if bt.hp >= bhp:
+		fails.append("arrow did not hurt the target")
+	items.unequip("weapon")
 	for k in 5:
 		story.flags.erase("cache_%d" % k)
 	story.flags.erase("night_chest")

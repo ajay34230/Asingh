@@ -251,6 +251,8 @@ func _tick_stamina(delta: float, draining: bool) -> void:
 	if _winded and stamina > 25.0:
 		_winded = false
 var gear_dmg := 1.0         # S1: equipped weapon damage multiplier
+var gear_ranged := false     # S1/X12: a bow is equipped; ATTACK fires an arrow
+var arrows_fired := 0
 var gear_reach := 0.0       # S1: extra reach in metres
 var armor_mult := 1.0       # S1: equipped armour (damage taken multiplier)
 const OUTFITS := [Color(0.86, 0.16, 0.18), Color(0.16, 0.22, 0.78), Color(0.12, 0.55, 0.28), Color(0.96, 0.62, 0.08), Color(0.06, 0.58, 0.62), Color(0.5, 0.2, 0.7)]
@@ -290,8 +292,48 @@ func ground_slam() -> int:
 	return n
 
 
+## X12: loose an arrow at the nearest enemy within 22 m (works on foot and from the saddle).
+func fire_arrow() -> bool:
+	if dead or locked or _attack_cd > 0.0:
+		return false
+	var foe := _nearest_enemy(22.0)
+	if foe == null:
+		return false
+	_attack_cd = 0.6
+	spend(5.0)
+	arrows_fired += 1
+	var from := global_position + Vector3(0, 1.4, 0)
+	var target := foe.global_position + Vector3(0, 1.2, 0)
+	_model.rotation.y = atan2(-(target.x - from.x), -(target.z - from.z))
+	var arrow := MeshInstance3D.new()
+	var cm := CylinderMesh.new()
+	cm.top_radius = 0.02
+	cm.bottom_radius = 0.02
+	cm.height = 0.8
+	var am := StandardMaterial3D.new()
+	am.albedo_color = Color(0.55, 0.4, 0.22)
+	cm.material = am
+	arrow.mesh = cm
+	get_parent().add_child(arrow)
+	arrow.global_position = from
+	arrow.look_at(target, Vector3.UP)
+	arrow.rotate_object_local(Vector3.RIGHT, PI * 0.5)
+	Sfx.ui_at("swing", -4.0)
+	var dmg := 20.0 * hammer_mult * gear_dmg * (2.0 if power.has("power") else 1.0)
+	var tw := arrow.create_tween()
+	tw.tween_property(arrow, "global_position", target, maxf(0.12, from.distance_to(target) / 28.0))
+	tw.tween_callback(func() -> void:
+		if is_instance_valid(foe) and not foe.dead:
+			foe.take_hit("kick", dmg, (target - from))
+			_combat_t = 0.0
+		arrow.queue_free())
+	return true
+
+
 func attack() -> void:
 	if attack_override.is_valid() and bool(attack_override.call()):
+		return
+	if gear_ranged and not locked and not dead and fire_arrow():
 		return
 	if mounted:
 		_mounted_swing()

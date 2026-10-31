@@ -154,3 +154,6 @@ Prey animals already fled and dogs befriended; added feeding: pause menu > Items
 
 ## X26 Mini-games, X28 Arena bonus (31 Oct)
 `scripts/minigames.gd`: (1) Chausar dice with Imran in the bazaar (bet 10 or 50 coins, higher two-dice total wins, ties keep coins, he re-offers after each round). (2) The Arena, a ring of stones 32 m east and 28 m south of the square: endless waves (2+n mixed-role fighters, tougher each wave), 20 x wave coins per cleared wave, best wave remembered (flag arena_best); leaving the ring or dying ends it. Selftest PASS (dice payouts, wave 1 and 2, reward, best wave). Kite flying, wrestling, archery and chess were not built. The arena is open from the start rather than being locked behind the ending.
+
+## X12 Hunting bow (31 Oct)
+New weapon "Hunting bow" (craft: 3 hides + 1 iron). Equipped, ATTACK fires a visible arrow at the nearest enemy within 22 m (damage 20 x gear, 0.6 s cooldown, 5 stamina), on foot or from the saddle. `Player.fire_arrow`. Selftest PASS (arrow hits a foe 9 m away). Spear and axe keep the existing swing animations (they differ by reach and damage only); no new swing animations were drawn.
