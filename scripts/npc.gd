@@ -141,6 +141,9 @@ func _pick(lines: Array) -> String:
 
 
 func _ground_follow(delta: float) -> void:
+	if (Engine.get_process_frames() + get_instance_id()) % 3 != 0:
+		return                              # lag fix: re-seat on the ground every third frame
+	delta *= 3.0
 	# Ray down for the ground, skipping people, animals and the player (their capsules would lift us).
 	var space := get_world_3d().direct_space_state
 	var ex: Array[RID] = []
@@ -271,8 +274,17 @@ func _companion_step(delta: float) -> void:
 
 
 func _process(delta: float) -> void:
+	var prev_pos := global_position
+	_step(delta)
+	if player != null and global_position.distance_squared_to(player.global_position) < 3600.0:
+		Walls.fix(self, prev_pos, 0.5)
+
+
+func _step(delta: float) -> void:
 	if player == null or rig == null:
 		return
+	if not companion and global_position.distance_squared_to(player.global_position) > 8100.0:
+		return                              # lag fix: people beyond 90 m are not simulated
 	if companion:
 		_companion_step(delta)
 		return

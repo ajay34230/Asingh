@@ -708,9 +708,10 @@ func _selftest_save_v2(fails: PackedStringArray, notes: PackedStringArray) -> vo
 ## draw distance and rain density. Called by GameMenu whenever the setting changes.
 func apply_quality(tier: int) -> void:
 	atmosphere.quality = tier
-	get_viewport().scaling_3d_scale = [1.0, 0.8, 0.62][tier]
+	get_viewport().scaling_3d_scale = [0.9, 0.78, 0.62][tier]
 	atmosphere.sun.shadow_enabled = true
-	atmosphere.sun.directional_shadow_max_distance = [260.0, 150.0, 70.0][tier]
+	atmosphere.sun.directional_shadow_max_distance = [150.0, 110.0, 70.0][tier]
+	cull_lights(tier)
 	atmosphere.sun.directional_shadow_mode = [DirectionalLight3D.SHADOW_PARALLEL_2_SPLITS, DirectionalLight3D.SHADOW_PARALLEL_2_SPLITS, DirectionalLight3D.SHADOW_ORTHOGONAL][tier]
 	atmosphere.environment.glow_enabled = tier < 2
 	var ranges := {"foliage_grass": [130.0, 75.0, 40.0], "foliage_reeds": [160.0, 100.0, 60.0], "foliage_palm": [420.0, 260.0, 150.0], "foliage_stone": [220.0, 130.0, 75.0]}
@@ -720,6 +721,28 @@ func apply_quality(tier: int) -> void:
 			gi.visibility_range_end = ranges[g][tier]
 			gi.visibility_range_end_margin = 8.0
 			gi.visibility_range_fade_mode = GeometryInstance3D.VISIBILITY_RANGE_FADE_SELF
+
+
+## Lag fix: lights fade out with distance so the phone only shades the few near the player.
+func cull_lights(tier: int) -> void:
+	var begin: float = [38.0, 28.0, 18.0][tier]
+	for n in _all_lights(self):
+		var l := n as Light3D
+		if l is DirectionalLight3D:
+			continue
+		l.distance_fade_enabled = true
+		l.distance_fade_begin = begin
+		l.distance_fade_length = 14.0
+		l.shadow_enabled = false
+
+
+func _all_lights(root: Node) -> Array:
+	var out: Array = []
+	for c in root.get_children():
+		if c is Light3D:
+			out.append(c)
+		out.append_array(_all_lights(c))
+	return out
 
 
 func _process(delta: float) -> void:
@@ -1370,6 +1393,7 @@ func _run_selftest() -> void:
 	await _selftest_map_route(fails, notes)
 	_selftest_cin_ground(fails)
 	_selftest_night_life(fails)
+	await _selftest_walls(fails)
 	items.give("hide", 3)
 	items.give("iron", 1)
 	if not items.craft("bow") or not items.equip("bow") or not player.gear_ranged:
@@ -1762,17 +1786,29 @@ func _run_capture_fight(dir: String) -> void:
 	foe.max_hp = 99999.0
 	player._model.rotation.y = PI * 0.5 * 1.0 + PI * 0.5 + PI * 0.5 - PI * 0.5
 	player._model.rotation.y = atan2(1.0, 0.0)
+	player.set_physics_process(false)
+	player._model.rotation.y = atan2(1.0, 0.0)
 	for i in 10:
 		await get_tree().physics_frame
-	var shots := [["jab", 9], ["cross", 10], ["hook", 11], ["uppercut", 13], ["kick_front", 14], ["kick_round", 18], ["kick_side", 15], ["grab", 22], ["lift", 24], ["throw", 6]]
+		player._rig.animate(1.0 / 60.0, 0.0, true)
+	player._rig.guard = true
+	for i in 20:
+		await get_tree().physics_frame
+		player._rig.animate(1.0 / 60.0, 0.0, true)
+	await RenderingServer.frame_post_draw
+	print("[capture] guard -> ", get_viewport().get_texture().get_image().save_png("%s/m_guard.png" % dir))
+	player._rig.guard = false
+	var shots := [["jab", 9], ["cross", 10], ["hook", 11], ["uppercut", 13], ["kick_front", 14], ["kick_round", 18], ["kick_side", 15], ["roll", 16], ["grab", 22], ["lift", 24], ["throw", 6]]
 	for sh in shots:
 		player._rig.play_move(sh[0])
 		for i in int(sh[1]):
 			await get_tree().physics_frame
+			player._rig.animate(1.0 / 60.0, 0.0, true)
 		await RenderingServer.frame_post_draw
 		print("[capture] ", sh[0], " -> ", get_viewport().get_texture().get_image().save_png("%s/m_%s.png" % [dir, sh[0]]))
 		for i in 40:
 			await get_tree().physics_frame
+			player._rig.animate(1.0 / 60.0, 0.0, true)
 	for r in ["flinch", "stagger", "plead", "sob", "held", "clutch", "dead"]:
 		foe.rig.set_react(r)
 		for i in 30:
@@ -1818,6 +1854,40 @@ func _selftest_animal_acts(fails: PackedStringArray, notes: PackedStringArray) -
 		total += kinds.size()
 		a.queue_free()
 	notes.append("animals: %d species, %d distinct activities seen" % [Animal.ACTS.size(), total])
+
+
+func _selftest_walls(fails: PackedStringArray) -> void:
+	var wall := StaticBody3D.new()
+	var cs := CollisionShape3D.new()
+	var bx := BoxShape3D.new()
+	bx.size = Vector3(6.0, 4.0, 0.4)
+	cs.shape = bx
+	wall.add_child(cs)
+	wall.position = Vector3(0.0, 40.0, -3.0)
+	add_child(wall)
+	var walker := Node3D.new()
+	add_child(walker)
+	await get_tree().physics_frame
+	await get_tree().physics_frame
+	var prev := Vector3(0.0, 38.5, -2.2)
+	walker.global_position = Vector3(0.0, 38.5, -2.2)
+	walker.global_position = Vector3(0.0, 38.5, -2.7)
+	var blocked := Walls.fix(walker, prev, 0.5)
+	if not blocked or walker.global_position.z < -2.25:
+		fails.append("walls: walker passed through a wall (z=%.2f)" % walker.global_position.z)
+	prev = Vector3(10.0, 38.5, -2.2)
+	walker.global_position = Vector3(10.0, 38.5, -2.7)
+	if Walls.fix(walker, prev, 0.5):
+		fails.append("walls: blocked in open space")
+	walker.queue_free()
+	wall.queue_free()
+	# boxing: the combo is punches only and the roll tucks the body
+	for mv in Player.COMBO:
+		if Player.MOVE_KIND[mv] != "punch":
+			fails.append("combat: combo has a non-punch move %s" % mv)
+	player._rig.play_move("roll")
+	if not RealHuman.MOVES.has("roll"):
+		fails.append("combat: roll move missing")
 
 
 func _selftest_night_life(fails: PackedStringArray) -> void:

@@ -165,7 +165,7 @@ static func apply(key: String) -> void:
 				if s > 0.0:
 					main.get_viewport().scaling_3d_scale = clampf(s, 0.4, 1.0)
 				else:
-					main.get_viewport().scaling_3d_scale = [1.0, 0.8, 0.62][clampi(int(v["quality"]), 0, 2)]
+					main.get_viewport().scaling_3d_scale = [0.9, 0.78, 0.62][clampi(int(v["quality"]), 0, 2)]
 		"shadows":
 			if atmo != null:
 				var sh := int(v[key])
@@ -175,7 +175,7 @@ static func apply(key: String) -> void:
 					atmo.sun.directional_shadow_mode = DirectionalLight3D.SHADOW_ORTHOGONAL
 				elif sh == 2:
 					var tier := clampi(int(v["quality"]), 0, 2)
-					atmo.sun.directional_shadow_max_distance = [260.0, 150.0, 90.0][tier]
+					atmo.sun.directional_shadow_max_distance = [150.0, 110.0, 80.0][tier]
 					atmo.sun.directional_shadow_mode = DirectionalLight3D.SHADOW_PARALLEL_2_SPLITS
 		"aa":
 			if main != null:

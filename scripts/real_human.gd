@@ -275,7 +275,7 @@ func _apply() -> void:
 				var a0: float = (_arm_rot[si] as Dictionary)[side]
 				var r: Vector3 = _pose[k]
 				# r.z = abduction in radians: raises the arm away from the hanging pose
-				d = Basis(Vector3.UP, r.y) * Basis(Vector3.RIGHT, -r.x) * Basis(Vector3.BACK, a0 - signf(a0) * r.z)
+				d = Basis(Vector3.UP, r.y) * Basis(Vector3.RIGHT, r.x) * Basis(Vector3.BACK, a0 - signf(a0) * r.z)
 			var fn: Basis = (_frame[si] as Basis).orthonormalized()
 			own[bi] = fn.inverse() * d * fn
 		# D_total(b) = D_total(parent) * own(b); global basis = D_total * restGlobal
@@ -339,6 +339,8 @@ func animate(delta: float, speed: float, grounded: bool) -> void:
 			attack_hit.emit()
 		if attack_t > 0.75:
 			attack_t = -1.0
+	if guard and move == "" and react == "" and _speed_smooth < 2.5 and _air < 0.1:
+		_guard_pose()
 	_body_overlays(delta)
 	_overlay(delta)
 	_apply()
@@ -350,7 +352,7 @@ func animate(delta: float, speed: float, grounded: bool) -> void:
 const MOVES := {
 	"jab": [0.38, 0.12], "cross": [0.42, 0.15], "hook": [0.46, 0.17], "uppercut": [0.5, 0.2],
 	"kick_front": [0.55, 0.22], "kick_round": [0.72, 0.3], "kick_side": [0.62, 0.26],
-	"grab": [0.4, 0.3], "lift": [0.5, 0.5], "throw": [0.45, 0.12],
+	"roll": [0.45, 0.44], "grab": [0.4, 0.3], "lift": [0.5, 0.5], "throw": [0.45, 0.12],
 }
 var move := ""
 var move_t := 0.0
@@ -369,6 +371,21 @@ func play_move(n: String) -> void:
 	_move_dur = MOVES[n][0]
 	_move_hit_at = MOVES[n][1]
 	_move_sent = false
+
+
+## Boxing stance: fists up by the chin, lead hand forward, knees soft, a little bounce on the toes.
+var guard := false
+
+
+func _guard_pose() -> void:
+	var b := sin(_t * 7.0)
+	_pz("sh_L", Vector3(-1.15 + 0.04 * b, 0.1, 0.1), 0.85); _pz("el_L", Vector3(1.9, 0, 0), 0.85)
+	_pz("sh_R", Vector3(-1.0 - 0.04 * b, -0.15, 0.1), 0.85); _pz("el_R", Vector3(2.0, 0, 0), 0.85)
+	_pose["spine"] = Vector3(-0.12, 0.25, 0)
+	_pose["head"] = Vector3(0.12, 0.0, 0)
+	_pz("hip_L", Vector3(-0.28, 0, 0), 0.8); _pz("kn_L", Vector3(-0.3, 0, 0), 0.8)
+	_pz("hip_R", Vector3(0.3, 0, 0), 0.8); _pz("kn_R", Vector3(-0.2, 0, 0), 0.8)
+	_hips_dy = -0.07 + 0.02 * b
 
 
 func move_busy() -> bool:
@@ -459,6 +476,18 @@ func _move_pose() -> void:
 			_pz("hip_L", Vector3(0, 0, 0)); _pz("kn_L", Vector3(-0.25 * l2, 0, 0))
 			_pz("sh_L", Vector3(-0.8, 0, 0.9 * l2)); _pz("sh_R", Vector3(-0.8, 0, 0.9 * l2))
 			_pz("el_L", Vector3(1.0, 0, 0)); _pz("el_R", Vector3(1.0, 0, 0))
+		"roll":
+			# tucked ball: knees to chest, chin down, arms hugging the shins; the Player rotates the model
+			# around the body centre while this holds the tuck, so nothing swings through the ground
+			var tuck := smoothstep(0.0, 0.08, t) * (1.0 - smoothstep(d - 0.1, d, t))
+			_pose["spine"] = Vector3(0.9 * tuck, 0, 0)
+			_pose["chest"] = Vector3(0.4 * tuck, 0, 0)
+			_pose["head"] = Vector3(0.5 * tuck, 0, 0)
+			for tg in ["L", "R"]:
+				_pz("hip_" + tg, Vector3(-1.7 * tuck, 0, 0)); _pz("kn_" + tg, Vector3(-2.0 * tuck, 0, 0))
+				_pz("sh_" + tg, Vector3(-1.1 * tuck, 0, 0.1)); _pz("el_" + tg, Vector3(1.9 * tuck, 0, 0))
+			_hips_dy = -0.35 * tuck
+			return
 		"grab":
 			var g := smoothstep(0.0, hit, t) * (1.0 - smoothstep(hit, d, t) * 0.3)
 			for tg in ["L", "R"]:

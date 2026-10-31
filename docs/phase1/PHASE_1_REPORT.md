@@ -160,3 +160,11 @@ New weapon "Hunting bow" (craft: 3 hides + 1 iron). Equipped, ATTACK fires a vis
 
 ## X9 Faces and cloth: not possible with the current character model (31 Oct)
 Tried blinking by swapping eye materials. The human models use one shared "atlas" texture with no separate eye surfaces, so eyes cannot be closed without new meshes or blend shapes. The attempt was reverted. Cloth sway and facial expressions would need new rigged assets and stay unbuilt.
+
+## Combat, roll, walls and lag fixes (31 Oct)
+- Arms swung backwards (shoulder axis sign) while legs were right; fixed, so punches now go toward the target.
+- Combo is boxing only (jab, cross, jab, hook, cross, uppercut); kicks only when airborne. A boxing guard stance holds for 4 s after combat.
+- Roll is a tucked ball (new "roll" pose) rotating around the body centre, not the feet, so nothing dips below the ground.
+- NPCs and animals: `Walls.fix` cancels/slides steps that hit static bodies (within 60 m of the player).
+- Lag: lights fade out with distance and cast no shadows, High preset renders at 0.9 scale with 150 m shadows, NPCs beyond 90 m are not simulated, NPC ground raycasts run every third frame.
+- Not verified on a phone; frame rate effects are expected, not measured.

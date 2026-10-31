@@ -211,6 +211,13 @@ func ground() -> void:
 
 
 func _process(delta: float) -> void:
+	var prev_pos := global_position
+	_step(delta)
+	if player != null and global_position.distance_squared_to(player.global_position) < 3600.0:
+		Walls.fix(self, prev_pos, 0.7)
+
+
+func _step(delta: float) -> void:
 	if driven or player == null:
 		return
 	var d2 := global_position.distance_squared_to(player.global_position)

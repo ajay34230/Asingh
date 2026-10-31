@@ -195,7 +195,7 @@ func set_first_person(on: bool) -> void:
 
 ## Fighting: tap HIT for a combo: jab, cross, front kick, hook, roundhouse, then a grab-and-throw
 ## (or a hammer smash when nobody is close enough to grab). Auto-aims at the nearest enemy.
-const COMBO := ["jab", "cross", "hook", "kick_front", "uppercut", "kick_round"]
+const COMBO := ["jab", "cross", "jab", "hook", "cross", "uppercut"]   # boxing: kicks only when airborne
 const MOVE_CD := {"jab": 0.34, "cross": 0.38, "hook": 0.42, "kick_front": 0.5, "kick_side": 0.55, "kick_round": 0.65, "uppercut": 0.45}
 const MOVE_DMG := {"jab": 9.0, "cross": 12.0, "hook": 14.0, "uppercut": 16.0, "kick_front": 17.0, "kick_side": 19.0, "kick_round": 24.0}
 const MOVE_KIND := {"jab": "punch", "cross": "punch", "hook": "punch", "uppercut": "punch", "kick_front": "kick", "kick_side": "kick", "kick_round": "round"}
@@ -387,8 +387,6 @@ func attack() -> void:
 	var mv: String = COMBO[_combo]
 	if airborne:
 		mv = "kick_front"
-	if mv == "kick_front" and randf() < 0.4 and not airborne:
-		mv = "kick_side"
 	_combo += 1
 	_attack_cd = MOVE_CD[mv]
 	_rig.play_move(mv)
@@ -434,9 +432,16 @@ func roll() -> void:
 	_lunge_v = d.normalized() * 8.0
 	_lunge_t = 0.4
 	Sfx.ui_at("whoosh_punch", -6.0)
+	_rig.play_move("roll")
+	# somersault around the body centre (not the feet) so no part dips below the ground
+	var pivot := Vector3(0.0, 0.6, 0.0)
 	var tw := create_tween()
-	tw.tween_property(_model, "rotation:x", -TAU, 0.4).from(0.0)
-	tw.tween_callback(func() -> void: _model.rotation.x = 0.0)
+	tw.tween_method(func(a: float) -> void:
+		_model.rotation.x = a
+		_model.position = pivot - _model.basis * pivot, 0.0, -TAU, 0.44)
+	tw.tween_callback(func() -> void:
+		_model.rotation.x = 0.0
+		_model.position = Vector3.ZERO)
 
 
 func _on_move_hit(mv: String) -> void:
@@ -874,6 +879,7 @@ func _physics_process(delta: float) -> void:
 	else:
 		_rig.turn_lean = 0.0
 	_pivot.position.y = lerpf(_pivot.position.y, 1.1 if crouching else 1.55, 1.0 - exp(-9.0 * delta))
+	_rig.guard = _combat_t < 4.0 and not mounted and not dead and not locked
 	_rig.animate(delta, Vector2(velocity.x, velocity.z).length(), is_on_floor())
 	if global_position.y < -40.0:
 		global_position = spawn_position
