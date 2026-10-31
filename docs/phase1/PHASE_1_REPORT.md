@@ -59,3 +59,8 @@ Waiting for your feedback on how it looks and plays on the S10 before applying m
 - **Set-piece "Raid on the Road"** (`stampede.gd`): a few minutes into free play a raid horn sounds and a herd of 14 stampedes across the player's path (trampling hurts), then four Reavers attack; reward 120 coins and a rideable white horse.
 - Rider pose fixed so the player straddles the animal instead of standing on it (checked by software-render screenshot only).
 - Verified: self-test PASS (software GL). Not verified: feel and performance on a phone, how the new sounds and trees look and sound on the S10.
+
+## Addendum: riding and combat controls overhaul
+- Riding: steering was reversed for touch input (forward was -y); fixed to the same stick convention as walking (up = forward, camera-relative). JUMP now makes the animal leap (cleared low obstacles, landing thump); a new GET OFF button (and E key) dismounts. The rider sits on a per-species saddle point measured from the model, with a real riding pose (thighs astride, lean with speed, lean into turns, rise out of the saddle on a leap). HIT swings the hammer from the saddle.
+- Combat: HIT presses are buffered so combos flow, auto-face and lunge toward the nearest enemy within 6 m, sprint attack (x1.2) and flying kick (x1.3). New BLOCK (hold; front hits do 25% damage) and ROLL (dodge with 0.45 s invulnerability) buttons; keyboard F / Q / V.
+- Verified by selftest (steering direction, leap height, JUMP not dismounting, GET OFF, mounted HIT, block reduction, roll i-frames) in software rendering only; not tested on a device.

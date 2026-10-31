@@ -460,27 +460,60 @@ func _selftest_mount(fails: PackedStringArray, notes: PackedStringArray) -> void
 			best_yaw = yaw
 			break
 	player.set_look(best_yaw, -0.05)
-	player.move_input = Vector2(0, -1)
+	player.move_input = Vector2(0, 1)       # stick pushed up = forward
 	player.sprint = true
 	for i in 90:
 		await get_tree().physics_frame
 	var moved := a.global_position.distance_to(start)
+	var along := (a.global_position - start).dot(Vector3(-sin(best_yaw), 0.0, -cos(best_yaw)))
 	var gy := terrain.sample_height(a.global_position.x, a.global_position.z)
 	if moved < 6.0:
 		fails.append("mount: horse barely moved (%.1f m), blocked by %s" % [moved, mounts.last_block])
+	if along < moved * 0.8:
+		fails.append("mount: horse did not go where the stick pointed (%.1f of %.1f m)" % [along, moved])
 	if absf(a.global_position.y - gy) > 0.3:
 		fails.append("mount: horse off ground")
 	var rd := player.global_position.y - a.global_position.y
-	if rd < 1.0 or rd > 3.0:
+	if rd < 0.8 or rd > 3.0:
 		fails.append("mount: rider height %.2f" % rd)
+	# JUMP leaps instead of dismounting
+	player.jump_requested = true
+	var peak := 0.0
+	for i in 30:
+		await get_tree().physics_frame
+		peak = maxf(peak, a.global_position.y - terrain.sample_height(a.global_position.x, a.global_position.z))
+	if mounts.mount != a:
+		fails.append("mount: JUMP dismounted instead of leaping")
+	if peak < 0.8:
+		fails.append("mount: animal leap too low (%.2f m)" % peak)
 	player.move_input = Vector2.ZERO
 	player.sprint = false
-	player.jump_requested = true
-	await get_tree().physics_frame
+	# mounted HIT swings the hammer
+	player._attack_cd = 0.0
+	player.attack()
+	if player._attack_cd < 0.3:
+		fails.append("mount: mounted HIT did nothing")
+	# the GET OFF button callable dismounts
+	touch.on_exit.call()
 	await get_tree().physics_frame
 	if mounts.mount != null or player.locked:
-		fails.append("mount: dismount failed")
-	notes.append("mount: rode %.1f m, rider +%.2f" % [moved, rd])
+		fails.append("mount: GET OFF failed")
+	notes.append("mount: rode %.1f m, rider +%.2f, leap %.2f" % [moved, rd, peak])
+	# guard and roll
+	player._invuln = 0.0
+	player.set_block(true)
+	var hp0 := player.hp
+	player.take_damage(40.0, player.global_position - Vector3(-sin(player._model.rotation.y), 0.0, -cos(player._model.rotation.y)) * -3.0)
+	var lost_b := hp0 - player.hp
+	player.set_block(false)
+	if lost_b > 40.0 * 0.3 * GameSettings.damage_scale() + 0.01:
+		fails.append("combat: block did not reduce damage (%.1f)" % lost_b)
+	player._invuln = 0.0
+	player.roll()
+	if player._invuln < 0.4:
+		fails.append("combat: roll gave no i-frames")
+	player._invuln = 0.0
+	player._roll_cd = 0.0
 
 
 func _selftest_forest(fails: PackedStringArray, notes: PackedStringArray) -> void:
@@ -763,6 +796,7 @@ func _build_story() -> void:
 	add_child(stampede)
 	mounts = MountSystem.new(self, player, terrain)
 	mounts.build()
+	touch.on_exit = Callable(mounts, "dismount")
 	combat_hud = CombatHUD.new()
 	combat_hud.player = player
 	add_child(combat_hud)

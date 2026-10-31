@@ -27,6 +27,9 @@ var _toast := ""
 var _toast_time := 0.0
 var _run_on := false
 var _crouch_id := -1
+var _block_id := -1
+var _roll_id := -1
+var on_exit := Callable()      # GET OFF while riding
 var left_handed := false       # mirror the layout: stick on the right, look and buttons on the left
 var btn_scale := 1.0           # button size and spacing, 0.8 .. 1.4
 var show_fps := true
@@ -93,6 +96,14 @@ func _jump_button_centre() -> Vector2:
 	return _corner(245.0, 150.0)
 
 
+func _block_button_centre() -> Vector2:
+	return _corner(380.0, 230.0)
+
+
+func _roll_button_centre() -> Vector2:
+	return _corner(380.0, 365.0)
+
+
 func _crouch_button_centre() -> Vector2:
 	return _corner(380.0, 95.0)
 
@@ -132,7 +143,21 @@ func _on_press(idx: int, pos: Vector2) -> void:
 		return
 	if pos.y < 330.0 and pos.x > _vp.x - 250.0:     # minimap
 		return
-	if pos.distance_to(_crouch_button_centre()) < 56.0 * btn_scale:
+	if player != null and player.mounted:
+		if pos.distance_to(_use_button_centre()) < 62.0 * btn_scale and on_exit.is_valid():
+			_use_id = idx
+			on_exit.call()
+			return
+	else:
+		if pos.distance_to(_block_button_centre()) < 56.0 * btn_scale:
+			_block_id = idx
+			player.set_block(true)
+			return
+		if pos.distance_to(_roll_button_centre()) < 56.0 * btn_scale:
+			_roll_id = idx
+			player.roll()
+			return
+	if player != null and not player.mounted and pos.distance_to(_crouch_button_centre()) < 56.0 * btn_scale:
 		_crouch_id = idx
 		player.toggle_crouch()
 		return
@@ -186,6 +211,11 @@ func _on_release(idx: int) -> void:
 		_attack_id = -1
 	elif idx == _crouch_id:
 		_crouch_id = -1
+	elif idx == _block_id:
+		_block_id = -1
+		player.set_block(false)
+	elif idx == _roll_id:
+		_roll_id = -1
 
 
 func _on_drag(idx: int, pos: Vector2, rel: Vector2) -> void:
@@ -223,7 +253,9 @@ func _draw() -> void:
 		draw_string(font, Vector2(16, 58), "Left: move   Right: look (two fingers: zoom)   USE appears near things",
 			HORIZONTAL_ALIGNMENT_LEFT, -1, 20, Color(1, 1, 1, 0.9 * a))
 	# Interaction prompt, USE button and message toast.
-	if _focus != null and is_instance_valid(_focus):
+	if player != null and player.mounted:
+		_draw_button(font, _use_button_centre(), 50.0 * btn_scale, "GET OFF", _use_id != -1)
+	elif _focus != null and is_instance_valid(_focus):
 		var ptxt := _focus.prompt
 		var psz := font.get_string_size(ptxt, HORIZONTAL_ALIGNMENT_LEFT, -1, 26)
 		var pc := Vector2(_vp.x * 0.5, _vp.y - 120.0)
@@ -248,7 +280,10 @@ func _draw() -> void:
 	_draw_button(font, _run_button_centre(), 50.0 * btn_scale, "RUN", _run_on)
 	_draw_button(font, _jump_button_centre(), 45.0 * btn_scale, "JUMP", _jump_id != -1)
 	_draw_button(font, _attack_button_centre(), 48.0 * btn_scale, "HIT", _attack_id != -1)
-	_draw_button(font, _crouch_button_centre(), 44.0 * btn_scale, "DUCK", player != null and player.crouching)
+	if player == null or not player.mounted:
+		_draw_button(font, _crouch_button_centre(), 44.0 * btn_scale, "DUCK", player != null and player.crouching)
+		_draw_button(font, _block_button_centre(), 44.0 * btn_scale, "BLOCK", _block_id != -1)
+		_draw_button(font, _roll_button_centre(), 44.0 * btn_scale, "ROLL", _roll_id != -1)
 
 
 func _draw_button(font: Font, c: Vector2, r: float, label: String, active: bool) -> void:

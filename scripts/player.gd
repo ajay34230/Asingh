@@ -64,6 +64,15 @@ var dead := false
 var checkpoint := Vector3.ZERO
 var power := {}                  # kind -> seconds left ("speed", "power", "shield")
 var _attack_cd := 0.0
+var blocking := false            # hold BLOCK: guard up, front hits do a quarter damage
+var _buffer := 0.0               # a HIT press made just before the last move ends is queued
+var _lunge_t := 0.0
+var _lunge_v := Vector3.ZERO
+var _hit_mult := 1.0
+var _roll_cd := 0.0
+var _f_was := false
+var _q_was := false
+var _v_was := false
 var _combat_t := 99.0            # seconds since last hit taken / dealt
 var _invuln := 0.0
 var carried_by: Node3D = null    # riding a cart: position follows this node
@@ -213,12 +222,35 @@ func _nearest_enemy(rng: float) -> Enemy:
 func attack() -> void:
 	if attack_override.is_valid() and bool(attack_override.call()):
 		return
-	if locked or dead or _attack_cd > 0.0 or _throwing:
+	if mounted:
+		_mounted_swing()
 		return
-	var near := _nearest_enemy(4.5)
+	if locked or dead or _throwing:
+		return
+	if _attack_cd > 0.0:
+		if _attack_cd < 0.3:
+			_buffer = 0.3          # queue the next move so combos flow without perfect timing
+		return
+	blocking = false
+	var near := _nearest_enemy(6.0)
+	var spd := Vector2(velocity.x, velocity.z).length()
+	var airborne := not is_on_floor()
 	if near != null:
 		var to := near.global_position - global_position
 		_model.rotation.y = atan2(-to.x, -to.z)
+		# step into range: a short lunge toward the target (the further away, the longer it carries)
+		var dist := Vector2(to.x, to.z).length()
+		if dist > 1.6:
+			_lunge_v = Vector3(to.x, 0.0, to.z).normalized() * clampf((dist - 1.3) / 0.16, 2.0, 9.0)
+			_lunge_t = 0.16
+	elif spd > 4.5:
+		_lunge_v = Vector3(-sin(_model.rotation.y), 0.0, -cos(_model.rotation.y)) * 5.5   # sprint attack
+		_lunge_t = 0.2
+	_hit_mult = 1.0
+	if airborne:
+		_hit_mult = 1.3            # flying kick
+	elif spd > 4.5:
+		_hit_mult = 1.2
 	if _combo_t > 1.4:
 		_combo = 0
 	_combo_t = 0.0
@@ -233,7 +265,9 @@ func attack() -> void:
 			Sfx.ui_at("swing", -4.0)
 		return
 	var mv: String = COMBO[_combo]
-	if mv == "kick_front" and randf() < 0.4:
+	if airborne:
+		mv = "kick_front"
+	if mv == "kick_front" and randf() < 0.4 and not airborne:
 		mv = "kick_side"
 	_combo += 1
 	_attack_cd = MOVE_CD[mv]
@@ -243,12 +277,50 @@ func attack() -> void:
 		Sfx.ui_at("grunt_%d" % randi_range(0, 2), -14.0)
 
 
+## Swing the hammer from the saddle (the HIT button while riding).
+func _mounted_swing() -> void:
+	if dead or _attack_cd > 0.0:
+		return
+	_attack_cd = 0.7
+	_rig.start_attack()
+	Sfx.ui_at("swing", -4.0)
+
+
+func set_block(on: bool) -> void:
+	if on and (locked or dead or mounted or _throwing):
+		on = false
+	if on == blocking:
+		return
+	blocking = on
+	_rig.set_react("block" if on else "")
+
+
+## Quick dodge roll with a short window of invulnerability (ROLL button / V).
+func roll() -> void:
+	if locked or dead or mounted or _throwing or _roll_cd > 0.0:
+		return
+	_roll_cd = 0.9
+	_invuln = maxf(_invuln, 0.45)
+	blocking = false
+	_rig.set_react("")
+	var d := Vector3(-sin(_yaw), 0.0, -cos(_yaw)) * move_input.y + Vector3(cos(_yaw), 0.0, -sin(_yaw)) * move_input.x
+	if d.length() < 0.2:
+		d = Vector3(-sin(_model.rotation.y), 0.0, -cos(_model.rotation.y))
+	_model.rotation.y = atan2(-d.x, -d.z)
+	_lunge_v = d.normalized() * 8.0
+	_lunge_t = 0.4
+	Sfx.ui_at("whoosh_punch", -6.0)
+	var tw := create_tween()
+	tw.tween_property(_model, "rotation:x", -TAU, 0.4).from(0.0)
+	tw.tween_callback(func() -> void: _model.rotation.x = 0.0)
+
+
 func _on_move_hit(mv: String) -> void:
 	if not MOVE_DMG.has(mv):
 		return
 	var fwd := Vector3(-sin(_model.rotation.y), 0.0, -cos(_model.rotation.y))
 	var reach := 2.9 if MOVE_KIND[mv] != "punch" else 2.3
-	var dmg: float = MOVE_DMG[mv] * (2.0 if power.has("power") else 1.0)
+	var dmg: float = MOVE_DMG[mv] * _hit_mult * (2.0 if power.has("power") else 1.0)
 	var hit := false
 	for e in get_tree().get_nodes_in_group("enemies"):
 		var en := e as Enemy
@@ -336,6 +408,14 @@ func take_damage(amount: float, from: Vector3) -> void:
 	if power.has("shield"):
 		amount *= 0.2
 	amount *= GameSettings.damage_scale()
+	if blocking:
+		var toward := from - global_position
+		toward.y = 0.0
+		var face := Vector3(-sin(_model.rotation.y), 0.0, -cos(_model.rotation.y))
+		if toward.length() < 0.1 or face.dot(toward.normalized()) > -0.2:
+			amount *= 0.25
+			Sfx.ui_at("hit_thud", -8.0)
+			StoryFX.shake(self, 0.04, 0.12)
 	if haptics and OS.has_feature("mobile"):
 		Input.vibrate_handheld(70)
 	hp = maxf(0.0, hp - amount)
@@ -388,6 +468,15 @@ func _die() -> void:
 
 func _tick_combat(delta: float) -> void:
 	_attack_cd = maxf(0.0, _attack_cd - delta)
+	_roll_cd = maxf(0.0, _roll_cd - delta)
+	if _buffer > 0.0:
+		_buffer -= delta
+		if _attack_cd <= 0.0:
+			_buffer = 0.0
+			attack()
+	if _lunge_t > 0.0 and not dead:
+		_lunge_t -= delta
+		move_and_collide(_lunge_v * delta)
 	_combo_t += delta
 	_update_held()
 	_invuln = maxf(0.0, _invuln - delta)
@@ -548,6 +637,18 @@ func _physics_process(delta: float) -> void:
 	if e_down and not _e_was_down and not locked:
 		interact()
 	_e_was_down = e_down
+	var f_down := Input.is_physical_key_pressed(KEY_F)
+	if f_down and not _f_was:
+		attack()
+	_f_was = f_down
+	var v_down := Input.is_physical_key_pressed(KEY_V)
+	if v_down and not _v_was:
+		roll()
+	_v_was = v_down
+	var q_down := Input.is_physical_key_pressed(KEY_Q)
+	if q_down != _q_was:
+		set_block(q_down)
+	_q_was = q_down
 	var c_down := Input.is_physical_key_pressed(KEY_C)
 	if c_down and not _c_was_down and not locked:
 		toggle_crouch()

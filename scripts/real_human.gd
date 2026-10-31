@@ -502,15 +502,31 @@ func _react_pose() -> void:
 			_pz("hip_L", Vector3(-0.4, 0, 0)); _pz("hip_R", Vector3(-0.4, 0, 0))
 			_pz("kn_L", Vector3(-0.8, 0, 0)); _pz("kn_R", Vector3(-0.8, 0, 0))
 		"ride":
-			var bob := sin(t * 9.0) * 0.015
-			_hips_dy = -0.5 + bob
+			# Seated astride: thighs open to the sides, knees bent with the heels drawn up, upright back that
+			# leans forward at speed, hands low and forward on the reins, hips bouncing with the gait; the rider
+			# leans into turns and rises out of the saddle when the animal leaps.
+			var k := ride_k
+			var gait := sin(t * (7.0 + 6.0 * k))
+			var lean := 0.06 + 0.32 * k
+			_hips_dy = -0.5 + gait * (0.012 + 0.03 * k) + 0.16 * ride_air + 0.05 * k
 			for tg in ["L", "R"]:
 				var sg := 1.0 if tg == "L" else -1.0
-				# straddling: thighs out to the sides and a little forward, shins hanging down and back
-				_pz("hip_" + tg, Vector3(0.45, 0, 0.85 * sg)); _pz("kn_" + tg, Vector3(-0.55, 0, 0))
-				_pz("sh_" + tg, Vector3(-0.85, 0, 0.12)); _pz("el_" + tg, Vector3(1.0, 0, 0))
-			_pose["spine"] = Vector3(-0.14 + 0.02 * sin(t * 4.5), 0, 0)
-			_pose["head"] = Vector3(0.05, 0, 0)
+				_pz("hip_" + tg, Vector3(0.62 + 0.25 * k + 0.2 * ride_air, 0, 0.6 * sg))
+				_pz("kn_" + tg, Vector3(-1.0 - 0.3 * k - 0.3 * ride_air, 0, 0))
+				_pz("sh_" + tg, Vector3(-0.8 - 0.35 * k - 0.15 * gait * k, 0, 0.14 * sg))
+				_pz("el_" + tg, Vector3(1.15 + 0.2 * k, 0, 0))
+			_pose["spine"] = Vector3(-lean + 0.025 * gait, -0.1 * ride_turn, 0.16 * ride_turn)
+			_pose["hips"] = Vector3(0.0, 0.0, -0.05 * ride_turn)
+			_pose["head"] = Vector3(lean * 0.75 - 0.02, 0.1 * ride_turn, -0.08 * ride_turn)
+		"block":
+			# guard up: forearms in front of the face, knees soft, weight sunk
+			_hips_dy = -0.16
+			_pz("sh_L", Vector3(-1.15, 0, 0.22)); _pz("sh_R", Vector3(-1.15, 0, -0.22))
+			_pz("el_L", Vector3(2.15, 0, 0)); _pz("el_R", Vector3(2.15, 0, 0))
+			_pz("hip_L", Vector3(0.3, 0, 0.12)); _pz("hip_R", Vector3(-0.15, 0, -0.12))
+			_pz("kn_L", Vector3(-0.55, 0, 0)); _pz("kn_R", Vector3(-0.5, 0, 0))
+			_pose["spine"] = Vector3(-0.22, 0.2, 0)
+			_pose["head"] = Vector3(0.22, 0, 0)
 		"dead":
 			_pz("sh_L", Vector3(-0.1, 0, 1.15)); _pz("sh_R", Vector3(-0.3, 0, 0.9))
 			_pz("el_L", Vector3(0.3, 0, 0)); _pz("el_R", Vector3(0.7, 0, 0))
@@ -697,6 +713,9 @@ func _add_prop(kind: String) -> void:
 var _beat_prev := false
 var crouch := 0.0                # 0 standing .. 1 crouched (smoothed toward crouch_target)
 var crouch_target := 0.0
+var ride_k := 0.0                # 0 walking .. 1 galloping (set by the mount system)
+var ride_turn := 0.0             # -1..1 how hard the animal is turning
+var ride_air := 0.0              # 1 while the animal is in the air
 var turn_lean := 0.0             # -1..1, set by the player: lean into turns while moving
 var _lean_s := 0.0
 var _land_t := 0.0

@@ -49,6 +49,9 @@ var _idle2 := ""                 # alert / ear-flick idle
 var _kick := ""                  # kick or paw
 var _butt := ""                  # headbutt or snort
 var _hop := ""                   # rear or pounce
+var _gjump := ""                 # leap while running
+var back_y := 1.2                # height of the saddle point above the ground (measured from the model)
+static var _back_cache := {}
 var _act := {}                   # the current species activity (see _start_act)
 var _spd := 1.0                  # animation speed of the current activity
 
@@ -102,6 +105,32 @@ func setup(kind: String, ter: TerrainBuilder, ply: Node3D, at: Vector3, wander_r
 			lo = minf(lo, p.y); hi = maxf(hi, p.y)
 			zlo = minf(zlo, p.z); zhi = maxf(zhi, p.z)
 	var h := maxf(hi - lo, 0.1)
+	if _back_cache.has(kind):
+		back_y = float(_back_cache[kind])
+	else:
+		# the saddle point: the highest part of the middle of the body (not the neck or head), above the feet
+		var zmid := (zlo + zhi) * 0.5
+		var win := (zhi - zlo) * 0.14
+		var top := -INF
+		for m2 in inst.find_children("*", "MeshInstance3D", true, false):
+			var mi2 := m2 as MeshInstance3D
+			if mi2.mesh == null:
+				continue
+			var xf2 := Transform3D.IDENTITY
+			var n2: Node = mi2
+			while n2 != null and n2 != _inner:
+				if n2 is Node3D:
+					xf2 = (n2 as Node3D).transform * xf2
+				n2 = n2.get_parent()
+			for s2 in mi2.mesh.get_surface_count():
+				var arr: Array = mi2.mesh.surface_get_arrays(s2)
+				var vs: PackedVector3Array = arr[Mesh.ARRAY_VERTEX]
+				for v in vs:
+					var pv := xf2 * v
+					if absf(pv.z - zmid) < win:
+						top = maxf(top, pv.y)
+		back_y = (top - lo) * float(sp["height"]) / h if top > -INF else float(sp["height"]) * 0.7
+		_back_cache[kind] = back_y
 	var k: float = float(sp["height"]) / h
 	_inner.scale = Vector3.ONE * k
 	_inner.position.y = -lo * k
@@ -130,6 +159,8 @@ func setup(kind: String, ter: TerrainBuilder, ply: Node3D, at: Vector3, wander_r
 			elif a.ends_with("|Gallop"):
 				_gallop = a
 				_has_gallop = true
+			elif a.ends_with("|Gallop_Jump"):
+				_gjump = a
 			elif a.ends_with("|Idle_Headlow") or a.ends_with("|Idle_2_HeadLow"):
 				_headlow = a
 			elif a.ends_with("|Idle_2"):
