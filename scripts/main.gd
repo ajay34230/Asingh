@@ -714,6 +714,7 @@ func _spawn_player() -> void:
 	var sp := TerrainBuilder.START_MOUND
 	player.position = Vector3(sp.x, terrain.sample_height(sp.x, sp.y) + 0.3, sp.y)
 	add_child(player)
+	player.add_child(PowerFx.new(player))
 	_look_at_point(Vector3(0.0, 22.0, -168.0), -0.07)
 	atmosphere.make_dust(player)
 	atmosphere.make_rain(player)
@@ -1254,6 +1255,7 @@ func _run_selftest() -> void:
 	_selftest_animal_acts(fails, notes)
 	_selftest_stampede(fails, notes)
 	await _selftest_localisation(fails, notes)
+	await _selftest_powerfx(fails, notes)
 	await _selftest_traffic(fails, notes)
 	await _selftest_hunt(fails, notes)
 	await _selftest_fight(fails, notes)
@@ -1388,6 +1390,31 @@ func _selftest_animal_acts(fails: PackedStringArray, notes: PackedStringArray) -
 		total += kinds.size()
 		a.queue_free()
 	notes.append("animals: %d species, %d distinct activities seen" % [Animal.ACTS.size(), total])
+
+
+func _selftest_powerfx(fails: PackedStringArray, notes: PackedStringArray) -> void:
+	var fx := player.get_node_or_null("PowerFx") as PowerFx
+	if fx == null:
+		fails.append("powerfx: missing")
+		return
+	for k in ["speed", "power", "shield"]:
+		player.power[k] = 30.0
+	player.powerup_changed.emit()
+	for i in 6:
+		await get_tree().process_frame
+	if not (fx.speed_on and fx.power_on and fx.shield_on):
+		fails.append("powerfx: flags not set")
+	if fx._light.light_energy < 1.0 or not fx._arcs.visible or not fx._aura.visible or not fx._bubble.visible:
+		fails.append("powerfx: effects not visible")
+	if fx._arc_mesh.get_surface_count() < 1:
+		fails.append("powerfx: no lightning arcs drawn")
+	player.power.clear()
+	player.powerup_changed.emit()
+	for i in 4:
+		await get_tree().process_frame
+	if fx._arcs.visible or fx._aura.visible or fx._bubble.visible:
+		fails.append("powerfx: effects stay on after the power-up ends")
+	notes.append("powerfx: ok")
 
 
 func _selftest_localisation(fails: PackedStringArray, notes: PackedStringArray) -> void:

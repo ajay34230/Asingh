@@ -40,7 +40,25 @@ static func t(text: String) -> String:
 			var parsed: Variant = JSON.parse_string(f.get_as_text())
 			if parsed is Dictionary:
 				_tr = parsed
-	return str(_tr.get(text, text))
+	var hit: Variant = _tr.get(text, null)
+	if hit != null:
+		return str(hit)
+	# lines with numbers ("Clear the camp (2/4)"): look up the pattern with each number written as #
+	var re := RegEx.create_from_string("[0-9]+")
+	var found := re.search_all(text)
+	if found.is_empty():
+		return text
+	var pattern := re.sub(text, "#", true)
+	var out: Variant = _tr.get(pattern, null)
+	if out == null:
+		return text
+	var res := str(out)
+	for m in found:
+		var i := res.find("#")
+		if i < 0:
+			break
+		res = res.substr(0, i) + m.get_string() + res.substr(i + 1)
+	return res
 
 
 ## Speaker names in the dialogue box.

@@ -32,7 +32,11 @@ var atmo: Atmosphere:
 	set(v):
 		atmo = v
 		if v != null:
-			v.thunder.connect(func() -> void: ui_at("thunder", -4.0))
+			v.thunder.connect(func() -> void:
+				# light arrives first; the thunder follows after a delay that depends on the distance of the strike
+				var delay := randf_range(0.3, 3.2)
+				get_tree().create_timer(delay).timeout.connect(func() -> void:
+					ui_at("thunder", lerpf(-1.0, -12.0, delay / 3.2))))
 var _clip_cache := {}
 var _clip_ui: AudioStreamPlayer
 var _clip_3d: AudioStreamPlayer3D

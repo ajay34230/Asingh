@@ -176,10 +176,10 @@ func _refresh() -> void:
 		l.add_theme_font_size_override("font_size", 22)
 		_t_lines.add_child(l)
 		return
-	_t_title.text = objs[0]["quest"]
+	_t_title.text = Loc.t(str(objs[0]["quest"]))
 	for o in objs:
 		var l := Label.new()
-		l.text = "• " + o["text"]
+		l.text = "• " + Loc.t(str(o["text"]))
 		l.add_theme_font_size_override("font_size", 22)
 		l.autowrap_mode = TextServer.AUTOWRAP_WORD
 		l.custom_minimum_size = Vector2(430, 0)
@@ -209,12 +209,12 @@ func _fill_journal() -> void:
 			continue
 		var done := story.quest_done(q)
 		var t := Label.new()
-		t.text = ("[done] " if done else "") + q["title"]
+		t.text = ("[done] " if done else "") + Loc.t(str(q["title"]))
 		t.add_theme_font_size_override("font_size", 30)
 		t.add_theme_color_override("font_color", Color(0.6, 0.75, 0.55) if done else Color(0.97, 0.9, 0.7))
 		_j_list.add_child(t)
 		var b := Label.new()
-		b.text = q["blurb"]
+		b.text = Loc.t(str(q["blurb"]))
 		b.add_theme_font_size_override("font_size", 22)
 		b.autowrap_mode = TextServer.AUTOWRAP_WORD
 		b.custom_minimum_size = Vector2(700, 0)
@@ -222,7 +222,7 @@ func _fill_journal() -> void:
 		for o in q["objs"]:
 			var ol := Label.new()
 			var od: bool = (o["done"] as Callable).call()
-			ol.text = ("   [x] " if od else "   [ ] ") + (o["text"] as Callable).call()
+			ol.text = ("   [x] " if od else "   [ ] ") + Loc.t(str((o["text"] as Callable).call()))
 			ol.add_theme_font_size_override("font_size", 24)
 			ol.add_theme_color_override("font_color", Color(0.55, 0.65, 0.5) if od else Color(1, 1, 1))
 			_j_list.add_child(ol)
@@ -263,7 +263,7 @@ func _process(delta: float) -> void:
 			_banner.modulate.a = 0.0
 	elif not _queue.is_empty():
 		var b: Array = _queue.pop_front()
-		_banner.text = b[0]
+		_banner.text = Loc.t(str(b[0]))
 		_banner_t = 3.2
 		if b[1] != "":
 			Sfx.ui(b[1], -3.0)
