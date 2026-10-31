@@ -30,6 +30,7 @@ var hints: Hints
 var photo_mode: PhotoMode
 var shrines: Shrines
 var items: Items
+var companion_sys: CompanionSystem
 var bazaar: BazaarQuest
 var town_houses: HouseBuilder
 var water: WaterBuilder
@@ -847,6 +848,14 @@ func _build_story() -> void:
 	achievements.atmo = atmosphere
 	achievements.hud = hud
 	add_child(achievements)
+	companion_sys = CompanionSystem.new()
+	companion_sys.main = self
+	companion_sys.town = town
+	companion_sys.story = story
+	companion_sys.player = player
+	companion_sys.hud = hud
+	add_child(companion_sys)
+	companion_sys.build()
 	items = Items.new()
 	items.story = story
 	items.player = player
@@ -1310,6 +1319,23 @@ func _run_selftest() -> void:
 	await _selftest_map_route(fails, notes)
 	_selftest_cin_ground(fails)
 	_selftest_night_life(fails)
+	story.flags.erase("sher_hired")
+	story.set_flag("coins", 50)
+	if companion_sys.toggle() or companion_sys.is_hired():
+		fails.append("hired Sher without enough coins")
+	story.set_flag("coins", 200)
+	if not companion_sys.toggle() or not companion_sys.npc.companion or int(story.get_flag("coins", 0)) != 80:
+		fails.append("hiring Sher failed")
+	var dmg0: float = companion_sys.npc.companion_damage
+	for k in 5:
+		companion_sys.note_kill()
+	if companion_sys.npc.companion_damage <= dmg0:
+		fails.append("Sher did not grow stronger with trust")
+	companion_sys.toggle()
+	if companion_sys.npc.companion:
+		fails.append("Sher still following after dismissal")
+	story.flags.erase("sher_trust")
+	companion_sys.trust = 0
 	player.stamina = 100.0
 	player.spend(30.0)
 	if absf(player.stamina - 70.0) > 0.01:

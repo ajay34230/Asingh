@@ -127,3 +127,6 @@ X2: soft morning mist (time 0.20-0.33, when no story weather); rain, wet ground 
 
 ## S2 Stamina and parry (31 Oct)
 Stamina (100): sprinting drains 14/s, roll costs 18, each attack 7 (exhausted swings do 60%), blocking an unparried hit costs 10; refills 30/s after 0.7 s idle; running out of breath blocks sprinting until 25. A block raised less than 0.25 s before a hit is a parry: no damage, +12 stamina, attacker staggered 1.3 s, blue sparks. Green stamina bar under the health bar. Selftest PASS (spend, regen, parry). Tuning is untested on a device.
+
+## S3 Companion: Sher (31 Oct)
+`companion_system.gd`: Sher, a sellsword by the inn (5 m from it). Hire for 120 coins (prompt on him), dismiss the same way. While hired the existing Npc companion AI makes him follow and strike enemies; his damage grows 1.5 per trust point (max +18), trust +1 per enemy killed while he is hired (flag sher_trust, saved with the game). Selftest PASS (insufficient coins refused, hire pays, trust strengthens, dismiss). He speaks via banners only (no voice clips); path-finding is the old straight-line follow, so he can snag on walls.

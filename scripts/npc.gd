@@ -58,6 +58,7 @@ var pot: Node3D                  # water pot carried on the head (water carriers
 var _carry_dir := -1
 var _home_state := 0             # 0 out, 1 heading home, 2 inside (hidden)
 var _start_pos := Vector3.ZERO
+var companion_damage := 16.0     # S3: damage per strike when fighting beside the player
 var companion := false           # follows the player and fights beside them
 var _atk_cd := 0.0
 var _base_mode := "idle"
@@ -263,7 +264,7 @@ func _companion_step(delta: float) -> void:
 			rig.start_attack()
 			get_tree().create_timer(0.36).timeout.connect(func() -> void:
 				if is_instance_valid(foe) and not (foe as Enemy).dead:
-					(foe as Enemy).take_damage(16.0, foe.global_position - global_position)
+					(foe as Enemy).take_damage(companion_damage, foe.global_position - global_position)
 					Sfx.at("hit_thud", foe.global_position + Vector3(0, 1.0, 0), -5.0))
 	rig.mode = "locomotion"
 	rig.animate(delta, spd, true)
