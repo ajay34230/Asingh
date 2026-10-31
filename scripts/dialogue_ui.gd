@@ -90,6 +90,12 @@ func _ready() -> void:
 
 
 ## data = {start, nodes}; speaker_node is where the voice babble comes from (may be null).
+## Test helper: close any open conversation.
+func close_for_test() -> void:
+	if is_open:
+		close()
+
+
 func open(data: Dictionary, speaker_node: Node3D = null, voice_name: String = "man", on_end: Callable = Callable()) -> void:
 	if data.is_empty() or is_open:
 		return

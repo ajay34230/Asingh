@@ -31,6 +31,7 @@ var photo_mode: PhotoMode
 var shrines: Shrines
 var items: Items
 var rebuild: VillageRebuild
+var campaign: Campaign
 var companion_sys: CompanionSystem
 var bazaar: BazaarQuest
 var town_houses: HouseBuilder
@@ -866,6 +867,17 @@ func _build_story() -> void:
 	rebuild.night_life = night_life
 	add_child(rebuild)
 	rebuild.build()
+	campaign = Campaign.new()
+	campaign.main = self
+	campaign.story = story
+	campaign.player = player
+	campaign.hud = hud
+	campaign.dlg = dlg
+	campaign.combat = combat
+	campaign.terrain = terrain
+	campaign.cin = cin
+	add_child(campaign)
+	campaign.build()
 	items = Items.new()
 	items.story = story
 	items.player = player
@@ -1329,6 +1341,36 @@ func _run_selftest() -> void:
 	await _selftest_map_route(fails, notes)
 	_selftest_cin_ground(fails)
 	_selftest_night_life(fails)
+	for k in ["braziers", "tablets", "karan_met", "captain_down", "warden_down", "act3_done", "v_entered", "brazier_0", "brazier_1", "brazier_2", "tablet_0", "tablet_1", "tablet_2"]:
+		story.flags.erase(k)
+	if campaign.descend():
+		fails.append("descended before Karan was beaten")
+	story.set_flag("captain_down", true)
+	if not campaign.descend() or player.global_position.distance_to(Campaign.ORIGIN) > 80.0 or not story.get_flag("v_entered"):
+		fails.append("descending into Veyra failed")
+	for bi in 3:
+		campaign.light_brazier(bi, campaign.brazier_its[bi])
+	campaign.light_brazier(0, campaign.brazier_its[0])
+	if int(story.get_flag("braziers", 0)) != 3:
+		fails.append("brazier count wrong: %s" % str(story.get_flag("braziers", 0)))
+	for ti in 3:
+		campaign.read_tablet(ti)
+		dlg.close_for_test()
+	if int(story.get_flag("tablets", 0)) != 3 or not campaign.karan_it.enabled:
+		fails.append("tablets did not unlock Karan")
+	story.set_flag("karan_met", true)
+	await get_tree().process_frame
+	await get_tree().process_frame
+	if campaign.warden == null or not is_instance_valid(campaign.warden) or campaign.warden.max_hp < 400.0:
+		fails.append("Stone Warden did not appear")
+	else:
+		campaign.warden.take_hit("slam", 9999.0, Vector3.FORWARD)
+		if not story.get_flag("warden_down", false):
+			fails.append("killing the Warden did not set warden_down")
+		await get_tree().process_frame
+		if not story.get_flag("act3_done", false) or items.count("chain") < 1:
+			fails.append("Act 3 completion rewards missing")
+	campaign.ascend()
 	for k in 3:
 		story.flags.erase("rebuild_%d" % (k + 1))
 	rebuild.built = [false, false, false]

@@ -127,6 +127,11 @@ func _on_enemy_died(e: Enemy) -> void:
 			_start_wave(2)
 		elif d == 7 and _wave == 2:
 			_start_wave(3)
+	elif tag in ["warden", "vessa", "eclipse", "ashen", "outpost", "siege"]:
+		if tag == "warden" or tag == "vessa" or tag == "eclipse":
+			story.set_flag(tag + "_down", true)
+		else:
+			story.add(tag + "_down", 1)
 	elif tag == "boss":
 		story.set_flag("captain_down", true)
 		hud.banner("CAPTAIN KARAN DEFEATED", "seal_found")
