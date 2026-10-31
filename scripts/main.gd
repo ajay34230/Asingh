@@ -1256,6 +1256,7 @@ func _run_selftest() -> void:
 	_selftest_stampede(fails, notes)
 	await _selftest_localisation(fails, notes)
 	await _selftest_powerfx(fails, notes)
+	await _selftest_map_route(fails, notes)
 	await _selftest_traffic(fails, notes)
 	await _selftest_hunt(fails, notes)
 	await _selftest_fight(fails, notes)
@@ -1390,6 +1391,36 @@ func _selftest_animal_acts(fails: PackedStringArray, notes: PackedStringArray) -
 		total += kinds.size()
 		a.queue_free()
 	notes.append("animals: %d species, %d distinct activities seen" % [Animal.ACTS.size(), total])
+
+
+func _selftest_map_route(fails: PackedStringArray, notes: PackedStringArray) -> void:
+	# tap the full map: a route target is set, drawn from the player, shown by a beam, and clears on arrival
+	map_ui.toggle_full()
+	await get_tree().process_frame
+	var r := map_ui._full_rect()
+	var ev := InputEventMouseButton.new()
+	ev.button_index = MOUSE_BUTTON_LEFT
+	ev.pressed = true
+	ev.position = r.position + r.size * Vector2(0.75, 0.30)
+	map_ui._on_full_input(ev)
+	if not map_ui.has_waypoint or map_ui._beam == null or not map_ui._beam.visible:
+		fails.append("map: tapping the map set no route")
+	else:
+		var u := Vector2(0.75, 0.30)
+		var wx := u.x * TerrainBuilder.HALF * 2.0 - TerrainBuilder.HALF
+		var wz := u.y * TerrainBuilder.HALF * 2.0 - TerrainBuilder.HALF
+		if Vector2(map_ui.waypoint.x - wx, map_ui.waypoint.z - wz).length() > 35.0:
+			fails.append("map: route target is not where the tap was")
+	await get_tree().process_frame
+	map_ui.toggle_full()
+	var keep := player.global_position
+	player.global_position = Vector3(map_ui.waypoint.x, map_ui.waypoint.y + 0.5, map_ui.waypoint.z)
+	await get_tree().process_frame
+	await get_tree().process_frame
+	if map_ui.has_waypoint:
+		fails.append("map: route did not clear on arrival")
+	player.global_position = keep
+	notes.append("map: route ok")
 
 
 func _selftest_powerfx(fails: PackedStringArray, notes: PackedStringArray) -> void:

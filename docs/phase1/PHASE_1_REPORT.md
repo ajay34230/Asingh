@@ -88,3 +88,6 @@ Waiting for your feedback on how it looks and plays on the S10 before applying m
 - PowerFx (attached to the player): speed power-up gets a Flash look (yellow lightning arcs, streak trail, flickering light, burst of light on pickup); power gets a fiery aura and embers; shield gets a blue bubble; plain sprinting gets faint wind streaks. Covered by a selftest for flags and visibility; the look itself is not yet seen in a screenshot or on a device.
 - Thunder now arrives 0.3 to 3.2 s after the flash, quieter the longer the delay.
 - Hindi: quest titles, objectives, journal blurbs and banners are translated (numbers handled by pattern).
+
+## Addendum: tap-to-route on the map
+Open the full map and tap anywhere (taps near a landmark snap to it). A red dashed line is drawn from your arrow to the spot with the distance in metres, the same line and distance show on the minimap, and a glowing red column marks the spot in the world. Close map and Clear route buttons were added; the route clears itself within 6 m. Covered by a selftest; not tried on a device.
