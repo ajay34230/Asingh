@@ -639,5 +639,13 @@
  "The Sun Heart waits. Ila left the choice to whoever opened the door. What is the light for?": "सूर्य-हृदय इंतज़ार कर रहा है। इला ने फ़ैसला उस पर छोड़ा जो द्वार खोले। रोशनी किसलिए है?",
  "Wake the Heart and restore the sun. (Heroic)": "हृदय जगाकर सूरज लौटाओ। (वीरता)",
  "Give yourself to the light. (Sacrifice)": "ख़ुद को रोशनी को सौंप दो। (बलिदान)",
- "Share the light with every soul in the valley. (Secret)": "रोशनी को घाटी की हर आत्मा के साथ बाँटो। (गुप्त)"
+ "Share the light with every soul in the valley. (Secret)": "रोशनी को घाटी की हर आत्मा के साथ बाँटो। (गुप्त)",
+ "Save slots": "सेव स्लॉट",
+ "Slot": "स्लॉट",
+ "Empty": "ख़ाली",
+ "Act": "अध्याय",
+ "Coins": "सिक्के",
+ "Save here": "यहाँ सहेजो",
+ "Load": "लोड करो",
+ "Saved to slot %d": "स्लॉट %d में सहेजा गया"
 }

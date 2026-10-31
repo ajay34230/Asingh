@@ -5,6 +5,7 @@ extends CanvasLayer
 ## story change and every 20 s. Works offline, on-device only.
 
 const SAVE_PATH := "user://save.json"
+const SLOT_PATH := "user://slot_%d.json"
 const CHECKPOINT_PATH := "user://checkpoint.json"      # state at the start of the current mission
 
 var story: Story
@@ -15,6 +16,7 @@ var _btn: Button
 var _jr: Label
 var _tr_box: VBoxContainer
 var _it_box: VBoxContainer
+var _sl_box: VBoxContainer
 var _panel: PanelContainer
 var _pages: Dictionary = {}          # page name -> Control
 var _controls: Dictionary = {}       # setting key -> control, refreshed on reset
@@ -85,6 +87,7 @@ func _ready() -> void:
 			pm.call("enter")))
 	nav.add_child(_button("Settings", func() -> void: _show_page("Settings")))
 	nav.add_child(_button("How to play", func() -> void: _show_page("Help")))
+	nav.add_child(_button("Save slots", func() -> void: _show_page("Slots")))
 	nav.add_child(_button("Save game", func() -> void:
 		save()
 		(main as Node).get("hud").banner("Game saved")))
@@ -107,6 +110,7 @@ func _ready() -> void:
 	_pages["Items"] = _build_items()
 	_pages["Journal"] = _build_journal()
 	_pages["Travel"] = _build_travel()
+	_pages["Slots"] = _build_slots()
 	_pages["Settings"] = _build_settings()
 	_pages["Help"] = _build_help()
 	_pages["Confirm"] = _build_confirm()
@@ -137,6 +141,8 @@ func _show_page(n: String) -> void:
 		_fill_travel()
 	if n == "Items":
 		_fill_items()
+	if n == "Slots":
+		_fill_slots()
 	if n == "Journal" and _jr != null:
 		_jr.text = _journal_text()
 	Loc.apply_to_tree(_panel)
@@ -206,6 +212,36 @@ func _fill_items() -> void:
 
 func _item_name(id: String) -> String:
 	return String(Items.DEFS[id]["name"]) if Items.DEFS.has(id) else "None"
+
+
+func _build_slots() -> Control:
+	var pg := _scroll_page("Save slots")
+	_sl_box = pg[1]
+	return pg[0]
+
+
+func _fill_slots() -> void:
+	for c in _sl_box.get_children():
+		if not (c is Label and (c as Label).get_theme_font_size("font_size") == 32):
+			c.queue_free()
+	for n in [1, 2, 3]:
+		var info := Label.new()
+		info.text = "%s %d:  %s" % [Loc.t("Slot"), n, slot_info(n)]
+		info.autowrap_mode = TextServer.AUTOWRAP_WORD
+		_sl_box.add_child(info)
+		var row := HBoxContainer.new()
+		row.add_theme_constant_override("separation", 12)
+		_sl_box.add_child(row)
+		var sb := _button("Save here", func() -> void:
+			if slot_save(n):
+				(main as Node).get("hud").banner(Loc.t("Saved to slot %d") % n)
+			_fill_slots())
+		sb.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		row.add_child(sb)
+		var lb := _button("Load", func() -> void: slot_load(n))
+		lb.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		lb.disabled = SaveSystem.read(SLOT_PATH % n).is_empty()
+		row.add_child(lb)
 
 
 func _build_travel() -> Control:
@@ -500,6 +536,43 @@ func save() -> void:
 		"hp": player.hp}
 	if not SaveSystem.write(SAVE_PATH, d):
 		push_warning("Save failed; the previous save is untouched.")
+
+
+## X23: three manual save slots. Saving copies the current save; loading copies a slot over the save and
+## reloads the world (the same way Restart mission works).
+func slot_save(n: int) -> bool:
+	save()
+	var d := SaveSystem.read(SAVE_PATH)
+	if d.is_empty():
+		return false
+	return SaveSystem.write(SLOT_PATH % n, d)
+
+
+func slot_info(n: int) -> String:
+	var d := SaveSystem.read(SLOT_PATH % n)
+	if d.is_empty():
+		return Loc.t("Empty")
+	var t := Time.get_datetime_dict_from_unix_time(int(d.get("saved_unix", 0)) + 19800)
+	var fl: Dictionary = d.get("flags", {})
+	var act := "1"
+	if fl.get("act4_done", false):
+		act = "5"
+	elif fl.get("act3_done", false):
+		act = "4"
+	elif fl.get("captain_down", false):
+		act = "3"
+	elif fl.get("gate_open", false):
+		act = "2"
+	return "%02d/%02d %02d:%02d  -  %s %s  -  %s %d" % [t["day"], t["month"], t["hour"], t["minute"], Loc.t("Act"), act, Loc.t("Coins"), int(fl.get("coins", 0))]
+
+
+func slot_load(n: int) -> bool:
+	var d := SaveSystem.read(SLOT_PATH % n)
+	if d.is_empty() or not SaveSystem.write(SAVE_PATH, d):
+		return false
+	get_tree().paused = false
+	get_tree().reload_current_scene()
+	return true
 
 
 static func has_save() -> bool:

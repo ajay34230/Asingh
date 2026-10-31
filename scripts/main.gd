@@ -1343,6 +1343,18 @@ func _run_selftest() -> void:
 	await _selftest_map_route(fails, notes)
 	_selftest_cin_ground(fails)
 	_selftest_night_life(fails)
+	story.set_flag("intro_done", true)
+	story.set_flag("slot_test", 11)
+	if not menu.slot_save(3) or menu.slot_info(3) == "Empty":
+		fails.append("save slot: could not save slot 3")
+	story.set_flag("slot_test", 22)
+	var sd: Dictionary = SaveSystem.read(GameMenu.SLOT_PATH % 3)
+	if int((sd.get("flags", {}) as Dictionary).get("slot_test", 0)) != 11:
+		fails.append("save slot: slot 3 holds the wrong data")
+	menu._show_page("Slots")
+	DirAccess.remove_absolute(ProjectSettings.globalize_path(GameMenu.SLOT_PATH % 3))
+	DirAccess.remove_absolute(ProjectSettings.globalize_path((GameMenu.SLOT_PATH % 3) + ".bak"))
+	story.flags.erase("slot_test")
 	for k in ["braziers", "tablets", "karan_met", "captain_down", "warden_down", "act3_done", "v_entered", "brazier_0", "brazier_1", "brazier_2", "tablet_0", "tablet_1", "tablet_2"]:
 		story.flags.erase(k)
 	if campaign.descend():
