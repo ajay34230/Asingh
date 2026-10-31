@@ -118,3 +118,6 @@ X7: mood loops (tension/race/sacred/mystery) and day/night/village radio pools a
 
 ## X2 mist, X18 (present), X27 outfit colour (31 Oct)
 X2: soft morning mist (time 0.20-0.33, when no story weather); rain, wet ground and thunder already existed. X18: villagers already walk home at night and vanish indoors until morning (shop closing not added). X27: Settings > Gameplay > Outfit colour (6 colours with gold trim) via `RealHuman.recolor` / `Player.set_outfit`. Selftest PASS. Headband/cloak and horse naming not built.
+
+## X30 Hindi menus (31 Oct)
+`Loc.apply_to_tree` translates all buttons, labels and dropdown items of the pause menu (nav, settings labels and options, help text, journal, travel) each time a page is shown; switching back to English restores the originals. Selftest PASS (Resume <-> जारी रखो). Still English: the touch-button captions (JUMP/HIT/BLOCK...), settings tab titles, and the FPS/debug overlays. Devanagari font rendering on the phone is unverified.

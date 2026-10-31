@@ -1304,6 +1304,20 @@ func _run_selftest() -> void:
 	await _selftest_map_route(fails, notes)
 	_selftest_cin_ground(fails)
 	_selftest_night_life(fails)
+	Loc.set_language("hi")
+	menu._show_page("Settings")
+	var hi_btn := false
+	for b in menu._panel.find_children("*", "Button", true, false):
+		if (b as Button).text == "जारी रखो":
+			hi_btn = true
+	Loc.set_language("en")
+	menu._show_page("Settings")
+	var en_btn := false
+	for b2 in menu._panel.find_children("*", "Button", true, false):
+		if (b2 as Button).text == "Resume":
+			en_btn = true
+	if not hi_btn or not en_btn:
+		fails.append("menu did not switch language both ways (hi %s, en %s)" % [hi_btn, en_btn])
 	if player.set_outfit(3) < 1:
 		fails.append("outfit colour changed nothing")
 	player.set_outfit(0)

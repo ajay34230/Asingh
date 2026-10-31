@@ -134,6 +134,7 @@ func _show_page(n: String) -> void:
 		_fill_travel()
 	if n == "Journal" and _jr != null:
 		_jr.text = _journal_text()
+	Loc.apply_to_tree(_panel)
 
 
 func _scroll_page(title: String) -> Array:

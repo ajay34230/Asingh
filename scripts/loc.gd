@@ -66,3 +66,48 @@ static func name_of(who: String) -> String:
 	if lang != "hi":
 		return who
 	return str(NAMES.get(who, who))
+
+
+## X30: translate every Button/Label/OptionButton under `node` to the current language. The English original
+## is remembered in metadata so switching back and forth works; text set later by code is treated as new.
+static func apply_to_tree(node: Node) -> int:
+	var n := 0
+	var stack: Array[Node] = [node]
+	while not stack.is_empty():
+		var c: Node = stack.pop_back()
+		for ch in c.get_children():
+			stack.append(ch)
+		if c is Button and not (c is OptionButton):
+			n += _retext(c, "text")
+		elif c is Label:
+			n += _retext(c, "text")
+		elif c is OptionButton:
+			var ob := c as OptionButton
+			if not ob.has_meta("loc_items"):
+				var en: Array = []
+				for i in ob.item_count:
+					en.append(ob.get_item_text(i))
+				ob.set_meta("loc_items", en)
+			var items: Array = ob.get_meta("loc_items")
+			for i in mini(ob.item_count, items.size()):
+				var tt := t(String(items[i]))
+				if ob.get_item_text(i) != tt:
+					ob.set_item_text(i, tt)
+					n += 1
+	return n
+
+
+static func _retext(c: Node, prop: String) -> int:
+	var cur: String = c.get(prop)
+	if cur == "":
+		return 0
+	var en: String = cur
+	if c.has_meta("loc_last") and cur == String(c.get_meta("loc_last")):
+		en = String(c.get_meta("loc_en"))
+	var out := t(en)
+	c.set_meta("loc_en", en)
+	c.set_meta("loc_last", out)
+	if out != cur:
+		c.set(prop, out)
+		return 1
+	return 0
