@@ -234,6 +234,8 @@ func _flora(root: Node3D, houses: HouseBuilder) -> void:
 			return true
 		if Vector2(x - TerrainBuilder.START_MOUND.x, z - TerrainBuilder.START_MOUND.y).length() < 20.0:
 			return true
+		if Vector2(x - TerrainBuilder.FARM_C.x, z - TerrainBuilder.FARM_C.y).length() < TerrainBuilder.FARM_R + 6.0:
+			return true
 		if Vector2(x - TerrainBuilder.TEMPLE_C.x, z - TerrainBuilder.TEMPLE_C.y).length() < 22.0:
 			return true
 		if Vector2(x - well_pos.x, z - well_pos.y).length() < 6.0:

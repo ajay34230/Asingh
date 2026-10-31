@@ -177,3 +177,11 @@ After 3 villagers struck the player is "wanted" for 120 s (refreshed by each fur
 
 ## 3D power-up icons (31 Oct)
 Pickups are now small 3D models built from primitives (heart with cross, lightning bolt, sword, shield) with a ground ring, rising sparkles and a collect burst (expanding ring, sparks; healing sparkles rise around the player for health). Speed, power and shield keep their existing on-player effects. HitFx/pickup spark quads were resized to avoid oversized squares. Software-render screenshot checked only; the black square seen around the player in software captures is unexplained and not verified on a device.
+
+## Farm, coins and market (31 Oct)
+- The game now starts at a levelled **home farm** (new terrain plateau at `FARM_C`) with a farmhouse (bed = sleep and save), barn, fences, six field plots (+6 more by purchase), an orchard of 8 spots, a beehive and scarecrows.
+- **Crops**: wheat, corn, tomato, cotton. Plant, water at two stages, ripe (arrows + "READY TO HARVEST" labels, map marker), then drive the **tractor** over the field to harvest. Growth uses the real clock and is saved (keeps growing while the game is closed).
+- **Farmers' Market** stall in the bazaar sells produce for coins (prices change every 4 min) and offers seeds, fertilizer, scarecrows, sprinklers, wider harvester, extra fields, beehive, saplings, potions, herbs, armour, bow, spear, and a crop contest. It appears on the map after the first harvest.
+- **Orchard**: bought saplings grow in about 150 s; mangoes every 90 s, other trees can be felled for timber, which sells.
+- **Coins**: 64 gold coins to collect around the valley, a coin counter on screen, +50 coins per completed mission (existing race/arena/dice prizes unchanged).
+- Selftest covers plant/water/ripen/tractor harvest/sell/orchard/contest/honey. Not device-tested; farm layout, tractor feel, market stall position (picked by a free-space check) and balance are unverified. Hindi translation covers static text; texts with numbers stay English.

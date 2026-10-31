@@ -17,6 +17,9 @@ const EDGE_Y := 32.0              # terrain border is forced to this height (ski
 const RIM_HEIGHT := 22.0
 const FORECOURT := Vector2(0.0, -138.0)
 const START_MOUND := Vector2(120.0, 160.0)
+## The family farm: a levelled plateau with the farmhouse (the game starts at its door), fields and an orchard.
+const FARM_C := Vector2(152.0, 150.0)
+const FARM_R := 34.0
 ## Ground is levelled around these points so houses can be built on them.
 const HOUSE_SITES: Array[Vector2] = [
 	Vector2(-75.0, 10.0), Vector2(-102.0, -18.0), Vector2(-64.0, -38.0),
@@ -58,6 +61,7 @@ var pond_level := 0.0
 var temple_y := 0.0
 var forest_y := 0.0
 var town_y := 0.0
+var farm_y := 0.0
 ## Sand Circuit: a stadium-shaped bull-cart race track (two straights joined by two half circles).
 const TRACK_C := Vector2(118.0, -48.0)
 const TRACK_L := 30.0             # half length of each straight
@@ -115,6 +119,7 @@ func _init(seed_value: int = 1337) -> void:
 	temple_y = _ground_base(TEMPLE_C.x, TEMPLE_C.y)
 	forest_y = _ground_base(FOREST_C.x, FOREST_C.y)
 	town_y = _ground_base(TOWN_C.x, TOWN_C.y)
+	farm_y = _ground_base(FARM_C.x, FARM_C.y)
 	var ta := 0.0
 	for k in 9:
 		ta += _ground_base(TRACK_C.x + (k % 3 - 1) * 16.0, TRACK_C.y + (k / 3 - 1) * 30.0)
@@ -153,6 +158,7 @@ func height_at(x: float, z: float) -> float:
 	h = lerpf(temple_y, h, smoothstep(17.0, 32.0, Vector2(x - TEMPLE_C.x, z - TEMPLE_C.y).length()))
 	h = lerpf(forest_y, h, smoothstep(9.0, 20.0, Vector2(x - FOREST_C.x, z - FOREST_C.y).length()))
 	h = lerpf(town_y, h, smoothstep(TOWN_R - 14.0, TOWN_R + 6.0, Vector2(x - TOWN_C.x, z - TOWN_C.y).length()))
+	h = lerpf(farm_y, h, smoothstep(FARM_R - 4.0, FARM_R + 14.0, Vector2(x - FARM_C.x, z - FARM_C.y).length()))
 
 	# Railway cutting/embankment: a level strip along the goods line that fades out at both ends.
 	var rail_w := (1.0 - smoothstep(6.0, 18.0, absf(z - 96.0))) * (1.0 - smoothstep(105.0, 150.0, absf(x)))
@@ -340,6 +346,9 @@ func _color_at(p: Vector3, n: Vector3) -> Color:
 	var grass := Color(0.36, 0.45, 0.20).lerp(Color(0.50, 0.52, 0.27), t)
 	c = c.lerp(grass, (1.0 - smoothstep(POND_R * 1.1, 46.0, dp)) * 0.8 * clampf(1.0 - (1.0 - n.y) * 3.0, 0.0, 1.0))
 	c = c.lerp(Color(0.30, 0.22, 0.14), 1.0 - smoothstep(POND_R * 0.8, POND_R * 1.3, dp))
+	# Farm plateau: green meadow fading into the dunes.
+	var fdist := Vector2(p.x - FARM_C.x, p.z - FARM_C.y).length()
+	c = c.lerp(Color(0.30, 0.44, 0.17).lerp(Color(0.42, 0.5, 0.22), t), (1.0 - smoothstep(FARM_R - 8.0, FARM_R + 6.0, fdist)) * 0.85)
 	return c
 
 

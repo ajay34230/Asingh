@@ -33,7 +33,8 @@ static func build(parent: Node3D, terrain: TerrainBuilder) -> void:
 		var near_track := Vector2(x - TerrainBuilder.TRACK_C.x, z - TerrainBuilder.TRACK_C.y).length() < 70.0
 		var on_road := terrain._path_distance(x, z) < 6.0
 		var pond := Vector2(x - TerrainBuilder.POND_C.x, z - TerrainBuilder.POND_C.y).length() < TerrainBuilder.POND_R * 1.1
-		if near_town or near_track or pond:
+		var near_farm := Vector2(x - TerrainBuilder.FARM_C.x, z - TerrainBuilder.FARM_C.y).length() < TerrainBuilder.FARM_R + 4.0
+		if near_town or near_track or pond or near_farm:
 			continue
 		var kind := rng.randf()
 		if kind < 0.05 and big < 40 and not on_road:

@@ -41,7 +41,7 @@ func _random_point(margin: float = 20.0) -> Vector2:
 			_rng.randf_range(-TerrainBuilder.HALF + margin + 15.0, TerrainBuilder.HALF - margin))
 		if p.distance_to(TerrainBuilder.FORECOURT) < 55.0:
 			continue
-		if p.distance_to(TerrainBuilder.START_MOUND) < 30.0:
+		if p.distance_to(TerrainBuilder.START_MOUND) < 30.0 or p.distance_to(TerrainBuilder.FARM_C) < TerrainBuilder.FARM_R + 10.0:
 			continue
 		return p
 	return Vector2(0, 0)

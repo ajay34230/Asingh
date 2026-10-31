@@ -498,6 +498,15 @@ func _inventory_text() -> String:
 		lines.append("Game: %d meat, %d hides (sell at the bazaar leather stall)" % [int(story.get_flag("meat", 0)), int(story.get_flag("hides", 0))])
 	if story.get_flag("hunting_knife"):
 		gear.append("Hunter's knife (wild game can be hunted; hunted: %d)" % (pl.hunted if pl != null else 0))
+	var farm_lines: Array[String] = []
+	for gk in ["wheat", "corn", "tomato", "cotton"]:
+		if int(story.get_flag("crop_" + gk, 0)) > 0:
+			farm_lines.append("%s %d" % [gk, int(story.get_flag("crop_" + gk, 0))])
+	for gk2 in [["fruit_mango", "mangoes"], ["timber", "timber"], ["honey", "honey"]]:
+		if int(story.get_flag(gk2[0], 0)) > 0:
+			farm_lines.append("%s %d" % [gk2[1], int(story.get_flag(gk2[0], 0))])
+	if farm_lines.size() > 0:
+		lines.append("Farm goods (sell at the Farmers' Market): " + ", ".join(farm_lines))
 	lines.append("Gear: " + ", ".join(gear))
 	var keys: Array[String] = []
 	if story.get_flag("race_won"):

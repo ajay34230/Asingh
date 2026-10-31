@@ -30,6 +30,8 @@ var hints: Hints
 var photo_mode: PhotoMode
 var shrines: Shrines
 var items: Items
+var coin_sys: CoinSystem
+var farm: Farm
 var rebuild: VillageRebuild
 var campaign: Campaign
 var festival: Festival
@@ -112,6 +114,8 @@ func _ready() -> void:
 		_run_selftest.call_deferred()
 		return
 	for a in args:
+		if a.begins_with("--capture-farm="):
+			_run_capture_farm.call_deferred(a.trim_prefix("--capture-farm="))
 		if a.begins_with("--capture-pickups="):
 			_run_capture_pickups.call_deferred(a.trim_prefix("--capture-pickups="))
 		if a.begins_with("--capture-fight="):
@@ -754,8 +758,7 @@ func _process(delta: float) -> void:
 func _spawn_player() -> void:
 	player = Player.new()
 	player.name = "Player"
-	var sp := TerrainBuilder.START_MOUND
-	player.position = Vector3(sp.x, terrain.sample_height(sp.x, sp.y) + 0.3, sp.y)
+	player.position = Farm.start_position(terrain)       # the game starts at the farmhouse door
 	add_child(player)
 	player.add_child(PowerFx.new(player))
 	_look_at_point(Vector3(0.0, 22.0, -168.0), -0.07)
@@ -937,6 +940,24 @@ func _build_story() -> void:
 	items.player = player
 	items.hud = hud
 	add_child(items)
+	coin_sys = CoinSystem.new()
+	coin_sys.main = self
+	coin_sys.terrain = terrain
+	coin_sys.story = story
+	coin_sys.player = player
+	coin_sys.hud = hud
+	add_child(coin_sys)
+	coin_sys.build()
+	farm = Farm.new()
+	farm.main = self
+	farm.terrain = terrain
+	farm.story = story
+	farm.player = player
+	farm.hud = hud
+	farm.coins = coin_sys
+	farm.items = items
+	add_child(farm)
+	farm.build()
 	shrines = Shrines.new()
 	shrines.main = self
 	shrines.terrain = terrain
@@ -957,6 +978,8 @@ func _build_story() -> void:
 	atmosphere.running = true
 	if menu.load_save():
 		story_b.apply_loaded_state()
+		farm.reload()
+		coin_sys.reload()
 	else:
 		story_b.intro.call_deferred()
 
@@ -1401,6 +1424,7 @@ func _run_selftest() -> void:
 	_selftest_cin_ground(fails)
 	_selftest_night_life(fails)
 	await _selftest_walls(fails)
+	await _selftest_farm(fails)
 	items.give("hide", 3)
 	items.give("iron", 1)
 	if not items.craft("bow") or not items.equip("bow") or not player.gear_ranged:
@@ -1793,6 +1817,64 @@ func _run_audit() -> void:
 
 # --- screenshot capture (needs a rendering backend, e.g. xvfb + software GL) ------------
 
+func _run_capture_farm(dir: String) -> void:
+	DirAccess.make_dir_recursive_absolute(dir)
+	touch.visible = false
+	atmosphere.time_of_day = 0.42
+	atmosphere.apply_time()
+	player.global_position = Farm.start_position(terrain)
+	for i in 30:
+		await get_tree().physics_frame
+	story.set_flag("seed_wheat", 20)
+	story.set_flag("seed_corn", 20)
+	story.set_flag("seed_tomato", 20)
+	story.set_flag("seed_cotton", 20)
+	var cr := ["wheat", "corn", "tomato", "cotton", "wheat", "corn"]
+	for i in 6:
+		farm.plant(i, cr[i])
+	farm.water(1)
+	farm.water(2)
+	for i in [3, 4, 5]:
+		farm.water(i)
+		farm.plots[i]["ends"] = farm.now() - 1.0
+		farm._advance_plot(i)
+		farm.water(i)
+		farm.plots[i]["ends"] = farm.now() - 1.0
+		farm._advance_plot(i)
+	story.set_flag("sap_mango", 2)
+	story.set_flag("sap_neem", 1)
+	farm.plant_tree(0, "mango")
+	farm.plant_tree(1, "neem")
+	farm.plant_tree(2, "mango")
+	farm.spots[0]["planted"] = farm.now() - 200.0
+	farm.spots[0]["fruit_at"] = farm.now() - 1.0
+	farm.spots[1]["planted"] = farm.now() - 80.0
+	farm._refresh_spot(0)
+	farm._refresh_spot(1)
+	player.set_distance(7.5)
+	player.set_look(0.0, -0.18)
+	for i in 40:
+		await get_tree().physics_frame
+	await RenderingServer.frame_post_draw
+	print("[capture] farm_front -> ", get_viewport().get_texture().get_image().save_png("%s/farm_front.png" % dir))
+	player.set_look(-1.1, -0.15)
+	for i in 20:
+		await get_tree().physics_frame
+	await RenderingServer.frame_post_draw
+	print("[capture] farm_orchard -> ", get_viewport().get_texture().get_image().save_png("%s/farm_orchard.png" % dir))
+	player.set_look(PI, -0.12)
+	for i in 20:
+		await get_tree().physics_frame
+	await RenderingServer.frame_post_draw
+	print("[capture] farm_house -> ", get_viewport().get_texture().get_image().save_png("%s/farm_house.png" % dir))
+	farm.open_market()
+	for i in 6:
+		await get_tree().physics_frame
+	await RenderingServer.frame_post_draw
+	print("[capture] shop -> ", get_viewport().get_texture().get_image().save_png("%s/shop.png" % dir))
+	get_tree().quit()
+
+
 func _run_capture_pickups(dir: String) -> void:
 	DirAccess.make_dir_recursive_absolute(dir)
 	touch.visible = false
@@ -1913,6 +1995,81 @@ func _selftest_animal_acts(fails: PackedStringArray, notes: PackedStringArray) -
 		total += kinds.size()
 		a.queue_free()
 	notes.append("animals: %d species, %d distinct activities seen" % [Animal.ACTS.size(), total])
+
+
+func _selftest_farm(fails: PackedStringArray) -> void:
+	if farm == null or coin_sys == null:
+		fails.append("farm: systems missing")
+		return
+	await get_tree().physics_frame
+	var sp := Farm.start_position(terrain)
+	if Vector2(sp.x - TerrainBuilder.FARM_C.x, sp.z - TerrainBuilder.FARM_C.y).length() > 20.0:
+		fails.append("farm: start is not at the farm")
+	if farm.plots.size() != 6 or farm.spots.size() != Farm.ORCHARD_SPOTS:
+		fails.append("farm: plots %d spots %d" % [farm.plots.size(), farm.spots.size()])
+		return
+	if coin_sys.coins.size() < 20:
+		fails.append("coins: only %d world coins" % coin_sys.coins.size())
+	else:
+		var b0 := coin_sys.balance()
+		coin_sys.collect(0)
+		if coin_sys.balance() <= b0:
+			fails.append("coins: collecting gave nothing")
+	story.set_flag("seed_wheat", 5)
+	if not farm.plant(0, "wheat") or farm.plots[0]["state"] != "dry":
+		fails.append("farm: could not plant")
+	if not farm.water(0) or farm.plots[0]["state"] != "grow":
+		fails.append("farm: could not water")
+	for stage_i in 2:
+		farm.plots[0]["ends"] = farm.now() - 1.0
+		farm._advance_plot(0)
+		if stage_i == 0:
+			if farm.plots[0]["state"] != "dry":
+				fails.append("farm: stage 1 did not need water (%s)" % farm.plots[0]["state"])
+			farm.water(0)
+	if farm.plots[0]["state"] != "ready":
+		fails.append("farm: crop never ripened (%s)" % farm.plots[0]["state"])
+	# drive the tractor onto the ripe plot: it harvests
+	farm.mount_tractor()
+	if not farm.driving:
+		fails.append("farm: tractor did not start")
+	farm._dismount_cd = 0.0
+	farm.tractor.global_position = farm.plots[0]["pos"]
+	farm._physics_process(0.016)
+	if farm.plots[0]["state"] != "empty" or int(story.get_flag("crop_wheat", 0)) < 4:
+		fails.append("farm: tractor did not harvest")
+	farm.dismount_tractor()
+	if farm.driving or player.locked:
+		fails.append("farm: tractor did not release the player")
+	var c0 := coin_sys.balance()
+	if farm.sell("wheat") <= 0 or coin_sys.balance() <= c0:
+		fails.append("farm: selling crops gave no coins")
+	if farm._market_rows().size() < 15:
+		fails.append("farm: market list is short")
+	story.set_flag("sap_mango", 1)
+	if not farm.plant_tree(0, "mango"):
+		fails.append("farm: could not plant a sapling")
+	farm.spots[0]["planted"] = farm.now() - 200.0
+	farm.spots[0]["fruit_at"] = farm.now() - 1.0
+	farm._refresh_spot(0)
+	farm._use_spot(0)
+	if int(story.get_flag("fruit_mango", 0)) < 3:
+		fails.append("farm: no mangoes picked")
+	farm.fell_tree(0)
+	if int(story.get_flag("timber", 0)) < 2 or farm.spots[0]["kind"] != "":
+		fails.append("farm: felling a tree failed")
+	story.set_flag("crop_corn", 6)
+	var c1 := coin_sys.balance()
+	farm.enter_contest()
+	if coin_sys.balance() <= c1:
+		fails.append("farm: contest paid nothing")
+	story.set_flag("beehive", true)
+	story.set_flag("hive_honey", 2)
+	if farm.collect_honey() != 2:
+		fails.append("farm: honey not collected")
+	farm.reload()
+	coin_sys.reload()
+	print("[selftest] farm: plant, water x2, tractor harvest, sell, orchard, contest, honey ok; %d world coins" % coin_sys.coins.size())
 
 
 func _selftest_walls(fails: PackedStringArray) -> void:

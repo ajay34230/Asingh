@@ -23,6 +23,7 @@ var has_waypoint := false
 var _beam: MeshInstance3D
 var _clear_btn: Button
 var _close_btn: Button
+var extra: Array = []            # farm markers: {pos: Vector3, col: Color, label: String}
 var landmarks := [
 	["Sun Gate", Vector2(0, -168)], ["Village", Vector2(-90, 12)], ["Temple", Vector2(-35, -10)], ["Race Track", Vector2(118, -48)], ["Bazaar Town", Vector2(22, -42)], ["Sal Forest", Vector2(-150, -110)], ["Goods yard", Vector2(-20, 96)],
 	["Caravan", Vector2(47, 45)], ["Arin's office", Vector2(92, 150)], ["Dig site", Vector2(-95, 25)],
@@ -239,6 +240,11 @@ func _draw_mini() -> void:
 		var d2 := Vector2(e.global_position.x - p.x, e.global_position.z - p.z) * scale
 		if absf(d2.x) < MINI * 0.5 - 4.0 and absf(d2.y) < MINI * 0.5 - 4.0:
 			_mini.draw_circle(centre + d2, 4.5, Color(1.0, 0.2, 0.15))
+	for ex in extra:
+		var ep: Vector3 = ex["pos"]
+		var de := Vector2(ep.x - p.x, ep.z - p.z) * scale
+		if absf(de.x) < MINI * 0.5 - 8.0 and absf(de.y) < MINI * 0.5 - 8.0:
+			_diamond(_mini, centre + de, 6.0, ex["col"])
 	for o in _objectives():
 		var t: Vector3 = o["target"]
 		if t == Vector3.ZERO:
@@ -280,6 +286,11 @@ func _draw_full() -> void:
 		_full.draw_rect(Rect2(q - Vector2(6, 6), Vector2(12, 12)), Color(0.35, 0.2, 0.1))
 		_full.draw_rect(Rect2(q - Vector2(6, 6), Vector2(12, 12)), Color(1, 0.9, 0.7), false, 2.0)
 		_full.draw_string(font, q + Vector2(10, -8), lm[0], HORIZONTAL_ALIGNMENT_LEFT, -1, 22, Color(1, 1, 1))
+	for ex2 in extra:
+		var ep2: Vector3 = ex2["pos"]
+		var q3 := origin + _w2u(ep2) * side
+		_diamond(_full, q3, 10.0, ex2["col"])
+		_full.draw_string(font, q3 + Vector2(14, 6), Loc.t(String(ex2["label"])), HORIZONTAL_ALIGNMENT_LEFT, -1, 22, Color(1, 1, 0.8))
 	for n in main.npcs:
 		_full.draw_circle(origin + _w2u(n.global_position) * side, 4.0, Color(0.35, 0.85, 1.0))
 	for e in get_tree().get_nodes_in_group("enemies"):
