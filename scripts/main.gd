@@ -772,6 +772,7 @@ func _build_story() -> void:
 	cin = Cinematic.new()
 	cin.player = player
 	cin.touch = touch
+	cin.terrain = terrain
 	add_child(cin)
 	story_b = StoryBuilder.new(self, story, hud, dlg, cin)
 	story_b.build()
@@ -1257,6 +1258,7 @@ func _run_selftest() -> void:
 	await _selftest_localisation(fails, notes)
 	await _selftest_powerfx(fails, notes)
 	await _selftest_map_route(fails, notes)
+	_selftest_cin_ground(fails)
 	await _selftest_traffic(fails, notes)
 	await _selftest_hunt(fails, notes)
 	await _selftest_fight(fails, notes)
@@ -1391,6 +1393,13 @@ func _selftest_animal_acts(fails: PackedStringArray, notes: PackedStringArray) -
 		total += kinds.size()
 		a.queue_free()
 	notes.append("animals: %d species, %d distinct activities seen" % [Animal.ACTS.size(), total])
+
+
+func _selftest_cin_ground(fails: PackedStringArray) -> void:
+	var low := Vector3(20.0, -50.0, 20.0)
+	var r: Vector3 = cin._above_ground(low)
+	if r.y < terrain.sample_height(20.0, 20.0) + 1.0:
+		fails.append("cinematic camera can sink below terrain")
 
 
 func _selftest_map_route(fails: PackedStringArray, notes: PackedStringArray) -> void:

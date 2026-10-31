@@ -6,6 +6,8 @@ extends CanvasLayer
 var cam: Camera3D
 var player: Player
 var touch: Control
+var terrain: TerrainBuilder  # optional; keeps story shots above the ground
+const MIN_CLEARANCE := 1.4
 var playing := false
 var _shots: Array = []
 var _i := -1
@@ -121,6 +123,13 @@ func _next() -> void:
 		Sfx.ui(s["sfx"], -2.0)
 
 
+func _above_ground(p: Vector3, clearance: float = MIN_CLEARANCE) -> Vector3:
+	if terrain != null:
+		var gy: float = terrain.sample_height(p.x, p.z)
+		p.y = maxf(p.y, gy + clearance)
+	return p
+
+
 func _place(k: float) -> void:
 	var s: Dictionary = _shots[_i]
 	var e := k * k * (3.0 - 2.0 * k)
@@ -128,8 +137,8 @@ func _place(k: float) -> void:
 	var to: Vector3 = s.get("to", from)
 	var look: Vector3 = s["look"]
 	var look_to: Vector3 = s.get("look_to", look)
-	cam.global_position = from.lerp(to, e)
-	var tgt := look.lerp(look_to, e)
+	cam.global_position = _above_ground(from.lerp(to, e))
+	var tgt := _above_ground(look.lerp(look_to, e), 0.2)
 	if (tgt - cam.global_position).length() > 0.01:
 		cam.look_at(tgt, Vector3.UP)
 
