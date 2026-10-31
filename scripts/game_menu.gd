@@ -12,6 +12,7 @@ var player: Player
 var main: Node3D
 var _inv: Label
 var _btn: Button
+var _jr: Label
 var _panel: PanelContainer
 var _pages: Dictionary = {}          # page name -> Control
 var _controls: Dictionary = {}       # setting key -> control, refreshed on reset
@@ -72,6 +73,12 @@ func _ready() -> void:
 	nav.add_child(h)
 	nav.add_child(_button("Resume", toggle))
 	nav.add_child(_button("Inventory", func() -> void: _show_page("Inventory")))
+	nav.add_child(_button("Journal", func() -> void: _show_page("Journal")))
+	nav.add_child(_button("Photo mode", func() -> void:
+		toggle()
+		var pm: Object = main.get("photo_mode")
+		if pm != null:
+			pm.call("enter")))
 	nav.add_child(_button("Settings", func() -> void: _show_page("Settings")))
 	nav.add_child(_button("How to play", func() -> void: _show_page("Help")))
 	nav.add_child(_button("Save game", func() -> void:
@@ -93,6 +100,7 @@ func _ready() -> void:
 	stack.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	hb.add_child(stack)
 	_pages["Inventory"] = _build_inventory()
+	_pages["Journal"] = _build_journal()
 	_pages["Settings"] = _build_settings()
 	_pages["Help"] = _build_help()
 	_pages["Confirm"] = _build_confirm()
@@ -119,6 +127,8 @@ func _show_page(n: String) -> void:
 		(_pages[k] as Control).visible = (k == n)
 	if n == "Inventory" and _inv != null:
 		_inv.text = _inventory_text()
+	if n == "Journal" and _jr != null:
+		_jr.text = _journal_text()
 
 
 func _scroll_page(title: String) -> Array:
@@ -139,6 +149,27 @@ func _heading(t: String) -> Label:
 	l.add_theme_font_size_override("font_size", 32)
 	l.add_theme_color_override("font_color", Color(0.95, 0.74, 0.32))
 	return l
+
+
+func _build_journal() -> Control:
+	var pg := _scroll_page("Journal")
+	var vb: VBoxContainer = pg[1]
+	_jr = Label.new()
+	_jr.autowrap_mode = TextServer.AUTOWRAP_WORD
+	vb.add_child(_jr)
+	return pg[0]
+
+
+func _journal_text() -> String:
+	var ach: Achievements = main.get("achievements") as Achievements
+	var out := Loc.t("Achievements") + "\n"
+	if ach != null:
+		out += "%d / %d\n\n" % [ach.count(), Achievements.DEFS.size()]
+		for id in Achievements.DEFS:
+			var d: Array = Achievements.DEFS[id]
+			var mark := "[x] " if ach.done.has(id) else "[  ] "
+			out += mark + Loc.t(String(d[0])) + " - " + Loc.t(String(d[1])) + "\n"
+	return out
 
 
 func _build_inventory() -> Control:

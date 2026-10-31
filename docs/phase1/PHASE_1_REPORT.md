@@ -109,3 +109,6 @@ Attack while falling now dives and, on landing, sends a 4 m shockwave (damage, d
 
 ## X11/X13/X14 Enemy roles, finisher, boss phases (31 Oct)
 Enemy roles (`Enemy.apply_role`): shield (frontal punches/kicks do 25%), archer (keeps distance, fires visible arrows), brute (1.8x hp, 1.5x damage, slow), ambusher (fast, long aggro). Roles are mixed into camp and raid fights via `CombatBuilder.ROLES`. Bosses enrage below half health (faster, quicker attacks, telegraphed ground stomp). The last enemy killed up close triggers a slow-motion finisher. Selftest PASS (shield, archer shot, boss enrage). Balance and feel are untested on a device.
+
+## X20/X21/X24/X29 Photo mode, hints, achievements, journal (31 Oct)
+`photo_mode.gd` (pause menu > Photo mode: hides controls/HUD, Take photo saves PNG to user://photos), `hints.gd` (six one-time tips), `achievements.gd` (10 milestones, saved in user://achievements.json, banner on unlock) and a pause-menu Journal page listing them. English and Hindi strings added. Selftest PASS (unlock from flag, hint once-only, photo mode hides/restores controls). Not done: save slots, colour-blind markers, lore-book entries.

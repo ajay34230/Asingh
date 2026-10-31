@@ -236,6 +236,10 @@ func ground_slam() -> int:
 			en.take_hit("slam", dmg, to.normalized() if to.length() > 0.05 else Vector3.FORWARD)
 			n += 1
 	HitFx.burst(get_parent(), global_position + Vector3(0, 0.15, 0), true, Color(0.85, 0.75, 0.55))
+	if n > 0:
+		var ach := get_tree().get_first_node_in_group("achievements")
+		if ach != null:
+			ach.note_kill("", true)
 	Sfx.ui_at("hit_thud", 0.0)
 	StoryFX.shake(self, 0.16, 0.3)
 	StoryFX.hitstop(0.07)

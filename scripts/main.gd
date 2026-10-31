@@ -25,6 +25,9 @@ var night_life: NightLife
 var ambient_life: AmbientLife
 var sfx_node: Sfx
 var area_title: AreaTitle
+var achievements: Achievements
+var hints: Hints
+var photo_mode: PhotoMode
 var bazaar: BazaarQuest
 var town_houses: HouseBuilder
 var water: WaterBuilder
@@ -836,6 +839,19 @@ func _build_story() -> void:
 	menu.player = player
 	menu.main = self
 	add_child(menu)
+	achievements = Achievements.new()
+	achievements.story = story
+	achievements.player = player
+	achievements.atmo = atmosphere
+	achievements.hud = hud
+	add_child(achievements)
+	hints = Hints.new()
+	hints.player = player
+	hints.hud = hud
+	add_child(hints)
+	photo_mode = PhotoMode.new()
+	photo_mode.hide_nodes = [touch, hud, combat_hud, menu._btn]
+	add_child(photo_mode)
 	if testing:
 		return
 	atmosphere.running = true
@@ -1279,6 +1295,22 @@ func _run_selftest() -> void:
 	await _selftest_map_route(fails, notes)
 	_selftest_cin_ground(fails)
 	_selftest_night_life(fails)
+	achievements.done.erase("chief")
+	story.set_flag("met_chief", true)
+	achievements._t = 0.0
+	achievements._process(0.1)
+	if not achievements.done.has("chief"):
+		fails.append("achievement did not unlock from a story flag")
+	hints.shown.erase("map")
+	if not hints.tip("map") or hints.tip("map"):
+		fails.append("hint should show exactly once")
+	photo_mode.enter()
+	var hidden_ok: bool = not touch.visible
+	photo_mode.exit()
+	if not hidden_ok or not touch.visible:
+		fails.append("photo mode did not hide/restore controls")
+	if not menu._journal_text().contains("Achievements"):
+		fails.append("journal page text missing")
 	_teleport(140.0, 140.0)
 	var re := combat.spawn_enemy(player.global_position + Vector3(0, 0, -6.0), false, 0.0, "test")
 	re.apply_role("shield")
