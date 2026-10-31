@@ -220,6 +220,16 @@ func _nearest_enemy(rng: float) -> Enemy:
 
 
 var slam_dive := false
+const OUTFITS := [Color(0.86, 0.16, 0.18), Color(0.16, 0.22, 0.78), Color(0.12, 0.55, 0.28), Color(0.96, 0.62, 0.08), Color(0.06, 0.58, 0.62), Color(0.5, 0.2, 0.7)]
+var outfit := 0
+
+
+## X27: 0 keeps the default clothes; 1-6 dress the explorer in a chosen colour with a gold trim.
+func set_outfit(i: int) -> int:
+	outfit = i
+	if _rig == null or i <= 0 or i > OUTFITS.size():
+		return 0
+	return _rig.recolor(OUTFITS[i - 1], Color(0.95, 0.78, 0.3))
 
 
 ## X10: shockwave on landing from a dive. Hits every enemy within 4 m, throws up dust and sparks.

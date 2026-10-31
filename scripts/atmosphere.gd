@@ -472,6 +472,9 @@ func _update_weather(delta: float) -> void:
 			rain_target = 0.0
 			_weather_t = randf_range(150.0, 300.0)
 			_show_rainbow()
+	if _story_t <= 0.0 and story_weather == "":
+		# X2: a soft morning mist that burns off as the sun climbs
+		mist_target = 0.5 if (time_of_day > 0.2 and time_of_day < 0.33 and rain_target < 0.5) else 0.0
 	var was := rain
 	var was_g := overcast + mist
 	rain = move_toward(rain, rain_target, delta / 12.0)

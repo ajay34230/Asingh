@@ -36,6 +36,7 @@ const SPEC: Array = [
 	["Controls", "autosprint", "Auto-sprint at full stick", "toggle", true, null],
 	["Controls", "haptics", "Vibration when hurt", "toggle", true, null],
 	["Gameplay", "lang", "Language / भाषा", "choice", 0, ["English", "हिन्दी"]],
+	["Gameplay", "outfit", "Outfit colour", "choice", 0, ["Default", "Crimson", "Indigo", "Forest", "Saffron", "Teal", "Violet"]],
 	["Gameplay", "difficulty", "Difficulty", "choice", 1, ["Easy", "Normal", "Hard"]],
 	["Gameplay", "fov", "Field of view", "slider", 70.0, [60.0, 95.0, 1.0]],
 	["Gameplay", "fp", "First-person view", "toggle", false, null],
@@ -148,6 +149,9 @@ static func apply(key: String) -> void:
 				Sfx.instance.voices_on = bool(v[key])
 				if not bool(v[key]):
 					Sfx.stop_speech()
+		"outfit":
+			if main != null and main.get("player") != null:
+				(main.get("player") as Player).set_outfit(int(v[key]))
 		"lang":
 			Loc.set_language("hi" if int(v[key]) == 1 else "en")
 		"quality":

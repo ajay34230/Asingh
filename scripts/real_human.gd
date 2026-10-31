@@ -186,6 +186,15 @@ func _tint() -> void:
 		# keep the role's hue (guards stay blue-ish, Reavers red-ish) but make it rich, not washed out
 		main_c = Color.from_hsv(c.h, clampf(c.s * 1.5 + 0.35, 0.45, 0.95), clampf(c.v * 0.9, 0.35, 0.95))
 		trim_c = DRESS[(h / 7 + 3) % DRESS.size()].lerp(main_c, 0.3)
+	_dye(main_c, trim_c)
+
+
+## X27: re-dress the body in chosen colours (garments only).
+func recolor(main_c: Color, trim_c: Color) -> int:
+	return _dye(main_c, trim_c)
+
+
+func _dye(main_c: Color, trim_c: Color) -> int:
 	var n := 0
 	for m in _inner.find_children("*", "MeshInstance3D", true, false):
 		var mi := m as MeshInstance3D
@@ -203,6 +212,7 @@ func _tint() -> void:
 			d.roughness = 0.85
 			mi.set_surface_override_material(sidx, d)
 			n += 1
+	return n
 
 
 func _add_hammer() -> void:

@@ -115,3 +115,6 @@ Enemy roles (`Enemy.apply_role`): shield (frontal punches/kicks do 25%), archer 
 
 ## X7 (already present), X15 Fast-travel shrines (31 Oct)
 X7: mood loops (tension/race/sacred/mystery) and day/night/village radio pools already existed. X15: `shrines.gd` places four stone shrines (bazaar, pond, forest, ruins); touching one lights it (saved as story flag) and adds it to the pause menu's Fast travel page. Travel is refused near enemies or within 6 s of combat. Selftest PASS. Shrine positions were chosen from terrain constants and not eye-checked for overlap with trees or buildings.
+
+## X2 mist, X18 (present), X27 outfit colour (31 Oct)
+X2: soft morning mist (time 0.20-0.33, when no story weather); rain, wet ground and thunder already existed. X18: villagers already walk home at night and vanish indoors until morning (shop closing not added). X27: Settings > Gameplay > Outfit colour (6 colours with gold trim) via `RealHuman.recolor` / `Player.set_outfit`. Selftest PASS. Headband/cloak and horse naming not built.

@@ -1304,6 +1304,25 @@ func _run_selftest() -> void:
 	await _selftest_map_route(fails, notes)
 	_selftest_cin_ground(fails)
 	_selftest_night_life(fails)
+	if player.set_outfit(3) < 1:
+		fails.append("outfit colour changed nothing")
+	player.set_outfit(0)
+	var keep_t: float = atmosphere.time_of_day
+	var keep_r: bool = atmosphere.running
+	atmosphere.running = false
+	atmosphere.time_of_day = 0.26
+	atmosphere._story_t = 0.0
+	atmosphere.story_weather = ""
+	atmosphere.rain_target = 0.0
+	atmosphere._update_weather(0.1)
+	if atmosphere.mist_target < 0.3:
+		fails.append("no morning mist at 0.26")
+	atmosphere.time_of_day = 0.5
+	atmosphere._update_weather(0.1)
+	if atmosphere.mist_target > 0.01:
+		fails.append("mist still on at noon")
+	atmosphere.time_of_day = keep_t
+	atmosphere.running = keep_r
 	story.flags.erase("shrine_pond")
 	if shrines.lit_list().size() != 0 and shrines.is_lit("pond"):
 		fails.append("shrine should start unlit")
