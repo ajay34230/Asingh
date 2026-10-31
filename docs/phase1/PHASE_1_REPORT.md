@@ -201,3 +201,9 @@ Pickups are now small 3D models built from primitives (heart with cross, lightni
 - Crash diagnostics (`diag.gd`): breadcrumb file every 3 s (fps, position, memory); if the last run ended unexpectedly the title screen shows it. File logging enabled on mobile. Adaptive quality lowers the preset when FPS stays under 22 for 8 s.
 - Device screenshot (build e023959, 15 FPS) shows large brown slabs/beams and dark blobs in the sky. A similar slab appears in the software-render town capture from the build before the farm, so it predates the farm work; cause not found, not reproduced as the same artefact. Unresolved.
 - Selftest covers the bounty flow; title screen and floating text are not visually verified.
+
+## Addendum: lag work and Debug page
+- Measured in the software-render bazaar view: 8,553 draw calls before, about 4,300 after. `StaticBatcher` merges non-moving meshes of BazaarTown (2,532 -> 497), Hamlet (1,377 -> 203) and Railway (263 -> 77) by material and 24 m cell; originals are hidden, colliders kept. Doors, signs, scripted, transparent or shader-material meshes are skipped.
+- All other small props stop drawing beyond 170/125/90 m (High/Medium/Low).
+- Settings > Debug tab: switch rain, smoke, clouds, grass, lamps, people, ground, ruins, farm off one at a time to find what causes a glitch. Not saved between launches.
+- Not device-tested: real FPS gain, and merged meshes should be checked for missing or mis-coloured props.

@@ -81,17 +81,15 @@ static func debug_toggle(main_node: Node, key: String, on: bool) -> void:
 		"dbg_rain":
 			var atmo: Atmosphere = main_node.get("atmosphere") as Atmosphere
 			if atmo != null:
-				var r := atmo.find_child("Rain", true, false)
-				if r != null:
-					(r as GPUParticles3D).visible = on
-				var s := atmo.find_child("*Splash", true, false)
-				if s != null:
-					(s as Node3D).visible = on
+				for pn in ["_rain_p", "_splash_p"]:
+					var rp: Variant = atmo.get(pn)
+					if rp != null:
+						(rp as Node3D).visible = on
 		"dbg_smoke":
 			for n in tree.get_nodes_in_group("dbg_smoke"):
 				(n as Node3D).visible = on
 		"dbg_clouds":
-			var c := main_node.find_child("Clouds", true, false)
+			var c: Node = main_node.find_child("Clouds", true, false)
 			if c != null:
 				(c as Node3D).visible = on
 		"dbg_foliage":
@@ -107,14 +105,14 @@ static func debug_toggle(main_node: Node, key: String, on: bool) -> void:
 				for n in tree.get_nodes_in_group(g):
 					(n as Node3D).visible = on
 		"dbg_terrain":
-			var t := main_node.get_node_or_null("Terrain")
+			var t: Node = main_node.get_node_or_null("Terrain")
 			if t != null:
 				(t as Node3D).visible = on
 		"dbg_ruins":
-			var ru := main_node.get_node_or_null("Ruins")
+			var ru: Node = main_node.get_node_or_null("Ruins")
 			if ru != null:
 				(ru as Node3D).visible = on
 		"dbg_farm":
-			var f := main_node.get_node_or_null("Farm")
+			var f: Node = main_node.get_node_or_null("Farm")
 			if f != null:
 				(f as Node3D).visible = on

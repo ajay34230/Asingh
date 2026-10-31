@@ -730,6 +730,22 @@ func apply_quality(tier: int) -> void:
 			gi.visibility_range_end = ranges[g][tier]
 			gi.visibility_range_end_margin = 8.0
 			gi.visibility_range_fade_mode = GeometryInstance3D.VISIBILITY_RANGE_FADE_SELF
+	# Lag fix: every other small prop stops being drawn beyond a distance that shrinks with the preset.
+	var far_end: float = [170.0, 125.0, 90.0][tier]
+	for n2 in find_children("*", "GeometryInstance3D", true, false):
+		var g2 := n2 as GeometryInstance3D
+		if g2 is Label3D or g2 is GPUParticles3D or g2 is CPUParticles3D:
+			continue
+		if g2.has_meta("far_set") or (g2.visibility_range_end > 0.0 and not g2.has_meta("far_set")):
+			if g2.has_meta("far_set"):
+				g2.visibility_range_end = far_end
+			continue
+		if g2.get_aabb().size.length() > 60.0:
+			continue
+		g2.visibility_range_end = far_end
+		g2.visibility_range_end_margin = 6.0
+		g2.visibility_range_fade_mode = GeometryInstance3D.VISIBILITY_RANGE_FADE_DISABLED
+		g2.set_meta("far_set", true)
 
 
 ## Lag fix: lights fade out with distance so the phone only shades the few near the player.
@@ -990,6 +1006,11 @@ func _build_story() -> void:
 	hints.player = player
 	hints.hud = hud
 	add_child(hints)
+	for bn in ["BazaarTown", "Hamlet", "Railway"]:
+		var broot := get_node_or_null(bn) as Node3D
+		if broot != null:
+			var br: Dictionary = StaticBatcher.merge(broot)
+			print("[LostKingdom] batched ", bn, ": ", br["merged"], " meshes -> ", br["batches"])
 	photo_mode = PhotoMode.new()
 	photo_mode.hide_nodes = [touch, hud, combat_hud, menu._btn]
 	add_child(photo_mode)
@@ -2725,6 +2746,247 @@ func _run_capture_town(dir: String) -> void:
 		for i in 70:
 			await get_tree().process_frame
 		await RenderingServer.frame_post_draw
+		print("[capture] ", s[0], " -> ", get_viewport().get_texture().get_image().save_png("%s/%s.png" % [dir, s[0]]))
+	get_tree().quit()
+
+
+func _run_capture_trees(dir: String) -> void:
+	DirAccess.make_dir_recursive_absolute(dir)
+	touch.visible = false
+	atmosphere.time_of_day = 0.4
+	atmosphere.apply_time()
+	var fc := TerrainBuilder.FOREST_C
+	var shots := [
+		["forest_in", Vector3(fc.x + 26.0, 0.0, fc.y + 30.0), Vector3(fc.x, 3.5, fc.y), -0.08],
+		["forest_far", Vector3(fc.x + 70.0, 0.0, fc.y + 70.0), Vector3(fc.x, 5.0, fc.y), -0.1],
+		["pond_trees", Vector3(-34.0, 0.0, 78.0), Vector3(-70.0, 3.0, 40.0), -0.05],
+		["oasis_close", Vector3(-100.0, 0.0, 60.0), Vector3(-130.0, 2.0, 30.0), -0.02],
+	]
+	for s in shots:
+		var sp: Vector3 = s[1]
+		player.set_distance(4.0)
+		player.global_position = Vector3(sp.x, terrain.sample_height(sp.x, sp.z) + 0.4, sp.z)
+		player.velocity = Vector3.ZERO
+		player.locked = true
+		_look_at_point(s[2], s[3])
+		for i in 60:
+			await get_tree().process_frame
+		await RenderingServer.frame_post_draw
+		print("[capture] ", s[0], " -> ", get_viewport().get_texture().get_image().save_png("%s/%s.png" % [dir, s[0]]))
+	get_tree().quit()
+
+
+func _selftest_traffic(fails: PackedStringArray, notes: PackedStringArray) -> void:
+	if traffic == null:
+		fails.append("traffic: not built")
+		return
+	while not traffic.done:
+		await get_tree().process_frame
+	if traffic.wagons.size() < 4 or traffic.riders.size() < 3 or traffic.walkers.size() < 8:
+		fails.append("traffic: %d carts, %d riders, %d walkers" % [traffic.wagons.size(), traffic.riders.size(), traffic.walkers.size()])
+	for w in traffic.wagons:
+		if w.driver == null or not is_instance_valid(w.driver):
+			fails.append("traffic: a cart has no driver")
+	# no road may run through a hamlet house (sampled every 2 m, with a 1.5 m margin)
+	var roads: Array = []
+	for c in TrafficBuilder.CARTS:
+		roads.append(c[2])
+	for r in TrafficBuilder.RIDERS:
+		roads.append(r[2])
+	for wk in TrafficBuilder.WALKERS:
+		roads.append(wk[1])
+	var inside := 0
+	for rd in roads:
+		for i in (rd as Array).size() - 1:
+			var a2: Vector2 = rd[i]
+			var b2: Vector2 = rd[i + 1]
+			var steps2 := int(a2.distance_to(b2) / 2.0) + 1
+			for k in steps2 + 1:
+				var q2 := a2.lerp(b2, float(k) / steps2)
+				for hs in houses.houses:
+					var lp: Vector3 = (hs.node as Node3D).global_transform.affine_inverse() * Vector3(q2.x, (hs.node as Node3D).global_position.y, q2.y)
+					var half: Vector2 = hs.half
+					if absf(lp.x) < half.x + 1.5 and absf(lp.z) < half.y + 1.5:
+						inside += 1
+	if inside > 0:
+		fails.append("traffic: roads pass through hamlet houses at %d sample points" % inside)
+	# put the player in the road ahead of the first cart: it must stop; then move away: it must go on
+	var w0: Wagon = traffic.wagons[0]
+	var fwd := Vector3(-sin(w0.rotation.y), 0.0, -cos(w0.rotation.y))
+	player.global_position = w0.global_position + fwd * 4.0
+	var s0 := w0._s
+	for i in 10:
+		w0._process(0.1)
+	if not w0.blocked or absf(w0._s - s0) > 0.01:
+		fails.append("traffic: cart did not stop for the player in the road")
+	player.global_position = w0.global_position + fwd * 40.0 + Vector3(0, 0, 40)
+	for i in 10:
+		w0._process(0.1)
+	if w0.blocked or w0._s <= s0:
+		fails.append("traffic: cart did not resume")
+	# everything moves and stays finite over a simulated minute
+	var start_r: Array[Vector3] = []
+	for t in traffic.riders:
+		start_r.append(t.animal.position)
+	player.global_position = Vector3(60, terrain.sample_height(60, 20) + 0.4, 20)
+	for i in 300:
+		for w in traffic.wagons:
+			w._process(0.2)
+		for t in traffic.riders:
+			t._process(0.2)
+	for k in traffic.riders.size():
+		var t: Traveller = traffic.riders[k]
+		if not t.animal.position.is_finite():
+			fails.append("traffic: rider %d NaN" % k)
+		elif t.animal.position.distance_to(start_r[k]) < 1.0 and t._s == 0.0:
+			fails.append("traffic: rider %d never moved" % k)
+	for w in traffic.wagons:
+		if not w.position.is_finite():
+			fails.append("traffic: cart NaN")
+	notes.append("traffic: %d carts with drivers, %d riders, %d walkers" % [traffic.wagons.size(), traffic.riders.size(), traffic.walkers.size()])
+	player.global_position = Vector3(TerrainBuilder.START_MOUND.x, terrain.sample_height(TerrainBuilder.START_MOUND.x, TerrainBuilder.START_MOUND.y) + 0.4, TerrainBuilder.START_MOUND.y)
+
+
+func _run_capture_menu(dir: String) -> void:
+	DirAccess.make_dir_recursive_absolute(dir)
+	touch.visible = false
+	await get_tree().process_frame
+	menu.toggle()
+	var shots := [["inventory", "Inventory", -1], ["audio", "Settings", 0], ["video", "Settings", 1], ["controls", "Settings", 2], ["gameplay", "Settings", 3], ["help", "Help", -1]]
+	for s in shots:
+		menu._show_page(s[1])
+		if int(s[2]) >= 0:
+			((menu._pages["Settings"]) as TabContainer).current_tab = int(s[2])
+		for i in 8:
+			await get_tree().process_frame
+		await RenderingServer.frame_post_draw
+		print("[capture] menu ", s[0], " -> ", get_viewport().get_texture().get_image().save_png("%s/menu_%s.png" % [dir, s[0]]))
+	get_tree().quit()
+
+
+func _selftest_settings(fails: PackedStringArray, notes: PackedStringArray) -> void:
+	for b in GameSettings.BUSES:
+		if AudioServer.get_bus_index(b) < 0:
+			fails.append("settings: audio bus %s missing" % b)
+	GameSettings.set_value("vol_music", 0.5)
+	if absf(AudioServer.get_bus_volume_db(AudioServer.get_bus_index("Music")) - linear_to_db(0.5)) > 0.1:
+		fails.append("settings: music volume not applied to its bus")
+	GameSettings.set_value("difficulty", 2)
+	if absf(GameSettings.damage_scale() - 1.5) > 0.01:
+		fails.append("settings: hard difficulty scale %.2f" % GameSettings.damage_scale())
+	GameSettings.set_value("tracker", false)
+	if hud._tracker.visible:
+		fails.append("settings: tracker toggle did nothing")
+	GameSettings.set_value("lefty", true)
+	if not bool(touch.get("left_handed")):
+		fails.append("settings: left-handed layout not applied")
+	GameSettings.set_value("sens_y", 2.0)
+	if absf(player.look_sens_y - 2.0) > 0.01:
+		fails.append("settings: vertical look speed not applied")
+	GameSettings.set_value("aa", 3)
+	if get_viewport().msaa_3d != Viewport.MSAA_4X:
+		fails.append("settings: MSAA not applied")
+	GameSettings.set_value("brightness", 1.3)
+	if absf(atmosphere.environment.adjustment_brightness - 1.3) > 0.01:
+		fails.append("settings: brightness not applied")
+	player.locked = false
+	player._attack_cd = 0.0
+	player.attack()
+	if player._attack_cd <= 0.0:
+		fails.append("controls: the HIT button did nothing outside a race")
+	player._attack_cd = 0.0
+	# mission checkpoint: written when a mission starts, and Restart mission puts the player back there
+	story.set_flag("intro_done", true)
+	var cp_pos := player.global_position
+	menu._write_checkpoint()
+	var cp := SaveSystem.read(GameMenu.CHECKPOINT_PATH)
+	if cp.is_empty() or not cp.has("flags") or absf(float((cp["pos"] as Array)[0]) - cp_pos.x) > 0.01:
+		fails.append("menu: mission checkpoint was not written")
+	DirAccess.remove_absolute(ProjectSettings.globalize_path(GameMenu.CHECKPOINT_PATH))
+	var shown := menu._controls.size()
+	if shown != GameSettings.SPEC.size():
+		fails.append("settings: menu shows %d of %d options" % [shown, GameSettings.SPEC.size()])
+	# values survive a save and reload
+	GameSettings.set_value("vol_sfx", 0.35)
+	GameSettings.load_file()
+	if absf(float(GameSettings.get_v("vol_sfx")) - 0.35) > 0.001:
+		fails.append("settings: saved value did not reload")
+	GameSettings.reset_tab("")
+	GameSettings.apply_all()
+	notes.append("settings: %d options in %d tabs, 5 audio buses, save/reload ok" % [GameSettings.SPEC.size(), GameSettings.TABS.size()])
+
+
+func _run_capture_ride(arg: String) -> void:
+	var parts := arg.split("|")
+	var dir := parts[0]
+	var only: String = parts[1] if parts.size() > 1 else ""
+	DirAccess.make_dir_recursive_absolute(dir)
+	touch.visible = false
+	atmosphere.time_of_day = 0.42
+	atmosphere.apply_time()
+	var seen := {}
+	for l in life:
+		var an := l as Animal
+		if an == null or not MountSystem.RIDEABLE.has(an.species) or seen.has(an.species) or (only != "" and an.species != only):
+			continue
+		seen[an.species] = true
+		an.driven = true
+		var p := an.global_position + Vector3(2.0, 0.0, 0.0)
+		player.global_position = Vector3(p.x, terrain.sample_height(p.x, p.z) + 0.4, p.z)
+		player.locked = false
+		mounts.mount_animal(an)
+		for i in 40:
+			await get_tree().process_frame
+		player.set_distance(6.0)
+		for view in ([["side", PI * 0.5]] if only != "" else [["side", PI * 0.5], ["back", 0.0]]):
+			player.set_look(mounts._heading + float(view[1]), -0.05)
+			for i in 30:
+				await get_tree().process_frame
+			await RenderingServer.frame_post_draw
+			print("[capture] ", an.species, view[0], " -> ", get_viewport().get_texture().get_image().save_png("%s/%s_%s.png" % [dir, an.species, view[0]]))
+		mounts.dismount()
+	get_tree().quit()
+
+
+func _run_capture_town(dir: String) -> void:
+	DirAccess.make_dir_recursive_absolute(dir)
+	touch.visible = false
+	atmosphere.time_of_day = 0.42
+	atmosphere.apply_time()
+	var c := TerrainBuilder.TOWN_C
+	var shots := [
+		["t1_square", Vector3(c.x - 3.0, 0.0, c.y + 20.0), Vector3(c.x, 1.5, c.y - 4.0), -0.08],
+		["t2_stalls", Vector3(c.x + 2.0, 0.0, c.y + 4.0), Vector3(c.x + 4.0, 1.4, c.y + 12.0), -0.05],
+		["t3_street_e", Vector3(c.x + 17.0, 0.0, c.y + 0.0), Vector3(c.x + 42.0, 2.0, c.y + 0.0), -0.05],
+		["t4_street_n", Vector3(c.x - 1.0, 0.0, c.y - 17.0), Vector3(c.x, 3.0, c.y - 44.0), -0.03],
+		["t5_wash", Vector3(c.x - 2.0, 0.0, c.y + 8.0), Vector3(c.x - 6.4, 0.8, c.y + 2.6), -0.2],
+		["t6_tea", Vector3(c.x + 1.0, 0.0, c.y - 1.0), Vector3(c.x + 5.0, 1.0, c.y - 6.0), -0.15],
+		["t7_over", Vector3(c.x - 6.0, 22.0, c.y + 34.0), Vector3(c.x, 1.0, c.y - 4.0), -0.35],
+	]
+	for s in shots:
+		var sp: Vector3 = s[1]
+		player.set_distance(5.0)
+		var gy := terrain.sample_height(sp.x, sp.z)
+		player.global_position = Vector3(sp.x, maxf(gy + 0.4, sp.y), sp.z)
+		player.velocity = Vector3.ZERO
+		player.locked = true
+		_look_at_point(s[2], s[3])
+		for i in 70:
+			await get_tree().process_frame
+		await RenderingServer.frame_post_draw
+		var cnt := {}
+		for mi in find_children("*", "GeometryInstance3D", true, false):
+			var gi2 := mi as GeometryInstance3D
+			if not gi2.is_visible_in_tree():
+				continue
+			var pth := str(gi2.get_path()).split("/")
+			var kk := "/".join(pth.slice(2, 4)) if pth.size() > 4 else str(gi2.get_path())
+			cnt[kk] = int(cnt.get(kk, 0)) + 1
+		var ks := cnt.keys()
+		ks.sort_custom(func(a: String, b: String) -> bool: return cnt[a] > cnt[b])
+		for kk2 in ks.slice(0, 14):
+			print("[perf]   ", kk2, " ", cnt[kk2])
+		print("[perf] ", s[0], " draws=", Performance.get_monitor(Performance.RENDER_TOTAL_DRAW_CALLS_IN_FRAME), " prims=", Performance.get_monitor(Performance.RENDER_TOTAL_PRIMITIVES_IN_FRAME), " objs=", Performance.get_monitor(Performance.RENDER_TOTAL_OBJECTS_IN_FRAME), " nodes=", Performance.get_monitor(Performance.OBJECT_NODE_COUNT))
 		print("[capture] ", s[0], " -> ", get_viewport().get_texture().get_image().save_png("%s/%s.png" % [dir, s[0]]))
 	get_tree().quit()
 
