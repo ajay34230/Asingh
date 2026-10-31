@@ -70,3 +70,51 @@ func _process(delta: float) -> void:
 		GameSettings.set_value("quality", q + 1)
 		if hud != null:
 			hud.banner(Loc.t("Frame rate was low: graphics lowered a step."), "")
+
+
+## Debug page: show or hide one part of the world, so a glitch can be pinned on it.
+static func debug_toggle(main_node: Node, key: String, on: bool) -> void:
+	if main_node == null or not main_node.is_inside_tree():
+		return
+	var tree := main_node.get_tree()
+	match key:
+		"dbg_rain":
+			var atmo: Atmosphere = main_node.get("atmosphere") as Atmosphere
+			if atmo != null:
+				var r := atmo.find_child("Rain", true, false)
+				if r != null:
+					(r as GPUParticles3D).visible = on
+				var s := atmo.find_child("*Splash", true, false)
+				if s != null:
+					(s as Node3D).visible = on
+		"dbg_smoke":
+			for n in tree.get_nodes_in_group("dbg_smoke"):
+				(n as Node3D).visible = on
+		"dbg_clouds":
+			var c := main_node.find_child("Clouds", true, false)
+			if c != null:
+				(c as Node3D).visible = on
+		"dbg_foliage":
+			for g in ["foliage_grass", "foliage_reeds", "foliage_palm", "foliage_stone"]:
+				for n in tree.get_nodes_in_group(g):
+					(n as Node3D).visible = on
+		"dbg_lights":
+			for n in main_node.find_children("*", "Light3D", true, false):
+				if not (n is DirectionalLight3D):
+					(n as Light3D).visible = on
+		"dbg_people":
+			for g in ["npcs", "animals"]:
+				for n in tree.get_nodes_in_group(g):
+					(n as Node3D).visible = on
+		"dbg_terrain":
+			var t := main_node.get_node_or_null("Terrain")
+			if t != null:
+				(t as Node3D).visible = on
+		"dbg_ruins":
+			var ru := main_node.get_node_or_null("Ruins")
+			if ru != null:
+				(ru as Node3D).visible = on
+		"dbg_farm":
+			var f := main_node.get_node_or_null("Farm")
+			if f != null:
+				(f as Node3D).visible = on

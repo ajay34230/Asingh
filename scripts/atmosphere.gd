@@ -632,6 +632,7 @@ static func make_smoke(parent: Node3D, pos: Vector3, scale_m: float = 1.0) -> GP
 	q.material = m
 	var p := GPUParticles3D.new()
 	p.name = "Smoke"
+	p.add_to_group("dbg_smoke")
 	p.amount = 18
 	p.lifetime = 6.0
 	p.preprocess = 6.0

@@ -779,5 +779,15 @@
  "A story of the Valley of Sands": "रेत की घाटी की एक कहानी",
  "Continue": "जारी रखो",
  "New Game": "नया खेल",
- "Frame rate was low: graphics lowered a step.": "फ्रेम रेट कम था: ग्राफ़िक्स एक स्तर घटाए गए।"
+ "Frame rate was low: graphics lowered a step.": "फ्रेम रेट कम था: ग्राफ़िक्स एक स्तर घटाए गए।",
+ "Debug": "डीबग",
+ "Show rain": "बारिश दिखाओ",
+ "Show chimney smoke": "चिमनी का धुआँ दिखाओ",
+ "Show clouds": "बादल दिखाओ",
+ "Show grass, palms, stones": "घास, ताड़, पत्थर दिखाओ",
+ "Show lamps (point lights)": "दीये (रोशनी) दिखाओ",
+ "Show villagers and animals": "गाँव वाले और जानवर दिखाओ",
+ "Show ground": "ज़मीन दिखाओ",
+ "Show ruins, boulders, shrubs": "खंडहर, चट्टानें, झाड़ियाँ दिखाओ",
+ "Show farm": "खेत दिखाओ"
 }

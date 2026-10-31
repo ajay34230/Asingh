@@ -44,8 +44,18 @@ const SPEC: Array = [
 	["Gameplay", "tracker", "Mission tracker on screen", "toggle", true, null],
 	["Gameplay", "minimap", "Minimap on screen", "toggle", true, null],
 	["Gameplay", "hint", "Control hints", "toggle", true, null],
+	# Debug: switch parts of the world off to find what causes a glitch or lag. Not saved as a preference.
+	["Debug", "dbg_rain", "Show rain", "toggle", true, null],
+	["Debug", "dbg_smoke", "Show chimney smoke", "toggle", true, null],
+	["Debug", "dbg_clouds", "Show clouds", "toggle", true, null],
+	["Debug", "dbg_foliage", "Show grass, palms, stones", "toggle", true, null],
+	["Debug", "dbg_lights", "Show lamps (point lights)", "toggle", true, null],
+	["Debug", "dbg_people", "Show villagers and animals", "toggle", true, null],
+	["Debug", "dbg_terrain", "Show ground", "toggle", true, null],
+	["Debug", "dbg_ruins", "Show ruins, boulders, shrubs", "toggle", true, null],
+	["Debug", "dbg_farm", "Show farm", "toggle", true, null],
 ]
-const TABS := ["Language", "Audio", "Video", "Controls", "Gameplay"]
+const TABS := ["Language", "Audio", "Video", "Controls", "Gameplay", "Debug"]
 const DAMAGE_BY_DIFFICULTY := [0.6, 1.0, 1.5]
 
 static var v: Dictionary = {}
@@ -97,7 +107,8 @@ static func load_file() -> void:
 static func save_file() -> void:
 	var cfg := ConfigFile.new()
 	for k in v.keys():
-		cfg.set_value("s", k, v[k])
+		if not String(k).begins_with("dbg_"):      # debug switches always start on
+			cfg.set_value("s", k, v[k])
 	cfg.save(PATH)
 
 
@@ -138,6 +149,9 @@ static func apply(key: String) -> void:
 	var player: Player = main.get("player") as Player if main != null else null
 	var atmo: Atmosphere = main.get("atmosphere") as Atmosphere if main != null else null
 	var touch: Object = main.get("touch") if main != null else null
+	if key.begins_with("dbg_"):
+		Diag.debug_toggle(main, key, bool(v[key]))
+		return
 	match key:
 		"vol_master": _bus_db("Master", float(v[key]))
 		"vol_music": _bus_db("Music", float(v[key]))
