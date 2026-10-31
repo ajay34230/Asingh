@@ -112,6 +112,8 @@ func _ready() -> void:
 		_run_selftest.call_deferred()
 		return
 	for a in args:
+		if a.begins_with("--capture-pickups="):
+			_run_capture_pickups.call_deferred(a.trim_prefix("--capture-pickups="))
 		if a.begins_with("--capture-fight="):
 			_run_capture_fight.call_deferred(a.trim_prefix("--capture-fight="))
 		elif a.begins_with("--capture-veyra="):
@@ -1310,6 +1312,11 @@ func _run_selftest() -> void:
 	foe.take_damage(999.0, Vector3.FORWARD)
 	if not foe.dead:
 		fails.append("combat: enemy did not die")
+	for kk in ["health", "speed", "power", "shield"]:
+		var tp := Pickup.new().setup(kk, player, player.global_position + Vector3(0, 0, -8.0))
+		add_child(tp)
+		tp._collect_fx()
+		tp.queue_free()
 	var pk := 0
 	for ch in get_children():
 		if ch is Pickup:
@@ -1785,6 +1792,40 @@ func _run_audit() -> void:
 
 
 # --- screenshot capture (needs a rendering backend, e.g. xvfb + software GL) ------------
+
+func _run_capture_pickups(dir: String) -> void:
+	DirAccess.make_dir_recursive_absolute(dir)
+	touch.visible = false
+	atmosphere.time_of_day = 0.42
+	atmosphere.apply_time()
+	_teleport(-60.0, 20.0)
+	for i in 30:
+		await get_tree().physics_frame
+	player.set_distance(2.6)
+	player.set_look(0.0, 0.05)
+	player._model.visible = false
+	var pp := player.global_position
+	var kinds := ["health", "speed", "power", "shield"]
+	for i in 4:
+		var px := pp.x + (i - 1.5) * 0.9
+		var pz := pp.z - 2.4
+		var pk := Pickup.new().setup(kinds[i], player, Vector3(px, terrain.sample_height(px, pz), pz))
+		add_child(pk)
+		pk.set_process(false)
+		pk._mesh.rotation.y = 0.5
+		pk._mesh.position.y = 1.0
+	for i in 50:
+		await get_tree().physics_frame
+	await RenderingServer.frame_post_draw
+	print("[capture] pickups -> ", get_viewport().get_texture().get_image().save_png("%s/pickups.png" % dir))
+	var pk2 := Pickup.new().setup("health", player, player.global_position + Vector3(0, 0, -0.5))
+	add_child(pk2)
+	for i in 3:
+		await get_tree().physics_frame
+	await RenderingServer.frame_post_draw
+	print("[capture] collect -> ", get_viewport().get_texture().get_image().save_png("%s/collect.png" % dir))
+	get_tree().quit()
+
 
 func _run_capture_fight(dir: String) -> void:
 	DirAccess.make_dir_recursive_absolute(dir)

@@ -174,3 +174,6 @@ Punches/kicks now affect NPCs (stagger, shout, flee 7-10 s; never damaged) and a
 
 ## Consequences for beating villagers (31 Oct)
 After 3 villagers struck the player is "wanted" for 120 s (refreshed by each further hit): stalls refuse service. From 5 hits, guards within 28 m chase and strike (8 damage, 1.5 s) until the timer ends. Guards can be punched but only stagger. Selftest covers the guard strike. Not device-tested.
+
+## 3D power-up icons (31 Oct)
+Pickups are now small 3D models built from primitives (heart with cross, lightning bolt, sword, shield) with a ground ring, rising sparkles and a collect burst (expanding ring, sparks; healing sparkles rise around the player for health). Speed, power and shield keep their existing on-player effects. HitFx/pickup spark quads were resized to avoid oversized squares. Software-render screenshot checked only; the black square seen around the player in software captures is unexplained and not verified on a device.

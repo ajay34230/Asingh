@@ -12,10 +12,10 @@ static func burst(parent: Node, at: Vector3, heavy: bool = false, tint: Color = 
 	p.initial_velocity_min = 2.0
 	p.initial_velocity_max = 5.5 if heavy else 3.8
 	p.gravity = Vector3(0, -9.0, 0)
-	p.scale_amount_min = 0.03
-	p.scale_amount_max = 0.07
+	p.scale_amount_min = 0.7
+	p.scale_amount_max = 1.3
 	var q := QuadMesh.new()
-	q.size = Vector2(1, 1)
+	q.size = Vector2(0.06, 0.06)
 	var m := StandardMaterial3D.new()
 	m.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
 	m.billboard_mode = BaseMaterial3D.BILLBOARD_ENABLED
