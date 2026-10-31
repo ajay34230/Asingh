@@ -9,27 +9,27 @@ const C := TerrainBuilder.TOWN_C
 
 ## kind, speed (m/s), the road as a polyline (carts run out and back along it)
 const CARTS: Array = [
-	["bull", 1.9, [Vector2(-90, 12), Vector2(-60, 0), Vector2(-40, -20), Vector2(-28, -40), Vector2(-4, -42)]],
-	["camel", 2.2, [Vector2(40, -42), Vector2(70, -42), Vector2(100, -46), Vector2(112, -48)]],
+	["bull", 1.9, [Vector2(-88, 26), Vector2(-68, 24), Vector2(-58, 4), Vector2(-52, -18), Vector2(-40, -34), Vector2(-28, -40), Vector2(-4, -42)]],
+	["camel", 2.2, [Vector2(40, -42), Vector2(66, -42), Vector2(92, -45)]],
 	["donkey", 1.8, [Vector2(22, -20), Vector2(22, 4), Vector2(38, 30), Vector2(50, 46)]],
 	["bull", 1.6, [Vector2(22, -64), Vector2(22, -86), Vector2(8, -110)]],
 ]
 ## kind of animal, speed, road, and the rider's look
 const RIDERS: Array = [
-	["horse", 4.2, [Vector2(-86, 8), Vector2(-60, -2), Vector2(-38, -22), Vector2(-26, -40), Vector2(0, -42)], "guard"],
+	["horse", 4.2, [Vector2(-86, 26), Vector2(-68, 22), Vector2(-58, 2), Vector2(-52, -16), Vector2(-40, -32), Vector2(-26, -40), Vector2(0, -42)], "guard"],
 	["camel", 3.0, [Vector2(48, 44), Vector2(36, 28), Vector2(22, 2), Vector2(22, -20)], "trader"],
-	["horse_white", 4.6, [Vector2(44, -42), Vector2(78, -44), Vector2(108, -48)], "huntress"],
+	["horse_white", 4.6, [Vector2(44, -42), Vector2(70, -43), Vector2(92, -45)], "huntress"],
 ]
 ## travellers on foot: preset, road
 const WALKERS: Array = [
-	["farmer", [Vector2(-80, 14), Vector2(-60, 2), Vector2(-40, -18), Vector2(-28, -38)]],
-	["weaver", [Vector2(-28, -38), Vector2(-40, -18), Vector2(-62, 0), Vector2(-82, 14)]],
-	["shepherd", [Vector2(-20, -40), Vector2(-4, -43), Vector2(-24, -42), Vector2(-36, -24)]],
-	["worker2", [Vector2(48, -42), Vector2(80, -44), Vector2(104, -48), Vector2(80, -44)]],
+	["farmer", [Vector2(-80, 28), Vector2(-66, 24), Vector2(-58, 6), Vector2(-52, -16), Vector2(-28, -38)]],
+	["weaver", [Vector2(-28, -38), Vector2(-52, -16), Vector2(-60, 8), Vector2(-70, 25), Vector2(-82, 28)]],
+	["shepherd", [Vector2(-20, -40), Vector2(-4, -43), Vector2(-24, -42), Vector2(-40, -32)]],
+	["worker2", [Vector2(48, -42), Vector2(70, -43), Vector2(92, -45), Vector2(70, -43)]],
 	["lady_green", [Vector2(24, -18), Vector2(24, 4), Vector2(34, 22), Vector2(24, 4)]],
 	["villager_man", [Vector2(22, -66), Vector2(22, -84), Vector2(12, -104), Vector2(22, -84)]],
 	["merchant", [Vector2(40, 30), Vector2(26, 8), Vector2(24, -16), Vector2(26, 8)]],
-	["worker_woman", [Vector2(-56, 2), Vector2(-38, -20), Vector2(-58, 2), Vector2(-84, 12)]],
+	["worker_woman", [Vector2(-58, 6), Vector2(-52, -14), Vector2(-58, 6), Vector2(-76, 27)]],
 ]
 
 var main: Node3D

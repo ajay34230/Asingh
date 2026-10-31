@@ -44,7 +44,18 @@ func _process(delta: float) -> void:
 func _can_start() -> bool:
 	if story == null or not story.get_flag("intro_done") or story.get_flag("stampede_done"):
 		return false
-	return not (player.locked or player.dead or player.mounted)
+	if player.locked or player.dead or player.mounted or player.carried_by != null:
+		return false
+	var pp := Vector2(player.global_position.x, player.global_position.z)
+	if pp.distance_to(TerrainBuilder.TOWN_C) < 75.0 or pp.distance_to(TerrainBuilder.TRACK_C) < 75.0 or pp.distance_to(TerrainBuilder.FOREST_C) < 70.0:
+		return false
+	var rc: Object = main.get("race")
+	if rc != null and str(rc.get("state")) != "idle":
+		return false
+	for e in get_tree().get_nodes_in_group("enemies"):
+		if is_instance_valid(e) and not bool((e as Node).get("dead")) and (e as Node3D).global_position.distance_to(player.global_position) < 60.0:
+			return false
+	return true
 
 
 func step(delta: float) -> void:

@@ -72,8 +72,8 @@ const PATHS: Array = [
 	[Vector2(-90, 12), Vector2(-70, 50), Vector2(-40, 82), Vector2(-20, 96)],
 	[Vector2(-20, 96), Vector2(20, 70), Vector2(44, 44), Vector2(80, 110), Vector2(120, 160)],
 	[Vector2(-90, 12), Vector2(-110, -20), Vector2(-100, 38)],
-	[Vector2(-90, 12), Vector2(-60, 0), Vector2(-40, -20), Vector2(-28, -40), Vector2(-4, -42)],
-	[Vector2(40, -42), Vector2(70, -42), Vector2(100, -46), Vector2(112, -48)],
+	[Vector2(-88, 26), Vector2(-68, 24), Vector2(-58, 4), Vector2(-52, -18), Vector2(-40, -34), Vector2(-28, -40), Vector2(-4, -42)],
+	[Vector2(40, -42), Vector2(66, -42), Vector2(92, -45)],
 	[Vector2(22, -20), Vector2(22, 4), Vector2(38, 30), Vector2(50, 46)],
 	[Vector2(22, -64), Vector2(22, -86), Vector2(8, -110)],
 ]

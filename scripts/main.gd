@@ -1355,6 +1355,10 @@ func _selftest_stampede(fails: PackedStringArray, notes: PackedStringArray) -> v
 	if stampede == null:
 		fails.append("stampede: not built")
 		return
+	story.set_flag("intro_done", true)
+	player.global_position = Vector3(TerrainBuilder.TOWN_C.x, terrain.sample_height(TerrainBuilder.TOWN_C.x, TerrainBuilder.TOWN_C.y) + 0.4, TerrainBuilder.TOWN_C.y)
+	if stampede._can_start():
+		fails.append("stampede: would start inside the bazaar")
 	var coins0 := int(story.get_flag("coins", 0))
 	var hp0 := player.hp
 	player.locked = false
@@ -1447,6 +1451,29 @@ func _selftest_traffic(fails: PackedStringArray, notes: PackedStringArray) -> vo
 	for w in traffic.wagons:
 		if w.driver == null or not is_instance_valid(w.driver):
 			fails.append("traffic: a cart has no driver")
+	# no road may run through a hamlet house (sampled every 2 m, with a 1.5 m margin)
+	var roads: Array = []
+	for c in TrafficBuilder.CARTS:
+		roads.append(c[2])
+	for r in TrafficBuilder.RIDERS:
+		roads.append(r[2])
+	for wk in TrafficBuilder.WALKERS:
+		roads.append(wk[1])
+	var inside := 0
+	for rd in roads:
+		for i in (rd as Array).size() - 1:
+			var a2: Vector2 = rd[i]
+			var b2: Vector2 = rd[i + 1]
+			var steps2 := int(a2.distance_to(b2) / 2.0) + 1
+			for k in steps2 + 1:
+				var q2 := a2.lerp(b2, float(k) / steps2)
+				for hs in houses.houses:
+					var lp: Vector3 = (hs.node as Node3D).global_transform.affine_inverse() * Vector3(q2.x, (hs.node as Node3D).global_position.y, q2.y)
+					var half: Vector2 = hs.half
+					if absf(lp.x) < half.x + 1.5 and absf(lp.z) < half.y + 1.5:
+						inside += 1
+	if inside > 0:
+		fails.append("traffic: roads pass through hamlet houses at %d sample points" % inside)
 	# put the player in the road ahead of the first cart: it must stop; then move away: it must go on
 	var w0: Wagon = traffic.wagons[0]
 	var fwd := Vector3(-sin(w0.rotation.y), 0.0, -cos(w0.rotation.y))
