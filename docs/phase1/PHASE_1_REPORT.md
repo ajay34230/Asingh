@@ -97,3 +97,6 @@ New `scripts/night_life.gd`: the 6 nearest street lamps get a real flickering wa
 
 ## X6/X8 Footsteps and hit feel (31 Oct)
 Surface footsteps (wood/stone/leaf/water/mud/sand), screen shake and hit-pause already existed. Added `scripts/hit_fx.gd`: spark/dust burst on every enemy hit (bigger for kicks and hammer). Selftest PASS in software render; not seen on a device.
+
+## X3/X4 Ripples, butterflies, leaves (31 Oct)
+New `scripts/ambient_life.gd`: expanding ripple rings when stepping in water; daytime butterflies near pond/forest/town; drifting leaves in the forest. Rain already wets the ground (roughness). Selftest PASS (software render); the visuals are not checked on a device.

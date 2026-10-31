@@ -22,6 +22,8 @@ var footprints: Footprints
 var river: RiverBuilder
 var town: TownBuilder
 var night_life: NightLife
+var ambient_life: AmbientLife
+var sfx_node: Sfx
 var bazaar: BazaarQuest
 var town_houses: HouseBuilder
 var water: WaterBuilder
@@ -81,6 +83,7 @@ func _ready() -> void:
 		var hh: Vector2 = houses.houses[hi].half
 		Atmosphere.make_smoke(self, hn.global_transform * Vector3(hh.x * 0.55, 4.6, -hh.y * 0.35))
 	var sfx := Sfx.new().setup(player, houses)
+	sfx_node = sfx
 	sfx.main_ref = self
 	sfx.atmo = atmosphere
 	add_child(sfx)
@@ -795,6 +798,11 @@ func _build_story() -> void:
 	nl.points = town.lamp_points
 	add_child(nl)
 	night_life = nl
+	ambient_life = AmbientLife.new()
+	ambient_life.player = player
+	ambient_life.sfx = sfx_node
+	ambient_life.atmo = atmosphere
+	add_child(ambient_life)
 	npcs.append_array(town.npcs)
 	bazaar = BazaarQuest.new(self, story, hud, dlg, terrain, player, combat, town)
 	bazaar.build()
@@ -1267,6 +1275,16 @@ func _run_selftest() -> void:
 	await _selftest_map_route(fails, notes)
 	_selftest_cin_ground(fails)
 	_selftest_night_life(fails)
+	var rip := ambient_life.spawn_ripple(Vector3(0, 1, 0), 1.0)
+	if rip == null or ambient_life.ripples < 1:
+		fails.append("ambient life: ripple not spawned")
+	_teleport(TerrainBuilder.FOREST_C.x, TerrainBuilder.FOREST_C.y)
+	atmosphere.time_of_day = 0.5
+	atmosphere.apply_time()
+	ambient_life._zone_t = 0.0
+	ambient_life._process(0.1)
+	if not ambient_life.butterflies.emitting or not ambient_life.leaves.emitting:
+		fails.append("ambient life: forest butterflies/leaves not on by day")
 	var hfx := HitFx.burst(self, Vector3(0, 2, 0), true)
 	if hfx == null or not hfx.one_shot:
 		fails.append("hit fx burst missing")
