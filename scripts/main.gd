@@ -32,6 +32,7 @@ var shrines: Shrines
 var items: Items
 var rebuild: VillageRebuild
 var campaign: Campaign
+var festival: Festival
 var companion_sys: CompanionSystem
 var bazaar: BazaarQuest
 var town_houses: HouseBuilder
@@ -880,6 +881,11 @@ func _build_story() -> void:
 	campaign.cin = cin
 	add_child(campaign)
 	campaign.build()
+	festival = Festival.new()
+	festival.atmo = atmosphere
+	festival.hud = hud
+	festival.terrain = terrain
+	add_child(festival)
 	items = Items.new()
 	items.story = story
 	items.player = player
@@ -1343,6 +1349,24 @@ func _run_selftest() -> void:
 	await _selftest_map_route(fails, notes)
 	_selftest_cin_ground(fails)
 	_selftest_night_life(fails)
+	festival.day = 5
+	atmosphere.time_of_day = 0.8
+	festival.refresh()
+	var lit_l := 0
+	for l in festival.lanterns:
+		if l.visible:
+			lit_l += 1
+	if festival.kind != "lights" or lit_l != 24:
+		fails.append("festival lights not shown on day 5 evening (kind %s, lit %d)" % [festival.kind, lit_l])
+	atmosphere.time_of_day = 0.5
+	festival.refresh()
+	if festival.lanterns[0].visible:
+		fails.append("festival lights on at noon")
+	festival.day = 10
+	if festival.kind_for(10) != "colours" or festival.kind_for(7) != "":
+		fails.append("festival kinds wrong")
+	festival.day = 1
+	festival.refresh()
 	story.set_flag("intro_done", true)
 	story.set_flag("slot_test", 11)
 	if not menu.slot_save(3) or menu.slot_info(3) == "Empty":
