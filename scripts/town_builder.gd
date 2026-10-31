@@ -48,6 +48,7 @@ var _wall_mats := {}
 var _one_t := 2.0
 var _active := false
 var wash_spots: Array[Vector3] = []
+var lamp_points: Array[Vector3] = []   # world positions of street-lamp glass, used by NightLife
 
 
 func _init(t: TerrainBuilder, p: Player, s: Story) -> void:
@@ -224,6 +225,7 @@ func _lamps_and_bunting() -> void:
 		PropFactory.cylinder(root, 0.07, 0.1, 4.2, p + Vector3(0, 2.1, 0), iron, Vector3.ZERO, true, 8, 0, false)
 		PropFactory.sphere(root, 0.2, p + Vector3(0, 4.35, 0), glow)
 		tops.append(p + Vector3(0, 4.3, 0))
+		lamp_points.append(root.to_global(p + Vector3(0, 4.35, 0)))
 	var centre := Vector3(0, 3.35, 0)
 	for k in tops.size():
 		var tp := tops[k]

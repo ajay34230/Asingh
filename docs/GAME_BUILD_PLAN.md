@@ -56,3 +56,41 @@ Save v2 and GameState; desert, village, town bazaar, forest, pond, river and wat
 ## Execution order
 A1, S1, A2, B1-B3, S3, B4-B8, S2, C1-C7, S5, S4, D1-D5, S6, S7, A3, A4, F1-F3.
 Each step is committed and pushed on its own so a build is always available.
+
+# EXTRAS PLAN (added 31 Oct): small phases, each one committed, selftested and pushed alone
+Order is by value-for-risk. "Done" is only set after the selftest passes. Nothing is claimed as device-tested.
+
+## X-A Beauty
+- **X1 Night life:** lanterns with warm light pools and flicker, fireflies near water/forest at night.
+- **X2 Weather polish:** wet-ground sheen and puddle splashes in rain, morning mist, desert dust storm (rain/thunder exist).
+- **X3 Water:** shore foam, ripples when walking/riding through, moon and sky reflection tint.
+- **X4 Nature motion:** swaying grass/banners, drifting petals and leaves, daytime butterflies and birds.
+- **X5 Camera polish:** area title card, sun glare, cutscene depth-of-field, light shafts.
+## X-B Feel
+- **X6 Surface footsteps:** sand/stone/grass/wood/water sounds.
+- **X7 Reactive music:** calm explore, tense fight, gentle town; sitar/flute/tabla synthesised.
+- **X8 Hit feel:** screen shake, hit-pause, sparks and dust.
+- **X9 Faces and cloth:** blinking, dialogue expressions, eye-follow; sway for capes, scarves, turbans.
+## X-C Combat
+- **X10 Special moves:** charged strike, ground slam, thrown spear.
+- **X11 Enemy variety:** archer, shield-bearer, brute, ambusher.
+- **X12 Weapon styles:** sword/spear/axe/bow swings, mounted archery.
+- **X13 Finisher:** slow-motion last hit.
+- **X14 Boss phases:** new attack at half health plus intro shot (feeds B7/C7/D4).
+## X-D World
+- **X15 Fast travel shrines** unlocked from the map.
+- **X16 Secrets:** hidden caves, night-only ruins, pattern-door puzzles.
+- **X17 Wildlife ecosystem:** reactions, predators and prey, calming with food.
+- **X18 Day routines:** shops close, guard shifts, villagers sleep.
+- **X19 Seasons and festivals:** Diwali lights, Holi colours, monsoon.
+## X-E Player-friendly
+- **X20 Photo mode.** **X21 Tutorial hints.** **X22 Accessibility** (text size, colour-blind markers, subtitles).
+- **X23 Save slots and autosave indicator.** **X24 Achievements.**
+- **X25 Adaptive quality** (shadows, grass, view distance), FPS readout, haptics, controls layout editor.
+## X-F Fun
+- **X26 Mini-games:** pachisi/chess, kite flying, arena wrestling, archery, fishing.
+- **X27 Customisation:** outfit colours, headband, cloak, name your horse.
+- **X28 Bonus:** secret ending, hard mode after credits.
+## X-G Story
+- **X29 Journal/lore book and voiced recap.** **X30 Hindi menus/HUD.**
+(Acts 3-5 and S1-S7 stay as listed above.)

@@ -21,6 +21,7 @@ var traffic: TrafficBuilder
 var footprints: Footprints
 var river: RiverBuilder
 var town: TownBuilder
+var night_life: NightLife
 var bazaar: BazaarQuest
 var town_houses: HouseBuilder
 var water: WaterBuilder
@@ -788,6 +789,12 @@ func _build_story() -> void:
 	town = TownBuilder.new(terrain, player, story)
 	town.hb = town_houses
 	town.build(self)
+	var nl := NightLife.new()
+	nl.atmo = atmosphere
+	nl.player = player
+	nl.points = town.lamp_points
+	add_child(nl)
+	night_life = nl
 	npcs.append_array(town.npcs)
 	bazaar = BazaarQuest.new(self, story, hud, dlg, terrain, player, combat, town)
 	bazaar.build()
@@ -1259,6 +1266,7 @@ func _run_selftest() -> void:
 	await _selftest_powerfx(fails, notes)
 	await _selftest_map_route(fails, notes)
 	_selftest_cin_ground(fails)
+	_selftest_night_life(fails)
 	await _selftest_traffic(fails, notes)
 	await _selftest_hunt(fails, notes)
 	await _selftest_fight(fails, notes)
@@ -1393,6 +1401,29 @@ func _selftest_animal_acts(fails: PackedStringArray, notes: PackedStringArray) -
 		total += kinds.size()
 		a.queue_free()
 	notes.append("animals: %d species, %d distinct activities seen" % [Animal.ACTS.size(), total])
+
+
+func _selftest_night_life(fails: PackedStringArray) -> void:
+	if night_life == null or night_life.points.size() < 6:
+		fails.append("night life: lamp points missing")
+		return
+	var keep := atmosphere.time_of_day
+	atmosphere.time_of_day = 0.0
+	atmosphere.apply_time()
+	night_life._process(0.1)
+	var lit := 0
+	for l in night_life.lights:
+		if l.visible and l.light_energy > 0.1:
+			lit += 1
+	if lit < 1 or not night_life.flies.emitting:
+		fails.append("night life: nothing lit at midnight (lit %d)" % lit)
+	atmosphere.time_of_day = 0.5
+	atmosphere.apply_time()
+	night_life._process(0.1)
+	if night_life.flies.emitting:
+		fails.append("night life: fireflies out at noon")
+	atmosphere.time_of_day = keep
+	atmosphere.apply_time()
 
 
 func _selftest_cin_ground(fails: PackedStringArray) -> void:

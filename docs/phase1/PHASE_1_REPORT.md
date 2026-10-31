@@ -91,3 +91,6 @@ Waiting for your feedback on how it looks and plays on the S10 before applying m
 
 ## Addendum: tap-to-route on the map
 Open the full map and tap anywhere (taps near a landmark snap to it). A red dashed line is drawn from your arrow to the spot with the distance in metres, the same line and distance show on the minimap, and a glowing red column marks the spot in the world. Close map and Clear route buttons were added; the route clears itself within 6 m. Covered by a selftest; not tried on a device.
+
+## X1 Night life (31 Oct)
+New `scripts/night_life.gd`: the 6 nearest street lamps get a real flickering warm OmniLight (no shadows), fading in with `Atmosphere.night`; 28 fireflies follow the player at night. Selftest checks lit lamps and fireflies at midnight and none at noon. Software-render only; the look and frame cost on a phone are untested.
