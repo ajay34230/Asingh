@@ -450,5 +450,16 @@
  "Tap JUMP to leap. Tap ATTACK while falling for a ground slam.": "कूदने के लिए JUMP दबाओ। गिरते समय ATTACK दबाओ तो ज़मीनी वार होगा।",
  "Enemies near! Tap ATTACK to fight, BLOCK to guard, ROLL to dodge.": "दुश्मन पास हैं! लड़ने को ATTACK, बचाव को BLOCK, बचने को ROLL दबाओ।",
  "Walk up to an animal and tap USE to ride it.": "जानवर के पास जाकर USE दबाओ और सवारी करो।",
- "Open the map to tap a place and draw a route to it.": "नक्शा खोलो, जगह छुओ और रास्ता देखो।"
+ "Open the map to tap a place and draw a route to it.": "नक्शा खोलो, जगह छुओ और रास्ता देखो।",
+ "Shrine lit - fast travel unlocked": "मंदिर जला - तेज़ यात्रा खुली",
+ "Light a shrine by touching it to unlock fast travel.": "तेज़ यात्रा खोलने के लिए किसी चौकी को छूकर जलाओ।",
+ "Travel to a lit shrine. Not allowed during or just after a fight.": "जली हुई चौकी तक जाओ। लड़ाई के दौरान या तुरंत बाद नहीं।",
+ "Enemies are too close to travel.": "दुश्मन बहुत पास हैं, यात्रा नहीं हो सकती।",
+ "Bazaar Shrine": "बाज़ार चौकी",
+ "Pond Shrine": "तालाब चौकी",
+ "Forest Shrine": "जंगल चौकी",
+ "Ruins Shrine": "खंडहर चौकी",
+ "Fast travel": "तेज़ यात्रा",
+ "Light shrine": "चौकी जलाओ",
+ "Shrine (lit)": "चौकी (जली)"
 }

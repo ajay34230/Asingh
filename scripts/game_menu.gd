@@ -13,6 +13,7 @@ var main: Node3D
 var _inv: Label
 var _btn: Button
 var _jr: Label
+var _tr_box: VBoxContainer
 var _panel: PanelContainer
 var _pages: Dictionary = {}          # page name -> Control
 var _controls: Dictionary = {}       # setting key -> control, refreshed on reset
@@ -74,6 +75,7 @@ func _ready() -> void:
 	nav.add_child(_button("Resume", toggle))
 	nav.add_child(_button("Inventory", func() -> void: _show_page("Inventory")))
 	nav.add_child(_button("Journal", func() -> void: _show_page("Journal")))
+	nav.add_child(_button("Fast travel", func() -> void: _show_page("Travel")))
 	nav.add_child(_button("Photo mode", func() -> void:
 		toggle()
 		var pm: Object = main.get("photo_mode")
@@ -101,6 +103,7 @@ func _ready() -> void:
 	hb.add_child(stack)
 	_pages["Inventory"] = _build_inventory()
 	_pages["Journal"] = _build_journal()
+	_pages["Travel"] = _build_travel()
 	_pages["Settings"] = _build_settings()
 	_pages["Help"] = _build_help()
 	_pages["Confirm"] = _build_confirm()
@@ -127,6 +130,8 @@ func _show_page(n: String) -> void:
 		(_pages[k] as Control).visible = (k == n)
 	if n == "Inventory" and _inv != null:
 		_inv.text = _inventory_text()
+	if n == "Travel":
+		_fill_travel()
 	if n == "Journal" and _jr != null:
 		_jr.text = _journal_text()
 
@@ -149,6 +154,33 @@ func _heading(t: String) -> Label:
 	l.add_theme_font_size_override("font_size", 32)
 	l.add_theme_color_override("font_color", Color(0.95, 0.74, 0.32))
 	return l
+
+
+func _build_travel() -> Control:
+	var pg := _scroll_page("Fast travel")
+	_tr_box = pg[1]
+	return pg[0]
+
+
+func _fill_travel() -> void:
+	for c in _tr_box.get_children():
+		if not (c is Label and (c as Label).get_theme_font_size("font_size") == 32):
+			c.queue_free()
+	var sh: Shrines = main.get("shrines") as Shrines
+	var note := Label.new()
+	note.autowrap_mode = TextServer.AUTOWRAP_WORD
+	_tr_box.add_child(note)
+	if sh == null or sh.lit_list().is_empty():
+		note.text = Loc.t("Light a shrine by touching it to unlock fast travel.")
+		return
+	note.text = Loc.t("Travel to a lit shrine. Not allowed during or just after a fight.")
+	for s in sh.lit_list():
+		var id: String = s[0]
+		_tr_box.add_child(_button(Loc.t(String(s[1])), func() -> void:
+			if sh.travel(id):
+				toggle()
+			else:
+				note.text = Loc.t("Enemies are too close to travel.")))
 
 
 func _build_journal() -> Control:

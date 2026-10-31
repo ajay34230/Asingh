@@ -28,6 +28,7 @@ var area_title: AreaTitle
 var achievements: Achievements
 var hints: Hints
 var photo_mode: PhotoMode
+var shrines: Shrines
 var bazaar: BazaarQuest
 var town_houses: HouseBuilder
 var water: WaterBuilder
@@ -845,6 +846,14 @@ func _build_story() -> void:
 	achievements.atmo = atmosphere
 	achievements.hud = hud
 	add_child(achievements)
+	shrines = Shrines.new()
+	shrines.main = self
+	shrines.terrain = terrain
+	shrines.story = story
+	shrines.player = player
+	shrines.hud = hud
+	add_child(shrines)
+	shrines.build()
 	hints = Hints.new()
 	hints.player = player
 	hints.hud = hud
@@ -1295,6 +1304,19 @@ func _run_selftest() -> void:
 	await _selftest_map_route(fails, notes)
 	_selftest_cin_ground(fails)
 	_selftest_night_life(fails)
+	story.flags.erase("shrine_pond")
+	if shrines.lit_list().size() != 0 and shrines.is_lit("pond"):
+		fails.append("shrine should start unlit")
+	shrines.light("pond")
+	player._combat_t = 99.0
+	for e in get_tree().get_nodes_in_group("enemies"):
+		(e as Node3D).global_position += Vector3(0, 0, 500)
+	_teleport(0.0, 0.0)
+	var travelled: bool = shrines.travel("pond")
+	if not travelled or player.global_position.distance_to(Vector3(-60.0, player.global_position.y, 74.0)) > 6.0:
+		fails.append("fast travel to a lit shrine failed")
+	if shrines.travel("ruins") and not shrines.is_lit("ruins"):
+		fails.append("fast travel to an unlit shrine must be refused")
 	achievements.done.erase("chief")
 	story.set_flag("met_chief", true)
 	achievements._t = 0.0

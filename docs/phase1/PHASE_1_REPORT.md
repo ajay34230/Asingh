@@ -112,3 +112,6 @@ Enemy roles (`Enemy.apply_role`): shield (frontal punches/kicks do 25%), archer 
 
 ## X20/X21/X24/X29 Photo mode, hints, achievements, journal (31 Oct)
 `photo_mode.gd` (pause menu > Photo mode: hides controls/HUD, Take photo saves PNG to user://photos), `hints.gd` (six one-time tips), `achievements.gd` (10 milestones, saved in user://achievements.json, banner on unlock) and a pause-menu Journal page listing them. English and Hindi strings added. Selftest PASS (unlock from flag, hint once-only, photo mode hides/restores controls). Not done: save slots, colour-blind markers, lore-book entries.
+
+## X7 (already present), X15 Fast-travel shrines (31 Oct)
+X7: mood loops (tension/race/sacred/mystery) and day/night/village radio pools already existed. X15: `shrines.gd` places four stone shrines (bazaar, pond, forest, ruins); touching one lights it (saved as story flag) and adds it to the pause menu's Fast travel page. Travel is refused near enemies or within 6 s of combat. Selftest PASS. Shrine positions were chosen from terrain constants and not eye-checked for overlap with trees or buildings.
