@@ -16,6 +16,10 @@ var railway: RailwayBuilder
 var npcs: Array[Npc] = []
 var life: Array = []
 var mounts: MountSystem
+var stampede: Stampede
+var traffic: TrafficBuilder
+var footprints: Footprints
+var river: RiverBuilder
 var town: TownBuilder
 var town_houses: HouseBuilder
 var water: WaterBuilder
@@ -74,6 +78,7 @@ func _ready() -> void:
 		var hh: Vector2 = houses.houses[hi].half
 		Atmosphere.make_smoke(self, hn.global_transform * Vector3(hh.x * 0.55, 4.6, -hh.y * 0.35))
 	var sfx := Sfx.new().setup(player, houses)
+	sfx.main_ref = self
 	sfx.atmo = atmosphere
 	add_child(sfx)
 	_build_interactables()
@@ -91,6 +96,12 @@ func _ready() -> void:
 	for a in args:
 		if a.begins_with("--capture-fight="):
 			_run_capture_fight.call_deferred(a.trim_prefix("--capture-fight="))
+		elif a.begins_with("--capture-trees="):
+			_run_capture_trees.call_deferred(a.trim_prefix("--capture-trees="))
+		elif a.begins_with("--capture-menu="):
+			_run_capture_menu.call_deferred(a.trim_prefix("--capture-menu="))
+		elif a.begins_with("--capture-ride="):
+			_run_capture_ride.call_deferred(a.trim_prefix("--capture-ride="))
 		elif a.begins_with("--capture-town="):
 			_run_capture_town.call_deferred(a.trim_prefix("--capture-town="))
 		elif a.begins_with("--capture-race="):
@@ -340,6 +351,89 @@ func _selftest_weather(fails: PackedStringArray, notes: PackedStringArray) -> vo
 	notes.append("weather: ok")
 
 
+func _selftest_environment(fails: PackedStringArray, notes: PackedStringArray) -> void:
+	if river == null or footprints == null:
+		fails.append("environment: river/footprints not built")
+		return
+	# the river fills in rain and drains afterwards
+	river.wet = 0.0
+	atmosphere.rain = 1.0
+	river._process(20.0)
+	var filled := river.wet
+	atmosphere.rain = 0.0
+	river._process(60.0)
+	if filled < 0.3 or river.wet >= filled:
+		fails.append("environment: river wet %.2f then %.2f" % [filled, river.wet])
+	if not river.river_node.mesh.get_surface_count() > 0:
+		fails.append("environment: river mesh empty")
+	if river.fall_h < 20.0:
+		fails.append("environment: waterfall is not high above its base")
+	# footprints are placed and fade faster in rain
+	var before := footprints.count_made
+	footprints.put(player.global_position + Vector3(2, 0, 0), 0.0)
+	footprints._on_step(false)
+	if footprints.count_made < before + 1:
+		fails.append("environment: footprint not placed")
+	# lighting presets
+	for nm in Atmosphere.LIGHTS.keys():
+		atmosphere.apply_preset(nm)
+	atmosphere.apply_preset("Noon")
+	if absf(atmosphere.time_of_day - 0.5) > 0.01 or atmosphere.story_weather != "clear":
+		fails.append("environment: preset Noon not applied")
+	atmosphere.apply_preset("Fog")
+	if atmosphere.mist_target < 0.99:
+		fails.append("environment: fog preset did not set fog")
+	atmosphere.release_weather()
+	atmosphere.set_weather("clear", 0.01)
+	atmosphere.rain = 0.0
+	atmosphere.overcast = 0.0
+	atmosphere.mist = 0.0
+	var sf: Sfx = Sfx.instance
+	if sf != null:
+		sf._radio.stop()
+		sf._radio_gap = 0.0
+		sf._update_radio(0.1, 0.0, 100.0, 0.0)
+		if not sf.current_track.begins_with("music_day_") or not sf._radio.playing:
+			fails.append("music: playlist did not start a day track (%s)" % sf.current_track)
+		var first := sf.current_track
+		sf._radio.stop()
+		sf._radio_gap = 0.0
+		sf._update_radio(0.1, 0.0, 100.0, 0.0)
+		if sf.current_track == first:
+			fails.append("music: same track played twice in a row")
+		sf._radio.stop()
+		sf._radio_gap = 60.0
+	if sf != null:
+		var tc := TerrainBuilder.TOWN_C
+		var fc2 := TerrainBuilder.FOREST_C
+		var checks := [
+			["town", Vector3(tc.x, 0, tc.y), "stone", "town"],
+			["forest", Vector3(fc2.x + 5.0, 0, fc2.y), "leaf", "forest"],
+			["pond", Vector3(TerrainBuilder.POND_C.x, 0, TerrainBuilder.POND_C.y), "water", "pond"],
+			["open", Vector3(110, 0, 150), "sand", "desert"],
+		]
+		for c in checks:
+			var cp: Vector3 = c[1]
+			cp.y = terrain.sample_height(cp.x, cp.z)
+			if sf._surface_at(cp) != c[2]:
+				fails.append("footsteps: %s surface is %s, wanted %s" % [c[0], sf._surface_at(cp), c[2]])
+			if sf._zone_at(cp) != c[3]:
+				fails.append("ambience: %s zone is %s, wanted %s" % [c[0], sf._zone_at(cp), c[3]])
+		atmosphere.rain = 1.0
+		if sf._surface_at(Vector3(110, 0, 150)) != "mud":
+			fails.append("footsteps: wet ground should squelch")
+		atmosphere.rain = 0.0
+		river.wet = 1.0
+		var rp := Vector3(terrain.river_x(60.0), 0, 60.0)
+		if sf._surface_at(rp) != "water":
+			fails.append("footsteps: a full river should splash")
+		river.wet = 0.0
+		for sn in ["step_leaf_0", "step_water_1", "step_mud_1", "crow", "owl", "jackal", "frog", "peacock", "cat_meow"]:
+			if not ResourceLoader.exists("res://assets/audio/%s.wav" % sn):
+				fails.append("audio: %s missing" % sn)
+	notes.append("environment: river fills %.2f -> %.2f, %d footprints, 8 lighting presets" % [filled, river.wet, footprints.count_made])
+
+
 func _selftest_mount(fails: PackedStringArray, notes: PackedStringArray) -> void:
 	if mounts == null or int(mounts.get_meta("count", 0)) < 3:
 		fails.append("mount: too few rideable animals")
@@ -357,6 +451,15 @@ func _selftest_mount(fails: PackedStringArray, notes: PackedStringArray) -> void
 	if mounts.mount != a or not player.locked:
 		fails.append("mount: mounting failed")
 		return
+	# ride along whichever compass direction is clear of houses and trees for 14 m
+	var best_yaw := 0.0
+	for yaw in [0.0, PI * 0.5, PI, -PI * 0.5, PI * 0.25, -PI * 0.25, PI * 0.75, -PI * 0.75]:
+		var fw := Vector3(-sin(yaw), 0.0, -cos(yaw))
+		var from := a.global_position + Vector3(0, 0.8, 0)
+		if _ray(from, from + fw * 16.0).is_empty():
+			best_yaw = yaw
+			break
+	player.set_look(best_yaw, -0.05)
 	player.move_input = Vector2(0, -1)
 	player.sprint = true
 	for i in 90:
@@ -364,7 +467,7 @@ func _selftest_mount(fails: PackedStringArray, notes: PackedStringArray) -> void
 	var moved := a.global_position.distance_to(start)
 	var gy := terrain.sample_height(a.global_position.x, a.global_position.z)
 	if moved < 6.0:
-		fails.append("mount: horse barely moved (%.1f m)" % moved)
+		fails.append("mount: horse barely moved (%.1f m), blocked by %s" % [moved, mounts.last_block])
 	if absf(a.global_position.y - gy) > 0.3:
 		fails.append("mount: horse off ground")
 	var rd := player.global_position.y - a.global_position.y
@@ -649,6 +752,15 @@ func _build_story() -> void:
 	town.hb = town_houses
 	town.build(self)
 	npcs.append_array(town.npcs)
+	Animal.story_ref = story
+	river = RiverBuilder.new(terrain, player, atmosphere)
+	river.build(self)
+	footprints = Footprints.new(terrain, player, atmosphere)
+	footprints.build(self)
+	traffic = TrafficBuilder.new(self, terrain, player)
+	traffic.build()
+	stampede = Stampede.new(self, player, terrain, story)
+	add_child(stampede)
 	mounts = MountSystem.new(self, player, terrain)
 	mounts.build()
 	combat_hud = CombatHUD.new()
@@ -1099,6 +1211,11 @@ func _run_selftest() -> void:
 	_selftest_town(fails, notes)
 	_selftest_inventory(fails, notes)
 	_selftest_weather(fails, notes)
+	_selftest_environment(fails, notes)
+	_selftest_settings(fails, notes)
+	_selftest_animal_acts(fails, notes)
+	_selftest_stampede(fails, notes)
+	await _selftest_traffic(fails, notes)
 	await _selftest_hunt(fails, notes)
 	await _selftest_fight(fails, notes)
 
@@ -1194,6 +1311,269 @@ func _run_capture_fight(dir: String) -> void:
 			foe.rig.animate(1.0 / 60.0, 0.0, true)
 		await RenderingServer.frame_post_draw
 		print("[capture] ", r, " -> ", get_viewport().get_texture().get_image().save_png("%s/r_%s.png" % [dir, r]))
+	get_tree().quit()
+
+
+func _selftest_animal_acts(fails: PackedStringArray, notes: PackedStringArray) -> void:
+	var total := 0
+	for sp in Animal.ACTS.keys():
+		var a := Animal.new().setup(sp, terrain, player, Vector3.ZERO, 6.0)
+		add_child(a)
+		var px := TerrainBuilder.POND_C.x + 24.0
+		var pz := TerrainBuilder.POND_C.y
+		a.global_position = Vector3(px, terrain.sample_height(px, pz), pz)
+		a.home = a.global_position
+		var kinds := {}
+		var drank := false
+		for k in 60:
+			a._act = {}
+			if not a._start_act():
+				continue
+			kinds[str(a._act["n"])] = true
+			if str(a._act["n"]) == "drink":
+				drank = true
+			var steps := 0
+			while not a._act.is_empty() and steps < 900:
+				a._act_step(0.1)
+				steps += 1
+			if steps >= 900:
+				fails.append("animals: %s activity %s never finished" % [sp, a._act.get("n", "?")])
+				break
+			if not a.global_position.is_finite():
+				fails.append("animals: %s position became NaN" % sp)
+				break
+		if kinds.size() < 3:
+			fails.append("animals: %s only did %s" % [sp, ", ".join(kinds.keys())])
+		if Animal.ACTS[sp].any(func(e: Array) -> bool: return e[0] == "drink") and not drank:
+			fails.append("animals: %s never drank at the pond" % sp)
+		total += kinds.size()
+		a.queue_free()
+	notes.append("animals: %d species, %d distinct activities seen" % [Animal.ACTS.size(), total])
+
+
+func _selftest_stampede(fails: PackedStringArray, notes: PackedStringArray) -> void:
+	if stampede == null:
+		fails.append("stampede: not built")
+		return
+	var coins0 := int(story.get_flag("coins", 0))
+	var hp0 := player.hp
+	player.locked = false
+	player.mounted = false
+	player.global_position = Vector3(0, terrain.sample_height(0, 60) + 0.4, 60)
+	player.velocity = Vector3.ZERO
+	stampede.start()
+	if stampede.herd.size() != Stampede.HERD.size():
+		fails.append("stampede: herd of %d" % stampede.herd.size())
+		return
+	var hurt := false
+	var steps := 0
+	while stampede.state != "fight" and steps < 1500:
+		stampede.step(0.1)
+		steps += 1
+		if stampede.state == "run" and not hurt and not stampede.herd.is_empty():
+			var h: Animal = stampede.herd[0]
+			if h.global_position.distance_to(player.global_position) < 14.0:
+				player.global_position = h.global_position + stampede._dir * 1.5
+				player._invuln = 0.0
+				stampede._hurt_cd = 0.0
+				stampede.step(0.05)
+				hurt = player.hp < hp0
+				if not hurt:
+					fails.append("stampede: standing in the herd did no damage")
+					break
+		if not stampede.herd.is_empty() and not stampede.herd[0].global_position.is_finite():
+			fails.append("stampede: herd position NaN")
+			break
+	if stampede.state != "fight":
+		fails.append("stampede: never reached the fight (state %s after %d steps)" % [stampede.state, steps])
+		return
+	if stampede.raiders.size() != 4:
+		fails.append("stampede: %d raiders" % stampede.raiders.size())
+	for e in stampede.raiders:
+		if is_instance_valid(e):
+			e._die("punch", Vector3.ZERO)
+	stampede.step(0.1)
+	if stampede.state != "done" or not story.get_flag("stampede_done") or int(story.get_flag("coins", 0)) != coins0 + 120:
+		fails.append("stampede: reward not given (state %s)" % stampede.state)
+	var rideable := 0
+	for n in get_children():
+		if n is Animal and (n as Animal).species == "horse_white":
+			for c in n.get_children():
+				if c is Interactable:
+					rideable += 1
+	if rideable < 1:
+		fails.append("stampede: no rideable horse left behind")
+	notes.append("stampede: %d steps to the fight, herd of %d, damage %s, reward ok" % [steps, Stampede.HERD.size(), str(hurt)])
+	player.hp = player.max_hp
+	story.set_flag("stampede_done", false)
+	story.flags["coins"] = coins0
+	player.global_position = Vector3(TerrainBuilder.START_MOUND.x, terrain.sample_height(TerrainBuilder.START_MOUND.x, TerrainBuilder.START_MOUND.y) + 0.4, TerrainBuilder.START_MOUND.y)
+
+
+func _run_capture_trees(dir: String) -> void:
+	DirAccess.make_dir_recursive_absolute(dir)
+	touch.visible = false
+	atmosphere.time_of_day = 0.4
+	atmosphere.apply_time()
+	var fc := TerrainBuilder.FOREST_C
+	var shots := [
+		["forest_in", Vector3(fc.x + 26.0, 0.0, fc.y + 30.0), Vector3(fc.x, 3.5, fc.y), -0.08],
+		["forest_far", Vector3(fc.x + 70.0, 0.0, fc.y + 70.0), Vector3(fc.x, 5.0, fc.y), -0.1],
+		["pond_trees", Vector3(-34.0, 0.0, 78.0), Vector3(-70.0, 3.0, 40.0), -0.05],
+		["oasis_close", Vector3(-100.0, 0.0, 60.0), Vector3(-130.0, 2.0, 30.0), -0.02],
+	]
+	for s in shots:
+		var sp: Vector3 = s[1]
+		player.set_distance(4.0)
+		player.global_position = Vector3(sp.x, terrain.sample_height(sp.x, sp.z) + 0.4, sp.z)
+		player.velocity = Vector3.ZERO
+		player.locked = true
+		_look_at_point(s[2], s[3])
+		for i in 60:
+			await get_tree().process_frame
+		await RenderingServer.frame_post_draw
+		print("[capture] ", s[0], " -> ", get_viewport().get_texture().get_image().save_png("%s/%s.png" % [dir, s[0]]))
+	get_tree().quit()
+
+
+func _selftest_traffic(fails: PackedStringArray, notes: PackedStringArray) -> void:
+	if traffic == null:
+		fails.append("traffic: not built")
+		return
+	while not traffic.done:
+		await get_tree().process_frame
+	if traffic.wagons.size() < 4 or traffic.riders.size() < 3 or traffic.walkers.size() < 8:
+		fails.append("traffic: %d carts, %d riders, %d walkers" % [traffic.wagons.size(), traffic.riders.size(), traffic.walkers.size()])
+	for w in traffic.wagons:
+		if w.driver == null or not is_instance_valid(w.driver):
+			fails.append("traffic: a cart has no driver")
+	# put the player in the road ahead of the first cart: it must stop; then move away: it must go on
+	var w0: Wagon = traffic.wagons[0]
+	var fwd := Vector3(-sin(w0.rotation.y), 0.0, -cos(w0.rotation.y))
+	player.global_position = w0.global_position + fwd * 4.0
+	var s0 := w0._s
+	for i in 10:
+		w0._process(0.1)
+	if not w0.blocked or absf(w0._s - s0) > 0.01:
+		fails.append("traffic: cart did not stop for the player in the road")
+	player.global_position = w0.global_position + fwd * 40.0 + Vector3(0, 0, 40)
+	for i in 10:
+		w0._process(0.1)
+	if w0.blocked or w0._s <= s0:
+		fails.append("traffic: cart did not resume")
+	# everything moves and stays finite over a simulated minute
+	var start_r: Array[Vector3] = []
+	for t in traffic.riders:
+		start_r.append(t.animal.position)
+	player.global_position = Vector3(60, terrain.sample_height(60, 20) + 0.4, 20)
+	for i in 300:
+		for w in traffic.wagons:
+			w._process(0.2)
+		for t in traffic.riders:
+			t._process(0.2)
+	for k in traffic.riders.size():
+		var t: Traveller = traffic.riders[k]
+		if not t.animal.position.is_finite():
+			fails.append("traffic: rider %d NaN" % k)
+		elif t.animal.position.distance_to(start_r[k]) < 1.0 and t._s == 0.0:
+			fails.append("traffic: rider %d never moved" % k)
+	for w in traffic.wagons:
+		if not w.position.is_finite():
+			fails.append("traffic: cart NaN")
+	notes.append("traffic: %d carts with drivers, %d riders, %d walkers" % [traffic.wagons.size(), traffic.riders.size(), traffic.walkers.size()])
+	player.global_position = Vector3(TerrainBuilder.START_MOUND.x, terrain.sample_height(TerrainBuilder.START_MOUND.x, TerrainBuilder.START_MOUND.y) + 0.4, TerrainBuilder.START_MOUND.y)
+
+
+func _run_capture_menu(dir: String) -> void:
+	DirAccess.make_dir_recursive_absolute(dir)
+	touch.visible = false
+	await get_tree().process_frame
+	menu.toggle()
+	var shots := [["inventory", "Inventory", -1], ["audio", "Settings", 0], ["video", "Settings", 1], ["controls", "Settings", 2], ["gameplay", "Settings", 3], ["help", "Help", -1]]
+	for s in shots:
+		menu._show_page(s[1])
+		if int(s[2]) >= 0:
+			((menu._pages["Settings"]) as TabContainer).current_tab = int(s[2])
+		for i in 8:
+			await get_tree().process_frame
+		await RenderingServer.frame_post_draw
+		print("[capture] menu ", s[0], " -> ", get_viewport().get_texture().get_image().save_png("%s/menu_%s.png" % [dir, s[0]]))
+	get_tree().quit()
+
+
+func _selftest_settings(fails: PackedStringArray, notes: PackedStringArray) -> void:
+	for b in GameSettings.BUSES:
+		if AudioServer.get_bus_index(b) < 0:
+			fails.append("settings: audio bus %s missing" % b)
+	GameSettings.set_value("vol_music", 0.5)
+	if absf(AudioServer.get_bus_volume_db(AudioServer.get_bus_index("Music")) - linear_to_db(0.5)) > 0.1:
+		fails.append("settings: music volume not applied to its bus")
+	GameSettings.set_value("difficulty", 2)
+	if absf(GameSettings.damage_scale() - 1.5) > 0.01:
+		fails.append("settings: hard difficulty scale %.2f" % GameSettings.damage_scale())
+	GameSettings.set_value("tracker", false)
+	if hud._tracker.visible:
+		fails.append("settings: tracker toggle did nothing")
+	GameSettings.set_value("lefty", true)
+	if not bool(touch.get("left_handed")):
+		fails.append("settings: left-handed layout not applied")
+	GameSettings.set_value("sens_y", 2.0)
+	if absf(player.look_sens_y - 2.0) > 0.01:
+		fails.append("settings: vertical look speed not applied")
+	GameSettings.set_value("aa", 3)
+	if get_viewport().msaa_3d != Viewport.MSAA_4X:
+		fails.append("settings: MSAA not applied")
+	GameSettings.set_value("brightness", 1.3)
+	if absf(atmosphere.environment.adjustment_brightness - 1.3) > 0.01:
+		fails.append("settings: brightness not applied")
+	player.locked = false
+	player._attack_cd = 0.0
+	player.attack()
+	if player._attack_cd <= 0.0:
+		fails.append("controls: the HIT button did nothing outside a race")
+	player._attack_cd = 0.0
+	var shown := menu._controls.size()
+	if shown != GameSettings.SPEC.size():
+		fails.append("settings: menu shows %d of %d options" % [shown, GameSettings.SPEC.size()])
+	# values survive a save and reload
+	GameSettings.set_value("vol_sfx", 0.35)
+	GameSettings.load_file()
+	if absf(float(GameSettings.get_v("vol_sfx")) - 0.35) > 0.001:
+		fails.append("settings: saved value did not reload")
+	GameSettings.reset_tab("")
+	GameSettings.apply_all()
+	notes.append("settings: %d options in %d tabs, 5 audio buses, save/reload ok" % [GameSettings.SPEC.size(), GameSettings.TABS.size()])
+
+
+func _run_capture_ride(arg: String) -> void:
+	var parts := arg.split("|")
+	var dir := parts[0]
+	var only: String = parts[1] if parts.size() > 1 else ""
+	DirAccess.make_dir_recursive_absolute(dir)
+	touch.visible = false
+	atmosphere.time_of_day = 0.42
+	atmosphere.apply_time()
+	var seen := {}
+	for l in life:
+		var an := l as Animal
+		if an == null or not MountSystem.RIDEABLE.has(an.species) or seen.has(an.species) or (only != "" and an.species != only):
+			continue
+		seen[an.species] = true
+		an.driven = true
+		var p := an.global_position + Vector3(2.0, 0.0, 0.0)
+		player.global_position = Vector3(p.x, terrain.sample_height(p.x, p.z) + 0.4, p.z)
+		player.locked = false
+		mounts.mount_animal(an)
+		for i in 40:
+			await get_tree().process_frame
+		player.set_distance(6.0)
+		for view in ([["side", PI * 0.5]] if only != "" else [["side", PI * 0.5], ["back", 0.0]]):
+			player.set_look(mounts._heading + float(view[1]), -0.05)
+			for i in 30:
+				await get_tree().process_frame
+			await RenderingServer.frame_post_draw
+			print("[capture] ", an.species, view[0], " -> ", get_viewport().get_texture().get_image().save_png("%s/%s_%s.png" % [dir, an.species, view[0]]))
+		mounts.dismount()
 	get_tree().quit()
 
 

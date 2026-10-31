@@ -473,9 +473,12 @@ func _on_destroyed(r: CartRacer) -> void:
 		hud.banner("Your cart is wrecked!", "enemy_down")
 
 
-func _player_attack() -> void:
+## Returns true when the race took the button press (only while racing); otherwise HIT works as normal.
+func _player_attack() -> bool:
 	if state == "racing" and mine != null:
 		mine.attack(racers)
+		return true
+	return false
 
 
 func _physics_process(delta: float) -> void:

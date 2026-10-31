@@ -14,14 +14,18 @@ var houses: HouseBuilder
 var _cache: Dictionary = {}
 var _pool: Array[AudioStreamPlayer3D] = []
 var _pool_i := 0
-var _music: AudioStreamPlayer
+var _radio: AudioStreamPlayer      # the long ambient tracks, played one at a time with silent gaps
+var _radio_gap := 5.0
+var _radio_last := ""
+var _radio_fade := 0.0
+var _mood_run := 0.0              # how long the current situation music has played
+var _mood_rest := 0.0
+var current_track := ""
 var _wind: AudioStreamPlayer
 var _crickets: AudioStreamPlayer
 var _room: AudioStreamPlayer
 var _pad: AudioStreamPlayer
 var _rain_loop: AudioStreamPlayer
-var _music_night: AudioStreamPlayer
-var _music_village: AudioStreamPlayer
 var _bell_t := 30.0
 var _chime_t := 10.0
 var atmo: Atmosphere:
@@ -44,6 +48,7 @@ var _fall_v := 0.0
 func setup(p: Player, h: HouseBuilder) -> Sfx:
 	instance = self
 	name = "Sfx"
+	GameSettings.ensure_buses()
 	player = p
 	houses = h
 	_rng.randomize()
@@ -53,21 +58,26 @@ func setup(p: Player, h: HouseBuilder) -> Sfx:
 		a.max_distance = 70.0
 		a.unit_size = 6.0
 		a.attenuation_model = AudioStreamPlayer3D.ATTENUATION_INVERSE_DISTANCE
+		a.bus = "SFX"
 		add_child(a)
 		_pool.append(a)
-	_music = _loop_player("music_desert", -12.0)
+	_radio = AudioStreamPlayer.new()
+	_radio.volume_db = -80.0
+	_radio.bus = "Music"
+	add_child(_radio)
 	_wind = _loop_player("wind_loop", -10.0)
-	_pad = _loop_player("ambient_pad", -15.0)
+	_pad = _loop_player("ambient_pad", -27.0)
 	_rain_loop = _loop_player("rain_loop", -80.0)
-	_music_night = _loop_player("music_night", -60.0)
-	_music_village = _loop_player("music_village", -60.0)
 	_crickets = _loop_player("crickets_loop", -24.0)
 	_room = _loop_player("room_tone", -80.0)
 	_ui = AudioStreamPlayer.new()
+	_ui.bus = "SFX"
 	add_child(_ui)
 	_clip_ui = AudioStreamPlayer.new()
+	_clip_ui.bus = "Voice"
 	add_child(_clip_ui)
 	_clip_3d = AudioStreamPlayer3D.new()
+	_clip_3d.bus = "Voice"
 	_clip_3d.max_distance = 22.0
 	_clip_3d.unit_size = 5.0
 	_clip_3d.attenuation_model = AudioStreamPlayer3D.ATTENUATION_INVERSE_DISTANCE
@@ -94,6 +104,7 @@ func _loop_player(n: String, db: float) -> AudioStreamPlayer:
 	var a := AudioStreamPlayer.new()
 	a.stream = s
 	a.volume_db = db
+	a.bus = "Ambience"
 	a.autoplay = true            # Sfx is not in the tree yet during setup(): start when it enters it
 	add_child(a)
 	if a.is_inside_tree():
@@ -151,6 +162,13 @@ static func speak(voice: String, text: String, pos_node: Node3D, db: float = 0.0
 	if pos_node == null:
 		return
 	instance._speak(voice, text, pos_node, db)
+
+
+## Ambient chatter (greetings, barks, market cries): plays a pre-recorded clip only. When no clip exists it
+## stays silent rather than falling back to robotic phone speech or babble blips.
+static func bark(voice: String, text: String, node: Node3D) -> void:
+	if instance != null and instance.voices_on:
+		instance._say_clip(voice, text, node, false)
 
 
 static func stop_speech() -> void:
@@ -294,6 +312,7 @@ var mood_override := ""
 var _mood_players := {}
 var _duck := 0.0
 var _sting_p: AudioStreamPlayer
+var _intro_p: AudioStreamPlayer
 var _sting_t := 0.0
 var mood_now := ""
 
@@ -303,11 +322,35 @@ static func set_mood(m: String) -> void:
 		instance.mood_override = m
 
 
+## Old-style intro theme under the opening cinematic; ambient music ducks, and it fades out when the cinematic ends.
+static func intro_music() -> void:
+	if instance == null:
+		return
+	if instance._intro_p == null:
+		instance._intro_p = AudioStreamPlayer.new()
+		instance._intro_p.bus = "Music"
+		instance.add_child(instance._intro_p)
+	instance._intro_p.stream = instance._stream("music_intro")
+	instance._intro_p.volume_db = -4.0
+	instance._intro_p.play()
+	instance._sting_t = 27.0
+
+
+static func stop_intro() -> void:
+	if instance == null or instance._intro_p == null or not instance._intro_p.playing:
+		return
+	var tw := instance.create_tween()
+	tw.tween_property(instance._intro_p, "volume_db", -60.0, 2.0)
+	tw.tween_callback(instance._intro_p.stop)
+	instance._sting_t = 1.0
+
+
 static func sting(n: String, db: float = -3.0) -> void:
 	if instance == null:
 		return
 	if instance._sting_p == null:
 		instance._sting_p = AudioStreamPlayer.new()
+		instance._sting_p.bus = "Music"
 		instance.add_child(instance._sting_p)
 	instance._sting_p.stream = instance._stream("sting_" + n)
 	instance._sting_p.volume_db = db
@@ -330,15 +373,65 @@ func _auto_mood() -> String:
 	return ""
 
 
+## Long ambient tracks (about 2.5 minutes each, never the same one twice running) with 30-80 s of quiet
+## between them, so the music comes and goes instead of droning on. Night, village and open-land pools.
+const RADIO_DAY := ["music_day_1", "music_day_2", "music_day_3"]
+const RADIO_NIGHT := ["music_night_1", "music_night_2"]
+const RADIO_VILLAGE := ["music_village_1", "music_village_2"]
+
+
+func _radio_pick(night: float, near_house: float) -> String:
+	var pool: Array = RADIO_NIGHT if night > 0.5 else (RADIO_VILLAGE if near_house < 45.0 else RADIO_DAY)
+	var opts: Array = pool.filter(func(n: String) -> bool: return n != _radio_last)
+	return opts[_rng.randi() % opts.size()]
+
+
+func _update_radio(delta: float, night: float, near_house: float, duck: float) -> void:
+	if not _radio.playing:
+		current_track = ""
+		_radio.volume_db = -80.0
+		_radio_gap -= delta
+		if _radio_gap <= 0.0:
+			var n := _radio_pick(night, near_house)
+			_radio_last = n
+			current_track = n
+			_radio.stream = load(DIR + n + ".ogg") as AudioStream
+			_radio_fade = 0.0
+			_radio.play()
+			_radio_gap = _rng.randf_range(30.0, 80.0)
+		return
+	var len_s := _radio.stream.get_length()
+	var pos := _radio.get_playback_position()
+	_radio_fade = minf(1.0, _radio_fade + delta / 4.0)
+	var out := clampf((len_s - pos) / 5.0, 0.0, 1.0)
+	var vol := linear_to_db(maxf(0.0001, _radio_fade * out)) + (-17.0 if night > 0.5 else -13.0) - duck
+	_radio.volume_db = vol
+
+
 func _update_mood(delta: float) -> void:
 	if _mood_players.is_empty():
 		for m in MOODS:
 			_mood_players[m] = _loop_player("music_" + m, -80.0)
+			(_mood_players[m] as AudioStreamPlayer).bus = "Music"
+	var prev_mood := mood_now
 	mood_now = _auto_mood()
+	if mood_now != prev_mood:
+		_mood_run = 0.0
+		_mood_rest = 0.0
+	elif mood_now != "" and mood_now != "race":
+		# situation music breathes: about 75 s on, 60 s of rest, so a short loop never wears thin
+		if _mood_rest > 0.0:
+			_mood_rest -= delta
+			if _mood_rest <= 0.0:
+				_mood_run = 0.0
+		else:
+			_mood_run += delta
+			if _mood_run > 75.0:
+				_mood_rest = 60.0
 	var any := false
 	for m in MOODS:
 		var pl: AudioStreamPlayer = _mood_players[m]
-		var want := -8.0 if m == mood_now else -70.0
+		var want := (-8.0 if _mood_rest <= 0.0 else -60.0) if m == mood_now else -70.0
 		if m == mood_now:
 			any = true
 		pl.volume_db = lerpf(pl.volume_db, want, 1.0 - exp(-(1.2 if m == mood_now else 0.8) * delta))
@@ -351,20 +444,72 @@ func _update_mood(delta: float) -> void:
 	_duck = lerpf(_duck, duck_t, 1.0 - exp(-1.5 * delta))
 
 
-func _on_step(run: bool) -> void:
-	var wood := false
+## Where the player is standing, for footsteps and ambience: wood, stone, leaf, water, mud, sand.
+## Also sets `zone` (forest, town, pond, river, ruins, desert) which colours the surrounding sound.
+var zone := "desert"
+var main_ref: Node3D = null
+
+
+func _surface_at(p: Vector3) -> String:
 	if houses != null:
 		for hs in houses.houses:
 			var n: Node3D = hs.node
-			var lp := n.global_transform.affine_inverse() * player.global_position
+			var lp := n.global_transform.affine_inverse() * p
 			var half: Vector2 = hs.half
 			if absf(lp.x) < half.x and absf(lp.z) < half.y and lp.y > -0.5 and lp.y < 3.5:
-				wood = true
-				break
+				return "wood"
+	var p2 := Vector2(p.x, p.z)
+	if p2.distance_to(TerrainBuilder.TOWN_C) < 17.0:
+		return "stone"
+	if p.z < -118.0 and absf(p.x) < 45.0:
+		return "stone"
+	var rv: Object = main_ref.get("river") if main_ref != null else null
+	if rv != null and float(rv.get("wet")) > 0.2 and p.z > RiverBuilder.Z_TOP and p.z < RiverBuilder.Z_END:
+		var tr: TerrainBuilder = main_ref.get("terrain") as TerrainBuilder
+		if tr != null and absf(p.x - tr.river_x(p.z)) < RiverBuilder.WIDTH * 0.5:
+			return "water"
+	var pd := p2.distance_to(TerrainBuilder.POND_C)
+	if pd < TerrainBuilder.POND_R + 0.5:
+		return "water"
+	if p2.distance_to(TerrainBuilder.FOREST_C) < TerrainBuilder.FOREST_R:
+		return "leaf"
+	if atmo != null and atmo.rain > 0.45:
+		return "mud"
+	return "sand"
+
+
+func _zone_at(p: Vector3) -> String:
+	var p2 := Vector2(p.x, p.z)
+	if p2.distance_to(TerrainBuilder.TOWN_C) < 40.0:
+		return "town"
+	if p2.distance_to(TerrainBuilder.FOREST_C) < TerrainBuilder.FOREST_R + 12.0:
+		return "forest"
+	if p2.distance_to(TerrainBuilder.POND_C) < TerrainBuilder.POND_R + 25.0:
+		return "pond"
+	if p.z < -118.0 and absf(p.x) < 55.0:
+		return "ruins"
+	var tr: TerrainBuilder = main_ref.get("terrain") as TerrainBuilder if main_ref != null else null
+	if tr != null and absf(p.x - tr.river_x(p.z)) < 22.0 and p.z > -170.0 and p.z < 190.0:
+		return "river"
+	return "desert"
+
+
+func _on_step(run: bool) -> void:
 	var p := player.global_position
-	var stone := p.z < -118.0 and absf(p.x) < 45.0
-	var kind := "step_wood_%d" % _rng.randi_range(0, 2) if wood else ("step_stone_%d" % _rng.randi_range(0, 2) if stone else "step_sand_%d" % _rng.randi_range(0, 3))
+	var surf := _surface_at(p)
+	var kind := ""
+	match surf:
+		"wood": kind = "step_wood_%d" % _rng.randi_range(0, 2)
+		"stone": kind = "step_stone_%d" % _rng.randi_range(0, 2)
+		"leaf": kind = "step_leaf_%d" % _rng.randi_range(0, 2)
+		"water": kind = "step_water_%d" % _rng.randi_range(0, 2)
+		"mud": kind = "step_mud_%d" % _rng.randi_range(0, 1)
+		_: kind = "step_sand_%d" % _rng.randi_range(0, 3)
+	last_surface = surf
 	_play3d(kind, p, -2.0 if run else -5.0, _rng.randf_range(0.92, 1.08) * (1.1 if run else 1.0))
+
+
+var last_surface := "sand"
 
 
 func _process(delta: float) -> void:
@@ -395,9 +540,7 @@ func _process(delta: float) -> void:
 				near_pos = hn.global_position
 	_update_mood(delta)
 	var duck := _duck
-	_music.volume_db = lerpf(_music.volume_db, lerpf(-12.0, -42.0, night0) - (6.0 if near_house < 40.0 else 0.0) - duck, k)
-	_music_night.volume_db = lerpf(_music_night.volume_db, lerpf(-48.0, -12.0, night0) - duck, k)
-	_music_village.volume_db = lerpf(_music_village.volume_db, ((-15.0 - night0 * 8.0) if near_house < 45.0 else -52.0) - duck, k * 0.5)
+	_update_radio(delta, night0, near_house, duck)
 	_bell_t -= delta
 	if _bell_t <= 0.0:
 		_bell_t = _rng.randf_range(50.0, 100.0)
@@ -408,13 +551,40 @@ func _process(delta: float) -> void:
 		if near_house < 35.0 and not indoors:
 			_play3d("wind_chime_%d" % _rng.randi_range(0, 2), near_pos + Vector3(0, 3.2, 0), -6.0, _rng.randf_range(0.95, 1.05))
 	var gust := (atmo.wind - 0.4) * 14.0 if atmo != null else 0.0
-	_wind.volume_db = lerpf(_wind.volume_db, (-22.0 if indoors else -10.0) + (gust * (0.3 if indoors else 1.0)), k)
+	var zone_wind := {"forest": -6.0, "pond": -3.0, "river": -2.0, "town": -7.0, "ruins": 3.0, "desert": 0.0}[zone] as float
+	_wind.volume_db = lerpf(_wind.volume_db, (-22.0 if indoors else -10.0 + zone_wind) + (gust * (0.3 if indoors else 1.0)), k)
 	var night := atmo.night if atmo != null else 0.0
 	_crickets.volume_db = lerpf(_crickets.volume_db, -60.0 if indoors else lerpf(-34.0, -14.0, night), k)
 	_room.volume_db = lerpf(_room.volume_db, -16.0 if indoors else -80.0, k)
+	zone = _zone_at(player.global_position)
 	_bird_t -= delta
-	if _bird_t <= 0.0 and not indoors and (atmo == null or atmo.night < 0.5):
-		_bird_t = _rng.randf_range(5.0, 13.0)
+	var nightly := atmo != null and atmo.night >= 0.5
+	var zk := {"forest": 0.45, "pond": 0.6, "river": 0.8, "town": 1.3, "ruins": 2.2, "desert": 1.5}[zone] as float
+	if _bird_t <= 0.0 and not indoors:
+		_bird_t = _rng.randf_range(5.0, 13.0) * zk
 		var ang := _rng.randf() * TAU
 		var d := _rng.randf_range(14.0, 40.0)
-		_play3d("bird_%d" % _rng.randi_range(0, 4), player.global_position + Vector3(cos(ang) * d, 7.0, sin(ang) * d), -5.0, _rng.randf_range(0.9, 1.15))
+		var base := player.global_position + Vector3(cos(ang) * d, 7.0, sin(ang) * d)
+		if not nightly:
+			var r := _rng.randf()
+			if zone == "forest" and r < 0.25:
+				_play3d("crow", base, -4.0, _rng.randf_range(0.9, 1.1))
+			elif (zone == "pond" or zone == "town") and r < 0.2:
+				_play3d("peacock", base, -4.0, _rng.randf_range(0.95, 1.05))
+			elif zone == "town" and r < 0.3:
+				_play3d("cat_meow", player.global_position + Vector3(cos(ang) * 12.0, 0.4, sin(ang) * 12.0), -6.0, _rng.randf_range(0.9, 1.15))
+			elif zone != "ruins":
+				_play3d("bird_%d" % _rng.randi_range(0, 4), base, -5.0, _rng.randf_range(0.9, 1.15))
+			else:
+				_play3d("crow", base, -6.0, _rng.randf_range(0.8, 0.95))
+		else:
+			var r2 := _rng.randf()
+			if zone == "pond" or zone == "river":
+				var pc := Vector3(TerrainBuilder.POND_C.x + cos(ang) * 14.0, 0.3, TerrainBuilder.POND_C.y + sin(ang) * 14.0) if zone == "pond" else base - Vector3(0, 6.5, 0)
+				_play3d("frog", pc, -4.0, _rng.randf_range(0.85, 1.2))
+			elif r2 < 0.45:
+				_play3d("owl", base + Vector3(0, 3, 0), -5.0, _rng.randf_range(0.9, 1.1))
+			elif r2 < 0.7 and zone != "town":
+				_play3d("jackal", player.global_position + Vector3(cos(ang) * 55.0, 1.0, sin(ang) * 55.0), -4.0, _rng.randf_range(0.9, 1.1))
+			else:
+				_play3d("dog_bark_%d" % _rng.randi_range(0, 2), player.global_position + Vector3(cos(ang) * 38.0, 0.5, sin(ang) * 38.0), -9.0, _rng.randf_range(0.8, 1.0))

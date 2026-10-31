@@ -124,10 +124,10 @@ func _trees() -> void:
 			bushes.append(t)
 		else:
 			grass.append(t)
-	Flora.scatter_cells(_root, Flora.acacia_mesh(), Flora.sway_material("acacia", 0.006, 0.9), acacias, "SalTree", "foliage_palm", 60.0)
-	Flora.scatter_cells(_root, Flora.palm_mesh(), Flora.sway_material("palm", 0.012, 1.1), palms, "SalPalm", "foliage_palm", 60.0)
-	Flora.scatter_cells(_root, Flora.dead_tree_mesh(), Flora.sway_material("dead", 0.0, 1.0), deads, "SalDead", "foliage_palm", 60.0)
-	Flora.scatter_cells(_root, Flora.bush_mesh(), Flora.sway_material("bush", 0.05, 1.3), bushes, "SalBush", "foliage_grass", 30.0)
+	TreeFactory.scatter_trees(_root, "sal", acacias, "SalTree", "foliage_palm", 60.0)
+	TreeFactory.scatter_trees(_root, "neem", palms, "SalNeem", "foliage_palm", 60.0)
+	TreeFactory.scatter_trees(_root, "dead", deads, "SalDead", "foliage_palm", 60.0)
+	TreeFactory.scatter_bushes(_root, bushes, "SalBush", "foliage_grass", 30.0)
 	Flora.scatter_cells(_root, Flora.clump_mesh(7, 0.4, 0.9, 12, Color(0.2, 0.36, 0.12)), Flora.sway_material("grass", 0.18, 1.8), grass, "SalGrass", "foliage_grass", 30.0)
 
 

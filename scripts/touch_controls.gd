@@ -26,6 +26,12 @@ var _focus: Interactable = null
 var _toast := ""
 var _toast_time := 0.0
 var _run_on := false
+var _crouch_id := -1
+var left_handed := false       # mirror the layout: stick on the right, look and buttons on the left
+var btn_scale := 1.0           # button size and spacing, 0.8 .. 1.4
+var show_fps := true
+var hints_on := true
+var btn_alpha := 1.0            # button opacity multiplier
 var _hint_time := 12.0
 var _fps_text := ""
 var _fps_timer := 0.0
@@ -55,6 +61,7 @@ func _reset_touches() -> void:
 	_run_id = -1
 	_jump_id = -1
 	_attack_id = -1
+	_crouch_id = -1
 	_pos.clear()
 	if player != null:
 		player.move_input = Vector2.ZERO
@@ -65,20 +72,37 @@ func _refresh_layout() -> void:
 	queue_redraw()
 
 
+func _corner(ox: float, oy: float) -> Vector2:
+	var x := ox * btn_scale
+	return Vector2(x if left_handed else _vp.x - x, _vp.y - oy * btn_scale)
+
+
 func _run_button_centre() -> Vector2:
-	return Vector2(_vp.x - 110.0, _vp.y - 95.0)
+	return _corner(110.0, 95.0)
 
 
 func _use_button_centre() -> Vector2:
-	return Vector2(_vp.x - 110.0, _vp.y - 225.0)
+	return _corner(110.0, 225.0)
 
 
 func _attack_button_centre() -> Vector2:
-	return Vector2(_vp.x - 245.0, _vp.y - 285.0)
+	return _corner(245.0, 285.0)
 
 
 func _jump_button_centre() -> Vector2:
-	return Vector2(_vp.x - 245.0, _vp.y - 150.0)
+	return _corner(245.0, 150.0)
+
+
+func _crouch_button_centre() -> Vector2:
+	return _corner(380.0, 95.0)
+
+
+func _on_move_side(pos: Vector2) -> bool:
+	return (pos.x > _vp.x * 0.58) if left_handed else (pos.x < _vp.x * 0.42)
+
+
+func _on_look_side(pos: Vector2) -> bool:
+	return (pos.x <= _vp.x * 0.58) if left_handed else (pos.x >= _vp.x * 0.42)
 
 
 func _process(delta: float) -> void:
@@ -108,29 +132,33 @@ func _on_press(idx: int, pos: Vector2) -> void:
 		return
 	if pos.y < 330.0 and pos.x > _vp.x - 250.0:     # minimap
 		return
-	if pos.distance_to(_run_button_centre()) < 60.0:
+	if pos.distance_to(_crouch_button_centre()) < 56.0 * btn_scale:
+		_crouch_id = idx
+		player.toggle_crouch()
+		return
+	if pos.distance_to(_run_button_centre()) < 60.0 * btn_scale:
 		_run_id = idx
 		_run_on = not _run_on
 		player.sprint = _run_on
 		return
-	if _focus != null and is_instance_valid(_focus) and pos.distance_to(_use_button_centre()) < 62.0:
+	if _focus != null and is_instance_valid(_focus) and pos.distance_to(_use_button_centre()) < 62.0 * btn_scale:
 		_use_id = idx
 		player.interact()
 		return
-	if pos.distance_to(_attack_button_centre()) < 60.0:
+	if pos.distance_to(_attack_button_centre()) < 60.0 * btn_scale:
 		_attack_id = idx
 		player.attack()
 		return
-	if pos.distance_to(_jump_button_centre()) < 55.0:
+	if pos.distance_to(_jump_button_centre()) < 55.0 * btn_scale:
 		_jump_id = idx
 		player.jump_requested = true
 		return
-	if pos.x < _vp.x * 0.42 and _stick_id == -1:
+	if _on_move_side(pos) and _stick_id == -1:
 		_stick_id = idx
 		_stick_origin = pos
 		_stick_pos = pos
 		return
-	if pos.x >= _vp.x * 0.42:
+	if _on_look_side(pos):
 		_pos[idx] = pos
 		if _look_id == -1:
 			_look_id = idx
@@ -156,6 +184,8 @@ func _on_release(idx: int) -> void:
 		_jump_id = -1
 	elif idx == _attack_id:
 		_attack_id = -1
+	elif idx == _crouch_id:
+		_crouch_id = -1
 
 
 func _on_drag(idx: int, pos: Vector2, rel: Vector2) -> void:
@@ -186,8 +216,9 @@ func _on_drag(idx: int, pos: Vector2, rel: Vector2) -> void:
 
 func _draw() -> void:
 	var font := ThemeDB.fallback_font
-	draw_string(font, Vector2(16, 28), _fps_text, HORIZONTAL_ALIGNMENT_LEFT, -1, 22, Color(1, 1, 1, 0.85))
-	if _hint_time > 0.0:
+	if show_fps:
+		draw_string(font, Vector2(16, 28), _fps_text, HORIZONTAL_ALIGNMENT_LEFT, -1, 22, Color(1, 1, 1, 0.85))
+	if hints_on and _hint_time > 0.0:
 		var a := clampf(_hint_time / 3.0, 0.0, 1.0)
 		draw_string(font, Vector2(16, 58), "Left: move   Right: look (two fingers: zoom)   USE appears near things",
 			HORIZONTAL_ALIGNMENT_LEFT, -1, 20, Color(1, 1, 1, 0.9 * a))
@@ -198,7 +229,7 @@ func _draw() -> void:
 		var pc := Vector2(_vp.x * 0.5, _vp.y - 120.0)
 		draw_rect(Rect2(pc - Vector2(psz.x * 0.5 + 16.0, 30.0), Vector2(psz.x + 32.0, 42.0)), Color(0, 0, 0, 0.45))
 		draw_string(font, pc + Vector2(-psz.x * 0.5, 0.0), ptxt, HORIZONTAL_ALIGNMENT_LEFT, -1, 26, Color(1, 1, 1, 0.97))
-		_draw_button(font, _use_button_centre(), 50.0, "USE", _use_id != -1)
+		_draw_button(font, _use_button_centre(), 50.0 * btn_scale, "USE", _use_id != -1)
 	if _toast_time > 0.0:
 		var ta := clampf(_toast_time / 1.0, 0.0, 1.0)
 		var tsz := font.get_string_size(_toast, HORIZONTAL_ALIGNMENT_LEFT, -1, 24)
@@ -213,14 +244,16 @@ func _draw() -> void:
 		draw_circle(knob, 38.0, Color(1, 1, 1, 0.4))
 	else:
 		# Faint idle hint where the stick will appear.
-		draw_arc(Vector2(150.0, _vp.y - 150.0), STICK_RADIUS, 0.0, TAU, 40, Color(1, 1, 1, 0.18), 2.0)
-	_draw_button(font, _run_button_centre(), 50.0, "RUN", _run_on)
-	_draw_button(font, _jump_button_centre(), 45.0, "JUMP", _jump_id != -1)
-	_draw_button(font, _attack_button_centre(), 48.0, "HIT", _attack_id != -1)
+		draw_arc(Vector2(_vp.x - 150.0 if left_handed else 150.0, _vp.y - 150.0), STICK_RADIUS, 0.0, TAU, 40, Color(1, 1, 1, 0.18), 2.0)
+	_draw_button(font, _run_button_centre(), 50.0 * btn_scale, "RUN", _run_on)
+	_draw_button(font, _jump_button_centre(), 45.0 * btn_scale, "JUMP", _jump_id != -1)
+	_draw_button(font, _attack_button_centre(), 48.0 * btn_scale, "HIT", _attack_id != -1)
+	_draw_button(font, _crouch_button_centre(), 44.0 * btn_scale, "DUCK", player != null and player.crouching)
 
 
 func _draw_button(font: Font, c: Vector2, r: float, label: String, active: bool) -> void:
-	draw_circle(c, r, Color(1, 1, 1, 0.34 if active else 0.14))
-	draw_arc(c, r, 0.0, TAU, 32, Color(1, 1, 1, 0.55), 2.5)
+	var ba := btn_alpha
+	draw_circle(c, r, Color(1, 1, 1, (0.34 if active else 0.14) * ba))
+	draw_arc(c, r, 0.0, TAU, 32, Color(1, 1, 1, minf(1.0, 0.55 * ba)), 2.5)
 	var size := font.get_string_size(label, HORIZONTAL_ALIGNMENT_LEFT, -1, 22)
 	draw_string(font, c + Vector2(-size.x * 0.5, 8.0), label, HORIZONTAL_ALIGNMENT_LEFT, -1, 22, Color(1, 1, 1, 0.95))

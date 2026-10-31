@@ -22,7 +22,7 @@ const CLOTHS := [
 const STALLS := [
 	["fruit", "Fresh Fruit", 3], ["spice", "Spices", 0], ["cloth", "Silk & Cotton", 0], ["sweet", "Sweets", 4],
 	["pot", "Clay Pots", 0], ["tea", "Chai", 2], ["vegetable", "Vegetables", 3], ["flower", "Flower Garlands", 2],
-	["fruit", "Mangoes", 3], ["bread", "Fresh Roti", 2], ["spice", "Dry Fruits", 0], ["cloth", "Turbans", 0],
+	["fruit", "Mangoes", 3], ["bread", "Fresh Roti", 2], ["leather", "Hides & Leather", 0], ["cloth", "Turbans", 0],
 	["sweet", "Jalebi", 4], ["jewel", "Bangles", 0], ["pot", "Brass & Copper", 0], ["vegetable", "Greens", 3],
 ]
 const SHOP_NAMES := ["Spice House", "Cloth Merchant", "Grain Store", "Tailor", "Jeweller", "Barber", "Oil Press", "Sandal Shop", "Rope & Sacks", "Lamp Maker"]
@@ -252,7 +252,7 @@ func _stalls() -> void:
 		var it := Interactable.new()
 		it.position = Vector3(0, 1.2, 1.35)
 		it.reach = 2.4
-		it.prompt = ("Buy %s (%d coins)" % [_item(kind), cost]) if cost > 0 else ("Browse the %s" % spec[1].to_lower())
+		it.prompt = ("Buy %s (%d coins)" % [_item(kind), cost]) if cost > 0 else (("Sell meat and hides" if kind == "leather" else "Browse the %s" % spec[1].to_lower()))
 		s.add_child(it)
 		it.on_interact = func(_by: Node3D, _me: Interactable) -> void: _trade(kind, cost)
 		stalls.append({"node": s, "kind": kind, "pos": s.position, "yaw": yaw, "fwd": fwd, "i": i})
@@ -263,6 +263,19 @@ func _item(kind: String) -> String:
 
 
 func _trade(kind: String, cost: int) -> void:
+	if kind == "leather":
+		var meat := int(story.get_flag("meat", 0))
+		var hides := int(story.get_flag("hides", 0))
+		if meat + hides <= 0:
+			player.say("The tanner buys meat and hides: 6 coins a portion, 12 a hide. Bring him game from the wild.")
+			return
+		var pay := meat * 6 + hides * 12
+		story.set_flag("meat", 0)
+		story.set_flag("hides", 0)
+		story.add("coins", pay)
+		Sfx.at("coin_clink", player.global_position, -2.0)
+		player.say("Sold %d meat and %d hides for %d coins." % [meat, hides, pay])
+		return
 	if cost <= 0:
 		var lines := {
 			"spice": "Saffron, pepper, cardamom. The air itself is gold.", "cloth": "Fine weave. The merchant names a price you can't afford yet.",
@@ -358,6 +371,11 @@ func _build_stall(s: Node3D, kind: String, label: String, idx: int) -> void:
 				PropFactory.cylinder(s, 0.3, 0.3, 0.04, Vector3(-0.8 + b * 0.8, 0.95 + 0.0, 1.0), _mat(Color(0.82, 0.62, 0.32)), Vector3.ZERO, false, 14, 0, false)
 				PropFactory.cylinder(s, 0.25, 0.25, 0.1, Vector3(-0.8 + b * 0.8, 1.0, 1.0), _mat(Color(0.9, 0.72, 0.4)), Vector3.ZERO, false, 14, 0, false)
 			PropFactory.cylinder(s, 0.5, 0.6, 0.6, Vector3(1.2, 0.3, 1.9), PropFactory.mud_brick(), Vector3.ZERO, true, 12, 0, false)   # clay tandoor
+		"leather":
+			for b in 5:
+				_box(s, Vector3(0.5, 1.0, 0.04), Vector3(-1.1 + b * 0.55, 1.7, -1.1), _mat(Color(0.5 + 0.04 * b, 0.33, 0.2)), false, Vector3(0, 0, rng.randf_range(-4, 4)))
+			for b in 3:
+				_box(s, Vector3(0.7, 0.14, 0.5), Vector3(-0.8 + b * 0.8, 0.98, 1.0), _mat(Color(0.42, 0.28, 0.17)), false)
 		"jewel":
 			for b in 6:
 				PropFactory.cylinder(s, 0.12, 0.12, 0.03, Vector3(-1.0 + b * 0.4, 0.96, 1.0), PropFactory.glow_bronze(), Vector3(80, 0, 0), false, 14, 0, false)

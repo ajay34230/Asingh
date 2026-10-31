@@ -51,6 +51,7 @@ var material: StandardMaterial3D
 var _dunes := FastNoiseLite.new()
 var _detail := FastNoiseLite.new()
 var _ridge := FastNoiseLite.new()
+var _gully := FastNoiseLite.new()
 var _mountain := FastNoiseLite.new()
 var _site_y := PackedFloat32Array()
 var pond_level := 0.0
@@ -71,6 +72,10 @@ const PATHS: Array = [
 	[Vector2(-90, 12), Vector2(-70, 50), Vector2(-40, 82), Vector2(-20, 96)],
 	[Vector2(-20, 96), Vector2(20, 70), Vector2(44, 44), Vector2(80, 110), Vector2(120, 160)],
 	[Vector2(-90, 12), Vector2(-110, -20), Vector2(-100, 38)],
+	[Vector2(-90, 12), Vector2(-60, 0), Vector2(-40, -20), Vector2(-28, -40), Vector2(-4, -42)],
+	[Vector2(40, -42), Vector2(70, -42), Vector2(100, -46), Vector2(112, -48)],
+	[Vector2(22, -20), Vector2(22, 4), Vector2(38, 30), Vector2(50, 46)],
+	[Vector2(22, -64), Vector2(22, -86), Vector2(8, -110)],
 ]
 var _pond_ready := false
 
@@ -81,6 +86,10 @@ func _init(seed_value: int = 1337) -> void:
 	_dunes.frequency = 0.006
 	_dunes.fractal_octaves = 3
 
+	_gully.seed = seed_value + 71
+	_gully.noise_type = FastNoiseLite.TYPE_SIMPLEX_SMOOTH
+	_gully.frequency = 0.024
+	_gully.fractal_octaves = 2
 	_detail.seed = seed_value + 11
 	_detail.noise_type = FastNoiseLite.TYPE_SIMPLEX_SMOOTH
 	_detail.frequency = 0.035
@@ -167,6 +176,10 @@ func _ground_base(x: float, z: float) -> float:
 	var crest := 1.0 - absf(dn)
 	var h := crest * crest * 22.0 + dn * 3.0 - 2.0
 	h += _detail.get_noise_2d(x, z) * 1.6
+	# Erosion: thin water-cut gullies on the dune flanks, deeper and more frequent towards the riverbed.
+	var gcut := pow(1.0 - absf(_gully.get_noise_2d(x * 1.0, z * 1.0)), 9.0)
+	var near_river := 1.0 - smoothstep(10.0, 70.0, absf(x - river_x(z)))
+	h -= gcut * (0.7 + 1.5 * near_river) * (0.35 + 0.65 * crest)
 
 	# Dry riverbed: a wide, shallow channel that winds towards the entrance.
 	var d := absf(x - river_x(z))

@@ -50,6 +50,9 @@ var jump_requested := false
 var spawn_position := Vector3.ZERO
 var camera: Camera3D
 var focus: Interactable = null
+var look_sens_y := 1.0          # vertical look multiplier (settings)
+var auto_sprint := true         # a full stick push breaks into a run
+var haptics := true             # phone vibrates when hurt
 var look_sens := 1.0             # multiplier on LOOK_SENSITIVITY (settings)
 var invert_y := false
 var base_fov := BASE_FOV
@@ -68,6 +71,9 @@ var hammer_mult := 1.0              # 1.4 once Dhruv re-forges the hammer with t
 var attack_override := Callable()   # set by the cart race: the HIT button swings the cart blades
 var has_knife := false            # hunter's knife from the Reaver camp: lets you hunt wild game
 var hunted := 0
+var crouching := false
+var _c_was_down := false
+var _land_slow := 0.0
 var mounted := false             # riding an animal: MountSystem owns movement, JUMP means dismount
 var locked := false              # true during dialogue, digging and cinematics: no input is read
 
@@ -132,6 +138,17 @@ func _ready() -> void:
 # --- camera ------------------------------------------------------------------------------
 
 ## Immediately set the camera distance (screenshots, cut-scenes later).
+func set_crouch(on: bool) -> void:
+	if mounted or dead:
+		return
+	crouching = on
+	_rig.crouch_target = 1.0 if on else 0.0
+
+
+func toggle_crouch() -> void:
+	set_crouch(not crouching)
+
+
 func set_distance(d: float) -> void:
 	_target_distance = clampf(d, MIN_DISTANCE * 0.5, MAX_DISTANCE)
 	_arm.spring_length = _target_distance
@@ -194,8 +211,7 @@ func _nearest_enemy(rng: float) -> Enemy:
 
 
 func attack() -> void:
-	if attack_override.is_valid():
-		attack_override.call()
+	if attack_override.is_valid() and bool(attack_override.call()):
 		return
 	if locked or dead or _attack_cd > 0.0 or _throwing:
 		return
@@ -319,6 +335,9 @@ func take_damage(amount: float, from: Vector3) -> void:
 		return
 	if power.has("shield"):
 		amount *= 0.2
+	amount *= GameSettings.damage_scale()
+	if haptics and OS.has_feature("mobile"):
+		Input.vibrate_handheld(70)
 	hp = maxf(0.0, hp - amount)
 	_combat_t = 0.0
 	_invuln = 0.35
@@ -393,7 +412,7 @@ func look_yaw() -> float:
 func add_look(delta_px: Vector2) -> void:
 	var k := LOOK_SENSITIVITY * look_sens
 	_yaw -= delta_px.x * k
-	_pitch = clampf(_pitch - delta_px.y * k * (-1.0 if invert_y else 1.0), -1.2, 0.45)
+	_pitch = clampf(_pitch - delta_px.y * k * look_sens_y * (-1.0 if invert_y else 1.0), -1.2, 0.45)
 	_apply_look()
 
 
@@ -529,6 +548,10 @@ func _physics_process(delta: float) -> void:
 	if e_down and not _e_was_down and not locked:
 		interact()
 	_e_was_down = e_down
+	var c_down := Input.is_physical_key_pressed(KEY_C)
+	if c_down and not _c_was_down and not locked:
+		toggle_crouch()
+	_c_was_down = c_down
 
 	var forward := Vector3(-sin(_yaw), 0.0, -cos(_yaw))
 	var right := Vector3(cos(_yaw), 0.0, -sin(_yaw))
@@ -538,9 +561,14 @@ func _physics_process(delta: float) -> void:
 	# Analogue stick: a light push walks, a firm push eases into a run, a full push auto-sprints
 	# (no need to tap the run button); the run button still forces a run at any stick strength.
 	var m := clampf(dir.length(), 0.0, 1.0)
-	var run_blend := 1.0 if fast else smoothstep(0.82, 0.97, m)
+	var run_blend := 1.0 if fast else (smoothstep(0.82, 0.97, m) if auto_sprint else 0.0)
 	var speed := lerpf(WALK_SPEED, RUN_SPEED, run_blend) * (1.45 if power.has("speed") else 1.0)
 	var push := m if fast else clampf(m / 0.82, 0.0, 1.0)
+	if crouching:
+		speed = minf(speed, WALK_SPEED * 0.62)
+	if _land_slow > 0.0:
+		_land_slow -= delta
+		speed *= 0.55
 	var target := (dir.normalized() * speed * push) if m > 0.001 else Vector3.ZERO
 
 	var on_floor := is_on_floor()
@@ -561,6 +589,8 @@ func _physics_process(delta: float) -> void:
 	if not on_floor:
 		velocity.y -= GRAVITY * delta
 	if _jump_buffer > 0.0 and _coyote > 0.0:
+		if crouching:
+			set_crouch(false)
 		velocity.y = JUMP_SPEED
 		_jump_buffer = 0.0
 		_coyote = 0.0
@@ -576,6 +606,8 @@ func _physics_process(delta: float) -> void:
 	elif not _was_floor:
 		if _fall_speed > 4.0:
 			landed.emit(_fall_speed)
+			_rig.land(_fall_speed)
+			_land_slow = 0.18 + clampf(_fall_speed / 40.0, 0.0, 0.3)
 		_fall_speed = 0.0
 	_was_floor = floor_now
 	if floor_now:
@@ -589,7 +621,13 @@ func _physics_process(delta: float) -> void:
 		else:
 			_step_dist = 0.6
 	if dir.length() > 0.1:
-		_model.rotation.y = lerp_angle(_model.rotation.y, atan2(-dir.x, -dir.z), minf(1.0, 12.0 * delta))
+		var want_y := atan2(-dir.x, -dir.z)
+		var dyaw := wrapf(want_y - _model.rotation.y, -PI, PI)
+		_rig.turn_lean = clampf(dyaw * 1.2, -1.0, 1.0)
+		_model.rotation.y = lerp_angle(_model.rotation.y, want_y, minf(1.0, 12.0 * delta))
+	else:
+		_rig.turn_lean = 0.0
+	_pivot.position.y = lerpf(_pivot.position.y, 1.1 if crouching else 1.55, 1.0 - exp(-9.0 * delta))
 	_rig.animate(delta, Vector2(velocity.x, velocity.z).length(), is_on_floor())
 	if global_position.y < -40.0:
 		global_position = spawn_position

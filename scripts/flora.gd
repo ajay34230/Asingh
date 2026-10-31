@@ -55,7 +55,7 @@ static func palm_mesh() -> ArrayMesh:
 		var t := float(r) / rings
 		var c := Vector3(bend * t * t, height * t, 0.25 * sin(t * 2.0))
 		var rad := lerpf(0.30, 0.15, t) + 0.07 * (1.0 - smoothstep(0.0, 0.2, t))
-		var band := 0.78 + 0.22 * float(r % 2)
+		var band := 0.9 + 0.1 * float(r % 2)
 		var col := Color(0.42, 0.30, 0.19) * band
 		var cur: Array[Vector3] = []
 		var cur_n: Array[Vector3] = []
@@ -148,7 +148,8 @@ static func scatter(parent: Node3D, mesh: Mesh, mat: Material, xforms: Array[Tra
 	var mi := MultiMeshInstance3D.new()
 	mi.name = nm
 	mi.multimesh = mm
-	mi.material_override = mat
+	if mat != null:
+		mi.material_override = mat
 	mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	parent.add_child(mi)
 	return mi

@@ -41,12 +41,15 @@ def story_lines(root="scripts"):
     return [(sp, t) for t, sp in seen.items()]
 
 
+SHORT = re.compile(r"^[A-Z\"'].{6,}[.!?…\"']$")
+
+
 def bark_lines(root="scripts"):
     src = open(os.path.join(root, "npc.gd"), encoding="utf-8").read()
     out = []
     for s in STR.findall(src):
         t = unescape(s)
-        if SPOKEN.match(t) and "%" not in t and "res://" not in t:
+        if SHORT.match(t) and "%" not in t and "res://" not in t and " " in t:
             out.append(t)
     return sorted(set(out))
 

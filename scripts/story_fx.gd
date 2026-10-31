@@ -70,8 +70,11 @@ static func sun_burst(parent: Node3D, at: Vector3, size: float = 1.0) -> void:
 	Sfx.at("chime", at, 0.0, 0.9)
 
 
+static var shake_on := true
+
+
 static func shake(player: Player, amount: float = 0.15, dur: float = 0.5) -> void:
-	if player == null or player._pivot == null:
+	if not shake_on or player == null or player._pivot == null:
 		return
 	var piv: Node3D = player._pivot
 	var base := Vector3(0, 1.55, 0)

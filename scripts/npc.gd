@@ -124,7 +124,7 @@ func say(text: String, dur: float = 0.0) -> void:
 	_bubble.visible = true
 	_bubble.modulate.a = 1.0
 	_bubble_t = dur if dur > 0.0 else clampf(1.6 + text.length() * 0.055, 2.2, 5.0)
-	Sfx.speak(voice, text, self, -3.0)
+	Sfx.bark(voice, text, self)
 
 
 func _gesture(action: String, dur: float) -> void:
@@ -360,8 +360,7 @@ func _process(delta: float) -> void:
 				_bubble.visible = true
 				_bubble.modulate.a = 1.0
 				_bubble_t = 3.0
-			if Sfx.instance != null:
-				Sfx.instance._speak(voice, ln, self, -9.0 + clampf((14.0 - dist) * 0.2, 0.0, 3.0))
+			Sfx.bark(voice, ln, self)
 	# small random idle actions when nobody is close
 	if dist >= NOTICE and _cd["idle"] <= 0.0 and rig.action == "" and not RealHuman.WORK_MODES.has(_base_mode):
 		_cd["idle"] = _rng.randf_range(7.0, 16.0)

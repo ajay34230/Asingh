@@ -14,6 +14,7 @@ var player: Player
 var story: Story
 var main: Node3D
 var tex: ImageTexture
+var minimap_enabled := true
 var _mini: Control
 var _full: Control
 var _btn: Button
@@ -21,6 +22,12 @@ var landmarks := [
 	["Sun Gate", Vector2(0, -168)], ["Village", Vector2(-90, 12)], ["Temple", Vector2(-35, -10)], ["Race Track", Vector2(118, -48)], ["Bazaar Town", Vector2(22, -42)], ["Sal Forest", Vector2(-150, -110)], ["Goods yard", Vector2(-20, 96)],
 	["Caravan", Vector2(47, 45)], ["Arin's office", Vector2(92, 150)], ["Dig site", Vector2(-95, 25)],
 ]
+
+
+func set_minimap_visible(on: bool) -> void:
+	minimap_enabled = on
+	if _mini != null:
+		_mini.visible = on
 
 
 func _ready() -> void:
@@ -44,6 +51,7 @@ func _ready() -> void:
 		if (ev is InputEventMouseButton and ev.pressed) or (ev is InputEventScreenTouch and ev.pressed):
 			toggle_full())
 	root.add_child(_mini)
+	_mini.visible = minimap_enabled
 	_full = Control.new()
 	_full.set_anchors_preset(Control.PRESET_FULL_RECT)
 	_full.mouse_filter = Control.MOUSE_FILTER_STOP

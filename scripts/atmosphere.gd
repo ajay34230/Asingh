@@ -15,6 +15,11 @@ var rain_target := 0.0
 var _rain_p: GPUParticles3D
 var _splash_p: GPUParticles3D
 var terrain_mat: StandardMaterial3D        # set by Main; gets wet in the rain
+var overcast := 0.0              # 0 clear .. 1 heavy grey cloud (no rain)
+var overcast_target := 0.0
+var mist := 0.0                  # 0 clear air .. 1 thick fog
+var mist_target := 0.0
+var _rain_pm: ParticleProcessMaterial
 var _story_t := 0.0              # >0: the story is holding the weather (see set_weather)
 var story_weather := ""
 var _weather_t := 120.0          # seconds until the weather changes
@@ -223,22 +228,25 @@ func make_rain(follow: Node3D) -> void:
 	pm.emission_shape = ParticleProcessMaterial.EMISSION_SHAPE_BOX
 	pm.emission_box_extents = Vector3(16.0, 0.5, 16.0)
 	pm.direction = Vector3(0.12, -1.0, 0.05)
-	pm.spread = 3.0
+	pm.spread = 2.0
+	pm.scale_min = 0.6
+	pm.scale_max = 1.3
+	_rain_pm = pm
 	pm.initial_velocity_min = 24.0
 	pm.initial_velocity_max = 30.0
 	pm.gravity = Vector3(0, -12.0, 0)
 	var quad := QuadMesh.new()
-	quad.size = Vector2(0.025, 0.7)
+	quad.size = Vector2(0.018, 1.05)
 	var mat := StandardMaterial3D.new()
 	mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
 	mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
 	mat.billboard_mode = BaseMaterial3D.BILLBOARD_PARTICLES
-	mat.albedo_color = Color(0.78, 0.86, 1.0, 0.5)
+	mat.albedo_color = Color(0.8, 0.88, 1.0, 0.42)
 	mat.disable_receive_shadows = true
 	quad.material = mat
 	_rain_p = GPUParticles3D.new()
 	_rain_p.name = "Rain"
-	_rain_p.amount = 1400
+	_rain_p.amount = 2200
 	_rain_p.lifetime = 0.9
 	_rain_p.local_coords = false
 	_rain_p.visibility_aabb = AABB(Vector3(-30, -25, -30), Vector3(60, 40, 60))
@@ -282,13 +290,50 @@ func make_rain(follow: Node3D) -> void:
 	follow.add_child(_splash_p)
 
 
+## The eight lighting conditions: sun position plus weather. Used by the pause menu and available to the story.
+const LIGHTS := {
+	"Dawn": [0.275, "clear"], "Morning": [0.36, "clear"], "Noon": [0.5, "clear"], "Golden hour": [0.68, "clear"],
+	"Dusk": [0.735, "overcast"], "Night": [0.93, "clear"], "Fog": [0.40, "fog"], "Storm": [0.5, "storm"],
+}
+
+
+func apply_preset(label: String) -> void:
+	if not LIGHTS.has(label):
+		return
+	var p: Array = LIGHTS[label]
+	time_of_day = float(p[0])
+	set_weather(String(p[1]), 900.0)
+	overcast = overcast_target
+	mist = mist_target
+	if p[1] == "storm":
+		rain = 0.8
+	elif p[1] == "clear":
+		rain = 0.0
+	apply_time()
+
+
+## "Auto": let the day cycle and the random weather run again.
+func release_weather() -> void:
+	story_weather = ""
+	_story_t = 0.0
+	_weather_t = 20.0
+
+
 ## Story-driven weather. kind: "storm" (heavy rain, thunder), "rain", "drizzle", "clear".
 ## While held for `secs`, the random weather is suspended; "clear" ends any rain with a rainbow.
 func set_weather(kind: String, secs: float = 240.0) -> void:
 	var was_wet := rain_target > 0.3
 	story_weather = kind
 	_story_t = secs
+	overcast_target = 0.0
+	mist_target = 0.0
 	match kind:
+		"overcast":
+			rain_target = 0.0
+			overcast_target = 1.0
+		"fog":
+			rain_target = 0.0
+			mist_target = 1.0
 		"storm":
 			rain_target = 1.0
 			_bolt_t = minf(_bolt_t, 2.5)
@@ -319,7 +364,12 @@ func _update_weather(delta: float) -> void:
 			_weather_t = randf_range(150.0, 300.0)
 			_show_rainbow()
 	var was := rain
+	var was_g := overcast + mist
 	rain = move_toward(rain, rain_target, delta / 12.0)
+	overcast = move_toward(overcast, overcast_target, delta / 14.0)
+	mist = move_toward(mist, mist_target, delta / 16.0)
+	if _rain_pm != null and rain > 0.03:
+		_rain_pm.direction = Vector3(0.1 + wind * 0.45, -1.0, 0.05)
 	if _rain_p != null:
 		_rain_p.emitting = rain > 0.03
 		if _splash_p != null:
@@ -333,7 +383,7 @@ func _update_weather(delta: float) -> void:
 			_flash = 1.0
 			thunder.emit()
 	_flash = maxf(0.0, _flash - delta * 3.0)
-	if was != rain or _flash > 0.0:
+	if was != rain or was_g != overcast + mist or _flash > 0.0:
 		apply_time()
 
 
@@ -403,13 +453,15 @@ func apply_time() -> void:
 	environment.fog_light_color = Color(0.84, 0.74, 0.60).lerp(Color(0.06, 0.08, 0.16), night)
 	environment.tonemap_exposure = lerpf(0.85, 1.1, night)
 	# weather: overcast, desaturated, foggier, with a lightning flash
-	if rain > 0.0 or _flash > 0.0:
-		sun.light_energy *= 1.0 - 0.6 * rain
-		sky_mat.sky_top_color = sky_mat.sky_top_color.lerp(Color(0.32, 0.35, 0.4) * (1.0 - night * 0.8), rain * 0.8)
-		sky_mat.sky_horizon_color = sky_mat.sky_horizon_color.lerp(Color(0.45, 0.47, 0.5) * (1.0 - night * 0.8), rain * 0.8)
-		environment.fog_density = lerpf(_base_fog, 0.0038, rain)
-		environment.ambient_light_energy *= 1.0 - 0.25 * rain
-		environment.adjustment_saturation = lerpf(1.1, 0.8, rain)
+	var gloom := maxf(rain, overcast * 0.8)
+	if gloom > 0.0 or mist > 0.0 or _flash > 0.0:
+		sun.light_energy *= 1.0 - 0.6 * gloom
+		sky_mat.sky_top_color = sky_mat.sky_top_color.lerp(Color(0.32, 0.35, 0.4) * (1.0 - night * 0.8), gloom * 0.8)
+		sky_mat.sky_horizon_color = sky_mat.sky_horizon_color.lerp(Color(0.45, 0.47, 0.5) * (1.0 - night * 0.8), maxf(gloom, mist) * 0.8)
+		environment.fog_density = lerpf(_base_fog, 0.0038, gloom) + mist * 0.0075
+		environment.fog_light_color = environment.fog_light_color.lerp(Color(0.72, 0.74, 0.76) * (1.0 - night * 0.8), mist)
+		environment.ambient_light_energy *= 1.0 - 0.25 * gloom
+		environment.adjustment_saturation = lerpf(1.1, 0.8, maxf(gloom, mist * 0.7))
 		if _flash > 0.0:
 			environment.ambient_light_energy += 2.5 * _flash
 			sky_mat.sky_top_color = sky_mat.sky_top_color.lerp(Color(0.9, 0.92, 1.0), _flash * 0.6)
@@ -420,13 +472,13 @@ func apply_time() -> void:
 		var lit := Color(1.0, 0.98, 0.95).lerp(Color(1.0, 0.62, 0.40), dusk_k * 0.8)
 		var shd := Color(0.62, 0.68, 0.80).lerp(Color(0.55, 0.38, 0.45), dusk_k * 0.7)
 		var dark := Color(0.5, 0.52, 0.56)
-		lit = lit.lerp(dark, rain * 0.6) * lerpf(0.04, 1.0, day_k) 
-		shd = shd.lerp(Color(0.3, 0.32, 0.36), rain * 0.6) * lerpf(0.04, 0.9, day_k)
+		lit = lit.lerp(dark, gloom * 0.6) * lerpf(0.04, 1.0, day_k) 
+		shd = shd.lerp(Color(0.3, 0.32, 0.36), gloom * 0.6) * lerpf(0.04, 0.9, day_k)
 		lit = lit + Color(0.03, 0.04, 0.08) * night + Color(1, 1, 1) * _flash * 0.6
 		_cloud_mat.set_shader_parameter("lit_col", Vector3(lit.r, lit.g, lit.b))
 		_cloud_mat.set_shader_parameter("shade_col", Vector3(shd.r, shd.g, shd.b))
-		_cloud_mat.set_shader_parameter("cover", lerpf(0.40, 0.8, rain))
-		_cloud_mat.set_shader_parameter("alpha_mul", lerpf(0.9, 0.97, rain))
+		_cloud_mat.set_shader_parameter("cover", lerpf(0.40, 0.8, gloom))
+		_cloud_mat.set_shader_parameter("alpha_mul", lerpf(0.9, 0.97, gloom))
 	var sky_c: Color = sky_mat.sky_horizon_color.lerp(sky_mat.sky_top_color, 0.45)
 	RenderingServer.global_shader_parameter_set("water_sky", Vector3(sky_c.r, sky_c.g, sky_c.b))
 	if terrain_mat != null:      # wet ground: darker and glossier while it rains

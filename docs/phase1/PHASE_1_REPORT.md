@@ -45,3 +45,17 @@ Waiting for your feedback on how it looks and plays on the S10 before applying m
 - **Hunting**: only deer, stag and fox can be hurt, and only after taking the hunter's knife from the Reavers' camp; pain and thud sounds.
 - **Inventory** in the pause menu (coins, seals, shards, gear, story items). **Controls**: analogue stick speed (walk, ease into a run, auto-sprint at a full push).
 - Verified: selftest PASS (software GL, CI-mode 60 fps). Not verified: on-device performance (the town adds ~40 buildings and 53 people; if it is slow on the S10, lower graphics), how the new sounds feel on speakers, and a proper visual review (one software-render screenshot: `docs/phase1/town_square.png`).
+
+## Addendum: environment, settings and set-pieces
+
+- **HIT bug fixed**: the cart race had registered itself as the HIT handler for good, so HIT did nothing outside a race. It now only takes the press while racing (self-test covers it).
+- **Rivers, waterfall, erosion, footprints**: `river_builder.gd` (seasonal river that fills in rain and drains again, a waterfall on the north cliff with mist and sound), gully erosion in the terrain, footprints and hoof prints (`footprints.gd`), eight lighting presets plus overcast and fog, a slanted rain look.
+- **Trees and bushes** (`tree_factory.gd`): recursive-branching trees (neem, acacia, sal, dead), bark texture, leaf-card canopies with a painted leaf texture and wind sway; leafy bushes. All generated in code. Startup cost is higher; unverified on the S10.
+- **Music**: long shuffled tracks with silent gaps instead of short loops; situation music (tension, sacred, mystery) now breathes (about 75 s on, 60 s off).
+- **Settings menu**: pause screen with Inventory, Settings (Audio, Video, Controls, Gameplay tabs; 33 options), How to play, Save, New game (with confirmation). Audio buses Music, SFX, Voice, Ambience. Settings persist.
+- **Footsteps and ambience by place**: wood, stone (bazaar, ruins), leaf litter (forest), water (pond, full river), mud (in rain), sand; zones (town, forest, pond, river, ruins, desert) change wind and which wild voices play (crows, peacocks, owls, jackals, frogs, cats).
+- **Animal activities**: every species has its own set (cows graze, ruminate, drink; bulls paw and snort; horses canter and rear; camels chew and rest; dogs sniff, dig, chase tails; deer drink and keep watch; foxes stalk and pounce); the sleepers doze at night.
+- **Traffic**: four carts with seated drivers on out-and-back roads, three riders, eight travellers on foot; carts and riders stop and ring a bell if the player stands in the road.
+- **Set-piece "Raid on the Road"** (`stampede.gd`): a few minutes into free play a raid horn sounds and a herd of 14 stampedes across the player's path (trampling hurts), then four Reavers attack; reward 120 coins and a rideable white horse.
+- Rider pose fixed so the player straddles the animal instead of standing on it (checked by software-render screenshot only).
+- Verified: self-test PASS (software GL). Not verified: feel and performance on a phone, how the new sounds and trees look and sound on the S10.

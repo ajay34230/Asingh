@@ -306,6 +306,7 @@ func animate(delta: float, speed: float, grounded: bool) -> void:
 			attack_hit.emit()
 		if attack_t > 0.75:
 			attack_t = -1.0
+	_body_overlays(delta)
 	_overlay(delta)
 	_apply()
 
@@ -502,12 +503,13 @@ func _react_pose() -> void:
 			_pz("kn_L", Vector3(-0.8, 0, 0)); _pz("kn_R", Vector3(-0.8, 0, 0))
 		"ride":
 			var bob := sin(t * 9.0) * 0.015
-			_hips_dy = -0.42 + bob
+			_hips_dy = -0.5 + bob
 			for tg in ["L", "R"]:
 				var sg := 1.0 if tg == "L" else -1.0
-				_pz("hip_" + tg, Vector3(1.25, 0, 0.45 * sg)); _pz("kn_" + tg, Vector3(-1.2, 0, 0))
+				# straddling: thighs out to the sides and a little forward, shins hanging down and back
+				_pz("hip_" + tg, Vector3(0.45, 0, 0.85 * sg)); _pz("kn_" + tg, Vector3(-0.55, 0, 0))
 				_pz("sh_" + tg, Vector3(-0.85, 0, 0.12)); _pz("el_" + tg, Vector3(1.0, 0, 0))
-			_pose["spine"] = Vector3(-0.1 + 0.02 * sin(t * 4.5), 0, 0)
+			_pose["spine"] = Vector3(-0.14 + 0.02 * sin(t * 4.5), 0, 0)
 			_pose["head"] = Vector3(0.05, 0, 0)
 		"dead":
 			_pz("sh_L", Vector3(-0.1, 0, 1.15)); _pz("sh_R", Vector3(-0.3, 0, 0.9))
@@ -693,6 +695,48 @@ func _add_prop(kind: String) -> void:
 
 
 var _beat_prev := false
+var crouch := 0.0                # 0 standing .. 1 crouched (smoothed toward crouch_target)
+var crouch_target := 0.0
+var turn_lean := 0.0             # -1..1, set by the player: lean into turns while moving
+var _lean_s := 0.0
+var _land_t := 0.0
+var _land_k := 0.0
+
+
+## Landing recovery: knees absorb the impact, then the body rises again.
+func land(impact: float) -> void:
+	_land_k = clampf(impact / 14.0, 0.25, 1.0)
+	_land_t = 0.42
+
+
+## Crouch, lean into turns and landing recovery are layered over whatever the base animation wrote.
+func _body_overlays(delta: float) -> void:
+	crouch = lerpf(crouch, crouch_target, 1.0 - exp(-10.0 * delta))
+	_lean_s = lerpf(_lean_s, turn_lean, 1.0 - exp(-6.0 * delta))
+	if crouch > 0.01:
+		var c := crouch
+		_hips_dy -= 0.42 * c
+		for tg in ["L", "R"]:
+			_pose["hip_" + tg] = (_pose["hip_" + tg] as Vector3) + Vector3(0.75 * c, 0.0, 0.0)
+			_pose["kn_" + tg] = (_pose["kn_" + tg] as Vector3) + Vector3(-1.35 * c, 0.0, 0.0)
+		_pose["spine"] = (_pose["spine"] as Vector3) + Vector3(-0.3 * c, 0.0, 0.0)
+		_pose["head"] = (_pose["head"] as Vector3) + Vector3(0.28 * c, 0.0, 0.0)
+	if absf(_lean_s) > 0.01 and _speed_smooth > 1.0:
+		var l := _lean_s * clampf(_speed_smooth / 5.0, 0.2, 1.0)
+		_pose["spine"] = (_pose["spine"] as Vector3) + Vector3(0.0, 0.0, 0.2 * l)
+		_pose["hips"] = (_pose["hips"] as Vector3) + Vector3(0.0, 0.0, 0.08 * l)
+		_pose["head"] = (_pose["head"] as Vector3) + Vector3(0.0, 0.0, -0.12 * l)
+	if _land_t > 0.0:
+		_land_t = maxf(0.0, _land_t - delta)
+		var ph := 1.0 - _land_t / 0.42                      # 0 -> 1
+		var env := sin(clampf(ph, 0.0, 1.0) * PI) * (1.0 if ph < 0.5 else 0.85)
+		var k := _land_k * env
+		_hips_dy -= 0.34 * k
+		for tg2 in ["L", "R"]:
+			_pose["hip_" + tg2] = (_pose["hip_" + tg2] as Vector3) + Vector3(0.65 * k, 0.0, 0.0)
+			_pose["kn_" + tg2] = (_pose["kn_" + tg2] as Vector3) + Vector3(-1.2 * k, 0.0, 0.0)
+			_pose["sh_" + tg2] = (_pose["sh_" + tg2] as Vector3) + Vector3(-0.5 * k, 0.0, 0.25 * k * (1.0 if tg2 == "L" else -1.0))
+		_pose["spine"] = (_pose["spine"] as Vector3) + Vector3(-0.35 * k, 0.0, 0.0)
 
 
 func _beat(on: bool) -> void:

@@ -296,7 +296,10 @@ func intro() -> void:
 		{"from": desk + Vector3(1.6, 0.9, 1.6), "to": desk + Vector3(0.8, 0.7, 0.9), "look": desk, "dur": 5.0,
 		 "text": "All he left behind is his field office, and a journal that wants to be read."},
 	]
-	cin.play(shots, "THE LOST KINGDOM", func() -> void: start_in_office())
+	Sfx.intro_music()
+	cin.play(shots, "THE LOST KINGDOM", func() -> void:
+		Sfx.stop_intro()
+		start_in_office())
 
 
 ## After loading a save: remove collected rivets, open the gate if it was opened.

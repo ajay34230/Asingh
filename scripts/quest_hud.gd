@@ -6,6 +6,7 @@ extends CanvasLayer
 var story: Story
 var player: Player
 var world: Node3D
+var tracker_enabled := true
 var _tracker: PanelContainer
 var _t_title: Label
 var _t_lines: VBoxContainer
@@ -23,6 +24,12 @@ var _bar_cb := Callable()
 var _marker: Label3D
 var _tick := 0.0
 var _queue: Array = []
+
+
+func set_tracker_visible(on: bool) -> void:
+	tracker_enabled = on
+	if _tracker != null:
+		_tracker.visible = on
 
 
 func _ready() -> void:
@@ -46,6 +53,7 @@ func _ready() -> void:
 	_tracker.position = Vector2(16, 72)
 	_tracker.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	root.add_child(_tracker)
+	_tracker.visible = tracker_enabled
 	var vb := VBoxContainer.new()
 	vb.add_theme_constant_override("separation", 4)
 	_tracker.add_child(vb)

@@ -13,7 +13,9 @@ var mount: Animal = null
 var _heading := 0.0
 var _speed := 0.0
 var _step_t := 0.0
+var _print_d := 0.0
 var _dist_saved := 6.0
+var last_block := ""             # what stopped the animal last (diagnostics)
 
 
 func _init(m: Node3D, p: Player, t: TerrainBuilder) -> void:
@@ -120,6 +122,7 @@ func _physics_process(delta: float) -> void:
 		if not hit.is_empty() and absf((hit["normal"] as Vector3).y) < 0.6:
 			step = Vector3.ZERO
 			_speed = 0.0
+			last_block = str((hit["collider"] as Node).get_path())
 	var np := a.global_position + step
 	np.x = clampf(np.x, -195.0, 195.0)
 	np.z = clampf(np.z, -195.0, 195.0)
@@ -141,8 +144,15 @@ func _physics_process(delta: float) -> void:
 		if _step_t <= 0.0:
 			_step_t = clampf(2.4 / maxf(_speed, 1.0), 0.18, 0.7)
 			Sfx.at("hoof_%d" % randi_range(0, 1), a.global_position, -4.0 if _speed < float(sp[0]) * 1.6 else -1.0, randf_range(0.9, 1.1))
+	if _speed > 0.5 and main.get("footprints") != null:
+		_print_d += _speed * delta
+		if _print_d > 0.9:
+			_print_d = 0.0
+			var sd := Vector3(cos(_heading), 0.0, -sin(_heading))
+			(main.get("footprints") as Footprints).put(a.global_position + fwd * 0.9 + sd * 0.35, _heading, 1.4)
+			(main.get("footprints") as Footprints).put(a.global_position - fwd * 0.9 - sd * 0.35, _heading, 1.4)
 	# the rider sits on its back
 	var h: float = float(Animal.SPECIES[a.species]["height"])
-	player.global_position = a.global_position + Vector3(0, h * 0.9, 0) + Basis(Vector3(1, 0, 0), a.rotation.x) * Vector3(0, 0, 0.1)
+	player.global_position = a.global_position + Vector3(0, h * 0.8 - 0.42, 0) + Basis(Vector3(1, 0, 0), a.rotation.x) * Vector3(0, 0, 0.1)
 	player.velocity = Vector3.ZERO
 	player._model.rotation.y = _heading

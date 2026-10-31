@@ -19,6 +19,11 @@ var open_route := false          # true: runs once from first to last point (rid
 var running := true
 var seat: Node3D
 var rider: Player
+var yields_to_player := false       # slows and rings a bell when the player stands in the road ahead
+var driver: Node3D
+var blocked := false
+var _bell_t := 0.0
+var _call_t := 12.0
 signal arrived
 
 
@@ -131,6 +136,7 @@ func _start_sound() -> void:
 	st.loop_begin = 0
 	st.loop_end = st.data.size() / 2
 	_snd = AudioStreamPlayer3D.new()
+	_snd.bus = "SFX"
 	_snd.stream = st
 	_snd.unit_size = 6.0
 	_snd.max_distance = 45.0
@@ -152,6 +158,24 @@ func _process(delta: float) -> void:
 		return
 	if not running:
 		return
+	if yields_to_player:
+		var fwd := Vector3(-sin(_heading), 0.0, -cos(_heading))
+		var to := player.global_position - global_position
+		to.y = 0.0
+		blocked = to.length() < 6.5 and to.normalized().dot(fwd) > 0.5
+		_bell_t = maxf(0.0, _bell_t - delta)
+		for a in _animals:
+			a.play_walk(not blocked)
+		if blocked:
+			if _bell_t <= 0.0:
+				_bell_t = 6.0
+				Sfx.at("bicycle_bell", global_position + Vector3(0, 2.0, 0), -3.0)
+			return
+		_call_t -= delta
+		if _call_t <= 0.0:
+			_call_t = randf_range(15.0, 35.0)
+			if not _animals.is_empty() and Animal.CALLS.has(_animals[0].species) and global_position.distance_to(player.global_position) < 45.0:
+				Sfx.at(Animal.CALLS[_animals[0].species][0], global_position + Vector3(0, 1.0, -2.0), -6.0)
 	_s += speed * delta
 	_place(_s)
 	if open_route and _s >= _len:

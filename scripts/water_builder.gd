@@ -308,9 +308,17 @@ func _flora(root: Node3D, houses: HouseBuilder) -> void:
 		if blocked.call(x, z):
 			continue
 		flowers[i % 3].append(Transform3D(Basis.from_euler(Vector3(0, rng.randf() * TAU, 0)).scaled(Vector3.ONE * rng.randf_range(0.8, 1.4)), Vector3(x, terrain.sample_height(x, z) - 0.02, z)))
-	Flora.scatter_cells(root, Flora.acacia_mesh(), Flora.sway_material("acacia", 0.006, 0.9), acacias, "Acacia", "foliage_palm", 60.0)
-	Flora.scatter_cells(root, Flora.dead_tree_mesh(), Flora.sway_material("dead", 0.0, 1.0), deads, "DeadTree", "foliage_palm", 60.0)
-	Flora.scatter_cells(root, Flora.bush_mesh(), Flora.sway_material("bush", 0.05, 1.3), bushes, "Bush", "foliage_grass", 30.0)
+	var neems: Array[Transform3D] = []
+	var acs: Array[Transform3D] = []
+	for i in acacias.size():
+		if i % 2 == 0:
+			neems.append(acacias[i])
+		else:
+			acs.append(acacias[i])
+	TreeFactory.scatter_trees(root, "neem", neems, "Neem", "foliage_palm", 60.0)
+	TreeFactory.scatter_trees(root, "acacia", acs, "Acacia", "foliage_palm", 60.0)
+	TreeFactory.scatter_trees(root, "dead", deads, "DeadTree", "foliage_palm", 60.0)
+	TreeFactory.scatter_bushes(root, bushes, "Bush", "foliage_grass", 30.0)
 	var head_cols := [Color(0.95, 0.85, 0.2), Color(0.9, 0.25, 0.45), Color(0.95, 0.95, 0.9)]
 	for k in 3:
 		var ft: Array[Transform3D] = []
