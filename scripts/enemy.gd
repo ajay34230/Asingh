@@ -42,6 +42,98 @@ var _bubble_t := 0.0
 var _flee_dir := Vector3.ZERO
 var _plead_t := 0.0
 var _death_style := -1
+var role := "grunt"                  # X11: grunt, shield, archer, brute, ambusher
+var enraged := false                 # X14: boss second phase
+var _shot_cd := 1.5
+var _stomp_cd := 4.0
+var shots_fired := 0
+
+
+## X11: give this man a fighting style. Safe to call once, right after setup.
+func apply_role(r: String) -> void:
+	role = r
+	match r:
+		"shield":
+			hp *= 1.3
+			max_hp = hp
+			speed *= 0.9
+			_hp_bar.modulate = Color(0.55, 0.7, 1.0)
+		"archer":
+			hp *= 0.7
+			max_hp = hp
+			aggro = maxf(aggro, 18.0)
+			_hp_bar.modulate = Color(1.0, 0.85, 0.3)
+		"brute":
+			hp *= 1.8
+			max_hp = hp
+			damage *= 1.5
+			speed *= 0.8
+			attack_cd *= 1.2
+			_hp_bar.modulate = Color(0.9, 0.2, 0.9)
+		"ambusher":
+			hp *= 0.7
+			max_hp = hp
+			speed *= 1.5
+			aggro = maxf(aggro, 20.0)
+			_hp_bar.modulate = Color(0.4, 1.0, 0.5)
+	_refresh_bar()
+
+
+## X11: archers loose a visible arrow that lands where you were; keep moving or block.
+func shoot() -> void:
+	if player == null or dead:
+		return
+	shots_fired += 1
+	var from := global_position + Vector3(0, 1.5, 0)
+	var target := player.global_position + Vector3(0, 1.1, 0)
+	var arrow := MeshInstance3D.new()
+	var bm := CylinderMesh.new()
+	bm.top_radius = 0.025
+	bm.bottom_radius = 0.025
+	bm.height = 0.9
+	var am := StandardMaterial3D.new()
+	am.albedo_color = Color(0.45, 0.32, 0.18)
+	bm.material = am
+	arrow.mesh = bm
+	get_parent().add_child(arrow)
+	arrow.global_position = from
+	var dirv := (target - from)
+	arrow.look_at(target, Vector3.UP)
+	arrow.rotate_object_local(Vector3.RIGHT, PI * 0.5)
+	Sfx.at("swing", from, -4.0, 1.4)
+	var t := maxf(0.25, dirv.length() / 16.0)
+	var tw := arrow.create_tween()
+	tw.tween_property(arrow, "global_position", target, t)
+	tw.tween_callback(func() -> void:
+		if is_instance_valid(player) and not player.dead and player.global_position.distance_to(target - Vector3(0, 1.1, 0)) < 1.3:
+			player.take_damage(damage * 0.7, (target - from))
+		arrow.queue_free())
+
+
+## X14: below half health a boss gets faster, angrier and starts stomping.
+func enrage() -> void:
+	if enraged:
+		return
+	enraged = true
+	speed *= 1.25
+	attack_cd *= 0.7
+	_hp_bar.modulate = Color(1.0, 0.1, 0.1)
+	say("ENOUGH! I will bury you!")
+	if player != null:
+		StoryFX.shake(player, 0.2, 0.6)
+	Sfx.at("war_roar", global_position + Vector3(0, 1.5, 0), 2.0)
+
+
+func _stomp() -> void:
+	_stomp_cd = 5.0
+	say("Feel this!")
+	await get_tree().create_timer(0.7).timeout
+	if dead or not is_instance_valid(player):
+		return
+	HitFx.burst(get_parent(), global_position + Vector3(0, 0.15, 0), true, Color(0.8, 0.7, 0.5))
+	StoryFX.shake(player, 0.18, 0.4)
+	if player.global_position.distance_to(global_position) < 4.5 and player.is_on_floor():
+		player.take_damage(damage * 1.2, player.global_position - global_position)
 
 const PLEAS := [
 	"Please, no more! I surrender!", "Mercy! I have children at home!", "I'm sorry, I'm sorry! Don't kill me!",
@@ -122,8 +214,15 @@ func take_damage(amount: float, from_dir: Vector3) -> void:
 func take_hit(kind: String, amount: float, from_dir: Vector3) -> void:
 	if dead or surrendered:
 		return
+	if role == "shield" and (kind == "punch" or kind == "kick"):
+		var fwd_s := Vector3(-sin(rotation.y), 0.0, -cos(rotation.y))
+		if fwd_s.dot(-from_dir.normalized()) > 0.3:      # blocked on the shield; kicks of the round or slam kind break guard
+			amount *= 0.25
+			Sfx.at("hit_thud", global_position + Vector3(0, 1.2, 0), -6.0, 1.6)
 	hp -= amount
 	_flash = 0.25
+	if is_boss and not enraged and hp > 0.0 and hp < max_hp * 0.5:
+		enrage()
 	HitFx.burst(get_parent(), global_position + Vector3(0, 1.1, 0), kind != "punch")
 	var dir := from_dir
 	dir.y = 0.0
@@ -252,6 +351,14 @@ func _surrender() -> void:
 func _die(kind: String, dir: Vector3) -> void:
 	dead = true
 	remove_from_group("enemies")
+	if player != null and global_position.distance_to(player.global_position) < 5.0:
+		var others := 0
+		for o in get_tree().get_nodes_in_group("enemies"):
+			if (o as Node3D).global_position.distance_to(player.global_position) < 25.0:
+				others += 1
+		if others == 0:
+			StoryFX.hitstop(0.45)       # X13: slow-motion finisher on the last man standing
+			StoryFX.shake(player, 0.1, 0.5)
 	_hp_bar.visible = false
 	collision_layer = 0
 	collision_mask = 1
@@ -382,6 +489,7 @@ func _physics_process(delta: float) -> void:
 	else:
 		velocity.y = -1.0
 	_cd -= delta
+	_stomp_cd -= delta
 	var to_p := player.global_position - global_position
 	to_p.y = 0.0
 	var dist := to_p.length()
@@ -393,6 +501,17 @@ func _physics_process(delta: float) -> void:
 			_winding += delta
 			if _winding > 0.45:
 				_winding = -1.0
+		elif role == "archer":
+			if dist < 5.0:
+				want = -to_p.normalized() * speed
+			elif dist > 11.0:
+				want = to_p.normalized() * speed
+			_shot_cd -= delta
+			if _shot_cd <= 0.0 and dist < 16.0:
+				_shot_cd = 2.4
+				shoot()
+		elif enraged and _stomp_cd <= 0.0 and dist < 5.5:
+			_stomp()
 		elif dist > 1.9:
 			want = to_p.normalized() * speed
 		elif _cd <= 0.0:

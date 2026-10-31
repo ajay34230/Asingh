@@ -39,6 +39,9 @@ func spawn_pickup(pos: Vector3, kind: String, respawn: float = 0.0) -> void:
 	main.add_child(pk)
 
 
+const ROLES := ["grunt", "shield", "archer", "grunt", "brute", "ambusher"]
+
+
 func spawn_enemy(pos: Vector3, boss: bool = false, aggro: float = 15.0, tag: String = "") -> Enemy:
 	_n += 1
 	var pr: Dictionary = REAVER.duplicate()
@@ -60,6 +63,8 @@ func spawn_enemy(pos: Vector3, boss: bool = false, aggro: float = 15.0, tag: Str
 	e.setup(pr, pos, "Reaver%d" % _n if not boss else "CaptainKaran")
 	e._spawn_pickup = func(p: Vector3, k: String) -> void: spawn_pickup(p, k)
 	e.set_meta("tag", tag)
+	if not boss and (tag == "camp" or tag == "raid"):
+		e.apply_role(ROLES[_n % ROLES.size()])
 	e.died.connect(_on_enemy_died)
 	main.add_child(e)
 	e.global_position = pos

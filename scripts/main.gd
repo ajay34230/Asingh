@@ -1279,6 +1279,24 @@ func _run_selftest() -> void:
 	await _selftest_map_route(fails, notes)
 	_selftest_cin_ground(fails)
 	_selftest_night_life(fails)
+	_teleport(140.0, 140.0)
+	var re := combat.spawn_enemy(player.global_position + Vector3(0, 0, -6.0), false, 0.0, "test")
+	re.apply_role("shield")
+	re.rotation.y = 0.0     # faces -Z... player hits from -Z side? use +Z push dir
+	var hp_s: float = re.hp
+	re.take_hit("punch", 10.0, Vector3(0, 0, 1))      # push toward +Z = attacker stands in front (-Z)
+	var lost: float = hp_s - re.hp
+	if lost > 4.0:
+		fails.append("shield did not absorb a frontal punch (lost %.1f)" % lost)
+	re.apply_role("archer")
+	var arrows_before: int = re.shots_fired
+	re.shoot()
+	if re.shots_fired != arrows_before + 1:
+		fails.append("archer did not shoot")
+	var bos := combat.spawn_enemy(player.global_position + Vector3(8, 0, 0), true, 0.0, "test")
+	bos.take_hit("punch", bos.max_hp * 0.55, Vector3.FORWARD)
+	if not bos.enraged:
+		fails.append("boss did not enrage below half health")
 	_teleport(120.0, 120.0)
 	var sfoe := combat.spawn_enemy(player.global_position + Vector3(0, 0, -2.0), false, 0.0, "test")
 	var sl_hp0: float = sfoe.hp

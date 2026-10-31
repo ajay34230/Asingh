@@ -106,3 +106,6 @@ New `scripts/ambient_life.gd`: expanding ripple rings when stepping in water; da
 
 ## X10 Ground slam; X25 partly present (31 Oct)
 Attack while falling now dives and, on landing, sends a 4 m shockwave (damage, dust, shake, hit-pause); `Player.ground_slam()`, selftest PASS. Already present from earlier: FPS counter, shadow/AA/draw-distance/resolution settings, haptics. Charged strike and thrown spear are not built yet.
+
+## X11/X13/X14 Enemy roles, finisher, boss phases (31 Oct)
+Enemy roles (`Enemy.apply_role`): shield (frontal punches/kicks do 25%), archer (keeps distance, fires visible arrows), brute (1.8x hp, 1.5x damage, slow), ambusher (fast, long aggro). Roles are mixed into camp and raid fights via `CombatBuilder.ROLES`. Bosses enrage below half health (faster, quicker attacks, telegraphed ground stomp). The last enemy killed up close triggers a slow-motion finisher. Selftest PASS (shield, archer shot, boss enrage). Balance and feel are untested on a device.
