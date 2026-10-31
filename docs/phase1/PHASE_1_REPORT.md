@@ -185,3 +185,11 @@ Pickups are now small 3D models built from primitives (heart with cross, lightni
 - **Orchard**: bought saplings grow in about 150 s; mangoes every 90 s, other trees can be felled for timber, which sells.
 - **Coins**: 64 gold coins to collect around the valley, a coin counter on screen, +50 coins per completed mission (existing race/arena/dice prizes unchanged).
 - Selftest covers plant/water/ripen/tractor harvest/sell/orchard/contest/honey. Not device-tested; farm layout, tractor feel, market stall position (picked by a free-space check) and balance are unverified. Hindi translation covers static text; texts with numbers stay English.
+
+## Addendum: farm connected to the rest of the game
+- New games now start at the home farm door (intro gets a farm shot); the Guide NPC waits beside the farm.
+- "Home Farm" is an always-lit fast-travel stop.
+- The Farmers' Market refuses wanted players (same rule as bazaar stalls).
+- New achievements (Green Thumb, Orchard Keeper, Market Trader, Coin Collector, Crop Champion) and three farm hints.
+- Dry plots water themselves in rain or when hired Sher is within 40 m; market prices +15% on festival days.
+- Selftest covers market refusal and the travel stop. Not device-tested; rain/Sher/festival behaviour and the intro shot are unverified visually.

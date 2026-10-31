@@ -76,6 +76,7 @@ func flag_n(k: String) -> int:
 
 func build() -> void:
 	name = "Farm"
+	add_to_group("farm")
 	gy = terrain.sample_height(c.x, c.y)
 	_soil_dry = PropFactory.material(Color(0.42, 0.29, 0.17), 1.0)
 	_soil_wet = PropFactory.material(Color(0.22, 0.15, 0.09), 1.0)
@@ -967,7 +968,7 @@ func _process(delta: float) -> void:
 			_advance_plot(i)
 			if String(pl["state"]) != before:
 				changed = true
-		elif st == "dry" and story.get_flag("up_sprinkler", false):
+		elif st == "dry" and _auto_water():
 			pl["water_t"] = float(pl["water_t"]) + 0.5
 			if float(pl["water_t"]) >= 3.0:
 				pl["water_t"] = 0.0
@@ -1065,7 +1066,25 @@ func _build_market() -> void:
 func market_mult() -> float:
 	var epoch := int(now() / 240.0)
 	var f := fposmod(sin(float(epoch) * 12.9898) * 43758.5453, 1.0)
-	return 0.85 + 0.3 * f
+	var m := 0.85 + 0.3 * f
+	var fest: Variant = main.get("festival")
+	if fest != null and String((fest as Festival).kind) != "":
+		m *= 1.15          # festival days draw crowds to the bazaar
+	return m
+
+
+## Dry plots water themselves with a sprinkler, in rain, or when hired Sher is near the farm.
+func _auto_water() -> bool:
+	if story.get_flag("up_sprinkler", false):
+		return true
+	var atm: Variant = main.get("atmosphere")
+	if atm != null and float((atm as Atmosphere).rain) > 0.4:
+		return true
+	var cs: Variant = main.get("companion_sys")
+	if cs != null and (cs as CompanionSystem).is_hired() and (cs as CompanionSystem).npc != null:
+		if (cs as CompanionSystem).npc.global_position.distance_to(global_position) < 40.0:
+			return true
+	return false
 
 
 func price_of(good: String) -> int:
@@ -1074,6 +1093,9 @@ func price_of(good: String) -> int:
 
 func open_market() -> void:
 	if shop == null or shop.is_open() or player.locked:
+		return
+	if player.wanted_t > 0.0:
+		hud.banner(Loc.t("The traders will not deal with a wanted man."), "")
 		return
 	shop.open_shop("Farmers' Market", _market_rows)
 

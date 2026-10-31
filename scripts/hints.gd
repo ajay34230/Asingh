@@ -10,6 +10,9 @@ const TIPS := {
 	"fight": "Enemies near! Tap ATTACK to fight, BLOCK to guard, ROLL to dodge.",
 	"mount": "Walk up to an animal and tap USE to ride it.",
 	"map": "Open the map to tap a place and draw a route to it.",
+	"farm_start": "Welcome home! Tap a field to plant seeds, tap again to water it, and water it a second time when it asks.",
+	"farm_ready": "Crops are ripe! Tap the tractor in the barn, then drive over the glowing fields to harvest.",
+	"farm_orchard": "You have saplings. Walk to the orchard and tap a mound to plant one.",
 }
 
 var player: Player
@@ -47,6 +50,14 @@ func _process(delta: float) -> void:
 		return
 	if _t_play > 40.0 and tip("jump"):
 		return
+	var fm := get_tree().get_first_node_in_group("farm") as Farm
+	if fm != null:
+		if _t_play > 9.0 and player.global_position.distance_to(fm.global_position) < 80.0 and tip("farm_start"):
+			return
+		if fm.ripe_count() > 0 and tip("farm_ready"):
+			return
+		if (fm.story.get_flag("sap_mango", 0) > 0 or fm.story.get_flag("sap_neem", 0) > 0 or fm.story.get_flag("sap_banyan", 0) > 0) and tip("farm_orchard"):
+			return
 	for e in get_tree().get_nodes_in_group("enemies"):
 		if (e as Node3D).global_position.distance_to(player.global_position) < 12.0:
 			tip("fight")

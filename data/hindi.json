@@ -744,5 +744,21 @@
  "Sell your produce (today's prices x%.2f)": "अपनी उपज बेचो (आज के भाव x%.2f)",
  "Farm goods (sell at the Farmers' Market): ": "खेत का सामान (किसान बाज़ार में बेचें): ",
  "Home farm": "अपना खेत",
- "Crops ready": "फ़सल तैयार"
+ "Crops ready": "फ़सल तैयार",
+ "The traders will not deal with a wanted man.": "व्यापारी एक वांछित आदमी से सौदा नहीं करेंगे।",
+ "Home is a small farm at the edge of the dunes. Grow crops, sell them in the bazaar, and build a life while you search for the truth.": "घर रेत के टीलों के किनारे एक छोटा खेत है। फसल उगाओ, बाज़ार में बेचो, और सच की तलाश के साथ अपनी ज़िंदगी बनाओ।",
+ "Welcome home! Tap a field to plant seeds, tap again to water it, and water it a second time when it asks.": "घर में स्वागत है! बीज बोने के लिए खेत छुओ, पानी देने के लिए फिर छुओ।",
+ "Crops are ripe! Tap the tractor in the barn, then drive over the glowing fields to harvest.": "फसल पक गई है! खलिहान में ट्रैक्टर छुओ, फिर चमकते खेतों पर चलाकर कटाई करो।",
+ "You have saplings. Walk to the orchard and tap a mound to plant one.": "तुम्हारे पास पौधे हैं। बाग़ में जाकर टीले को छुओ और एक पौधा लगाओ।",
+ "Home Farm": "घर का खेत",
+ "Green Thumb": "हरा अंगूठा",
+ "Harvest a crop with the tractor.": "ट्रैक्टर से फसल काटो।",
+ "Orchard Keeper": "बाग़ का रखवाला",
+ "Grow a tree to full size and fell it.": "एक पेड़ पूरा उगाओ और काटो।",
+ "Market Trader": "बाज़ार का व्यापारी",
+ "Earn 300 coins selling farm produce.": "खेत की उपज बेचकर 300 सिक्के कमाओ।",
+ "Coin Collector": "सिक्का संग्राहक",
+ "Find 30 gold coins in the world.": "दुनिया में 30 सोने के सिक्के खोजो।",
+ "Crop Champion": "फसल विजेता",
+ "Win the crop contest.": "फसल प्रतियोगिता जीतो।"
 }

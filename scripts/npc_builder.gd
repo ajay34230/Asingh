@@ -65,8 +65,8 @@ static func build(parent: Node3D, terrain: TerrainBuilder, houses: HouseBuilder,
 	spots.append(["girl_casual", "idle", "Villager4", _ground(terrain, -80.0, -28.0), deg_to_rad(170.0)])
 	spots.append(["merchant", "idle", "Merchant", _ground(terrain, 47.5, 41.5), deg_to_rad(20.0)])
 	spots.append(["huntress", "idle", "Traveller", _ground(terrain, 40.0, 48.0), deg_to_rad(-40.0)])
-	var sp := TerrainBuilder.START_MOUND
-	spots.append(["guide", "idle", "Guide", _ground(terrain, sp.x + 3.0, sp.y - 3.5), deg_to_rad(200.0)])
+	var sp := TerrainBuilder.FARM_C
+	spots.append(["guide", "idle", "Guide", _ground(terrain, sp.x + 6.0, sp.y + 10.0), deg_to_rad(120.0)])
 	# Phase 5: more people. Village life around the well, the caravan stop and the gate forecourt.
 	spots.append(["potter", "idle", "Potter", _ground(terrain, -99.0, 4.0), deg_to_rad(60.0)])
 	spots.append(["shepherd", "idle", "Shepherd", _ground(terrain, -74.0, 6.0), deg_to_rad(-120.0)])

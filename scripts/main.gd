@@ -2069,6 +2069,14 @@ func _selftest_farm(fails: PackedStringArray) -> void:
 		fails.append("farm: honey not collected")
 	farm.reload()
 	coin_sys.reload()
+	# connections: wanted status closes the market, farm is always a travel stop, start is at the farm
+	player.wanted_t = 30.0
+	farm.open_market()
+	if farm.shop.is_open():
+		fails.append("farm: market opened for a wanted player")
+	player.wanted_t = 0.0
+	if not shrines.is_lit("farm"):
+		fails.append("farm: not a fast-travel stop")
 	print("[selftest] farm: plant, water x2, tractor harvest, sell, orchard, contest, honey ok; %d world coins" % coin_sys.coins.size())
 
 
@@ -2932,3 +2940,4 @@ func _run_capture(dir: String) -> void:
 		print("[capture] life_%d -> " % shots, get_viewport().get_texture().get_image().save_png("%s/16_life_%02d_%s.png" % [dir, shots, tgt.name]))
 	model.visible = true
 	get_tree().quit(0)
+

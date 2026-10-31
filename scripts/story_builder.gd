@@ -286,11 +286,14 @@ func open_gate() -> void:
 func intro() -> void:
 	var desk: Vector3 = story.refs["desk"]
 	var o := office.global_position
+	var fp: Vector3 = Farm.start_position(main.terrain)
 	var shots := [
 		{"from": Vector3(40, 34, -105), "to": Vector3(8, 24, -140), "look": Vector3(0, 14, -168), "dur": 6.5, "title": true,
 		 "text": "The Valley of Sands. Beyond the dunes, the ruins of Suryavan: a kingdom that vanished in a single night."},
 		{"from": Vector3(-60, 14, 70), "to": Vector3(-95, 9, 40), "look": Vector3(-90, 4, 12), "dur": 5.5,
 		 "text": "Only a village remains, and the people who still keep its secrets."},
+		{"from": fp + Vector3(16, 7, 8), "to": fp + Vector3(9, 5, 0), "look": fp + Vector3(0, 1.5, -6), "dur": 5.5,
+		 "text": "Home is a small farm at the edge of the dunes. Grow crops, sell them in the bazaar, and build a life while you search for the truth."},
 		{"from": o + Vector3(7, 3.0, 12), "to": o + Vector3(4, 2.6, 8), "look": o + Vector3(0, 1.5, 0), "dur": 5.0,
 		 "text": "Three days ago, your mentor Dr. Arin Rao walked into those ruins, and did not walk out."},
 		{"from": desk + Vector3(1.6, 0.9, 1.6), "to": desk + Vector3(0.8, 0.7, 0.9), "look": desk, "dur": 5.0,
@@ -323,10 +326,10 @@ func apply_loaded_state() -> void:
 	story.refresh()
 
 
+## The story starts at the home farm door; the field office (Arin's desk) is a short walk away.
 func start_in_office() -> void:
-	var hs: Dictionary = main.houses.houses[5]
-	var p: Vector3 = hs["inside"]
-	player.global_position = p + Vector3(0, 0.4, 0)
+	var p: Vector3 = Farm.start_position(main.terrain)
+	player.global_position = p
 	player.velocity = Vector3.ZERO
 	var d: Vector3 = (story.refs["desk"] as Vector3) - p
 	player.set_look(atan2(-d.x, -d.z), -0.05)

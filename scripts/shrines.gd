@@ -8,6 +8,7 @@ const SPOTS := [
 	["pond", "Pond Shrine", Vector2(-60.0, 52.0 + 22.0)],
 	["forest", "Forest Shrine", Vector2(-150.0 + 46.0, -110.0)],
 	["ruins", "Ruins Shrine", Vector2(0.0, -112.0)],
+	["farm", "Home Farm", Vector2(TerrainBuilder.FARM_C.x - 11.0, TerrainBuilder.FARM_C.y + 12.0)],   # always lit: home
 ]
 
 var main: Node3D
@@ -48,6 +49,8 @@ func build() -> void:
 
 
 func is_lit(id: String) -> bool:
+	if id == "farm":
+		return true
 	return story != null and bool(story.get_flag("shrine_" + id, false))
 
 

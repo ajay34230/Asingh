@@ -20,6 +20,11 @@ const DEFS := {
 	"beasts": ["Friend of Beasts", "Feed animals three times."],
 	"hunter": ["Treasure Hunter", "Find all five buried caches."],
 	"ending": ["The Last Sun", "Finish the story."],
+	"farmer": ["Green Thumb", "Harvest a crop with the tractor."],
+	"orchard": ["Orchard Keeper", "Grow a tree to full size and fell it."],
+	"trader": ["Market Trader", "Earn 300 coins selling farm produce."],
+	"finder": ["Coin Collector", "Find 30 gold coins in the world."],
+	"champion": ["Crop Champion", "Win the crop contest."],
 }
 
 var story: Story
@@ -84,6 +89,16 @@ func _process(delta: float) -> void:
 			unlock("rider")
 		if int(story.get_flag("coins", 0)) >= 200:
 			unlock("coins")
+	if int(story.get_flag("harvests", 0)) >= 1:
+		unlock("farmer")
+	if int(story.get_flag("trees_grown", 0)) >= 1:
+		unlock("orchard")
+	if int(story.get_flag("sales", 0)) >= 300:
+		unlock("trader")
+	if int(story.get_flag("coins_found", 0)) >= 30:
+		unlock("finder")
+	if int(story.get_flag("contests_won", 0)) >= 1:
+		unlock("champion")
 	if int(story.get_flag("animals_fed", 0)) >= 3:
 		unlock("beasts")
 	if atmo != null and atmo.night > 0.8:
