@@ -64,3 +64,11 @@ Waiting for your feedback on how it looks and plays on the S10 before applying m
 - Riding: steering was reversed for touch input (forward was -y); fixed to the same stick convention as walking (up = forward, camera-relative). JUMP now makes the animal leap (cleared low obstacles, landing thump); a new GET OFF button (and E key) dismounts. The rider sits on a per-species saddle point measured from the model, with a real riding pose (thighs astride, lean with speed, lean into turns, rise out of the saddle on a leap). HIT swings the hammer from the saddle.
 - Combat: HIT presses are buffered so combos flow, auto-face and lunge toward the nearest enemy within 6 m, sprint attack (x1.2) and flying kick (x1.3). New BLOCK (hold; front hits do 25% damage) and ROLL (dodge with 0.45 s invulnerability) buttons; keyboard F / Q / V.
 - Verified by selftest (steering direction, leap height, JUMP not dismounting, GET OFF, mounted HIT, block reduction, roll i-frames) in software rendering only; not tested on a device.
+
+## Addendum: camera, jump feel, colour and sky
+- Camera default distance 7.5 -> 4.3 m (range 1.6-10 m), mounted 5.6 m.
+- Jump: lighter rise, heavier fall; take-off pose (lead knee up, trailing leg tucked, arms swing up) and descent pose (legs reach down, arms out).
+- Colour: town and hamlet houses use a vivid palette; NPC clothes are dyed per garment (skin, hair and eyes keep their own materials; the old tint overwrote skin too).
+- Animals: procedural fur noise (triplanar), patches on cows/bulls, dapples on deer.
+- Sky: day length 20 -> 10 min; stars, moon opposite the sun, drifting low-poly cumulus that glow at dusk and grey in storms.
+- Verified by selftest and software-render screenshots only; not tested on a device.

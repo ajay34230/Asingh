@@ -166,20 +166,43 @@ func _fit() -> void:
 	_inner.position.y = -lo * s
 
 
+const DRESS := [
+	Color(0.86, 0.16, 0.18), Color(0.12, 0.42, 0.80), Color(0.96, 0.72, 0.10), Color(0.12, 0.62, 0.36),
+	Color(0.94, 0.42, 0.08), Color(0.62, 0.16, 0.64), Color(0.06, 0.58, 0.64), Color(0.94, 0.30, 0.52),
+	Color(0.98, 0.84, 0.30), Color(0.40, 0.26, 0.72),
+]
+const KEEP := ["skin", "eye", "eyes", "eyebrows", "hair", "teeth", "mouth", "tongue", "beard", "black", "brown"]
+
+
+## Dress the body in colour: skin, hair and eyes keep their own materials, every garment gets a
+## vivid colour (the preset's tint, plus a contrasting second colour for trims and sashes).
 func _tint() -> void:
+	var has_tint := preset.has("tint")
 	var c: Color = preset.get("tint", Color(1, 1, 1))
-	if c == Color(1, 1, 1):
-		return
+	var h := absi(hash(str(c) + str(preset.get("body", "")) + str(get_instance_id()))) 
+	var main_c: Color = DRESS[h % DRESS.size()]
+	var trim_c: Color = DRESS[(h / 7 + 3) % DRESS.size()]
+	if has_tint and c != Color(1, 1, 1):
+		# keep the role's hue (guards stay blue-ish, Reavers red-ish) but make it rich, not washed out
+		main_c = Color.from_hsv(c.h, clampf(c.s * 1.5 + 0.35, 0.45, 0.95), clampf(c.v * 0.9, 0.35, 0.95))
+		trim_c = DRESS[(h / 7 + 3) % DRESS.size()].lerp(main_c, 0.3)
+	var n := 0
 	for m in _inner.find_children("*", "MeshInstance3D", true, false):
 		var mi := m as MeshInstance3D
 		if mi.mesh == null:
 			continue
-		for s in mi.mesh.get_surface_count():
-			var mat := mi.mesh.surface_get_material(s)
-			if mat is StandardMaterial3D:
-				var d := (mat as StandardMaterial3D).duplicate() as StandardMaterial3D
-				d.albedo_color = c
-				mi.set_surface_override_material(s, d)
+		for sidx in mi.mesh.get_surface_count():
+			var mat := mi.mesh.surface_get_material(sidx)
+			if not (mat is StandardMaterial3D):
+				continue
+			var nm := mat.resource_name.to_lower()
+			if nm in KEEP:
+				continue
+			var d := (mat as StandardMaterial3D).duplicate() as StandardMaterial3D
+			d.albedo_color = main_c if n % 2 == 0 else trim_c
+			d.roughness = 0.85
+			mi.set_surface_override_material(sidx, d)
+			n += 1
 
 
 func _add_hammer() -> void:
@@ -715,6 +738,7 @@ var crouch := 0.0                # 0 standing .. 1 crouched (smoothed toward cro
 var crouch_target := 0.0
 var ride_k := 0.0                # 0 walking .. 1 galloping (set by the mount system)
 var ride_turn := 0.0             # -1..1 how hard the animal is turning
+var air_vy := 0.0                # player's vertical speed, shapes the jump pose
 var ride_air := 0.0              # 1 while the animal is in the air
 var turn_lean := 0.0             # -1..1, set by the player: lean into turns while moving
 var _lean_s := 0.0
@@ -919,11 +943,18 @@ func _locomotion(delta: float) -> void:
 		var ph := _phase + (PI if side == 1 else 0.0)
 		var swing := sin(ph)
 		var flex := (0.15 + lerpf(0.55, 1.15, run_k) * maxf(0.0, cos(ph + 0.35))) * minf(1.0, stride + 0.2)
-		_pose["hip_" + tag] = Vector3(lerpf(amp * swing, -0.65 if side == 0 else -0.15, air), 0.0, 0.0)
-		_pose["kn_" + tag] = Vector3(-lerpf(flex, 1.1 if side == 0 else 0.6, air), 0.0, 0.0)
-		_pose["an_" + tag] = Vector3(lerpf(-0.25 * cos(ph + 0.35) * stride + 0.4 * maxf(0.0, -swing) * 0.4, 0.3, air), 0.0, 0.0)
+		var up := clampf(air_vy / 6.0, 0.0, 1.0)
+		var down := clampf(-air_vy / 8.0, 0.0, 1.0)
+		var lead: bool = side == 0
+		# take-off: lead knee driven up, trailing leg tucked behind; descent: legs reach for the ground
+		var air_hip := (lerpf(0.2, 1.0, up) if lead else lerpf(-0.2, -0.55, up)) + down * (0.1 if lead else 0.5)
+		var air_kn := (lerpf(0.35, 1.3, up) if lead else lerpf(0.5, 1.4, up)) * (1.0 - 0.5 * down)
+		_pose["hip_" + tag] = Vector3(lerpf(amp * swing, air_hip, air), 0.0, 0.0)
+		_pose["kn_" + tag] = Vector3(-lerpf(flex, air_kn, air), 0.0, 0.0)
+		_pose["an_" + tag] = Vector3(lerpf(-0.25 * cos(ph + 0.35) * stride + 0.4 * maxf(0.0, -swing) * 0.4, 0.4 - 0.5 * down, air), 0.0, 0.0)
 		var arm_swing := -sin(ph) * lerpf(0.38, 0.8, run_k) * minf(1.0, stride + 0.2)
-		_pose["sh_" + tag] = Vector3(lerpf(arm_swing, -0.4, air), 0.0, 0.0)
+		# arms swing up through the jump and spread wide for balance on the way down
+		_pose["sh_" + tag] = Vector3(lerpf(arm_swing, -0.4 - 1.1 * up - 0.3 * down, air), 0.0, 0.0)
 		_pose["el_" + tag] = Vector3(lerpf(0.22 + lerpf(0.1, 1.0, run_k) * (0.5 + 0.5 * maxf(0.0, -sin(ph))), 0.5, air), 0.0, 0.0)
 	var bob := (0.018 + 0.03 * run_k) * stride
 	_hips_dy = -bob * (1.0 - cos(2.0 * _phase)) * 0.5

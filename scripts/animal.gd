@@ -148,6 +148,7 @@ func setup(kind: String, ter: TerrainBuilder, ply: Node3D, at: Vector3, wander_r
 					var d := (mat as StandardMaterial3D).duplicate() as StandardMaterial3D
 					d.albedo_color = d.albedo_color * t
 					mi.set_surface_override_material(s, d)
+	_texture_coat(inst)
 	var aps := inst.find_children("*", "AnimationPlayer", true, false)
 	if not aps.is_empty():
 		_anim = aps[0] as AnimationPlayer
@@ -542,3 +543,51 @@ func _carcass() -> void:
 func _play(clip: String) -> void:
 	if _anim != null and _anim.current_animation != clip:
 		_anim.play(clip, 0.25)
+
+
+static var _coat_tex := {}
+
+
+## Fur and hide texture: mottled noise on every coat surface (object-space triplanar, so no UVs are
+## needed), plus patches on cows and bulls, dapples on deer and stripes of darker hair on the rest.
+func _texture_coat(inst: Node) -> void:
+	var patches := species in ["cow", "bull"]
+	var key := "patch" if patches else ("dapple" if species == "deer" else "fur")
+	if not _coat_tex.has(key):
+		var fn := FastNoiseLite.new()
+		fn.seed = 7
+		fn.noise_type = FastNoiseLite.TYPE_CELLULAR if key == "dapple" else FastNoiseLite.TYPE_SIMPLEX_SMOOTH
+		fn.frequency = 0.9 if key == "patch" else (2.2 if key == "dapple" else 5.0)
+		fn.fractal_octaves = 3
+		var tex := NoiseTexture2D.new()
+		tex.noise = fn
+		tex.width = 256
+		tex.height = 256
+		tex.seamless = true
+		var g := Gradient.new()
+		if key == "patch":
+			g.offsets = PackedFloat32Array([0.0, 0.46, 0.54, 1.0])
+			g.colors = PackedColorArray([Color(0.35, 0.28, 0.24), Color(0.4, 0.32, 0.27), Color(1.0, 1.0, 1.0), Color(1.0, 0.98, 0.95)])
+		elif key == "dapple":
+			g.offsets = PackedFloat32Array([0.0, 0.3, 0.45, 1.0])
+			g.colors = PackedColorArray([Color(1.5, 1.45, 1.4), Color(1.4, 1.35, 1.3), Color(0.8, 0.75, 0.7), Color(0.75, 0.7, 0.65)])
+		else:
+			g.offsets = PackedFloat32Array([0.0, 1.0])
+			g.colors = PackedColorArray([Color(0.62, 0.58, 0.55), Color(1.12, 1.08, 1.04)])
+		tex.color_ramp = g
+		_coat_tex[key] = tex
+	for m in inst.find_children("*", "MeshInstance3D", true, false):
+		var mi := m as MeshInstance3D
+		if mi.mesh == null:
+			continue
+		for sidx in mi.mesh.get_surface_count():
+			var mat := mi.get_surface_override_material(sidx)
+			if mat == null:
+				mat = mi.mesh.surface_get_material(sidx)
+			if mat is StandardMaterial3D and (mat.resource_name.begins_with("Main") or mat.resource_name == "Fur"):
+				var d := (mat as StandardMaterial3D).duplicate() as StandardMaterial3D
+				d.albedo_texture = _coat_tex[key]
+				d.uv1_triplanar = true
+				d.uv1_scale = Vector3.ONE * (0.55 if key == "patch" else 1.2)
+				d.roughness = 0.92
+				mi.set_surface_override_material(sidx, d)

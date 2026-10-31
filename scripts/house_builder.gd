@@ -111,8 +111,16 @@ func _wall(parent: Node3D, along_x: bool, fixed: float, a: float, b: float, open
 	_piece(parent, along_x, fixed, cur, b, 0.0, height, mat, thick)
 
 
+var _hc := 0
+const HOUSE_COLS := [
+	Color(1.25, 0.95, 0.45), Color(1.2, 0.62, 0.6), Color(0.6, 1.0, 1.15), Color(1.2, 0.8, 0.45),
+	Color(0.7, 1.15, 0.8), Color(1.2, 0.7, 0.95), Color(0.7, 0.8, 1.25), Color(1.1, 1.15, 0.6),
+]
+
+
 func _shell(h: Node3D, w: float, d: float, door_x: float, partition_x: float, variant: int) -> void:
-	var wall_mat := PropFactory.plaster() if variant != 2 else PropFactory.mud_brick()
+	_hc += 1
+	var wall_mat := PropFactory.aged_wall(0.6, HOUSE_COLS[(_hc * 3 + variant) % HOUSE_COLS.size()]) if variant != 2 else PropFactory.mud_brick()
 	var trim := PropFactory.sandstone_dark()
 	var wood := PropFactory.wood()
 	var hw := w * 0.5

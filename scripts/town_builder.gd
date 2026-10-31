@@ -11,8 +11,9 @@ const C := TerrainBuilder.TOWN_C
 const PLAZA_R := 16.0
 const STALL_R := 12.6
 const WALLS := [
-	Color(0.80, 0.62, 0.38), Color(0.82, 0.52, 0.47), Color(0.50, 0.66, 0.74), Color(0.90, 0.82, 0.66),
-	Color(0.72, 0.44, 0.30), Color(0.88, 0.72, 0.36), Color(0.58, 0.74, 0.64), Color(0.92, 0.90, 0.84),
+	Color(0.95, 0.72, 0.22), Color(0.90, 0.40, 0.42), Color(0.24, 0.66, 0.78), Color(0.96, 0.86, 0.60),
+	Color(0.86, 0.42, 0.22), Color(0.96, 0.60, 0.20), Color(0.38, 0.76, 0.58), Color(0.94, 0.52, 0.70),
+	Color(0.36, 0.52, 0.88), Color(0.62, 0.78, 0.30),
 ]
 const CLOTHS := [
 	Color(0.80, 0.2, 0.2), Color(0.2, 0.45, 0.75), Color(0.9, 0.7, 0.15), Color(0.2, 0.6, 0.35),
@@ -698,7 +699,7 @@ func _preset(key: String, tool: String = "", tint_i: int = -1) -> Dictionary:
 		p["tool"] = tool
 	if tint_i >= 0:
 		var c: Color = CLOTHS[tint_i % CLOTHS.size()]
-		p["tint"] = Color(0.6 + c.r * 0.4, 0.6 + c.g * 0.4, 0.6 + c.b * 0.4)
+		p["tint"] = c
 	return p
 
 

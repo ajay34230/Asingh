@@ -7,7 +7,7 @@ var sun: DirectionalLight3D
 var sky_mat: ProceduralSkyMaterial
 var time_of_day := 0.33          # 0..1, 0.5 = noon, 0 / 1 = midnight
 var night := 0.0                 # 0 (day) .. 1 (deep night), read by Sfx
-var day_length := 1200.0         # real seconds per full day
+var day_length := 600.0         # real seconds per full day
 var running := false
 signal thunder
 var rain := 0.0                  # 0 clear .. 1 downpour (smoothed)
@@ -88,7 +88,115 @@ func make_clouds(follow: Node3D) -> void:
 	_clouds.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	_clouds.extra_cull_margin = 16384.0
 	_world.add_child(_clouds)
+	_make_sky_extras()
 	apply_time()
+
+
+var _stars: MeshInstance3D
+var _moon: MeshInstance3D
+var _puffs: Node3D
+var _dt := 0.0
+var _puff_mat: StandardMaterial3D
+
+
+## Stars, a moon and drifting low-poly cumulus clouds (all follow the player, tinted by the time of day).
+func _make_sky_extras() -> void:
+	var rng := RandomNumberGenerator.new()
+	rng.seed = 91
+	var pts := PackedVector3Array()
+	for i in 700:
+		var v := Vector3(rng.randf_range(-1, 1), rng.randf_range(0.05, 1), rng.randf_range(-1, 1)).normalized()
+		pts.append(v * 1900.0)
+	var arr := []
+	arr.resize(Mesh.ARRAY_MAX)
+	arr[Mesh.ARRAY_VERTEX] = pts
+	var am := ArrayMesh.new()
+	am.add_surface_from_arrays(Mesh.PRIMITIVE_POINTS, arr)
+	var sm := StandardMaterial3D.new()
+	sm.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	sm.use_point_size = true
+	sm.point_size = 2.5
+	sm.albedo_color = Color(1, 1, 0.95, 0.0)
+	sm.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	sm.no_depth_test = true
+	sm.disable_fog = true
+	_stars = MeshInstance3D.new()
+	_stars.name = "Stars"
+	_stars.mesh = am
+	_stars.material_override = sm
+	_stars.extra_cull_margin = 16384.0
+	_stars.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	_world.add_child(_stars)
+	var mm := SphereMesh.new()
+	mm.radius = 60.0
+	mm.height = 120.0
+	mm.radial_segments = 16
+	mm.rings = 8
+	var mmat := StandardMaterial3D.new()
+	mmat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	mmat.albedo_color = Color(0.92, 0.94, 1.0)
+	mmat.disable_fog = true
+	_moon = MeshInstance3D.new()
+	_moon.name = "Moon"
+	_moon.mesh = mm
+	_moon.material_override = mmat
+	_moon.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	_moon.extra_cull_margin = 16384.0
+	_world.add_child(_moon)
+	# cumulus: clusters of squashed spheres, lit softly
+	_puff_mat = StandardMaterial3D.new()
+	_puff_mat.albedo_color = Color(1, 1, 1)
+	_puff_mat.roughness = 1.0
+	_puff_mat.shading_mode = BaseMaterial3D.SHADING_MODE_PER_VERTEX
+	_puff_mat.disable_fog = true
+	_puffs = Node3D.new()
+	_puffs.name = "Cumulus"
+	_world.add_child(_puffs)
+	var sph := SphereMesh.new()
+	sph.radius = 1.0
+	sph.height = 1.6
+	sph.radial_segments = 10
+	sph.rings = 5
+	for i in 26:
+		var cl := Node3D.new()
+		var ang := rng.randf() * TAU
+		var rr := rng.randf_range(250.0, 1500.0)
+		cl.position = Vector3(cos(ang) * rr, rng.randf_range(170.0, 300.0), sin(ang) * rr)
+		var sc := rng.randf_range(0.8, 1.7)
+		for j in rng.randi_range(5, 9):
+			var b := MeshInstance3D.new()
+			b.mesh = sph
+			b.material_override = _puff_mat
+			b.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+			var r := rng.randf_range(22.0, 48.0) * sc
+			b.scale = Vector3(r, r * 0.8, r)
+			b.position = Vector3(rng.randf_range(-70, 70) * sc, rng.randf_range(-6, 14) * sc * (1.0 if j > 1 else 0.0), rng.randf_range(-35, 35) * sc)
+			cl.add_child(b)
+		_puffs.add_child(cl)
+
+
+func _update_sky_extras(delta: float, night_k: float, dusk_k: float, day_k: float, gloom: float) -> void:
+	if _stars == null or _follow == null:
+		return
+	_stars.global_position = _follow.global_position
+	_moon.global_position = _follow.global_position
+	var sm := _stars.material_override as StandardMaterial3D
+	sm.albedo_color.a = clampf(night_k * 1.2, 0.0, 1.0) * (1.0 - gloom)
+	# the moon sits opposite the sun
+	var e := sin(TAU * (time_of_day - 0.25))
+	var az := deg_to_rad(-35.0 + (time_of_day - 0.5) * 140.0 + 180.0)
+	var el := clampf(-e, -0.1, 1.0) * 1.0
+	_moon.global_position = _follow.global_position + Vector3(sin(az) * cos(el), sin(el) + 0.12, -cos(az) * cos(el)) * 1750.0
+	_moon.visible = el > -0.05 and night_k > 0.05
+	# cumulus: drift with the wind, glow orange at dusk, grey in storms, dark at night
+	_puffs.global_position = Vector3(_follow.global_position.x, 0.0, _follow.global_position.z)
+	for c in _puffs.get_children():
+		c.position.x += (1.0 + wind) * 1.6 * delta
+		if c.position.x > 1600.0:
+			c.position.x = -1600.0
+	var lit := Color(1, 1, 1).lerp(Color(1.0, 0.6, 0.4), dusk_k * 0.85).lerp(Color(0.5, 0.52, 0.56), gloom * 0.7)
+	_puff_mat.albedo_color = lit * lerpf(0.06, 1.0, day_k)
+	_puffs.visible = night_k < 0.97
 
 
 static func _gparam(nm: String, type: int, v: Variant) -> void:
@@ -212,6 +320,7 @@ func update(delta: float) -> void:
 	if _clouds != null and _follow != null:
 		_clouds.global_position = Vector3(_follow.global_position.x, 320.0, _follow.global_position.z)
 	_wind_t += delta
+	_dt = delta
 	var target := 0.35 + 0.25 * sin(_wind_t * 0.11) * sin(_wind_t * 0.037 + 1.0) + 0.45 * rain
 	wind = lerpf(wind, clampf(target, 0.05, 1.0), 1.0 - exp(-0.5 * delta))
 	RenderingServer.global_shader_parameter_set("wind_strength", wind)
@@ -479,6 +588,7 @@ func apply_time() -> void:
 		_cloud_mat.set_shader_parameter("shade_col", Vector3(shd.r, shd.g, shd.b))
 		_cloud_mat.set_shader_parameter("cover", lerpf(0.40, 0.8, gloom))
 		_cloud_mat.set_shader_parameter("alpha_mul", lerpf(0.9, 0.97, gloom))
+	_update_sky_extras(_dt, night, dusk_k, day_k, gloom)
 	var sky_c: Color = sky_mat.sky_horizon_color.lerp(sky_mat.sky_top_color, 0.45)
 	RenderingServer.global_shader_parameter_set("water_sky", Vector3(sky_c.r, sky_c.g, sky_c.b))
 	if terrain_mat != null:      # wet ground: darker and glossier while it rains

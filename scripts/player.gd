@@ -25,7 +25,7 @@ signal damaged(amount: float)
 const WALK_SPEED := 2.4
 const RUN_SPEED := 6.5
 const GRAVITY := 24.0
-const JUMP_SPEED := 8.0
+const JUMP_SPEED := 7.2
 const ACCEL_GROUND := 45.0
 const DECEL_GROUND := 55.0
 const ACCEL_AIR := 9.0
@@ -33,9 +33,9 @@ const COYOTE_TIME := 0.12
 const JUMP_BUFFER := 0.12
 const STEP_HEIGHT := 0.45
 const LOOK_SENSITIVITY := 0.0045
-const MIN_DISTANCE := 2.5
-const MAX_DISTANCE := 12.0
-const DEFAULT_DISTANCE := 7.5
+const MIN_DISTANCE := 1.6
+const MAX_DISTANCE := 10.0
+const DEFAULT_DISTANCE := 4.3
 const BASE_FOV := 70.0
 const RUN_FOV := 77.0
 const FOCUS_ANGLE_DEG := 80.0
@@ -688,7 +688,9 @@ func _physics_process(delta: float) -> void:
 	velocity.z = move_toward(velocity.z, target.z, accel * delta)
 
 	if not on_floor:
-		velocity.y -= GRAVITY * delta
+		# lighter on the way up, heavier on the way down: a weighty, believable arc
+		velocity.y -= GRAVITY * (0.85 if velocity.y > 0.0 else 1.3) * delta
+	_rig.air_vy = velocity.y
 	if _jump_buffer > 0.0 and _coyote > 0.0:
 		if crouching:
 			set_crouch(false)

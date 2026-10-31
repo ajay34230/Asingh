@@ -61,7 +61,7 @@ func mount_animal(a: Animal) -> void:
 	player.mounted = true
 	player.jump_requested = false
 	_dist_saved = player._target_distance
-	player.set_distance(7.5)
+	player.set_distance(5.6)
 	player._rig.set_react("ride")
 	Sfx.at(Animal.CALLS.get(a.species, ["cow_moo"])[0], a.global_position + Vector3(0, 1.2, 0), -3.0)
 	player.say("You swing onto the %s. Stick to ride, JUMP to leap, GET OFF to dismount." % a.species.replace("_", " "))
