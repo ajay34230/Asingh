@@ -219,6 +219,30 @@ func _nearest_enemy(rng: float) -> Enemy:
 	return near
 
 
+var slam_dive := false
+
+
+## X10: shockwave on landing from a dive. Hits every enemy within 4 m, throws up dust and sparks.
+func ground_slam() -> int:
+	var n := 0
+	var dmg := 26.0 * hammer_mult * (2.0 if power.has("power") else 1.0)
+	for e in get_tree().get_nodes_in_group("enemies"):
+		var en := e as Enemy
+		if en == null or en.dead:
+			continue
+		var to := en.global_position - global_position
+		to.y = 0.0
+		if to.length() < 4.0:
+			en.take_hit("slam", dmg, to.normalized() if to.length() > 0.05 else Vector3.FORWARD)
+			n += 1
+	HitFx.burst(get_parent(), global_position + Vector3(0, 0.15, 0), true, Color(0.85, 0.75, 0.55))
+	Sfx.ui_at("hit_thud", 0.0)
+	StoryFX.shake(self, 0.16, 0.3)
+	StoryFX.hitstop(0.07)
+	_combat_t = 0.0
+	return n
+
+
 func attack() -> void:
 	if attack_override.is_valid() and bool(attack_override.call()):
 		return
@@ -232,6 +256,11 @@ func attack() -> void:
 			_buffer = 0.3          # queue the next move so combos flow without perfect timing
 		return
 	blocking = false
+	if not is_on_floor() and velocity.y < -1.0 and not slam_dive:
+		slam_dive = true           # X10: attack while falling = ground slam on landing
+		velocity.y = -17.0
+		Sfx.ui_at("whoosh_kick", -2.0)
+		return
 	var near := _nearest_enemy(6.0)
 	var spd := Vector2(velocity.x, velocity.z).length()
 	var airborne := not is_on_floor()
@@ -609,6 +638,9 @@ func _try_step_up(horizontal: Vector3, delta: float) -> void:
 
 func _physics_process(delta: float) -> void:
 	_tick_combat(delta)
+	if slam_dive and is_on_floor():
+		slam_dive = false
+		ground_slam()
 	if carried_by != null and is_instance_valid(carried_by):
 		global_position = carried_by.global_position
 		velocity = Vector3.ZERO

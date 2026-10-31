@@ -86,7 +86,7 @@ Order is by value-for-risk. "Done" is only set after the selftest passes. Nothin
 ## X-E Player-friendly
 - **X20 Photo mode.** **X21 Tutorial hints.** **X22 Accessibility** (text size, colour-blind markers, subtitles).
 - **X23 Save slots and autosave indicator.** **X24 Achievements.**
-- **X25 Adaptive quality** (shadows, grass, view distance), FPS readout, haptics, controls layout editor.
+- **X25 Adaptive quality (FPS counter, presets, haptics already exist)** (shadows, grass, view distance), FPS readout, haptics, controls layout editor.
 ## X-F Fun
 - **X26 Mini-games:** pachisi/chess, kite flying, arena wrestling, archery, fishing.
 - **X27 Customisation:** outfit colours, headband, cloak, name your horse.

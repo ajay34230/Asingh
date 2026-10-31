@@ -1279,6 +1279,12 @@ func _run_selftest() -> void:
 	await _selftest_map_route(fails, notes)
 	_selftest_cin_ground(fails)
 	_selftest_night_life(fails)
+	_teleport(120.0, 120.0)
+	var sfoe := combat.spawn_enemy(player.global_position + Vector3(0, 0, -2.0), false, 0.0, "test")
+	var sl_hp0: float = sfoe.hp
+	var sl_hits: int = player.ground_slam()
+	if sl_hits < 1 or sfoe.hp >= sl_hp0:
+		fails.append("ground slam did not hurt a nearby enemy")
 	area_title.show_zone("forest")
 	if area_title.label.text == "" or area_title.shown != "forest":
 		fails.append("area title card missing")

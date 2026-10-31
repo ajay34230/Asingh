@@ -103,3 +103,6 @@ New `scripts/ambient_life.gd`: expanding ripple rings when stepping in water; da
 
 ## X5 Area title card (31 Oct)
 `scripts/area_title.gd`: a fading place-name card when entering the bazaar, forest, pond, river, ruins or dunes (12 s cooldown), in Hindi when Hindi mode is on. Selftest PASS (software render). Sun glare, depth-of-field and light shafts were not added.
+
+## X10 Ground slam; X25 partly present (31 Oct)
+Attack while falling now dives and, on landing, sends a 4 m shockwave (damage, dust, shake, hit-pause); `Player.ground_slam()`, selftest PASS. Already present from earlier: FPS counter, shadow/AA/draw-distance/resolution settings, haptics. Charged strike and thrown spear are not built yet.
