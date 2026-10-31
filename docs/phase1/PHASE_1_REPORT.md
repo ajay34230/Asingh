@@ -157,3 +157,6 @@ Prey animals already fled and dogs befriended; added feeding: pause menu > Items
 
 ## X12 Hunting bow (31 Oct)
 New weapon "Hunting bow" (craft: 3 hides + 1 iron). Equipped, ATTACK fires a visible arrow at the nearest enemy within 22 m (damage 20 x gear, 0.6 s cooldown, 5 stamina), on foot or from the saddle. `Player.fire_arrow`. Selftest PASS (arrow hits a foe 9 m away). Spear and axe keep the existing swing animations (they differ by reach and damage only); no new swing animations were drawn.
+
+## X9 Faces and cloth: not possible with the current character model (31 Oct)
+Tried blinking by swapping eye materials. The human models use one shared "atlas" texture with no separate eye surfaces, so eyes cannot be closed without new meshes or blend shapes. The attempt was reverted. Cloth sway and facial expressions would need new rigged assets and stay unbuilt.
