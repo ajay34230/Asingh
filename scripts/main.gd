@@ -1532,6 +1532,14 @@ func _selftest_settings(fails: PackedStringArray, notes: PackedStringArray) -> v
 	if player._attack_cd <= 0.0:
 		fails.append("controls: the HIT button did nothing outside a race")
 	player._attack_cd = 0.0
+	# mission checkpoint: written when a mission starts, and Restart mission puts the player back there
+	story.set_flag("intro_done", true)
+	var cp_pos := player.global_position
+	menu._write_checkpoint()
+	var cp := SaveSystem.read(GameMenu.CHECKPOINT_PATH)
+	if cp.is_empty() or not cp.has("flags") or absf(float((cp["pos"] as Array)[0]) - cp_pos.x) > 0.01:
+		fails.append("menu: mission checkpoint was not written")
+	DirAccess.remove_absolute(ProjectSettings.globalize_path(GameMenu.CHECKPOINT_PATH))
 	var shown := menu._controls.size()
 	if shown != GameSettings.SPEC.size():
 		fails.append("settings: menu shows %d of %d options" % [shown, GameSettings.SPEC.size()])

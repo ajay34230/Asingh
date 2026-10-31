@@ -5,6 +5,7 @@ extends CanvasLayer
 ## story change and every 20 s. Works offline, on-device only.
 
 const SAVE_PATH := "user://save.json"
+const CHECKPOINT_PATH := "user://checkpoint.json"      # state at the start of the current mission
 
 var story: Story
 var player: Player
@@ -79,6 +80,7 @@ func _ready() -> void:
 	var sp := Control.new()
 	sp.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	nav.add_child(sp)
+	nav.add_child(_button("Restart mission", restart_mission))
 	nav.add_child(_button("New game", func() -> void: _show_page("Confirm")))
 	nav.add_child(_button("Quit", func() -> void:
 		save()
@@ -101,6 +103,9 @@ func _ready() -> void:
 		stack.add_child(pg)
 	_show_page("Inventory")
 	story.changed.connect(save)
+	story.mission_event.connect(func(kind: String, _t: String) -> void:
+		if kind == "new":
+			_write_checkpoint.call_deferred())
 	_apply_settings.call_deferred()
 
 
@@ -350,6 +355,28 @@ func _process(delta: float) -> void:
 		save()
 
 
+func _state() -> Dictionary:
+	var p := player.global_position
+	return {"flags": story.flags.duplicate(true), "pos": [p.x, p.y, p.z], "yaw": player.look_yaw(), "tod": main.atmosphere.time_of_day, "hp": player.hp}
+
+
+func _write_checkpoint() -> void:
+	if player != null and story != null and story.get_flag("intro_done"):
+		SaveSystem.write(CHECKPOINT_PATH, _state())
+
+
+## Go back to where the current mission began (flags, position, health), then reload the world.
+func restart_mission() -> void:
+	var d := SaveSystem.read(CHECKPOINT_PATH)
+	if d.is_empty():
+		(main as Node).get("hud").banner("No mission checkpoint yet. Start a mission first.")
+		return
+	if not SaveSystem.write(SAVE_PATH, d):
+		return
+	get_tree().paused = false
+	get_tree().reload_current_scene()
+
+
 func save() -> void:
 	if player == null or story == null or not story.get_flag("intro_done"):
 		return
@@ -389,5 +416,6 @@ func load_save() -> bool:
 func _new_game() -> void:
 	for suffix in ["", ".bak", ".tmp"]:
 		DirAccess.remove_absolute(ProjectSettings.globalize_path(SAVE_PATH + suffix))
+		DirAccess.remove_absolute(ProjectSettings.globalize_path(CHECKPOINT_PATH + suffix))
 	get_tree().paused = false
 	get_tree().reload_current_scene()
