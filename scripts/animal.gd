@@ -39,6 +39,7 @@ var _rng := RandomNumberGenerator.new()
 var _inner: Node3D
 var _call_t := 0.0
 var _flee_t := 0.0
+var calm_t := 0.0               # X17: fed by the player, this animal no longer bolts for a while
 var _eat_t := 0.0
 var _gallop := "Gallop"
 var _eating := "Eating"
@@ -229,7 +230,8 @@ func _process(delta: float) -> void:
 			var l: Array = CALLS[species]
 			Sfx.at(l[_rng.randi() % l.size()], global_position + Vector3(0, 1.0, 0), -4.0, _rng.randf_range(0.93, 1.07))
 	# prey: bolt away when the player comes close or runs at them
-	if kind == "prey" and (dist < 5.0 or (dist < 14.0 and pspeed > 4.0)):
+	calm_t = maxf(0.0, calm_t - delta)
+	if kind == "prey" and calm_t <= 0.0 and (dist < 5.0 or (dist < 14.0 and pspeed > 4.0)):
 		if _flee_t <= 0.0 and CALLS.has(species) and _rng.randf() < 0.4:
 			Sfx.at(CALLS[species][0], global_position, -6.0)
 		_flee_t = 3.0
@@ -488,6 +490,13 @@ const LOOT := {"deer": [2, 1], "stag": [3, 2], "fox": [1, 1]}     # meat, hides
 
 
 ## Only huntable wild animals can be hurt, and only by a player carrying the hunter's knife.
+## X17: offer food. A fed animal stops fleeing for 90 seconds.
+func feed() -> void:
+	calm_t = 90.0
+	_flee_t = 0.0
+	Sfx.at("animal_pain" if false else CALLS[species][0] if CALLS.has(species) else "hit_thud", global_position + Vector3(0, 1, 0), -8.0, 1.2)
+
+
 func huntable() -> bool:
 	return HUNT_HP.has(species) and not dead and not driven
 

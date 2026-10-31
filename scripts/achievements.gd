@@ -17,6 +17,7 @@ const DEFS := {
 	"shield": ["Guard Breaker", "Defeat a shield-bearer."],
 	"night": ["Night Walker", "Walk the world after dark."],
 	"coins": ["Pockets Full", "Hold 200 coins."],
+	"beasts": ["Friend of Beasts", "Feed animals three times."],
 	"ending": ["The Last Sun", "Finish the story."],
 }
 
@@ -82,6 +83,8 @@ func _process(delta: float) -> void:
 			unlock("rider")
 		if int(story.get_flag("coins", 0)) >= 200:
 			unlock("coins")
+	if int(story.get_flag("animals_fed", 0)) >= 3:
+		unlock("beasts")
 	if atmo != null and atmo.night > 0.8:
 		unlock("night")
 

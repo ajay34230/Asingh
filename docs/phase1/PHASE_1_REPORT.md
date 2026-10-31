@@ -148,3 +148,6 @@ Pause menu > Save slots: three manual slots (`GameMenu.slot_save/slot_info/slot_
 
 ## X19 Festivals (31 Oct)
 `scripts/festival.gd`: every 5th in-game day is a festival. Odd festivals (day 5, 15...) = Festival of Lights: 24 coloured lanterns over the bazaar square in the evening; even ones (10, 20...) = Festival of Colours: a burst of coloured powder at the fountain every 14 s. A banner announces it (English/Hindi). The day counter starts at 0 each session (it is not saved). Selftest PASS. Seasons were not added.
+
+## X17 Wildlife: feeding (31 Oct)
+Prey animals already fled and dogs befriended; added feeding: pause menu > Items & crafting > "Feed nearby animal (1 herb)" gives a herb to the nearest animal within 4 m, which stops it fleeing for 90 s. Three feedings unlock "Friend of Beasts". Selftest PASS (feeding a deer-type animal). Not built: predators hunting prey, ecosystems.

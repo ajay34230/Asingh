@@ -1349,6 +1349,20 @@ func _run_selftest() -> void:
 	await _selftest_map_route(fails, notes)
 	_selftest_cin_ground(fails)
 	_selftest_night_life(fails)
+	story.flags.erase("animals_fed")
+	var cow: Animal = null
+	for an in get_tree().get_nodes_in_group("animals"):
+		if String(Animal.BEHAVIOUR.get((an as Animal).species, "")) == "prey" and not (an as Animal).dead:
+			cow = an as Animal
+			break
+	if cow == null:
+		notes.append("wildlife feed test skipped: no prey animal")
+	else:
+		player.global_position = cow.global_position + Vector3(1.5, 0.3, 0.0)
+		items.give("herb", 2)
+		if not items.feed_nearest() or cow.calm_t < 60.0 or int(story.get_flag("animals_fed", 0)) != 1:
+			fails.append("feeding an animal failed")
+		items.take("herb", items.count("herb"))
 	festival.day = 5
 	atmosphere.time_of_day = 0.8
 	festival.refresh()

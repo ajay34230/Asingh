@@ -197,6 +197,12 @@ func _fill_items() -> void:
 				it.equip(id)
 			_fill_items())
 		_it_box.add_child(row)
+	var fb := _button(Loc.t("Feed nearby animal (1 herb)"), func() -> void:
+		if not it.feed_nearest():
+			(main as Node).get("hud").banner(Loc.t("No animal close enough, or no herb."))
+		_fill_items())
+	fb.disabled = it.count("herb") < 1
+	_it_box.add_child(fb)
 	_it_box.add_child(_heading("Crafting"))
 	for rid in Items.RECIPES:
 		var rec: Array = Items.RECIPES[rid]

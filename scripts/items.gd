@@ -125,3 +125,28 @@ func loot(role: String, rng: RandomNumberGenerator) -> void:
 		give("iron", 2 if role == "brute" else 1)
 	elif r < 0.60 and role != "ambusher":
 		give("hide")
+
+
+## X17: give a herb to the nearest animal within 4 m. It calms it; three feedings earn an achievement.
+func feed_nearest() -> bool:
+	if player == null or count("herb") < 1:
+		return false
+	var best: Animal = null
+	var bd := 4.0
+	for a in get_tree().get_nodes_in_group("animals"):
+		var an := a as Animal
+		if an == null or an.dead:
+			continue
+		var d := an.global_position.distance_to(player.global_position)
+		if d < bd:
+			bd = d
+			best = an
+	if best == null:
+		return false
+	take("herb", 1)
+	best.feed()
+	var n := int(story.get_flag("animals_fed", 0)) + 1
+	story.set_flag("animals_fed", n)
+	if hud != null:
+		hud.banner(Loc.t("The animal trusts you a little more."), "")
+	return true

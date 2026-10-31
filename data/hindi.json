@@ -649,5 +649,10 @@
  "Load": "लोड करो",
  "Saved to slot %d": "स्लॉट %d में सहेजा गया",
  "Festival of Lights tonight in the bazaar!": "आज रात बाज़ार में दीपोत्सव!",
- "Festival of Colours tonight in the bazaar!": "आज रात बाज़ार में रंगों का उत्सव!"
+ "Festival of Colours tonight in the bazaar!": "आज रात बाज़ार में रंगों का उत्सव!",
+ "Friend of Beasts": "जानवरों का दोस्त",
+ "Feed animals three times.": "जानवरों को तीन बार खिलाओ।",
+ "The animal trusts you a little more.": "जानवर को तुम पर थोड़ा और भरोसा हुआ।",
+ "Feed nearby animal (1 herb)": "पास के जानवर को खिलाओ (1 जड़ी)",
+ "No animal close enough, or no herb.": "कोई जानवर पास नहीं, या जड़ी नहीं।"
 }
