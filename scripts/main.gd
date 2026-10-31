@@ -111,6 +111,8 @@ func _ready() -> void:
 	for a in args:
 		if a.begins_with("--capture-fight="):
 			_run_capture_fight.call_deferred(a.trim_prefix("--capture-fight="))
+		elif a.begins_with("--capture-veyra="):
+			_run_capture_veyra.call_deferred(a.trim_prefix("--capture-veyra="))
 		elif a.begins_with("--capture-trees="):
 			_run_capture_trees.call_deferred(a.trim_prefix("--capture-trees="))
 		elif a.begins_with("--capture-menu="):
@@ -1371,6 +1373,7 @@ func _run_selftest() -> void:
 		if not story.get_flag("act3_done", false) or items.count("chain") < 1:
 			fails.append("Act 3 completion rewards missing")
 	campaign.ascend()
+	await _selftest_act4(fails)
 	for k in 3:
 		story.flags.erase("rebuild_%d" % (k + 1))
 	rebuild.built = [false, false, false]
@@ -1706,6 +1709,42 @@ func _selftest_night_life(fails: PackedStringArray) -> void:
 	atmosphere.apply_time()
 
 
+func _selftest_act4(fails: PackedStringArray) -> void:
+	var a4: Act4 = campaign.act4
+	for k in ["outposts_cleared", "a4_freed", "vikram_met", "siege_won", "vessa_down", "act4_done", "siege_down", "outpost_down"]:
+		story.flags.erase(k)
+	story.set_flag("act3_done", true)
+	if a4.groups.size() != 3 or (a4.groups[0] as Array).size() != 5:
+		fails.append("act 4: outposts not spawned")
+		return
+	for g in a4.groups:
+		for e in g:
+			(e as Enemy).take_hit("slam", 9999.0, Vector3.FORWARD)
+	a4._check_outposts()
+	if int(story.get_flag("outposts_cleared", 0)) != 3 or not a4.prisoner_it.enabled:
+		fails.append("act 4: outposts/prisoner state wrong")
+	a4.free_prisoner(a4.prisoner_it)
+	if a4.vikram == null:
+		fails.append("act 4: Vikram not spawned after freeing the prisoner")
+	story.set_flag("vikram_met", true)
+	for w in 3:
+		var killed := 0
+		for e in get_tree().get_nodes_in_group("enemies"):
+			if (e as Enemy).get_meta("tag", "") == "siege":
+				(e as Enemy).take_hit("slam", 9999.0, Vector3.FORWARD)
+				killed += 1
+		if killed != Act4.WAVES[w]:
+			fails.append("act 4: wave %d had %d men, wanted %d" % [w + 1, killed, Act4.WAVES[w]])
+		a4._t = 0.0
+		a4._process(0.1)
+	if not story.get_flag("siege_won", false) or a4.vessa == null:
+		fails.append("act 4: Vessa did not appear after the siege")
+	else:
+		a4.vessa.take_hit("slam", 99999.0, Vector3.FORWARD)
+		if not story.get_flag("act4_done", false):
+			fails.append("act 4: Vessa's death did not complete Act 4")
+
+
 func _selftest_cin_ground(fails: PackedStringArray) -> void:
 	var low := Vector3(20.0, -50.0, 20.0)
 	var r: Vector3 = cin._above_ground(low)
@@ -1881,6 +1920,34 @@ func _selftest_stampede(fails: PackedStringArray, notes: PackedStringArray) -> v
 	story.set_flag("stampede_done", false)
 	story.flags["coins"] = coins0
 	player.global_position = Vector3(TerrainBuilder.START_MOUND.x, terrain.sample_height(TerrainBuilder.START_MOUND.x, TerrainBuilder.START_MOUND.y) + 0.4, TerrainBuilder.START_MOUND.y)
+
+
+func _run_capture_veyra(dir: String) -> void:
+	DirAccess.make_dir_recursive_absolute(dir)
+	touch.visible = false
+	hud.visible = false
+	atmosphere.time_of_day = 0.5
+	atmosphere.apply_time()
+	var o := Campaign.ORIGIN
+	for bi in 3:
+		campaign.light_brazier(bi, campaign.brazier_its[bi])
+	var shots := [
+		["veyra_entry", Vector3(0, 0, 55), Vector3(0, 3.0, 10), -0.05],
+		["veyra_mid", Vector3(-4, 0, 20), Vector3(0, 3.0, -30), -0.03],
+		["veyra_far", Vector3(0, 0, -20), Vector3(0, 3.0, -55), -0.03],
+	]
+	for s in shots:
+		var sp: Vector3 = s[1] + o
+		player.set_distance(4.0)
+		player.global_position = sp + Vector3(0, 0.4, 0)
+		player.velocity = Vector3.ZERO
+		player.locked = true
+		_look_at_point(s[2] + o, s[3])
+		for i in 40:
+			await get_tree().process_frame
+		await RenderingServer.frame_post_draw
+		print("[capture] ", s[0], " -> ", get_viewport().get_texture().get_image().save_png("%s/%s.png" % [dir, s[0]]))
+	get_tree().quit()
 
 
 func _run_capture_trees(dir: String) -> void:

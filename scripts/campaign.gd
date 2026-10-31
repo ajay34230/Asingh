@@ -23,6 +23,7 @@ var karan_npc: Npc
 var karan_it: Interactable
 var warden: Enemy
 var _warden_started := false
+var act4: Act4
 
 const TABLETS := [
 	"TABLET I: Queen Ila raised Veyra beneath the reach of the sun, to keep the Sun Heart from those who would own it.",
@@ -46,6 +47,10 @@ func build() -> void:
 	_add_act3_quest()
 	story.changed.connect(_on_changed)
 	_on_changed()
+	act4 = Act4.new()
+	act4.camp = self
+	add_child(act4)
+	act4.build()
 
 
 # --- Veyra ---------------------------------------------------------------------------------
