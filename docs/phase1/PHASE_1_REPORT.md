@@ -193,3 +193,11 @@ Pickups are now small 3D models built from primitives (heart with cross, lightni
 - New achievements (Green Thumb, Orchard Keeper, Market Trader, Coin Collector, Crop Champion) and three farm hints.
 - Dry plots water themselves in rain or when hired Sher is within 40 m; market prices +15% on festival days.
 - Selftest covers market refusal and the travel stop. Not device-tested; rain/Sher/festival behaviour and the intro shot are unverified visually.
+
+## Addendum: title screen, combat feedback, bounty board, crash diagnostics
+- Title screen (Continue / New Game / Language) before play; world pauses behind it.
+- Floating damage numbers (enemies and player), red "!" wind-up warning on enemy attacks, soft lock-on arrow on the nearest enemy.
+- Bounty board in the bazaar: four repeatable jobs (kills, harvests, market earnings, coins found), accept then claim.
+- Crash diagnostics (`diag.gd`): breadcrumb file every 3 s (fps, position, memory); if the last run ended unexpectedly the title screen shows it. File logging enabled on mobile. Adaptive quality lowers the preset when FPS stays under 22 for 8 s.
+- Device screenshot (build e023959, 15 FPS) shows large brown slabs/beams and dark blobs in the sky. A similar slab appears in the software-render town capture from the build before the farm, so it predates the farm work; cause not found, not reproduced as the same artefact. Unresolved.
+- Selftest covers the bounty flow; title screen and floating text are not visually verified.

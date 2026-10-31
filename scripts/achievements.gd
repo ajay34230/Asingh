@@ -107,6 +107,8 @@ func _process(delta: float) -> void:
 
 ## Called by enemies/player code through the group of events they already have.
 func note_kill(role: String, by_slam: bool) -> void:
+	if story != null:
+		story.add("kills")
 	if role == "shield":
 		unlock("shield")
 	if by_slam:

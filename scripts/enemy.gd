@@ -230,6 +230,7 @@ func take_hit(kind: String, amount: float, from_dir: Vector3) -> void:
 			Sfx.at("hit_thud", global_position + Vector3(0, 1.2, 0), -6.0, 1.6)
 	hp -= amount
 	_flash = 0.25
+	FloatText.spawn(get_parent(), global_position + Vector3(0, 2.2, 0), str(int(round(amount))), Color(1.0, 0.9, 0.3) if amount < 18.0 else Color(1.0, 0.45, 0.15), 1.0 if amount < 18.0 else 1.4)
 	if is_boss and not enraged and hp > 0.0 and hp < max_hp * 0.5:
 		enrage()
 	HitFx.burst(get_parent(), global_position + Vector3(0, 1.1, 0), kind != "punch")
@@ -535,6 +536,7 @@ func _physics_process(delta: float) -> void:
 		elif _cd <= 0.0:
 			_cd = attack_cd
 			_winding = 0.0
+			FloatText.spawn(get_parent(), global_position + Vector3(0, 2.4, 0), "!", Color(1.0, 0.15, 0.1), 1.6, 0.5, 0.45)
 			var r := _rng.randf()
 			if r < 0.3:
 				rig.play_move("cross")

@@ -589,6 +589,7 @@ func take_damage(amount: float, from: Vector3) -> void:
 	if haptics and OS.has_feature("mobile"):
 		Input.vibrate_handheld(70)
 	hp = maxf(0.0, hp - amount)
+	FloatText.spawn(get_parent(), global_position + Vector3(0, 2.2, 0), "-" + str(int(round(amount))), Color(1.0, 0.25, 0.25), 1.1)
 	_combat_t = 0.0
 	_invuln = 0.35
 	velocity += from.normalized() * 4.0 + Vector3(0, 1.5, 0)

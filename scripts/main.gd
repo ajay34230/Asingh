@@ -35,6 +35,9 @@ var farm: Farm
 var rebuild: VillageRebuild
 var campaign: Campaign
 var festival: Festival
+var bounty: BountyBoard
+var lock_marker: LockMarker
+var diag: Diag
 var minigames: MiniGames
 var secrets: Secrets
 var companion_sys: CompanionSystem
@@ -958,6 +961,23 @@ func _build_story() -> void:
 	farm.items = items
 	add_child(farm)
 	farm.build()
+	bounty = BountyBoard.new()
+	bounty.terrain = terrain
+	bounty.story = story
+	bounty.player = player
+	bounty.hud = hud
+	bounty.coins = coin_sys
+	bounty.shop = farm.shop
+	add_child(bounty)
+	bounty.build()
+	lock_marker = LockMarker.new()
+	lock_marker.player = player
+	add_child(lock_marker)
+	diag = Diag.new()
+	diag.main = self
+	diag.player = player
+	diag.hud = hud
+	add_child(diag)
 	shrines = Shrines.new()
 	shrines.main = self
 	shrines.terrain = terrain
@@ -975,8 +995,18 @@ func _build_story() -> void:
 	add_child(photo_mode)
 	if testing:
 		return
+	player.locked = true
+	var ts := TitleScreen.new()
+	ts.has_save = GameMenu.has_save()
+	ts.crash_info = diag.previous_crash
+	ts.chosen.connect(_on_title_chosen)
+	add_child(ts)
+
+
+func _on_title_chosen(continue_game: bool) -> void:
+	player.locked = false
 	atmosphere.running = true
-	if menu.load_save():
+	if continue_game and menu.load_save():
 		story_b.apply_loaded_state()
 		farm.reload()
 		coin_sys.reload()
@@ -2077,6 +2107,22 @@ func _selftest_farm(fails: PackedStringArray) -> void:
 	player.wanted_t = 0.0
 	if not shrines.is_lit("farm"):
 		fails.append("farm: not a fast-travel stop")
+	# bounty board: accept, count real kills, claim once
+	var coins_before := coin_sys.balance()
+	story.set_flag("kills", 0)
+	if not bounty.accept("slay") or bounty.accept("slay"):
+		fails.append("bounty: accept rules")
+	if bounty.claim("slay") != 0:
+		fails.append("bounty: claimed before goal")
+	for k in 5:
+		achievements.note_kill("", false)
+	if bounty.progress(BountyBoard.JOBS[0]) != 5 or bounty.claim("slay") != 90 or coin_sys.balance() != coins_before + 90:
+		fails.append("bounty: claim failed")
+	if bounty.state_of("slay") != "off":
+		fails.append("bounty: not reposted")
+	FloatText.spawn(self, player.global_position, "12")
+	if lock_marker == null or diag == null or diag.summary() == "":
+		fails.append("lock marker / diag missing")
 	print("[selftest] farm: plant, water x2, tractor harvest, sell, orchard, contest, honey ok; %d world coins" % coin_sys.coins.size())
 
 
