@@ -71,6 +71,7 @@ func _ready() -> void:
 	water = WaterBuilder.new(terrain)
 	water.build(self, houses)
 	water.spawn_carriers(self, houses, player)
+	RockScatter.build(self, terrain)
 	TempleBuilder.new(terrain, player).build(self)
 	atmosphere.terrain_mat = terrain.material
 	for hi in 5:
@@ -693,7 +694,7 @@ func apply_quality(tier: int) -> void:
 	atmosphere.sun.directional_shadow_max_distance = [260.0, 150.0, 70.0][tier]
 	atmosphere.sun.directional_shadow_mode = [DirectionalLight3D.SHADOW_PARALLEL_2_SPLITS, DirectionalLight3D.SHADOW_PARALLEL_2_SPLITS, DirectionalLight3D.SHADOW_ORTHOGONAL][tier]
 	atmosphere.environment.glow_enabled = tier < 2
-	var ranges := {"foliage_grass": [130.0, 75.0, 40.0], "foliage_reeds": [160.0, 100.0, 60.0], "foliage_palm": [420.0, 260.0, 150.0]}
+	var ranges := {"foliage_grass": [130.0, 75.0, 40.0], "foliage_reeds": [160.0, 100.0, 60.0], "foliage_palm": [420.0, 260.0, 150.0], "foliage_stone": [220.0, 130.0, 75.0]}
 	for g in ranges:
 		for n in get_tree().get_nodes_in_group(g):
 			var gi := n as GeometryInstance3D

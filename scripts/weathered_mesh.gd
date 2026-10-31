@@ -142,7 +142,7 @@ static func rock(variant: int = 0, rings: int = 7, segs: int = 11, amp: float = 
 		for i in segs + 1:
 			var th := TAU * float(i % segs) / segs
 			var d := Vector3(sin(phi) * cos(th), cos(phi), sin(phi) * sin(th))
-			var p := d * (1.0 + _disp(d, variant, 1.7) * amp)
+			var p := d * (1.0 + _disp(d, variant, 1.7) * amp + _disp(d, variant + 3, 5.5) * amp * 0.3)
 			if p.y < 0.0:
 				p.y *= 0.45
 			row.append(p)

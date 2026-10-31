@@ -542,6 +542,12 @@ func _building(kind: String, pos: Vector2, yaw: float, w: float, d: float) -> vo
 	for sx in [-0.75, 0.75]:
 		_box(h, Vector3(0.18, 2.4, 0.2), Vector3(dx + sx, 1.2, d * 0.5 + 0.06), wood)
 	_box(h, Vector3(2.0, 0.18, 0.6), Vector3(dx, 0.1, d * 0.5 + 0.4), PropFactory.sandstone())
+	# painted decoration: diamond border at the base and under the roof, mandala over the door
+	var sty := rng.randi() % 3
+	Murals.band(h, -w * 0.5 + 0.2, w * 0.5 - 0.2, 0.55, d * 0.5 + 0.035, 0.3, sty, dx, 2.2)
+	Murals.band(h, -w * 0.5 + 0.2, w * 0.5 - 0.2, H - 0.3, d * 0.5 + 0.035, 0.28, (sty + 1) % 3)
+	if H < 4.0 and kind != "shop" and kind != "inn":
+		Murals.panel(h, dx, 3.0, d * 0.5 + 0.035, 0.7, sty)
 	# windows with shutters on every storey
 	var floors := 1 if H < 4.0 else (2 if H < 8.0 else 3)
 	for fl in floors:

@@ -72,3 +72,9 @@ Waiting for your feedback on how it looks and plays on the S10 before applying m
 - Animals: procedural fur noise (triplanar), patches on cows/bulls, dapples on deer.
 - Sky: day length 20 -> 10 min; stars, moon opposite the sun, drifting low-poly cumulus that glow at dusk and grey in storms.
 - Verified by selftest and software-render screenshots only; not tested on a device.
+
+## Addendum: stones, grain and painted walls
+- Rocks: finer, two-octave faceted meshes (10 rings x 16 segments). New RockScatter adds about 40 boulders with small leaning rocks, plus a field of low rocks, pebbles and gravel clusters as culled MultiMeshes (view distance follows the foliage setting). Rocks keep clear of the town, race track, pond and roads.
+- Grain: a fine detail layer (grit albedo and micro normal map) on all stone and plaster materials. Wall textures are now generated once per plaster amount and tinted per house (the 8 house colours would otherwise have cost 8 per-pixel generations at start-up).
+- Paintings: new Murals (procedural, no imported images): diamond borders at the base and under the eaves of hamlet and town houses, and a mandala panel above doors of small town houses.
+- Verified by selftest and software-render screenshots only; not tested on a device.

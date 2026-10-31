@@ -182,7 +182,7 @@ static func apply(key: String) -> void:
 			if main != null:
 				var k := float(v[key])
 				var tier := clampi(int(v["quality"]), 0, 2)
-				var ranges := {"foliage_grass": [130.0, 75.0, 40.0], "foliage_reeds": [160.0, 100.0, 60.0], "foliage_palm": [420.0, 260.0, 150.0]}
+				var ranges := {"foliage_grass": [130.0, 75.0, 40.0], "foliage_reeds": [160.0, 100.0, 60.0], "foliage_palm": [420.0, 260.0, 150.0], "foliage_stone": [220.0, 130.0, 75.0]}
 				for g in ranges:
 					for n in main.get_tree().get_nodes_in_group(g):
 						(n as GeometryInstance3D).visibility_range_end = float(ranges[g][tier]) * k

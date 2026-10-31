@@ -151,6 +151,9 @@ func _shell(h: Node3D, w: float, d: float, door_x: float, partition_x: float, va
 	PropFactory.box(h, Vector3(DOOR_W + 0.5, 0.2, t + 0.2), Vector3(door_x, FLOOR_Y + DOOR_H + 0.08, dz), wood, Vector3.ZERO, false)
 	PropFactory.box(h, Vector3(DOOR_W + 0.4, 0.14, 0.8), Vector3(door_x, FLOOR_Y - 0.03, dz + 0.1), trim, Vector3.ZERO, true)
 
+	# Painted diamond borders: low on the wall (broken at the door) and under the eaves
+	Murals.band(h, -hw + 0.4, hw - 0.4, FLOOR_Y + 0.5, hd + 0.03, 0.3, _hc % 3, door_x, DOOR_W + 0.8)
+	Murals.band(h, -hw + 0.4, hw - 0.4, FLOOR_Y + WALL_H - 0.25, hd + 0.03, 0.26, (_hc + 1) % 3)
 	# Window sills, lintels and open shutters.
 	var wins := [
 		[true, hd - t * 0.5, w * 0.28 if door_x < 0.0 else -w * 0.28, 1.0, 1.0, 2.0],

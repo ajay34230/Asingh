@@ -65,6 +65,17 @@ static func material(color: Color, roughness: float = 0.95, metallic: float = 0.
 	return m
 
 
+## Fine grain: a high-frequency detail layer (grit, pores, speckle) multiplied over the base texture
+## and a micro normal map, so surfaces keep detail when the camera is close.
+static func add_grain(m: StandardMaterial3D, scale_: float = 2.6, strength: float = 1.0) -> void:
+	m.detail_enabled = true
+	m.detail_blend_mode = BaseMaterial3D.BLEND_MODE_MUL
+	m.detail_albedo = _noise_texture("grain_a", 0.22, 3, 51, false, 0.0, 0.82, false, 256)
+	m.detail_normal = _noise_texture("grain_n", 0.3, 2, 52, true, 5.0 * strength, 0.6, false, 256)
+	m.detail_uv_layer = BaseMaterial3D.DETAIL_UV_1
+	m.uv2_scale = Vector3.ONE
+
+
 ## Sandstone / mud-brick style surface: layered albedo, cracked normal map, rough.
 static func stone(color: Color, strata: float = 0.9) -> StandardMaterial3D:
 	var key := "stone_%s_%s" % [color, strata]
@@ -81,6 +92,7 @@ static func stone(color: Color, strata: float = 0.9) -> StandardMaterial3D:
 	m.uv1_world_triplanar = true
 	m.uv1_triplanar_sharpness = 3.0
 	m.uv1_scale = Vector3(0.22, 0.22 + 0.9 * strata, 0.22)
+	add_grain(m)
 	_materials[key] = m
 	return m
 
@@ -127,6 +139,23 @@ static func aged_wall(plaster_amount: float, tint: Color) -> StandardMaterial3D:
 	var key := "aged_wall_%s_%s" % [plaster_amount, tint]
 	if _materials.has(key):
 		return _materials[key]
+	var tkey := "aged_wall_tex_%s" % plaster_amount
+	if _textures.has(tkey):
+		# the expensive per-pixel texture is shared by every tint; the tint just multiplies it
+		var m2 := StandardMaterial3D.new()
+		m2.albedo_texture = _textures[tkey + "_a"]
+		m2.albedo_color = tint
+		m2.normal_enabled = true
+		m2.normal_texture = _textures[tkey + "_n"]
+		m2.normal_scale = 1.2
+		m2.roughness = 0.97
+		m2.uv1_triplanar = true
+		m2.uv1_world_triplanar = true
+		m2.uv1_triplanar_sharpness = 4.0
+		m2.uv1_scale = Vector3(0.3, 0.3, 0.3)
+		add_grain(m2)
+		_materials[key] = m2
+		return m2
 	var size := 256
 	var patch := _noise_img(901, 0.008, size)
 	var grain := _noise_img(902, 0.09, size)
@@ -168,7 +197,7 @@ static func aged_wall(plaster_amount: float, tint: Color) -> StandardMaterial3D:
 			var hh := lerpf(h_brick, h_pl, cover)
 			# Thin shadow where the plaster edge stands proud of the brick.
 			out = out * (1.0 - 0.25 * (cover * (1.0 - cover)) * 4.0)
-			albedo.set_pixel(x, y, Color(out.r * tint.r, out.g * tint.g, out.b * tint.b))
+			albedo.set_pixel(x, y, out)
 			hts[y * size + x] = hh
 	var m := StandardMaterial3D.new()
 	m.albedo_texture = ImageTexture.create_from_image(albedo)
@@ -180,6 +209,11 @@ static func aged_wall(plaster_amount: float, tint: Color) -> StandardMaterial3D:
 	m.uv1_world_triplanar = true
 	m.uv1_triplanar_sharpness = 4.0
 	m.uv1_scale = Vector3(0.3, 0.3, 0.3)
+	m.albedo_color = tint
+	_textures[tkey] = true
+	_textures[tkey + "_a"] = m.albedo_texture
+	_textures[tkey + "_n"] = m.normal_texture
+	add_grain(m)
 	_materials[key] = m
 	return m
 
@@ -469,7 +503,7 @@ static func rock(parent: Node3D, r: Vector3, pos: Vector3, mat: Material, yaw_de
 	root.rotation_degrees = Vector3(0, yaw_deg, 0)
 	parent.add_child(root)
 	var vis := MeshInstance3D.new()
-	vis.mesh = WeatheredMesh.rock(_variant(pos))
+	vis.mesh = WeatheredMesh.rock(_variant(pos), 10, 16, 0.3)
 	vis.scale = r
 	vis.material_override = mat
 	root.add_child(vis)
