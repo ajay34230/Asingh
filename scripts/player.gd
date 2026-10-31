@@ -220,6 +220,36 @@ func _nearest_enemy(rng: float) -> Enemy:
 
 
 var slam_dive := false
+const MAX_STAMINA := 100.0
+var stamina := 100.0            # S2: sprint, roll, attack and blocking spend it; it refills when idle
+var _stam_delay := 0.0
+var _winded := false            # out of breath: no sprinting until partly recovered
+var _block_t := 9.0             # seconds since the guard went up (a block this fresh is a parry)
+var parries := 0
+
+
+## S2: spend stamina. Returns false (and spends what is left) if there was not enough.
+func spend(cost: float) -> bool:
+	_stam_delay = 0.7
+	if stamina >= cost:
+		stamina -= cost
+		return true
+	stamina = 0.0
+	return false
+
+
+func _tick_stamina(delta: float, draining: bool) -> void:
+	_block_t += delta
+	_stam_delay = maxf(0.0, _stam_delay - delta)
+	if draining:
+		stamina = maxf(0.0, stamina - 14.0 * delta)
+		_stam_delay = 0.7
+		if stamina <= 0.0:
+			_winded = true
+	elif _stam_delay <= 0.0:
+		stamina = minf(MAX_STAMINA, stamina + (30.0 if not blocking else 8.0) * delta)
+	if _winded and stamina > 25.0:
+		_winded = false
 var gear_dmg := 1.0         # S1: equipped weapon damage multiplier
 var gear_reach := 0.0       # S1: extra reach in metres
 var armor_mult := 1.0       # S1: equipped armour (damage taken multiplier)
@@ -297,6 +327,8 @@ func attack() -> void:
 		_hit_mult = 1.3            # flying kick
 	elif spd > 4.5:
 		_hit_mult = 1.2
+	if not spend(7.0):
+		_hit_mult *= 0.6           # exhausted: weak swings
 	if _combo_t > 1.4:
 		_combo = 0
 	_combo_t = 0.0
@@ -338,12 +370,16 @@ func set_block(on: bool) -> void:
 	if on == blocking:
 		return
 	blocking = on
+	if on:
+		_block_t = 0.0
 	_rig.set_react("block" if on else "")
 
 
 ## Quick dodge roll with a short window of invulnerability (ROLL button / V).
 func roll() -> void:
 	if locked or dead or mounted or _throwing or _roll_cd > 0.0:
+		return
+	if not spend(18.0):
 		return
 	_roll_cd = 0.9
 	_invuln = maxf(_invuln, 0.45)
@@ -454,6 +490,19 @@ func take_damage(amount: float, from: Vector3) -> void:
 	if power.has("shield"):
 		amount *= 0.2
 	amount *= GameSettings.damage_scale() * armor_mult
+	if blocking and _block_t < 0.25:
+		# S2: a block raised just before the hit is a parry: no damage, the attacker is staggered
+		parries += 1
+		stamina = minf(MAX_STAMINA, stamina + 12.0)
+		var near_e := _nearest_enemy(4.0)
+		if near_e != null:
+			near_e.stagger(1.3)
+		Sfx.ui_at("hit_thud", -2.0)
+		HitFx.burst(get_parent(), global_position + Vector3(0, 1.3, 0) + Vector3(-sin(_model.rotation.y), 0, -cos(_model.rotation.y)) * 0.6, true, Color(0.7, 0.85, 1.0))
+		StoryFX.shake(self, 0.06, 0.15)
+		return
+	if blocking and not spend(10.0):
+		amount *= 0.6                  # guard broken by exhaustion
 	if blocking:
 		var toward := from - global_position
 		toward.y = 0.0
@@ -669,6 +718,9 @@ func _physics_process(delta: float) -> void:
 	var key_move := _keyboard_input()
 	var input := move_input if move_input.length() > 0.05 else key_move
 	var fast := sprint or Input.is_physical_key_pressed(KEY_SHIFT)
+	if _winded:
+		fast = false
+	_tick_stamina(delta, fast and input.length() > 0.3 and is_on_floor() and not mounted)
 	if locked:
 		input = Vector2.ZERO
 		fast = false

@@ -124,3 +124,6 @@ X2: soft morning mist (time 0.20-0.33, when no story weather); rain, wet ground 
 
 ## S1 + S4 Items, equipment, crafting (31 Oct)
 `scripts/items.gd`: counts in story flags (saved). Herb/potion (heal), hide/iron (materials), spear (+reach, +15%), axe (+40%), leather armour (-20% damage taken), chain mail (-38%). Enemies drop herbs/iron/hides; the pause menu's "Items & crafting" page uses, equips and crafts (potion 3 herbs; spear 2 iron + 1 hide; axe 4 iron; leather 4 hides; chain 8 iron + 2 hides). Hides already hunted are credited as crafting hides once. Selftest PASS. Shops that sell items and a visible weapon in hand are not built; balance untested on a device.
+
+## S2 Stamina and parry (31 Oct)
+Stamina (100): sprinting drains 14/s, roll costs 18, each attack 7 (exhausted swings do 60%), blocking an unparried hit costs 10; refills 30/s after 0.7 s idle; running out of breath blocks sprinting until 25. A block raised less than 0.25 s before a hit is a parry: no damage, +12 stamina, attacker staggered 1.3 s, blue sparks. Green stamina bar under the health bar. Selftest PASS (spend, regen, parry). Tuning is untested on a device.

@@ -1310,6 +1310,26 @@ func _run_selftest() -> void:
 	await _selftest_map_route(fails, notes)
 	_selftest_cin_ground(fails)
 	_selftest_night_life(fails)
+	player.stamina = 100.0
+	player.spend(30.0)
+	if absf(player.stamina - 70.0) > 0.01:
+		fails.append("stamina spend wrong")
+	player._stam_delay = 0.0
+	player._tick_stamina(1.0, false)
+	if player.stamina <= 70.5:
+		fails.append("stamina did not regenerate")
+	player.stamina = 100.0
+	_teleport(160.0, 160.0)
+	var pe := combat.spawn_enemy(player.global_position + Vector3(0, 0, -1.5), false, 0.0, "test")
+	player.hp = player.max_hp
+	player.set_block(true)
+	player._block_t = 0.0
+	player._invuln = 0.0
+	var hp_p: float = player.hp
+	player.take_damage(12.0, Vector3(0, 0, 1))
+	if player.hp < hp_p or player.parries < 1 or pe._stun <= 0.0:
+		fails.append("parry did not negate damage and stagger")
+	player.set_block(false)
 	for k in ["herb", "iron", "hide", "potion", "spear", "leather"]:
 		story.flags.erase("item_" + k)
 	items.give("herb", 3)

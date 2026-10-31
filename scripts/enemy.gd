@@ -206,6 +206,15 @@ func _pain_sfx(strong: bool) -> void:
 
 
 ## Generic hit (hammer): small reaction.
+## S2: a parry or heavy block leaves the attacker open for a moment.
+func stagger(dur: float) -> void:
+	if dead:
+		return
+	_stun = maxf(_stun, dur)
+	_winding = -1.0
+	_cd = maxf(_cd, dur)
+
+
 func take_damage(amount: float, from_dir: Vector3) -> void:
 	take_hit("hammer", amount, from_dir)
 

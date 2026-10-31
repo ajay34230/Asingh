@@ -3,6 +3,7 @@ extends CanvasLayer
 ## Health bar (top centre), active power-up chips, red hit flash and the knocked-out overlay.
 
 var player: Player
+var _stam: ProgressBar
 var _bar: ProgressBar
 var _label: Label
 var _chips: HBoxContainer
@@ -47,6 +48,20 @@ func _ready() -> void:
 	_bar.add_theme_stylebox_override("background", bg)
 	_bar.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	box.add_child(_bar)
+	_stam = ProgressBar.new()
+	_stam.custom_minimum_size = Vector2(460, 10)
+	_stam.show_percentage = false
+	_stam.max_value = Player.MAX_STAMINA
+	var sf := StyleBoxFlat.new()
+	sf.bg_color = Color(0.3, 0.8, 0.4)
+	sf.set_corner_radius_all(4)
+	_stam.add_theme_stylebox_override("fill", sf)
+	var sbg := StyleBoxFlat.new()
+	sbg.bg_color = Color(0.05, 0.1, 0.06, 0.7)
+	sbg.set_corner_radius_all(4)
+	_stam.add_theme_stylebox_override("background", sbg)
+	_stam.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	box.add_child(_stam)
 	_label = Label.new()
 	_label.add_theme_font_size_override("font_size", 20)
 	_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
@@ -100,6 +115,7 @@ func _refresh_chips() -> void:
 
 
 func _process(delta: float) -> void:
+	_stam.value = player.stamina
 	_flash_a = maxf(0.0, _flash_a - delta * 1.6)
 	_flash.color.a = _flash_a * 0.55 + (0.35 if player.hp < player.max_hp * 0.25 and not player.dead else 0.0) * (0.5 + 0.5 * sin(Time.get_ticks_msec() * 0.008))
 	for c in _chips.get_children():
