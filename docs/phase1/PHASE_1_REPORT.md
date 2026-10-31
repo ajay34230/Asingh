@@ -168,3 +168,6 @@ Tried blinking by swapping eye materials. The human models use one shared "atlas
 - NPCs and animals: `Walls.fix` cancels/slides steps that hit static bodies (within 60 m of the player).
 - Lag: lights fade out with distance and cast no shadows, High preset renders at 0.9 scale with 150 m shadows, NPCs beyond 90 m are not simulated, NPC ground raycasts run every third frame.
 - Not verified on a phone; frame rate effects are expected, not measured.
+
+## Hitting villagers and animals (31 Oct)
+Punches/kicks now affect NPCs (stagger, shout, flee 7-10 s; never damaged) and animals (shoved, yelp, bolt; never killed - hunting is still the knife+hammer). A hint appears after the third villager struck (`Player.assaults`). Selftest covers both reactions. Not device-tested.

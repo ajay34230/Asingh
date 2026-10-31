@@ -1881,6 +1881,32 @@ func _selftest_walls(fails: PackedStringArray) -> void:
 		fails.append("walls: blocked in open space")
 	walker.queue_free()
 	wall.queue_free()
+	var folks := get_tree().get_nodes_in_group("npcs")
+	var villager: Npc = null
+	for f in folks:
+		var fnpc := f as Npc
+		if fnpc != null and not fnpc.companion:
+			villager = fnpc
+			break
+	if villager == null:
+		fails.append("hits: no villager found")
+	else:
+		villager.take_hit(10.0, Vector3.FORWARD)
+		if villager._scared_t <= 0.0:
+			fails.append("hits: villager did not react")
+		villager._scared_t = 0.0
+		villager._stun_t = 0.0
+		villager.rig.set_react("")
+	var cow: Animal = null
+	for an in get_tree().get_nodes_in_group("animals"):
+		cow = an as Animal
+		if cow != null and not cow.dead:
+			break
+	if cow != null:
+		cow.shove(Vector3.FORWARD)
+		if cow._flee_t <= 0.0:
+			fails.append("hits: animal did not bolt")
+		cow._flee_t = 0.0
 	# boxing: the combo is punches only and the roll tucks the body
 	for mv in Player.COMBO:
 		if Player.MOVE_KIND[mv] != "punch":

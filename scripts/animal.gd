@@ -508,6 +508,16 @@ func huntable() -> bool:
 	return HUNT_HP.has(species) and not dead and not driven
 
 
+## Fists and kicks: the animal yelps, is shoved back and bolts. It is never killed this way.
+func shove(dir: Vector3) -> void:
+	if dead or driven:
+		return
+	global_position += Vector3(dir.x, 0.0, dir.z).normalized() * 0.8
+	_flee_t = 6.0
+	calm_t = 0.0
+	Sfx.at("animal_pain", global_position + Vector3(0, 1, 0), -3.0, randf_range(0.9, 1.3))
+
+
 func take_hit(dmg: float, dir: Vector3) -> void:
 	if not huntable():
 		return

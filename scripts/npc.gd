@@ -73,9 +73,53 @@ var _restore_t := 0.0
 var _busy := 0.0
 var stall_kind := "general"      # what a hawker sells (HAWK_LINES key)
 var _chat_t := 0.0
+var _scared_t := 0.0             # >0: running away after being hit
+var _stun_t := 0.0
+var _knock := Vector3.ZERO
+const OUCH := ["Ow! Stop that!", "What are you doing?!", "Help! Leave me alone!", "Are you mad?!"]
+
+
+## A punch or kick from the player: stagger, a shout, then the villager runs for a few seconds.
+func take_hit(dmg: float, dir: Vector3) -> void:
+	if companion or _home_state == 2:
+		return
+	_stun_t = 0.45
+	_scared_t = 7.0 if dmg < 15.0 else 10.0
+	_knock = Vector3(dir.x, 0.0, dir.z).normalized() * (2.5 + dmg * 0.12)
+	rig.mode = "idle"
+	rig.set_react("flinch")
+	say(OUCH[_rng.randi() % OUCH.size()], 2.0)
+	Sfx.ui_at("kick_hit", -8.0)
+	_restore_t = 0.0
+
+
+func _scared_step(delta: float) -> void:
+	if _stun_t > 0.0:
+		_stun_t -= delta
+		global_position += _knock * delta * 2.0
+		_knock = _knock.lerp(Vector3.ZERO, 1.0 - exp(-6.0 * delta))
+		rig.animate(delta, 0.0, true)
+		_ground_follow(delta)
+		if _stun_t <= 0.0:
+			rig.set_react("")
+		return
+	_scared_t -= delta
+	var away := global_position - player.global_position
+	away.y = 0.0
+	if away.length() < 0.1:
+		away = Vector3.FORWARD
+	away = away.normalized()
+	rotation.y = lerp_angle(rotation.y, atan2(-away.x, -away.z), 1.0 - exp(-9.0 * delta))
+	global_position += Vector3(-sin(rotation.y), 0.0, -cos(rotation.y)) * 4.4 * delta
+	_ground_follow(delta)
+	rig.mode = "locomotion"
+	rig.animate(delta, 4.4, true)
+	if _scared_t <= 0.0:
+		rig.mode = _base_mode
 
 
 func setup(preset: Dictionary, mode: String, label: String) -> Npc:
+	add_to_group("npcs")
 	name = label
 	role = preset.get("role", "villager")
 	voice = preset.get("voice", "man")
@@ -287,6 +331,9 @@ func _step(delta: float) -> void:
 		return                              # lag fix: people beyond 90 m are not simulated
 	if companion:
 		_companion_step(delta)
+		return
+	if _scared_t > 0.0:
+		_scared_step(delta)
 		return
 	if not routine.is_empty():
 		_routine_step(delta)

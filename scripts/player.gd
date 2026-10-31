@@ -70,6 +70,7 @@ var _lunge_t := 0.0
 var _lunge_v := Vector3.ZERO
 var _hit_mult := 1.0
 var _roll_cd := 0.0
+var assaults := 0               # villagers the player has struck
 var _f_was := false
 var _q_was := false
 var _v_was := false
@@ -459,6 +460,28 @@ func _on_move_hit(mv: String) -> void:
 		to.y = 0.0
 		if to.length() < reach and (to.length() < 0.6 or fwd.dot(to.normalized()) > 0.25):
 			en.take_hit(MOVE_KIND[mv], dmg, fwd)
+			hit = true
+	# villagers and animals: they react (stagger, shout, run) but are never damaged
+	for nn in get_tree().get_nodes_in_group("npcs"):
+		var np := nn as Npc
+		if np == null or np.companion:
+			continue
+		var tn: Vector3 = np.global_position - global_position
+		tn.y = 0.0
+		if tn.length() < reach - 0.2 and (tn.length() < 0.6 or fwd.dot(tn.normalized()) > 0.3):
+			np.take_hit(dmg, fwd)
+			assaults += 1
+			hit = true
+			if assaults == 3:
+				say("People are staring. Hitting villagers will make them fear you.")
+	for an2 in get_tree().get_nodes_in_group("animals"):
+		var an3 := an2 as Animal
+		if an3 == null or an3.dead:
+			continue
+		var ta2: Vector3 = an3.global_position - global_position
+		ta2.y = 0.0
+		if ta2.length() < reach - 0.2 and (ta2.length() < 0.6 or fwd.dot(ta2.normalized()) > 0.3):
+			an3.shove(fwd)
 			hit = true
 	if hit:
 		_combat_t = 0.0
