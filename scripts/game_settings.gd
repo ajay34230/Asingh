@@ -35,7 +35,7 @@ const SPEC: Array = [
 	["Controls", "btnalpha", "Button opacity", "slider", 1.0, [0.3, 1.6, 0.05]],
 	["Controls", "autosprint", "Auto-sprint at full stick", "toggle", true, null],
 	["Controls", "haptics", "Vibration when hurt", "toggle", true, null],
-	["Gameplay", "lang", "Language / भाषा", "choice", 0, ["English", "हिन्दी"]],
+	["Language", "lang", "Language / भाषा", "choice", 0, ["English", "हिन्दी"]],
 	["Gameplay", "outfit", "Outfit colour", "choice", 0, ["Default", "Crimson", "Indigo", "Forest", "Saffron", "Teal", "Violet"]],
 	["Gameplay", "difficulty", "Difficulty", "choice", 1, ["Easy", "Normal", "Hard"]],
 	["Gameplay", "fov", "Field of view", "slider", 70.0, [60.0, 95.0, 1.0]],
@@ -45,7 +45,7 @@ const SPEC: Array = [
 	["Gameplay", "minimap", "Minimap on screen", "toggle", true, null],
 	["Gameplay", "hint", "Control hints", "toggle", true, null],
 ]
-const TABS := ["Audio", "Video", "Controls", "Gameplay"]
+const TABS := ["Language", "Audio", "Video", "Controls", "Gameplay"]
 const DAMAGE_BY_DIFFICULTY := [0.6, 1.0, 1.5]
 
 static var v: Dictionary = {}

@@ -676,5 +676,7 @@
  "Cache found! +%d coins (%d/5)": "ख़ज़ाना मिला! +%d सिक्के (%d/5)",
  "The relic chest holds 200 coins and chain mail!": "पेटी में 200 सिक्के और जंजीरों का कवच है!",
  "Hunting bow": "शिकारी धनुष",
- "Fires arrows at the nearest foe, even from the saddle.": "सबसे पास के दुश्मन पर तीर चलाता है, काठी पर बैठे हुए भी।"
+ "Fires arrows at the nearest foe, even from the saddle.": "सबसे पास के दुश्मन पर तीर चलाता है, काठी पर बैठे हुए भी।",
+ "Language": "भाषा",
+ "Changes menus, quests, dialogue and spoken voices.": "मेनू, मिशन, संवाद और बोली जाने वाली आवाज़ें बदलता है।"
 }

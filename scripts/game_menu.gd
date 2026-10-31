@@ -151,6 +151,21 @@ func _show_page(n: String) -> void:
 func _scroll_page(title: String) -> Array:
 	var sc := ScrollContainer.new()
 	sc.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	sc.vertical_scroll_mode = ScrollContainer.SCROLL_MODE_SHOW_ALWAYS
+	sc.scroll_deadzone = 12
+	# Sliders and buttons swallow finger drags, so give a wide scroll bar the player can grab.
+	var bar: VScrollBar = sc.get_v_scroll_bar()
+	bar.custom_minimum_size = Vector2(44, 0)
+	var grab := StyleBoxFlat.new()
+	grab.bg_color = Color(0.9, 0.7, 0.3, 0.9)
+	grab.set_corner_radius_all(10)
+	bar.add_theme_stylebox_override("grabber", grab)
+	bar.add_theme_stylebox_override("grabber_highlight", grab)
+	bar.add_theme_stylebox_override("grabber_pressed", grab)
+	var track := StyleBoxFlat.new()
+	track.bg_color = Color(0, 0, 0, 0.35)
+	track.set_corner_radius_all(10)
+	bar.add_theme_stylebox_override("scroll", track)
 	var vb := VBoxContainer.new()
 	vb.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	vb.add_theme_constant_override("separation", 14)
@@ -340,6 +355,11 @@ func _build_settings() -> Control:
 		for s in GameSettings.SPEC:
 			if s[0] == tab:
 				vb.add_child(_row(s))
+		if tab == "Language":
+			var note := Label.new()
+			note.text = "Changes menus, quests, dialogue and spoken voices."
+			note.autowrap_mode = TextServer.AUTOWRAP_WORD
+			vb.add_child(note)
 		if tab == "Audio":
 			vb.add_child(_button("Test voices", func() -> void:
 				Sfx.speak("man", "Welcome, traveller. The Queen's road is waiting for you.", null, 0.0, true, "Test")
