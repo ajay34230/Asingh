@@ -353,6 +353,9 @@ func _die(kind: String, dir: Vector3) -> void:
 	var ach := get_tree().get_first_node_in_group("achievements")
 	if ach != null:
 		ach.note_kill(role, false)
+	var itm := get_tree().get_first_node_in_group("items")
+	if itm != null:
+		itm.loot(role, _rng)
 	remove_from_group("enemies")
 	if player != null and global_position.distance_to(player.global_position) < 5.0:
 		var others := 0

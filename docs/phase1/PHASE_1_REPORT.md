@@ -121,3 +121,6 @@ X2: soft morning mist (time 0.20-0.33, when no story weather); rain, wet ground 
 
 ## X30 Hindi menus (31 Oct)
 `Loc.apply_to_tree` translates all buttons, labels and dropdown items of the pause menu (nav, settings labels and options, help text, journal, travel) each time a page is shown; switching back to English restores the originals. Selftest PASS (Resume <-> जारी रखो). Still English: the touch-button captions (JUMP/HIT/BLOCK...), settings tab titles, and the FPS/debug overlays. Devanagari font rendering on the phone is unverified.
+
+## S1 + S4 Items, equipment, crafting (31 Oct)
+`scripts/items.gd`: counts in story flags (saved). Herb/potion (heal), hide/iron (materials), spear (+reach, +15%), axe (+40%), leather armour (-20% damage taken), chain mail (-38%). Enemies drop herbs/iron/hides; the pause menu's "Items & crafting" page uses, equips and crafts (potion 3 herbs; spear 2 iron + 1 hide; axe 4 iron; leather 4 hides; chain 8 iron + 2 hides). Hides already hunted are credited as crafting hides once. Selftest PASS. Shops that sell items and a visible weapon in hand are not built; balance untested on a device.

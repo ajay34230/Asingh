@@ -14,6 +14,7 @@ var _inv: Label
 var _btn: Button
 var _jr: Label
 var _tr_box: VBoxContainer
+var _it_box: VBoxContainer
 var _panel: PanelContainer
 var _pages: Dictionary = {}          # page name -> Control
 var _controls: Dictionary = {}       # setting key -> control, refreshed on reset
@@ -74,6 +75,7 @@ func _ready() -> void:
 	nav.add_child(h)
 	nav.add_child(_button("Resume", toggle))
 	nav.add_child(_button("Inventory", func() -> void: _show_page("Inventory")))
+	nav.add_child(_button("Items & crafting", func() -> void: _show_page("Items")))
 	nav.add_child(_button("Journal", func() -> void: _show_page("Journal")))
 	nav.add_child(_button("Fast travel", func() -> void: _show_page("Travel")))
 	nav.add_child(_button("Photo mode", func() -> void:
@@ -102,6 +104,7 @@ func _ready() -> void:
 	stack.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	hb.add_child(stack)
 	_pages["Inventory"] = _build_inventory()
+	_pages["Items"] = _build_items()
 	_pages["Journal"] = _build_journal()
 	_pages["Travel"] = _build_travel()
 	_pages["Settings"] = _build_settings()
@@ -132,6 +135,8 @@ func _show_page(n: String) -> void:
 		_inv.text = _inventory_text()
 	if n == "Travel":
 		_fill_travel()
+	if n == "Items":
+		_fill_items()
 	if n == "Journal" and _jr != null:
 		_jr.text = _journal_text()
 	Loc.apply_to_tree(_panel)
@@ -155,6 +160,52 @@ func _heading(t: String) -> Label:
 	l.add_theme_font_size_override("font_size", 32)
 	l.add_theme_color_override("font_color", Color(0.95, 0.74, 0.32))
 	return l
+
+
+func _build_items() -> Control:
+	var pg := _scroll_page("Items & crafting")
+	_it_box = pg[1]
+	return pg[0]
+
+
+func _fill_items() -> void:
+	for c in _it_box.get_children():
+		if not (c is Label and (c as Label).get_theme_font_size("font_size") == 32):
+			c.queue_free()
+	var it: Items = main.get("items") as Items
+	if it == null:
+		return
+	var info := Label.new()
+	info.autowrap_mode = TextServer.AUTOWRAP_WORD
+	info.text = Loc.t("Weapon") + ": " + Loc.t(_item_name(it.equipped("weapon"))) + "    " + Loc.t("Armour") + ": " + Loc.t(_item_name(it.equipped("armour")))
+	_it_box.add_child(info)
+	for id in Items.DEFS:
+		var n := it.count(id)
+		if n <= 0:
+			continue
+		var d: Dictionary = Items.DEFS[id]
+		var row := _button("%s x%d - %s" % [Loc.t(String(d["name"])), n, Loc.t(String(d["desc"]))], func() -> void:
+			if String(d["type"]) == "consumable":
+				it.use(id)
+			elif String(d["type"]) == "weapon" or String(d["type"]) == "armour":
+				it.equip(id)
+			_fill_items())
+		_it_box.add_child(row)
+	_it_box.add_child(_heading("Crafting"))
+	for rid in Items.RECIPES:
+		var rec: Array = Items.RECIPES[rid]
+		var parts: Array[String] = []
+		for k in rec[1]:
+			parts.append("%d %s" % [int(rec[1][k]), Loc.t(String(Items.DEFS[k]["name"]))])
+		var b := _button("%s  (%s)" % [Loc.t(String(Items.DEFS[rec[0]]["name"])), ", ".join(parts)], func() -> void:
+			it.craft(rid)
+			_fill_items())
+		b.disabled = not it.can_craft(rid)
+		_it_box.add_child(b)
+
+
+func _item_name(id: String) -> String:
+	return String(Items.DEFS[id]["name"]) if Items.DEFS.has(id) else "None"
 
 
 func _build_travel() -> Control:

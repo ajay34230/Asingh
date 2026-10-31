@@ -29,6 +29,7 @@ var achievements: Achievements
 var hints: Hints
 var photo_mode: PhotoMode
 var shrines: Shrines
+var items: Items
 var bazaar: BazaarQuest
 var town_houses: HouseBuilder
 var water: WaterBuilder
@@ -846,6 +847,11 @@ func _build_story() -> void:
 	achievements.atmo = atmosphere
 	achievements.hud = hud
 	add_child(achievements)
+	items = Items.new()
+	items.story = story
+	items.player = player
+	items.hud = hud
+	add_child(items)
 	shrines = Shrines.new()
 	shrines.main = self
 	shrines.terrain = terrain
@@ -1304,6 +1310,27 @@ func _run_selftest() -> void:
 	await _selftest_map_route(fails, notes)
 	_selftest_cin_ground(fails)
 	_selftest_night_life(fails)
+	for k in ["herb", "iron", "hide", "potion", "spear", "leather"]:
+		story.flags.erase("item_" + k)
+	items.give("herb", 3)
+	items.give("iron", 2)
+	items.give("hide", 5)
+	if not items.craft("potion") or items.count("potion") != 1 or items.count("herb") != 0:
+		fails.append("crafting a potion failed")
+	if not items.craft("spear") or not items.equip("spear") or player.gear_reach < 0.5:
+		fails.append("spear craft/equip failed")
+	if not items.craft("leather") or not items.equip("leather") or player.armor_mult > 0.85:
+		fails.append("leather craft/equip failed")
+	var hp_before: float = player.hp
+	player.hp = 50.0
+	if not items.use("potion") or player.hp <= 60.0:
+		fails.append("potion did not heal")
+	player.hp = hp_before
+	items.unequip("weapon")
+	items.unequip("armour")
+	if player.gear_reach != 0.0 or player.armor_mult != 1.0:
+		fails.append("unequip did not reset gear")
+	menu._show_page("Items")
 	Loc.set_language("hi")
 	menu._show_page("Settings")
 	var hi_btn := false

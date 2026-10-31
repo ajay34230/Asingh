@@ -220,6 +220,9 @@ func _nearest_enemy(rng: float) -> Enemy:
 
 
 var slam_dive := false
+var gear_dmg := 1.0         # S1: equipped weapon damage multiplier
+var gear_reach := 0.0       # S1: extra reach in metres
+var armor_mult := 1.0       # S1: equipped armour (damage taken multiplier)
 const OUTFITS := [Color(0.86, 0.16, 0.18), Color(0.16, 0.22, 0.78), Color(0.12, 0.55, 0.28), Color(0.96, 0.62, 0.08), Color(0.06, 0.58, 0.62), Color(0.5, 0.2, 0.7)]
 var outfit := 0
 
@@ -235,7 +238,7 @@ func set_outfit(i: int) -> int:
 ## X10: shockwave on landing from a dive. Hits every enemy within 4 m, throws up dust and sparks.
 func ground_slam() -> int:
 	var n := 0
-	var dmg := 26.0 * hammer_mult * (2.0 if power.has("power") else 1.0)
+	var dmg := 26.0 * hammer_mult * gear_dmg * (2.0 if power.has("power") else 1.0)
 	for e in get_tree().get_nodes_in_group("enemies"):
 		var en := e as Enemy
 		if en == null or en.dead:
@@ -362,8 +365,8 @@ func _on_move_hit(mv: String) -> void:
 	if not MOVE_DMG.has(mv):
 		return
 	var fwd := Vector3(-sin(_model.rotation.y), 0.0, -cos(_model.rotation.y))
-	var reach := 2.9 if MOVE_KIND[mv] != "punch" else 2.3
-	var dmg: float = MOVE_DMG[mv] * _hit_mult * (2.0 if power.has("power") else 1.0)
+	var reach := (2.9 if MOVE_KIND[mv] != "punch" else 2.3) + gear_reach
+	var dmg: float = MOVE_DMG[mv] * _hit_mult * gear_dmg * (2.0 if power.has("power") else 1.0)
 	var hit := false
 	for e in get_tree().get_nodes_in_group("enemies"):
 		var en := e as Enemy
@@ -421,7 +424,7 @@ func _update_held() -> void:
 
 func _on_attack_hit() -> void:
 	var fwd := Vector3(-sin(_model.rotation.y), 0.0, -cos(_model.rotation.y))
-	var dmg := 22.0 * hammer_mult * (2.0 if power.has("power") else 1.0)
+	var dmg := 22.0 * hammer_mult * gear_dmg * (2.0 if power.has("power") else 1.0)
 	var hit := false
 	for e in get_tree().get_nodes_in_group("enemies"):
 		var to: Vector3 = (e as Node3D).global_position - global_position
@@ -450,7 +453,7 @@ func take_damage(amount: float, from: Vector3) -> void:
 		return
 	if power.has("shield"):
 		amount *= 0.2
-	amount *= GameSettings.damage_scale()
+	amount *= GameSettings.damage_scale() * armor_mult
 	if blocking:
 		var toward := from - global_position
 		toward.y = 0.0
