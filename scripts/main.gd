@@ -1374,6 +1374,7 @@ func _run_selftest() -> void:
 			fails.append("Act 3 completion rewards missing")
 	campaign.ascend()
 	await _selftest_act4(fails)
+	await _selftest_act5(fails)
 	for k in 3:
 		story.flags.erase("rebuild_%d" % (k + 1))
 	rebuild.built = [false, false, false]
@@ -1743,6 +1744,57 @@ func _selftest_act4(fails: PackedStringArray) -> void:
 		a4.vessa.take_hit("slam", 99999.0, Vector3.FORWARD)
 		if not story.get_flag("act4_done", false):
 			fails.append("act 4: Vessa's death did not complete Act 4")
+
+
+func _selftest_act5(fails: PackedStringArray) -> void:
+	var a5: Act5 = campaign.act5
+	for k in ["v5_entered", "arin5_met", "pedestals_done", "eclipse_down", "ending_done", "ending", "game_complete", "endings_seen"]:
+		story.flags.erase(k)
+	story.flags.erase("act4_done")
+	if a5.enter():
+		fails.append("act 5: entered the vault before Act 4 was done")
+	story.set_flag("act4_done", true)
+	if not a5.enter() or player.global_position.distance_to(Act5.ORIGIN) > 80.0:
+		fails.append("act 5: could not enter the Solar Vault")
+	if a5.touch_pedestal(0) or a5.seq.size() != 0:
+		fails.append("act 5: wrong pedestal order was accepted")
+	if not a5.touch_pedestal(2) or not a5.touch_pedestal(1) or not a5.touch_pedestal(0) or not story.get_flag("pedestals_done", false):
+		fails.append("act 5: pedestal puzzle did not solve")
+	await get_tree().process_frame
+	await get_tree().process_frame
+	if a5.guardian == null or not is_instance_valid(a5.guardian):
+		fails.append("act 5: Eclipse Guardian did not appear")
+		return
+	var g: Enemy = a5.guardian
+	g.hp = g.max_hp * 0.6
+	a5._process(0.1)
+	var adds := 0
+	for e in get_tree().get_nodes_in_group("enemies"):
+		if (e as Enemy).get_meta("tag", "") == "eclipse_add":
+			adds += 1
+	if a5.stage != 2 or adds != 3:
+		fails.append("act 5: stage 2 not reached (stage %d, adds %d)" % [a5.stage, adds])
+	g.hp = g.max_hp * 0.3
+	a5._process(0.1)
+	if a5.stage != 3 or not g.enraged:
+		fails.append("act 5: stage 3 / enrage not reached")
+	g.take_hit("slam", 99999.0, Vector3.FORWARD)
+	if not story.get_flag("eclipse_down", false) or not a5.heart_it.enabled:
+		fails.append("act 5: killing the guardian did not unlock the Sun Heart")
+	if a5.secret_unlocked():
+		fails.append("act 5: secret ending should be locked in a fresh run")
+	a5.play_ending("heroic")
+	if not cin.playing:
+		fails.append("act 5: ending cinematic did not play")
+	cin.finish()
+	await get_tree().process_frame
+	if a5.credits == null or not story.get_flag("game_complete", false) or String(story.get_flag("endings_seen", "")) != "heroic":
+		fails.append("act 5: credits / ending bookkeeping wrong")
+	if a5.ending_lines("secret").size() != 3 or a5.ending_lines("sacrifice").size() != 3:
+		fails.append("act 5: ending texts missing")
+	a5.close_credits()
+	if player.locked:
+		fails.append("act 5: player still locked after the credits")
 
 
 func _selftest_cin_ground(fails: PackedStringArray) -> void:

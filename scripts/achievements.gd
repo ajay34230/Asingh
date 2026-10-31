@@ -17,6 +17,7 @@ const DEFS := {
 	"shield": ["Guard Breaker", "Defeat a shield-bearer."],
 	"night": ["Night Walker", "Walk the world after dark."],
 	"coins": ["Pockets Full", "Hold 200 coins."],
+	"ending": ["The Last Sun", "Finish the story."],
 }
 
 var story: Story

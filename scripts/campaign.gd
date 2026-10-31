@@ -24,6 +24,7 @@ var karan_it: Interactable
 var warden: Enemy
 var _warden_started := false
 var act4: Act4
+var act5: Act5
 
 const TABLETS := [
 	"TABLET I: Queen Ila raised Veyra beneath the reach of the sun, to keep the Sun Heart from those who would own it.",
@@ -51,6 +52,10 @@ func build() -> void:
 	act4.camp = self
 	add_child(act4)
 	act4.build()
+	act5 = Act5.new()
+	act5.camp = self
+	add_child(act5)
+	act5.build()
 
 
 # --- Veyra ---------------------------------------------------------------------------------

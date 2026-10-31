@@ -8,6 +8,7 @@ var player: Player
 var touch: Control
 var terrain: TerrainBuilder  # optional; keeps story shots above the ground
 const MIN_CLEARANCE := 1.4
+var clamp_ground := true      # off for scenes inside the off-map halls
 var playing := false
 var _shots: Array = []
 var _i := -1
@@ -124,7 +125,7 @@ func _next() -> void:
 
 
 func _above_ground(p: Vector3, clearance: float = MIN_CLEARANCE) -> Vector3:
-	if terrain != null:
+	if terrain != null and clamp_ground:
 		var gy: float = terrain.sample_height(p.x, p.z)
 		p.y = maxf(p.y, gy + clearance)
 	return p
