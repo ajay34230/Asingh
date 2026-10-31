@@ -130,3 +130,6 @@ Stamina (100): sprinting drains 14/s, roll costs 18, each attack 7 (exhausted sw
 
 ## S3 Companion: Sher (31 Oct)
 `companion_system.gd`: Sher, a sellsword by the inn (5 m from it). Hire for 120 coins (prompt on him), dismiss the same way. While hired the existing Npc companion AI makes him follow and strike enemies; his damage grows 1.5 per trust point (max +18), trust +1 per enemy killed while he is hired (flag sher_trust, saved with the game). Selftest PASS (insufficient coins refused, hire pays, trust strengthens, dismiss). He speaks via banners only (no voice clips); path-finding is the old straight-line follow, so he can snag on walls.
+
+## S5 Village rebuilding (31 Oct)
+`village_rebuild.gd`: a board in the bazaar (11 m SE of the town centre). Stage 1 (100 coins) four lamp posts that join the night lighting, stage 2 (250) eight festival flag poles, stage 3 (500) the Sun Gate arch south of the square; each stage +15 max health. Stages are story flags and rebuild on load. Selftest PASS. Placement is by coordinates and has not been eye-checked for overlaps with existing buildings; the Heroic-ending hook is not connected yet.

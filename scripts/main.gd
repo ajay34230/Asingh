@@ -30,6 +30,7 @@ var hints: Hints
 var photo_mode: PhotoMode
 var shrines: Shrines
 var items: Items
+var rebuild: VillageRebuild
 var companion_sys: CompanionSystem
 var bazaar: BazaarQuest
 var town_houses: HouseBuilder
@@ -856,6 +857,15 @@ func _build_story() -> void:
 	companion_sys.hud = hud
 	add_child(companion_sys)
 	companion_sys.build()
+	rebuild = VillageRebuild.new()
+	rebuild.main = self
+	rebuild.terrain = terrain
+	rebuild.story = story
+	rebuild.player = player
+	rebuild.hud = hud
+	rebuild.night_life = night_life
+	add_child(rebuild)
+	rebuild.build()
 	items = Items.new()
 	items.story = story
 	items.player = player
@@ -1319,6 +1329,22 @@ func _run_selftest() -> void:
 	await _selftest_map_route(fails, notes)
 	_selftest_cin_ground(fails)
 	_selftest_night_life(fails)
+	for k in 3:
+		story.flags.erase("rebuild_%d" % (k + 1))
+	rebuild.built = [false, false, false]
+	var rb_hp: float = player.max_hp
+	var lamps0: int = night_life.points.size()
+	story.set_flag("coins", 99)
+	if rebuild.pay_next():
+		fails.append("rebuilt without enough coins")
+	story.set_flag("coins", 1000)
+	if not rebuild.pay_next() or not rebuild.pay_next() or not rebuild.pay_next() or rebuild.pay_next():
+		fails.append("rebuilding stages wrong")
+	if rebuild.stage() != 3 or int(story.get_flag("coins", 0)) != 150 or player.max_hp != rb_hp + 45.0:
+		fails.append("rebuild cost/health bonus wrong")
+	if night_life.points.size() != lamps0 + 4:
+		fails.append("new lamps not added to night lighting")
+	player.max_hp = rb_hp
 	story.flags.erase("sher_hired")
 	story.set_flag("coins", 50)
 	if companion_sys.toggle() or companion_sys.is_hired():
