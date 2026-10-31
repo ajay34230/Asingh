@@ -151,3 +151,6 @@ Pause menu > Save slots: three manual slots (`GameMenu.slot_save/slot_info/slot_
 
 ## X17 Wildlife: feeding (31 Oct)
 Prey animals already fled and dogs befriended; added feeding: pause menu > Items & crafting > "Feed nearby animal (1 herb)" gives a herb to the nearest animal within 4 m, which stops it fleeing for 90 s. Three feedings unlock "Friend of Beasts". Selftest PASS (feeding a deer-type animal). Not built: predators hunting prey, ecosystems.
+
+## X26 Mini-games, X28 Arena bonus (31 Oct)
+`scripts/minigames.gd`: (1) Chausar dice with Imran in the bazaar (bet 10 or 50 coins, higher two-dice total wins, ties keep coins, he re-offers after each round). (2) The Arena, a ring of stones 32 m east and 28 m south of the square: endless waves (2+n mixed-role fighters, tougher each wave), 20 x wave coins per cleared wave, best wave remembered (flag arena_best); leaving the ring or dying ends it. Selftest PASS (dice payouts, wave 1 and 2, reward, best wave). Kite flying, wrestling, archery and chess were not built. The arena is open from the start rather than being locked behind the ending.

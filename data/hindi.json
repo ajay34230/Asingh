@@ -654,5 +654,19 @@
  "Feed animals three times.": "जानवरों को तीन बार खिलाओ।",
  "The animal trusts you a little more.": "जानवर को तुम पर थोड़ा और भरोसा हुआ।",
  "Feed nearby animal (1 herb)": "पास के जानवर को खिलाओ (1 जड़ी)",
- "No animal close enough, or no herb.": "कोई जानवर पास नहीं, या जड़ी नहीं।"
+ "No animal close enough, or no herb.": "कोई जानवर पास नहीं, या जड़ी नहीं।",
+ "Play Chausar dice": "चौसर के पासे खेलो",
+ "Enter the Arena (best wave 0)": "अखाड़े में उतरो (सर्वश्रेष्ठ दौर 0)",
+ "Arena in progress": "अखाड़ा जारी है",
+ "Chausar! Two dice each, highest total wins. Care to wager, traveller?": "चौसर! दोनों के दो-दो पासे, बड़ा जोड़ जीतता है। दाँव लगाओगे, मुसाफ़िर?",
+ "Bet 10 coins": "10 सिक्कों का दाँव",
+ "Bet 50 coins": "50 सिक्कों का दाँव",
+ "Walk away": "चले जाओ",
+ "You rolled higher! You win.": "तुम्हारे पासे बड़े निकले! तुम जीते।",
+ "My dice win this round.": "इस बार मेरे पासे जीते।",
+ "A tie!": "बराबरी!",
+ "You cannot cover that bet.": "इतना दाँव लगाने को सिक्के नहीं हैं।",
+ "Not enough coins for that bet.": "इस दाँव के लिए सिक्के कम हैं।",
+ "Imran the trader": "सौदागर इमरान",
+ "Imran the dice player": "पासे वाला इमरान"
 }

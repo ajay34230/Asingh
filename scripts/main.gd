@@ -33,6 +33,7 @@ var items: Items
 var rebuild: VillageRebuild
 var campaign: Campaign
 var festival: Festival
+var minigames: MiniGames
 var companion_sys: CompanionSystem
 var bazaar: BazaarQuest
 var town_houses: HouseBuilder
@@ -886,6 +887,17 @@ func _build_story() -> void:
 	festival.hud = hud
 	festival.terrain = terrain
 	add_child(festival)
+	minigames = MiniGames.new()
+	minigames.main = self
+	minigames.story = story
+	minigames.player = player
+	minigames.hud = hud
+	minigames.dlg = dlg
+	minigames.combat = combat
+	minigames.terrain = terrain
+	minigames.town = town
+	add_child(minigames)
+	minigames.build()
 	items = Items.new()
 	items.story = story
 	items.player = player
@@ -1349,6 +1361,30 @@ func _run_selftest() -> void:
 	await _selftest_map_route(fails, notes)
 	_selftest_cin_ground(fails)
 	_selftest_night_life(fails)
+	story.set_flag("coins", 100)
+	if minigames.dice_round(10, 9, 4) != "win" or int(story.get_flag("coins", 0)) != 110:
+		fails.append("dice: win did not pay")
+	if minigames.dice_round(50, 3, 8) != "lose" or int(story.get_flag("coins", 0)) != 60:
+		fails.append("dice: loss did not cost")
+	if minigames.dice_round(50, 7, 7) != "tie" or int(story.get_flag("coins", 0)) != 60:
+		fails.append("dice: tie moved coins")
+	if minigames.dice_round(500, 12, 2) != "broke":
+		fails.append("dice: unaffordable bet allowed")
+	_teleport(minigames.arena_center().x, minigames.arena_center().z)
+	story.flags.erase("arena_best")
+	if not minigames.start_arena() or minigames.arena_alive() != 3:
+		fails.append("arena: wave 1 wrong (%d)" % minigames.arena_alive())
+	for e in get_tree().get_nodes_in_group("enemies"):
+		if (e as Enemy).get_meta("tag", "") == "arena":
+			(e as Enemy).take_hit("slam", 99999.0, Vector3.FORWARD)
+	var c_before: int = int(story.get_flag("coins", 0))
+	minigames._t = 0.0
+	minigames._process(0.1)
+	if minigames.wave != 2 or minigames.arena_alive() != 4 or int(story.get_flag("coins", 0)) != c_before + 20:
+		fails.append("arena: wave 2 / reward wrong (wave %d, alive %d)" % [minigames.wave, minigames.arena_alive()])
+	minigames.end_arena("test")
+	if minigames.active or int(story.get_flag("arena_best", 0)) != 1:
+		fails.append("arena: end/best wave wrong")
 	story.flags.erase("animals_fed")
 	var cow: Animal = null
 	for an in get_tree().get_nodes_in_group("animals"):
