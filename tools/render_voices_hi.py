@@ -37,13 +37,20 @@ for who, text in voice_lines.story_lines():
     v, sp = CAST.get(who, ("am_michael", 1.0))
     hv = hi_voice(v, who)
     jobs.append((key_of(TR[text]), TR[text], hv, min(sp, 1.0) * 0.95))
-for text in voice_lines.bark_lines():
-    for vt, (v, sp) in BARK.items():
-        jobs.append((key_of(TR[text], vt), TR[text], hi_voice(v, vt), sp * 0.95))
-for text in voice_lines.enemy_lines():
-    for vt in ("deep", "man"):
+# Ambient chatter: render one male ("man") and one female ("woman") clip per line, then reuse them for
+# the other voice types (deep/old share the male clip, girl shares the female one) to halve render time.
+ALIAS = {"deep": "man", "old": "man", "girl": "woman"}
+for text in voice_lines.bark_lines() + voice_lines.enemy_lines():
+    for vt in ("man", "woman"):
         v, sp = BARK[vt]
         jobs.append((key_of(TR[text], vt), TR[text], hi_voice(v, vt), sp * 0.95))
+import shutil
+def make_aliases():
+    for text in voice_lines.bark_lines() + voice_lines.enemy_lines():
+        for vt, base in ALIAS.items():
+            a, b = f"{OUT}/{key_of(TR[text], base)}.ogg", f"{OUT}/{key_of(TR[text], vt)}.ogg"
+            if os.path.exists(a) and not os.path.exists(b):
+                shutil.copyfile(a, b)
 n = 0
 for key, text, v, sp in jobs:
     if os.path.exists(f"{OUT}/{key}.ogg"):
@@ -56,4 +63,5 @@ for key, text, v, sp in jobs:
         print(n, len(jobs), v, text[:40], flush=True)
     except Exception as e:
         print("FAIL", text[:40], e, flush=True)
+make_aliases()
 print("done", n, "new clips of", len(jobs))
