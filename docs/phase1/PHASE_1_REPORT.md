@@ -100,3 +100,6 @@ Surface footsteps (wood/stone/leaf/water/mud/sand), screen shake and hit-pause a
 
 ## X3/X4 Ripples, butterflies, leaves (31 Oct)
 New `scripts/ambient_life.gd`: expanding ripple rings when stepping in water; daytime butterflies near pond/forest/town; drifting leaves in the forest. Rain already wets the ground (roughness). Selftest PASS (software render); the visuals are not checked on a device.
+
+## X5 Area title card (31 Oct)
+`scripts/area_title.gd`: a fading place-name card when entering the bazaar, forest, pond, river, ruins or dunes (12 s cooldown), in Hindi when Hindi mode is on. Selftest PASS (software render). Sun glare, depth-of-field and light shafts were not added.

@@ -24,6 +24,7 @@ var town: TownBuilder
 var night_life: NightLife
 var ambient_life: AmbientLife
 var sfx_node: Sfx
+var area_title: AreaTitle
 var bazaar: BazaarQuest
 var town_houses: HouseBuilder
 var water: WaterBuilder
@@ -803,6 +804,9 @@ func _build_story() -> void:
 	ambient_life.sfx = sfx_node
 	ambient_life.atmo = atmosphere
 	add_child(ambient_life)
+	area_title = AreaTitle.new()
+	area_title.sfx = sfx_node
+	add_child(area_title)
 	npcs.append_array(town.npcs)
 	bazaar = BazaarQuest.new(self, story, hud, dlg, terrain, player, combat, town)
 	bazaar.build()
@@ -1275,6 +1279,9 @@ func _run_selftest() -> void:
 	await _selftest_map_route(fails, notes)
 	_selftest_cin_ground(fails)
 	_selftest_night_life(fails)
+	area_title.show_zone("forest")
+	if area_title.label.text == "" or area_title.shown != "forest":
+		fails.append("area title card missing")
 	var rip := ambient_life.spawn_ripple(Vector3(0, 1, 0), 1.0)
 	if rip == null or ambient_life.ripples < 1:
 		fails.append("ambient life: ripple not spawned")
