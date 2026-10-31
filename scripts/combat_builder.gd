@@ -113,6 +113,8 @@ func _on_enemy_died(e: Enemy) -> void:
 		story.add("camp_down", 1)
 	elif tag == "forest":
 		story.add("forest_down", 1)
+	elif tag == "bazaar":
+		story.add("bazaar_down", 1)
 	elif tag == "raid":
 		story.add("reavers_down", 1)
 		var d := int(story.get_flag("reavers_down", 0))
@@ -123,6 +125,7 @@ func _on_enemy_died(e: Enemy) -> void:
 	elif tag == "boss":
 		story.set_flag("captain_down", true)
 		hud.banner("CAPTAIN KARAN DEFEATED", "seal_found")
+		Sfx.cue("cheer")
 		for k in ["health", "power", "shield"]:
 			spawn_pickup(e.global_position + Vector3(randf_range(-1.5, 1.5), 0.6, randf_range(-1.5, 1.5)), k)
 
@@ -153,13 +156,16 @@ func _start_wave(w: int) -> void:
 	_wave = w
 	if w == 1:
 		main.atmosphere.set_weather("drizzle", 150.0)       # dark skies over the Reaver raid
+		Sfx.cue("raid_panic")
 		for p in _wave_spots(3):
 			spawn_enemy(p, false, 90.0, "raid")
 	elif w == 2:
 		hud.banner("SECOND WAVE", "raid_horn")
 		Sfx.sting("surprise", -3.0)
+		Sfx.cue("battle_cry")
 		for p in _wave_spots(4):
 			spawn_enemy(p, false, 90.0, "raid")
 	else:
 		hud.banner("CAPTAIN KARAN APPROACHES", "raid_horn")
+		Sfx.cue("war_roar")
 		spawn_enemy(_g(0.0, -118.0), true, 90.0, "boss")

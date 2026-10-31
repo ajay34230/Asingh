@@ -78,6 +78,7 @@ func step(delta: float) -> void:
 ## Begin the event now (also used by the self-test).
 func start() -> void:
 	state = "warn"
+	Sfx.cue("stampede")
 	_t = 5.0
 	var pp := player.global_position
 	var ang := randf() * TAU

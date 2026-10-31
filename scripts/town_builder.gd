@@ -38,6 +38,8 @@ var npcs: Array[Npc] = []
 var fp_names: Array[String] = []
 var footprints: Array[PackedVector2Array] = []   # for the selftest: no two buildings overlap
 var stalls: Array[Dictionary] = []
+var inn_pos := Vector3.ZERO     # world position of the Musafir Inn
+var inn_yaw := 0.0
 var buildings := 0
 var enterable: Array[Dictionary] = []
 var hb: HouseBuilder
@@ -471,6 +473,9 @@ func _pick_kind(dist: float, slot: int) -> String:
 
 func _building(kind: String, pos: Vector2, yaw: float, w: float, d: float) -> void:
 	var gy := _ly(pos.x, pos.y)
+	if kind == "inn":
+		inn_pos = Vector3(C.x + pos.x, base_y + gy, C.y + pos.y)
+		inn_yaw = yaw
 	var h := Node3D.new()
 	h.name = "%s_%d" % [kind.capitalize(), buildings]
 	h.position = Vector3(pos.x, gy, pos.y)

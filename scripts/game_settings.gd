@@ -35,6 +35,7 @@ const SPEC: Array = [
 	["Controls", "btnalpha", "Button opacity", "slider", 1.0, [0.3, 1.6, 0.05]],
 	["Controls", "autosprint", "Auto-sprint at full stick", "toggle", true, null],
 	["Controls", "haptics", "Vibration when hurt", "toggle", true, null],
+	["Gameplay", "lang", "Language / भाषा", "choice", 0, ["English", "हिन्दी"]],
 	["Gameplay", "difficulty", "Difficulty", "choice", 1, ["Easy", "Normal", "Hard"]],
 	["Gameplay", "fov", "Field of view", "slider", 70.0, [60.0, 95.0, 1.0]],
 	["Gameplay", "fp", "First-person view", "toggle", false, null],
@@ -147,6 +148,8 @@ static func apply(key: String) -> void:
 				Sfx.instance.voices_on = bool(v[key])
 				if not bool(v[key]):
 					Sfx.stop_speech()
+		"lang":
+			Loc.set_language("hi" if int(v[key]) == 1 else "en")
 		"quality":
 			if main != null:
 				main.call("apply_quality", int(v[key]))

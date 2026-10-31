@@ -302,15 +302,15 @@ func _scene() -> void:
 	var y := Vector3(0, 1.6, 0)
 	var shots := [
 		{"from": _c + Vector3(20, 8, 20), "to": _c + Vector3(11, 4.5, 11), "look": _c + Vector3(0, 1.2, 0), "dur": 3.5},
-		{"from": tp + Vector3(2.6, 1.0, 2.4), "to": tp + Vector3(1.8, 0.9, 1.6), "look": tp + y, "dur": 5.0, "who": "Tara", "voice": "woman",
+		{"from": tp + Vector3(2.6, 1.0, 2.4), "to": tp + Vector3(1.8, 0.9, 1.6), "look": tp + y, "dur": 5.0, "who": "Tara", "voice": "woman", "sfx": "scream_woman_0",
 		 "text": "Please, let go of me! The ledger is not yours, and I am not yours either!"},
-		{"from": lead + Vector3(-1.5, 1.7, 3.0), "to": lead + Vector3(-1.0, 1.6, 2.2), "look": lead + y, "dur": 5.0, "who": "Reaver Garr", "voice": "deep",
+		{"from": lead + Vector3(-1.5, 1.7, 3.0), "to": lead + Vector3(-1.0, 1.6, 2.2), "look": lead + y, "dur": 5.0, "who": "Reaver Garr", "voice": "deep", "sfx": "laugh_villain",
 		 "text": "Nobody walks this road at dusk, girl. Scream all you like. The trees do not listen."},
 		{"from": tp + Vector3(-3.0, 1.8, -2.5), "look": tp + y, "dur": 6.0, "who": "Reaver Naag", "voice": "man",
 		 "text": "Hold her still. The priest's little scribe, alone in the dark with the book we want. We take the book, and then we take our time."},
 		{"from": player.global_position + Vector3(0, 1.7, 2.8), "to": player.global_position + Vector3(0, 1.6, 1.4), "look": player.global_position + Vector3(0, 1.5, -3.0), "dur": 3.5,
 		 "who": "You", "voice": "man", "text": "Take your hands off her. Now."},
-		{"from": lead + Vector3(1.5, 1.7, 3.0), "look": lead + y, "dur": 4.0, "who": "Reaver Garr", "voice": "deep",
+		{"from": lead + Vector3(1.5, 1.7, 3.0), "look": lead + y, "dur": 4.0, "who": "Reaver Garr", "voice": "deep", "sfx": "yell_man_0",
 		 "text": "Walk away, stranger. This is none of your business."},
 		{"from": player.global_position + Vector3(3.0, 1.5, 3.0), "to": player.global_position + Vector3(2.0, 1.4, 2.0), "look": player.global_position + Vector3(0, 1.5, 0), "dur": 5.5,
 		 "who": "You", "voice": "man", "text": "A woman cried out for help. That makes it my business. Let her go, or answer to my hammer."},
@@ -319,6 +319,7 @@ func _scene() -> void:
 	cin.play(shots, "THE FOREST ROAD", func() -> void:
 		state = "fight"
 		Sfx.set_mood("tension")
+		Sfx.cue("battle_cry", enemies[0].global_position)
 		for e in enemies:
 			if is_instance_valid(e):
 				e.aggro = 45.0

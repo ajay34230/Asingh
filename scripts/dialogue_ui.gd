@@ -161,8 +161,8 @@ func _show(id: String, replay: bool = false, push: bool = true) -> void:
 			story.add(k, ad[k])
 		if _cur.has("sfx"):
 			Sfx.ui(_cur["sfx"], -4.0)
-	_name.text = _cur.get("who", "")
-	_text.text = _cur["text"]
+	_name.text = Loc.name_of(str(_cur.get("who", "")))
+	_text.text = Loc.t(str(_cur["text"]))
 	_text.visible_characters = 0
 	_chars = 0.0
 	_typing = true
@@ -171,7 +171,7 @@ func _show(id: String, replay: bool = false, push: bool = true) -> void:
 	_hint.visible = false
 	_update_nav()
 	var vn: Node3D = voice_node if (voice_node != null and is_instance_valid(voice_node)) else null
-	Sfx.speak(voice, _cur["text"], vn, -2.0, true, str(_cur.get("who", "")))
+	Sfx.speak(voice, Loc.t(str(_cur["text"])), vn, -2.0, true, str(_cur.get("who", "")))
 
 
 func _process(delta: float) -> void:
@@ -192,7 +192,7 @@ func _finish_typing() -> void:
 		return
 	for c in ch:
 		var b := Button.new()
-		b.text = c["t"]
+		b.text = Loc.t(str(c["t"]))
 		if c.has("cost"):
 			b.text += "   (%d coins)" % int(c["cost"])
 			b.disabled = int(story.get_flag("coins", 0)) < int(c["cost"])

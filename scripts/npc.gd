@@ -119,7 +119,8 @@ func _flat_dist() -> float:
 	return d.length()
 
 
-func say(text: String, dur: float = 0.0) -> void:
+func say(text_en: String, dur: float = 0.0) -> void:
+	var text := Loc.t(text_en)
 	_bubble.text = text
 	_bubble.visible = true
 	_bubble.modulate.a = 1.0
@@ -354,7 +355,7 @@ func _process(delta: float) -> void:
 		if _chat_t <= 0.0:
 			_chat_t = _rng.randf_range(4.0, 9.0)
 			var ls: Array = HAWK_LINES.get(stall_kind, HAWK_LINES["general"]) if _base_mode == "hawk" else HAGGLE_LINES
-			var ln: String = _pick(ls)
+			var ln: String = Loc.t(_pick(ls))
 			if dist < 14.0:
 				_bubble.text = ln
 				_bubble.visible = true

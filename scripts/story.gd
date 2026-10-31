@@ -297,6 +297,8 @@ func dialogue_for(who: String) -> Dictionary:
 		"Farmer": return _hari()
 		"FarmerOld": return _small("Hari the farmer", ["No rain for months. The barley is a prayer, not a crop.", "They say the Queen's kingdom drank the sun. I say it left none for us."])
 		"Villager": return _small("Villager", ["Quiet day. Quiet days are the best days.", "My goats came back from the ruins yesterday, trembling. Goats know."])
+		"BzRaju": return _bz_raju()
+		"BzLal": return _bz_lal()
 		"Villager2": return _small("Raju", ["I carried Dr. Rao's bags once. He tipped me with a story about a golden gate.", "If you go to the gate, take water. And a friend."])
 		"Villager3": return _small("Old Lakshmi", ["I remember when the well still sang. Child, listen to the old people about it.", "Kamla knows. Kamla always knows."])
 		"Villager4": return _small("Pinky", ["Are you a treasure hunter? Dr. Rao said he was not, but he always smiled when I asked.", "Race you to the well! ...no? Fine."])
@@ -308,6 +310,10 @@ func dialogue_for(who: String) -> Dictionary:
 		"Priest":
 			if get_flag("tara_talked") and not get_flag("ledger_given"):
 				return _rishi_ledger()
+			if get_flag("bz_receipt") and not get_flag("bz_done"):
+				return {"start": "a", "nodes": {
+					"a": {"who": "Pandit Rishi", "text": "A receipt from the Musafir Inn's own crate, signed K. Vasu, the council's grain-factor. So the hand that paid Karan keeps accounts. Say nothing yet, child; a name is a rope, and I will not hang a man with half of it. Take this for your trouble.",
+						"set": {"bz_done": true}, "add": {"coins": 200}, "sfx": "seal_found", "choices": [{"t": "I will keep listening.", "go": ""}]}}}
 			if get_flag("temple_blessed") and not get_flag("tara_saved"):
 				return _simple("Pandit Rishi", "Tara has not come back from the forest shrine. Take the trail north-west of the village. Go quickly, and go armed.")
 			return _small("Pandit Rishi", ["The twelve-rayed sun is not a symbol; it is a promise. The Queen swore to return with the dawn.", "Light a lantern for the lost, child. Even a small flame is a prayer.", "I will not enter the ruins. But I will pray at their edge for you."])
@@ -581,7 +587,7 @@ func _hari() -> Dictionary:
 func _tara() -> Dictionary:
 	var w := "Tara"
 	if not get_flag("tara_saved"):
-		return _simple(w, "Behind you! Please, help me!")
+		return _simple(w, "Behind you! Please, help me!", {}, "scream_woman_1")
 	if not get_flag("tara_talked"):
 		return {"start": "a", "nodes": {
 			"a": {"who": w, "text": "I... thank you. I thought no one would come. They followed me from the crossroads. They knew about the ledger before I did.",
@@ -627,3 +633,23 @@ func _merchant() -> Dictionary:
 		return {"start": "a", "nodes": {"a": {"who": w, "text": "A letter from Anita? Ah... tell her yes. Her brother's caravan waits one more night. Tell her I said so myself.",
 			"set": {"letter_delivered": true}, "sfx": "pickup", "choices": [{"t": "I will tell her.", "go": ""}]}}}
 	return _small(w, ["A scholar vanishes, and suddenly everyone wants maps. Business is good, sadly.", "I saw Dr. Rao's lantern at the ruins three nights ago. Then no more."])
+
+
+func _bz_raju() -> Dictionary:
+	var w := "Raju the chaiwala"
+	if get_flag("bz_raju"):
+		return _simple(w, "Spice-seller Lal knows the rest. Ask him, and keep your voice low.")
+	return {"start": "a", "nodes": {
+		"a": {"who": w, "text": "A K on a ledger? Hush, friend. Chai ears are long. Three nights ago two Reaver men drank here with a clerk who paid in council silver. He had ink on his thumb, and he asked the way to the inn's back yard.",
+			"set": {"bz_raju": true}, "sfx": "pickup", "choices": [{"t": "Thank you, Raju.", "go": ""}]}}}
+
+
+func _bz_lal() -> Dictionary:
+	var w := "Pansari Lal"
+	if not get_flag("bz_raju"):
+		return _simple(w, "Saffron, pepper, cardamom. Nothing else for sale today, friend.")
+	if get_flag("bz_lal"):
+		return _simple(w, "Behind the Musafir Inn, under the sacks. Two or three hired blades guard it. Be careful.")
+	return {"start": "a", "nodes": {
+		"a": {"who": w, "text": "Raju sent you? Then listen. The clerk hid a box behind the Musafir Inn, under the grain sacks, and Reaver men watch it day and night. Whatever is inside, someone will kill to keep it quiet.",
+			"set": {"bz_lal": true}, "sfx": "pickup", "choices": [{"t": "I will see about that box.", "go": ""}]}}}

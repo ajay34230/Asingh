@@ -109,10 +109,11 @@ func _next() -> void:
 		return
 	var s: Dictionary = _shots[_i]
 	var who: String = s.get("who", "")
-	_sub.text = (who + ":  " if who != "" else "") + s.get("text", "")
+	var shown: String = Loc.t(str(s.get("text", "")))
+	_sub.text = (Loc.name_of(who) + ":  " if who != "" else "") + shown
 	if who != "" and s.has("text"):
-		s["dur"] = maxf(float(s.get("dur", 3.0)), 1.2 + String(s["text"]).length() * 0.062)
-		Sfx.speak(s.get("voice", "man"), s["text"], null, 0.0, true, who)
+		s["dur"] = maxf(float(s.get("dur", 3.0)), 1.2 + shown.length() * (0.075 if Loc.hindi() else 0.062))
+		Sfx.speak(s.get("voice", "man"), shown, null, 0.0, true, who)
 	cam.fov = s.get("fov", 62.0)
 	cam.make_current()
 	_place(0.0)

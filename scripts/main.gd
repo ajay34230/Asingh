@@ -21,6 +21,7 @@ var traffic: TrafficBuilder
 var footprints: Footprints
 var river: RiverBuilder
 var town: TownBuilder
+var bazaar: BazaarQuest
 var town_houses: HouseBuilder
 var water: WaterBuilder
 var story: Story
@@ -786,6 +787,8 @@ func _build_story() -> void:
 	town.hb = town_houses
 	town.build(self)
 	npcs.append_array(town.npcs)
+	bazaar = BazaarQuest.new(self, story, hud, dlg, terrain, player, combat, town)
+	bazaar.build()
 	Animal.story_ref = story
 	river = RiverBuilder.new(terrain, player, atmosphere)
 	river.build(self)
@@ -1250,6 +1253,7 @@ func _run_selftest() -> void:
 	_selftest_settings(fails, notes)
 	_selftest_animal_acts(fails, notes)
 	_selftest_stampede(fails, notes)
+	await _selftest_localisation(fails, notes)
 	await _selftest_traffic(fails, notes)
 	await _selftest_hunt(fails, notes)
 	await _selftest_fight(fails, notes)
@@ -1384,6 +1388,58 @@ func _selftest_animal_acts(fails: PackedStringArray, notes: PackedStringArray) -
 		total += kinds.size()
 		a.queue_free()
 	notes.append("animals: %d species, %d distinct activities seen" % [Animal.ACTS.size(), total])
+
+
+func _selftest_localisation(fails: PackedStringArray, notes: PackedStringArray) -> void:
+	# Hindi tables, speaker names and the wordless story cues
+	Loc.set_language("hi")
+	if Loc.t("Not now.") != "अभी नहीं।":
+		fails.append("loc: choice not translated")
+	if Loc.name_of("Tara") != "तारा":
+		fails.append("loc: speaker name not translated")
+	var line := Loc.t("Take your hands off her. Now.")
+	if line == "Take your hands off her. Now.":
+		fails.append("loc: story line not translated")
+	var hindi_clip: AudioStream = Sfx.instance._clip_for("man", Loc.t("Heavy crates, light pay. Mind the dock ramp, friend."))
+	notes.append("loc: Hindi clip for a sample line %s" % ("found" if hindi_clip != null else "not rendered yet"))
+	Loc.set_language("en")
+	if Loc.t("Not now.") != "Not now.":
+		fails.append("loc: English not restored")
+	for c in ["raid_panic", "battle_cry", "scream", "war_roar", "cheer", "wail", "stampede"]:
+		Sfx.cue(c)
+	for sname in ["scream_woman_0", "scream_woman_1", "yell_man_0", "yell_man_1", "war_roar", "panic_crowd", "cheer_crowd", "wail_woman", "sob_child", "bull_bellow", "horse_scream", "camel_roar", "groan_man", "laugh_villain"]:
+		if not ResourceLoader.exists("res://assets/audio/%s.wav" % sname):
+			fails.append("audio: missing %s" % sname)
+	# Whispers in the Bazaar
+	if bazaar == null:
+		fails.append("bazaar: not built")
+		return
+	story.set_flag("ledger_given", true)
+	await get_tree().process_frame
+	if bazaar.state != "active" or bazaar.raju == null or bazaar.lal == null:
+		fails.append("bazaar: did not activate (state %s)" % bazaar.state)
+		return
+	story.set_flag("bz_raju", true)
+	story.set_flag("bz_lal", true)
+	for i in 3:
+		await get_tree().process_frame
+	if bazaar.enemies.size() != 3 or bazaar.state != "fight":
+		fails.append("bazaar: guards not spawned (%d, %s)" % [bazaar.enemies.size(), bazaar.state])
+		return
+	var cy := terrain.sample_height(bazaar.crate_pos.x, bazaar.crate_pos.z)
+	if absf(bazaar.crate_pos.y - cy) > 0.5:
+		fails.append("bazaar: crate floats %.2f m" % (bazaar.crate_pos.y - cy))
+	story.flags["bazaar_down"] = 3
+	story.changed.emit()
+	if bazaar.state != "cleared" or not bazaar._crate_it.enabled:
+		fails.append("bazaar: crate not unlocked after the fight")
+	bazaar._crate_it.on_interact.call(player, bazaar._crate_it)
+	if not story.get_flag("bz_receipt"):
+		fails.append("bazaar: receipt not found")
+	var d: Dictionary = story.dialogue_for("Priest")
+	if not str(d["nodes"]["a"]["text"]).begins_with("A receipt"):
+		fails.append("bazaar: Rishi has no reward dialogue")
+	notes.append("bazaar: quest chain ok")
 
 
 func _selftest_stampede(fails: PackedStringArray, notes: PackedStringArray) -> void:

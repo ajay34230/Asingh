@@ -146,6 +146,42 @@ static func ui(n: String, db: float = 0.0) -> void:
 		instance._ui.play()
 
 
+## Story cues: layered, wordless voices for dramatic moments (screams, battle cries, crowds, beasts).
+## `pos` places the sound in the world; with no position the cue is heard around the player.
+static func cue(kind: String, pos: Vector3 = Vector3.INF) -> void:
+	if instance == null or instance.player == null:
+		return
+	var p := pos if pos != Vector3.INF else instance.player.global_position + Vector3(0, 1.4, 0)
+	var parts: Array = []        # [delay seconds, sound, dB, pitch, offset]
+	match kind:
+		"raid_panic":
+			parts = [[0.0, "panic_crowd", -2.0, 1.0, Vector3(14, 0, 8)], [0.6, "scream_woman_0", -4.0, 1.0, Vector3(-9, 0, 6)], [1.4, "yell_man_1", -5.0, 0.95, Vector3(8, 0, -12)], [2.6, "scream_woman_1", -4.0, 1.1, Vector3(-12, 0, -4)]]
+		"battle_cry":
+			parts = [[0.0, "yell_man_0", -2.0, 1.0, Vector3.ZERO], [0.35, "yell_man_1", -5.0, 0.9, Vector3(2, 0, 1)]]
+		"scream":
+			parts = [[0.0, "scream_woman_0", -1.0, 1.0, Vector3.ZERO]]
+		"war_roar":
+			parts = [[0.0, "war_roar", 0.0, 1.0, Vector3(0, 0, -20)], [0.9, "yell_man_0", -4.0, 0.8, Vector3(6, 0, -18)]]
+		"cheer":
+			parts = [[0.4, "cheer_crowd", -3.0, 1.0, Vector3(0, 0, -6)]]
+		"wail":
+			parts = [[0.0, "wail_woman", -3.0, 1.0, Vector3.ZERO], [3.4, "sob_child", -6.0, 1.0, Vector3(3, 0, 2)]]
+		"stampede":
+			parts = [[0.0, "bull_bellow", -2.0, 1.0, Vector3(30, 0, 0)], [0.5, "horse_scream", -3.0, 1.0, Vector3(-25, 0, 10)], [1.2, "camel_roar", -5.0, 1.0, Vector3(10, 0, -30)], [2.0, "panic_crowd", -8.0, 1.0, Vector3(-30, 0, 0)]]
+	for part in parts:
+		var delay: float = part[0]
+		var nm: String = part[1]
+		var db: float = part[2]
+		var pitch: float = part[3]
+		var off: Vector3 = part[4]
+		if delay <= 0.0:
+			instance._play3d(nm, p + off, db, pitch)
+		else:
+			instance.get_tree().create_timer(delay).timeout.connect(func() -> void:
+				if instance != null:
+					instance._play3d(nm, p + off, db, pitch))
+
+
 static func ui_at(n: String, db: float = 0.0) -> void:
 	if instance != null and instance.player != null:
 		instance._play3d(n, instance.player.global_position + Vector3(0, 0.3, 0), db, 1.0)
