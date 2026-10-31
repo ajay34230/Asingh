@@ -124,6 +124,7 @@ func take_hit(kind: String, amount: float, from_dir: Vector3) -> void:
 		return
 	hp -= amount
 	_flash = 0.25
+	HitFx.burst(get_parent(), global_position + Vector3(0, 1.1, 0), kind != "punch")
 	var dir := from_dir
 	dir.y = 0.0
 	dir = dir.normalized() if dir.length() > 0.01 else Vector3.ZERO

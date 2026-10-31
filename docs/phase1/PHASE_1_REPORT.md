@@ -94,3 +94,6 @@ Open the full map and tap anywhere (taps near a landmark snap to it). A red dash
 
 ## X1 Night life (31 Oct)
 New `scripts/night_life.gd`: the 6 nearest street lamps get a real flickering warm OmniLight (no shadows), fading in with `Atmosphere.night`; 28 fireflies follow the player at night. Selftest checks lit lamps and fireflies at midnight and none at noon. Software-render only; the look and frame cost on a phone are untested.
+
+## X6/X8 Footsteps and hit feel (31 Oct)
+Surface footsteps (wood/stone/leaf/water/mud/sand), screen shake and hit-pause already existed. Added `scripts/hit_fx.gd`: spark/dust burst on every enemy hit (bigger for kicks and hammer). Selftest PASS in software render; not seen on a device.

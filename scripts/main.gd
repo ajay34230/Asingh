@@ -1267,6 +1267,9 @@ func _run_selftest() -> void:
 	await _selftest_map_route(fails, notes)
 	_selftest_cin_ground(fails)
 	_selftest_night_life(fails)
+	var hfx := HitFx.burst(self, Vector3(0, 2, 0), true)
+	if hfx == null or not hfx.one_shot:
+		fails.append("hit fx burst missing")
 	await _selftest_traffic(fails, notes)
 	await _selftest_hunt(fails, notes)
 	await _selftest_fight(fails, notes)
