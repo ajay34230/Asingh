@@ -1,0 +1,6 @@
+numpy
+pillow
+trimesh
+shapely
+mapbox_earcut
+pygltflib
