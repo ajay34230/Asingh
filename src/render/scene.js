@@ -58,7 +58,9 @@ export function createScene(canvas, quality) {
 
   const camera = new THREE.PerspectiveCamera(30, 1, 0.1, 200);
   const target = new THREE.Vector3(0, 0.4, 0);
-  const elevation = THREE.MathUtils.degToRad(58);
+  // Straight top-down: the board is seen flat, with no tilt or perspective wrap.
+  const elevation = THREE.MathUtils.degToRad(90);
+  camera.up.set(0, 0, -1); // keeps the top of the screen pointing at the far (red/green) edge
 
   const view = { camera, target, elevation, distance: 30 };
 
