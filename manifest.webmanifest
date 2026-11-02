@@ -1,0 +1,11 @@
+{
+  "name": "Royal India Ludo",
+  "short_name": "Royal Ludo",
+  "start_url": "./index.html",
+  "display": "fullscreen",
+  "orientation": "landscape",
+  "background_color": "#2a120c",
+  "theme_color": "#2a120c",
+  "description": "Royal India Ludo: a 3D Ludo board with palace courtyards and a dice you tap to roll.",
+  "icons": []
+}

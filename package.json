@@ -1,0 +1,13 @@
+{
+  "name": "royal-india-ludo",
+  "version": "1.0.0",
+  "private": true,
+  "description": "3D Royal India Ludo for the web and Android (landscape).",
+  "type": "module",
+  "scripts": {
+    "test": "node --test tests/layout.test.js tests/rules.test.js",
+    "serve": "python3 -m http.server 8080",
+    "screenshot": "node tests/e2e/screenshot.mjs"
+  },
+  "license": "UNLICENSED"
+}
