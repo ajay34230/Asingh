@@ -1,6 +1,8 @@
 name: Release AAB (manual, signed)
 
-# UNTESTED until the four secrets below exist. Run from Actions -> "Run workflow".
+# Run from Actions -> "Run workflow". Without the four secrets below it still builds, but signs with a
+# throwaway test key (artifact is named ...-TEST-SIGNED and CANNOT be uploaded to Play).
+# It also runs on pushes that change this file, as a pipeline check.
 # Secrets (Settings -> Secrets and variables -> Actions):
 #   RELEASE_KEYSTORE_B64   base64 of your upload keystore (.jks)
 #   RELEASE_KEYSTORE_PASS  keystore password
@@ -9,6 +11,11 @@ name: Release AAB (manual, signed)
 # The keystore is decoded to a temp file on the runner and never committed or uploaded.
 on:
   workflow_dispatch:
+  push:
+    branches:
+      - "phase-*"
+    paths:
+      - ".github/workflows/release.yml"
 
 permissions:
   contents: read
@@ -26,11 +33,11 @@ jobs:
         with:
           distribution: temurin
           java-version: "17"
-      - name: Check secrets exist
+      - name: Detect signing secrets
         env:
           K: ${{ secrets.RELEASE_KEYSTORE_B64 }}
         run: |
-          if [ -z "$K" ]; then echo "RELEASE_KEYSTORE_B64 secret is missing. See docs/PLAY_STORE.md"; exit 1; fi
+          if [ -z "$K" ]; then echo "REAL_KEY=false" >> "$GITHUB_ENV"; echo "::warning::No release secrets: building with a throwaway TEST key"; else echo "REAL_KEY=true" >> "$GITHUB_ENV"; fi
       - name: Install Godot and templates
         run: |
           ci/install_godot.sh
@@ -39,7 +46,7 @@ jobs:
         run: |
           SDKM="$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager"
           yes | "$SDKM" --licenses > /dev/null || true
-          "$SDKM" "platform-tools" "build-tools;35.0.1" "platforms;android-35" "cmake;3.10.2.4988404"
+          "$SDKM" "platform-tools" "build-tools;35.0.1" "platforms;android-35" "platforms;android-36" "cmake;3.10.2.4988404"
       - name: Godot settings, Android build template, keystore
         env:
           K: ${{ secrets.RELEASE_KEYSTORE_B64 }}
@@ -49,16 +56,26 @@ jobs:
             printf '[gd_resource type="EditorSettings" format=3]\n\n[resource]\nexport/android/android_sdk_path = "%s"\nexport/android/java_sdk_path = "%s"\n' \
               "$ANDROID_HOME" "$JAVA_HOME" > "$HOME/.config/godot/$f"
           done
-          echo "$K" | base64 -d > "$RUNNER_TEMP/release.jks"
+          if [ "$REAL_KEY" = "true" ]; then
+            echo "$K" | base64 -d > "$RUNNER_TEMP/release.jks"
+          else
+            keytool -genkeypair -keystore "$RUNNER_TEMP/release.jks" -alias testkey -keyalg RSA -keysize 2048 -validity 30 \
+              -storepass testpass123 -keypass testpass123 -dname "CN=Test"
+          fi
           # Gradle build template ships inside the export templates
           mkdir -p android/build
           unzip -q -o "$HOME/.local/share/godot/export_templates/${GODOT_VERSION}.stable/android_source.zip" -d android/build
           echo "${GODOT_VERSION}.stable" > android/.build_version
+          # Godot 4.4.1 templates compile against API 35; Play needs target 36, so raise compileSdk too.
+          grep -rn "compileSdk\|targetSdk" android/build/config.gradle || true
+          sed -i -E 's/(compileSdk[^0-9]*)35/\136/' android/build/config.gradle
+          echo "android.suppressUnsupportedCompileSdk=36" >> android/build/gradle.properties
+          grep -n "compileSdk" android/build/config.gradle
       - name: Export signed AAB
         env:
           GODOT_ANDROID_KEYSTORE_RELEASE_PATH: ${{ runner.temp }}/release.jks
-          GODOT_ANDROID_KEYSTORE_RELEASE_USER: ${{ secrets.RELEASE_KEY_ALIAS }}
-          GODOT_ANDROID_KEYSTORE_RELEASE_PASSWORD: ${{ secrets.RELEASE_KEYSTORE_PASS }}
+          GODOT_ANDROID_KEYSTORE_RELEASE_USER: ${{ secrets.RELEASE_KEY_ALIAS || 'testkey' }}
+          GODOT_ANDROID_KEYSTORE_RELEASE_PASSWORD: ${{ secrets.RELEASE_KEYSTORE_PASS || 'testpass123' }}
         run: |
           set -o pipefail
           GODOT=".ci/godot/Godot_v${GODOT_VERSION}-stable_linux.x86_64"
@@ -66,9 +83,17 @@ jobs:
           "$GODOT" --headless --path . --export-release "Android Release" build/TheLostKingdom.aab
           test -s build/TheLostKingdom.aab
           ls -l build
+      - name: Verify manifest (target SDK, permissions, ABI)
+        run: |
+          curl -fsSL -o bundletool.jar https://github.com/google/bundletool/releases/download/1.17.2/bundletool-all-1.17.2.jar
+          java -jar bundletool.jar dump manifest --bundle build/TheLostKingdom.aab | tee build/manifest.xml
+          grep -q 'targetSdkVersion="36"' build/manifest.xml || { echo "::error::targetSdkVersion is not 36"; exit 1; }
+          echo "--- permissions:"; grep -o 'uses-permission[^/]*' build/manifest.xml || echo none
+          unzip -l build/TheLostKingdom.aab | grep -o 'lib/[a-z0-9_-]*' | sort -u
+          ls -l build/TheLostKingdom.aab
       - uses: actions/upload-artifact@v4
         with:
-          name: TheLostKingdom-release-aab
+          name: TheLostKingdom-release-aab${{ env.REAL_KEY == 'true' && '' || '-TEST-SIGNED' }}
           path: build/TheLostKingdom.aab
           if-no-files-found: error
           retention-days: 7
