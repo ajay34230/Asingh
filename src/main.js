@@ -9,7 +9,7 @@
 import * as THREE from '../vendor/three/three.module.js';
 import { createScene, pointerToNdc, QUALITY_PRESETS } from './render/scene.js';
 import { createMaterials } from './render/materials.js';
-import { buildBoard } from './render/board.js';
+import { buildBoard, buildImageBoard } from './render/board.js';
 import { buildPalaces } from './render/palace.js';
 import { createTokens } from './render/tokens.js';
 import { Dice } from './render/dice.js';
@@ -33,7 +33,23 @@ function defaultQuality() {
   return touch ? 'medium' : 'high';
 }
 
-function boot() {
+/** Loads the image-rectified board texture. Resolves null if it is missing, so the procedural board is used instead. */
+function loadBoardTexture() {
+  return new Promise((resolve) => {
+    new THREE.TextureLoader().load(
+      'assets/board/board_top_2048.jpg',
+      (tex) => {
+        tex.colorSpace = THREE.SRGBColorSpace;
+        tex.anisotropy = 8;
+        resolve(tex);
+      },
+      undefined,
+      () => resolve(null),
+    );
+  });
+}
+
+async function boot() {
   const params = new URLSearchParams(window.location.search);
   const quality = QUALITY_PRESETS[params.get('quality')] ? params.get('quality')
     : (QUALITY_PRESETS[STORE.get('royalLudo.quality')] ? STORE.get('royalLudo.quality') : defaultQuality());
@@ -46,10 +62,12 @@ function boot() {
   const { renderer, scene, camera, key } = view;
 
   const materials = createMaterials({ quality });
-  const board = buildBoard(materials);
-  const palaces = buildPalaces(materials);
+  const boardTexture = params.get('board') === 'procedural' ? null : await loadBoardTexture();
+  const board = boardTexture ? buildImageBoard(materials, boardTexture) : buildBoard(materials);
+  const palaces = boardTexture ? null : buildPalaces(materials); // the image already paints the palaces
   const tokens = createTokens(materials);
-  scene.add(board.group, palaces.group);
+  scene.add(board.group);
+  if (palaces) scene.add(palaces.group);
   for (const token of tokens.all) {
     scene.add(token.root);
     token.placeAtProgress(0);
@@ -144,7 +162,7 @@ function boot() {
 
     tweens.update(dt);
     board.update(t);
-    palaces.update(t);
+    if (palaces) palaces.update(t);
     for (const token of tokens.all) token.animate(t);
     dice.animate(t);
     confetti.update(dt, t);

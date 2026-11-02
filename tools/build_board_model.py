@@ -13,7 +13,7 @@ Outputs (in assets/board/)
                            - "board_base":  deep red underside
 
 Run:  python3 tools/build_board_model.py [reference.png]
-Needs: numpy, pillow, shapely, mapbox_earcut, trimesh
+Needs: numpy, pillow, shapely, mapbox_earcut, trimesh, pygltflib
 """
 import sys
 from pathlib import Path
@@ -190,7 +190,7 @@ def main():
     reference = Path(sys.argv[1]) if len(sys.argv) > 1 else DEFAULT_REF
     OUT_DIR.mkdir(parents=True, exist_ok=True)
 
-    tex_img = rectify(reference)
+    tex_img = rectify(reference)  # exact reference texture, no edits
     tex_path = OUT_DIR / 'board_top_2048.jpg'
     tex_img.save(tex_path, quality=95)
 

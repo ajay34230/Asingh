@@ -3,6 +3,7 @@
  */
 import * as THREE from '../../vendor/three/three.module.js';
 import { PALETTE } from './materials.js';
+import { BOARD_ASPECT_X } from '../game/layout.js';
 
 export const QUALITY_PRESETS = Object.freeze({
   low: { label: 'Low', maxPixelRatio: 1, shadows: false, shadowMapSize: 512, antialias: false, confetti: 60, sparks: 8 },
@@ -24,8 +25,8 @@ export function createScene(canvas, quality) {
   });
   renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, preset.maxPixelRatio));
   renderer.outputColorSpace = THREE.SRGBColorSpace;
-  renderer.toneMapping = THREE.ACESFilmicToneMapping;
-  renderer.toneMappingExposure = 1.02;
+  // No tone mapping: ACES washes out the artwork, and the board should show its true colours.
+  renderer.toneMapping = THREE.NoToneMapping;
   renderer.shadowMap.enabled = preset.shadows;
   renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 
@@ -34,10 +35,10 @@ export function createScene(canvas, quality) {
 
   scene.environment = buildEnvironment(renderer);
 
-  const hemi = new THREE.HemisphereLight('#fff1d6', '#3a2418', 0.85);
+  const hemi = new THREE.HemisphereLight('#fff1d6', '#3a2418', 0.9);
   scene.add(hemi);
 
-  const key = new THREE.DirectionalLight('#ffe7bf', 2.1);
+  const key = new THREE.DirectionalLight('#ffe7bf', 1.5);
   key.position.set(-7, 16, 9);
   key.castShadow = preset.shadows;
   key.shadow.mapSize.set(preset.shadowMapSize, preset.shadowMapSize);
@@ -81,7 +82,8 @@ export function fitCamera(state) {
   const { camera, target, elevation } = state;
   const dir = new THREE.Vector3(0, Math.sin(elevation), Math.cos(elevation));
   const corners = [];
-  for (const x of [-FIT_HALF, FIT_HALF]) {
+  const halfX = FIT_HALF * BOARD_ASPECT_X;
+  for (const x of [-halfX, halfX]) {
     for (const y of [0, FIT_HEIGHT]) {
       for (const z of [-FIT_HALF, FIT_HALF]) corners.push(new THREE.Vector3(x, y, z));
     }
@@ -93,7 +95,7 @@ export function fitCamera(state) {
     return corners.every((corner) => {
       const p = corner.clone().project(camera);
       // Symmetric margin keeps the board centred and leaves room for the HUD.
-      return Math.abs(p.x) <= 0.9 && Math.abs(p.y) <= 0.8;
+      return Math.abs(p.x) <= 0.94 && Math.abs(p.y) <= 0.86;
     });
   };
   let lo = 8;

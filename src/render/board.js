@@ -8,6 +8,7 @@
 import * as THREE from '../../vendor/three/three.module.js';
 import {
   RING, PLAYERS, COLORS, GRID_SIZE, SAFE_RING_INDICES, CENTER_CELL, toWorld, RING_LENGTH,
+  BOARD_ASPECT_X,
 } from '../game/layout.js';
 import {
   flatExtrude, roundedRectShape, chamferedSquareShape, frameShape, starShape, arrowShape,
@@ -33,7 +34,7 @@ function worldTriangle(points) {
   return shape;
 }
 
-function buildFoundation(materials) {
+function buildFoundation(materials, { rims = true } = {}) {
   const group = new THREE.Group();
 
   const slabShape = roundedRectShape(FOUNDATION_SIZE - 0.24, FOUNDATION_SIZE - 0.24, 0.6);
@@ -49,15 +50,17 @@ function buildFoundation(materials) {
     mesh.receiveShadow = true;
     return mesh;
   };
-  group.add(goldRim(17.0, 16.6, 0.0));
-  group.add(goldRim(16.2, 15.9, 0.0));
-  group.add(goldRim(15.3, 15.0, 0.0));
-  group.add(goldRim(15.0, 14.7, 0.0));
+  if (rims) {
+    group.add(goldRim(17.0, 16.6, 0.0));
+    group.add(goldRim(16.2, 15.9, 0.0));
+    group.add(goldRim(15.3, 15.0, 0.0));
+    group.add(goldRim(15.0, 14.7, 0.0));
+  }
   return group;
 }
 
 /** Gold beads along the outer rim and small lotus ornaments at the four corners. */
-function buildOrnaments(materials) {
+function buildOrnaments(materials, { corners: withCorners = true } = {}) {
   const group = new THREE.Group();
   const dummy = new THREE.Object3D();
 
@@ -89,7 +92,7 @@ function buildOrnaments(materials) {
   const gemGeo = new THREE.IcosahedronGeometry(0.2, 0);
   const ringGeo = new THREE.TorusGeometry(0.34, 0.06, 8, 24);
   const corners = [[-8.12, -8.12], [8.12, -8.12], [8.12, 8.12], [-8.12, 8.12]];
-  corners.forEach(([x, z]) => {
+  if (withCorners) corners.forEach(([x, z]) => {
     const ring = new THREE.Mesh(ringGeo, materials.gold);
     ring.rotation.x = -Math.PI / 2;
     ring.position.set(x, 0.1, z);
@@ -262,12 +265,40 @@ function buildMarkers(materials) {
 }
 
 /**
- * Builds the complete board. Returns the root group and an update hook for
+ * Image-textured board: the reference artwork is laid on the playfield, so the
+ * courtyards, lanes, lotus and palaces all come from the image. The 3D parts are
+ * the bevelled foundation, the gold bead rim and the board itself, which takes the
+ * dice and token shadows.
+ */
+export function buildImageBoard(materials, texture) {
+  const root = new THREE.Group();
+  root.name = 'board';
+  root.scale.x = BOARD_ASPECT_X;
+
+  root.add(buildFoundation(materials, { rims: false })); // the image paints its own frame
+  root.add(buildOrnaments(materials, { corners: false }));
+
+  const geo = new THREE.PlaneGeometry(FOUNDATION_SIZE, FOUNDATION_SIZE);
+  geo.rotateX(-Math.PI / 2); // image top (+v) lands on the far edge (-Z), matching the reference
+  const surface = new THREE.Mesh(geo, new THREE.MeshPhysicalMaterial({
+    map: texture, roughness: 0.36, clearcoat: 0.4, clearcoatRoughness: 0.28,
+  }));
+  surface.position.y = 0.004;
+  surface.receiveShadow = true;
+  surface.name = 'board-surface';
+  root.add(surface);
+
+  return { group: root, update: () => {}, tileCount: 0, gridSize: GRID_SIZE, ringLength: RING_LENGTH };
+}
+
+/**
+ * Builds the complete procedural board. Returns the root group and an update hook for
  * ambient animation (lotus halo breathing and gold shimmer).
  */
 export function buildBoard(materials) {
   const root = new THREE.Group();
   root.name = 'board';
+  root.scale.x = BOARD_ASPECT_X;
 
   root.add(buildFoundation(materials));
   root.add(buildOrnaments(materials));

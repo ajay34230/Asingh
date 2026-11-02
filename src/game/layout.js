@@ -151,7 +151,13 @@ export function progressPoint(color, progress, tokenIndex = 0) {
   return { gx: cell.c + 0.5, gy: cell.r + 0.5 };
 }
 
+/**
+ * Width of the drawn board relative to its height. The logical grid stays square;
+ * only the world-space X axis is stretched, so the board reads wider like the reference.
+ */
+export const BOARD_ASPECT_X = 1.25;
+
 /** Convert continuous grid coordinates to world space (board centred on origin, top surface at y = 0). */
 export function toWorld(gx, gy) {
-  return { x: gx - GRID_SIZE / 2, z: gy - GRID_SIZE / 2 };
+  return { x: (gx - GRID_SIZE / 2) * BOARD_ASPECT_X, z: gy - GRID_SIZE / 2 };
 }
