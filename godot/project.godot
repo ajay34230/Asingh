@@ -1,0 +1,15 @@
+; Royal India Ludo - Godot 4.3 project.
+; Engine: Godot 4.3 stable (verified headless on Linux). Target: Android (landscape).
+config_version=5
+
+[application]
+config/name="Royal India Ludo"
+config/description="Royal India 3D Ludo"
+config/features=PackedStringArray("4.3")
+
+[display]
+window/size/viewport_width=1280
+window/size/viewport_height=720
+window/handheld/orientation=6
+window/stretch/mode="canvas_items"
+window/stretch/aspect="expand"
