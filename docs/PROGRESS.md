@@ -10,11 +10,15 @@
 - AI ported (`AiController`), same heuristic as the prototype.
 - Headless test suite: 9,834 checks, 0 failures, including 20 full AI games.
 
+- Part 2 zip received and checked: different from Part 1, 9 models, together 16/16.
+- All 16 supplied GLB models extracted to `godot/assets/models/` and imported in Godot 4.3
+  headless (16/16). Inventory in `docs/ASSET_INVENTORY.md`.
+
 ## In progress
-- Waiting for the real Part 2 zip before extracting models.
+- Phase 3: measure the board's playfield to align the logical grid with the model.
 
 ## Pending
-- Phase 3: import all 16 supplied GLB models (7 available now, 9 missing).
+- Phase 3 (rest): board alignment, token decimation and LODs, and procedural pivot rigs for the limbs (no skeletons in the files).
 - Phase 4: token movement and character animation state machine.
 - Phase 5: dice presentation tied to the engine result.
 - Phase 6-7: environment, lighting, UI, menus, settings, tutorial.
@@ -32,6 +36,7 @@
 ## Tests performed
 - `godot --headless --version`: Godot 4.3.stable.
 - Rules and topology headless suite: 9,834 checks, 0 failures.
+- Godot GLB import (`tests/asset_check.gd`): 16/16 models imported with measured bounds.
 - Not performed: Android build, device tests, visual checks of the Godot scene (no scene yet).
 
 ## Remaining limitations
