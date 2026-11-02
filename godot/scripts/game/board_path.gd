@@ -18,17 +18,24 @@ const LANE_STEPS := 5
 const FINISH_PROGRESS := 57
 const TOKENS_PER_PLAYER := 4
 ## Turn order is clockwise on screen.
-const COLORS: Array[String] = ["red", "green", "yellow", "blue"]
+## Clockwise seat order on the supplied board: blue (top-left), yellow (top-right),
+## green (bottom-right), red (bottom-left).
+const COLORS: Array[String] = ["blue", "yellow", "green", "red"]
 
-## Per-colour data. entry = ring index of the outer end of the colour's arm.
+## World size of one cell, measured from the supplied board model: the
+## 15 x 15 playfield (ivory tiles) is about 10.98 m wide.
+const CELL_SIZE := 10.98 / 15.0
+
+## Per-colour data, matching the supplied board model.
+## entry = ring index of the outer end of the colour's arm (its home column mouth).
 const PLAYERS := {
-	"red": {"index": 0, "entry": 51, "home": Vector2i(0, 0),
+	"red": {"index": 3, "entry": 51, "home": Vector2i(0, 9),
 		"lane": [Vector2i(1, 7), Vector2i(2, 7), Vector2i(3, 7), Vector2i(4, 7), Vector2i(5, 7)]},
-	"green": {"index": 1, "entry": 12, "home": Vector2i(9, 0),
+	"blue": {"index": 0, "entry": 12, "home": Vector2i(0, 0),
 		"lane": [Vector2i(7, 1), Vector2i(7, 2), Vector2i(7, 3), Vector2i(7, 4), Vector2i(7, 5)]},
-	"yellow": {"index": 2, "entry": 25, "home": Vector2i(9, 9),
+	"yellow": {"index": 1, "entry": 25, "home": Vector2i(9, 0),
 		"lane": [Vector2i(13, 7), Vector2i(12, 7), Vector2i(11, 7), Vector2i(10, 7), Vector2i(9, 7)]},
-	"blue": {"index": 3, "entry": 38, "home": Vector2i(0, 9),
+	"green": {"index": 2, "entry": 38, "home": Vector2i(9, 9),
 		"lane": [Vector2i(7, 13), Vector2i(7, 12), Vector2i(7, 11), Vector2i(7, 10), Vector2i(7, 9)]},
 }
 
@@ -113,11 +120,17 @@ static func track_cell(color: String, progress: int) -> Dictionary:
 
 
 ## Courtyard spot for a token (0..3), in continuous grid coordinates.
+## Measured from the supplied model: the two gold token discs sit 2.2 cells in from
+## the courtyard's inner edge (toward the board centre), at 1.1 and 4.1 cells across
+## a 6-cell courtyard. Tokens 0 and 1 use those discs; tokens 2 and 3 sit 1.1 cells
+## further in, so all four stay clear of the pavilion at the outer edge.
 static func base_spot(color: String, token: int) -> Vector2:
 	var home: Vector2i = PLAYERS[color]["home"]
-	var dx := 1.5 if token % 2 == 0 else 4.5
-	var dy := 1.5 if token < 2 else 4.5
-	return Vector2(home.x + dx, home.y + dy)
+	var top_home := home.y < GRID_SIZE / 2
+	var inset := 2.2 if token < 2 else 1.1
+	var x := 1.9 if token % 2 == 0 else 4.1
+	var y := 6.0 - inset if top_home else inset
+	return Vector2(home.x + x, home.y + y)
 
 
 ## Continuous grid position for a progress value (used by both renderer and tests).
@@ -133,5 +146,6 @@ static func progress_point(color: String, progress: int, token: int = 0) -> Vect
 
 
 ## Grid to world: board centred on the origin, top surface at y = 0.
+## Screen top (row 0) is -Z when the camera looks straight down.
 static func to_world(gx: float, gy: float) -> Vector3:
-	return Vector3(gx - GRID_SIZE / 2.0, 0.0, gy - GRID_SIZE / 2.0)
+	return Vector3((gx - GRID_SIZE / 2.0) * CELL_SIZE, 0.0, (gy - GRID_SIZE / 2.0) * CELL_SIZE)

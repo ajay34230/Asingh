@@ -14,8 +14,17 @@
 - All 16 supplied GLB models extracted to `godot/assets/models/` and imported in Godot 4.3
   headless (16/16). Inventory in `docs/ASSET_INVENTORY.md`.
 
+- Board fit: `godot/scenes/main.tscn` shows the supplied board with a straight top-down
+  orthographic camera that fits any screen (checked landscape, portrait, phone landscape).
+- Board alignment: the ring cells sit on the model's track, and the four token spots sit on
+  the model's gold discs (`docs/screenshots/godot-board-alignment.png`).
+- Board colours adopted from the model: blue top-left, yellow top-right, green bottom-right,
+  red bottom-left. The logic was re-assigned to match.
+- Animation script pack (9 GDScript files) installed in `godot/scripts/animation/`, paths
+  remapped to the supplied models, all 9 parse without errors. Not run in a scene yet.
+
 ## In progress
-- Phase 3: measure the board's playfield to align the logical grid with the model.
+- Phase 3: token placement on the board, then the animation scripts in a running scene.
 
 ## Pending
 - Phase 3 (rest): board alignment, token decimation and LODs, and procedural pivot rigs for the limbs (no skeletons in the files).
@@ -37,6 +46,9 @@
 - `godot --headless --version`: Godot 4.3.stable.
 - Rules and topology headless suite: 9,834 checks, 0 failures.
 - Godot GLB import (`tests/asset_check.gd`): 16/16 models imported with measured bounds.
+- Animation scripts parse (`tests/parse_scripts.gd`): 9/9.
+- Rules suite after the colour re-assignment: 9,673 checks, 0 failures.
+- Rendered the board in Godot 4.3 under Xvfb (landscape, portrait, phone landscape).
 - Not performed: Android build, device tests, visual checks of the Godot scene (no scene yet).
 
 ## Remaining limitations
