@@ -25,8 +25,8 @@ export function createScene(canvas, quality) {
   });
   renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, preset.maxPixelRatio));
   renderer.outputColorSpace = THREE.SRGBColorSpace;
-  // No tone mapping: ACES washes out the artwork, and the board should show its true colours.
-  renderer.toneMapping = THREE.NoToneMapping;
+  renderer.toneMapping = THREE.ACESFilmicToneMapping;
+  renderer.toneMappingExposure = 1.02;
   renderer.shadowMap.enabled = preset.shadows;
   renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 
@@ -35,11 +35,11 @@ export function createScene(canvas, quality) {
 
   scene.environment = buildEnvironment(renderer);
 
-  const hemi = new THREE.HemisphereLight('#fff1d6', '#3a2418', 0.9);
+  const hemi = new THREE.HemisphereLight('#fff1d6', '#3a2418', 0.85);
   scene.add(hemi);
 
-  const key = new THREE.DirectionalLight('#ffe7bf', 1.5);
-  key.position.set(-7, 16, 9);
+  const key = new THREE.DirectionalLight('#ffe7bf', 2.1);
+  key.position.set(-9, 7.5, 7);  // low angle: long shadows show pavilion and token height from straight above
   key.castShadow = preset.shadows;
   key.shadow.mapSize.set(preset.shadowMapSize, preset.shadowMapSize);
   key.shadow.camera.left = -11;
