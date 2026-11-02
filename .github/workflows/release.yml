@@ -66,9 +66,9 @@ jobs:
           mkdir -p android/build
           unzip -q -o "$HOME/.local/share/godot/export_templates/${GODOT_VERSION}.stable/android_source.zip" -d android/build
           echo "${GODOT_VERSION}.stable" > android/.build_version
-          # Godot 4.4.1 templates compile against API 35; Play needs target 36, so raise compileSdk too.
+          # Godot 4.4.1 templates compile against API 34/35; Play needs target 36, so raise compileSdk too.
           grep -rn "compileSdk\|targetSdk" android/build/config.gradle || true
-          sed -i -E 's/(compileSdk[^0-9]*)35/\136/' android/build/config.gradle
+          sed -i -E 's/(compileSdk[^0-9]*)3[45]/\136/' android/build/config.gradle
           echo "android.suppressUnsupportedCompileSdk=36" >> android/build/gradle.properties
           grep -n "compileSdk" android/build/config.gradle
       - name: Export signed AAB
