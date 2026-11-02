@@ -46,6 +46,7 @@ func _particles(n: int, col: Color, size: float, ext: Vector3, v0: float, v1: fl
 	m.cull_mode = BaseMaterial3D.CULL_DISABLED
 	m.vertex_color_use_as_albedo = true
 	m.albedo_color = col
+	SoftDot.apply(m)
 	q.material = m
 	p.mesh = q
 	p.color_initial_ramp = _palette(col)

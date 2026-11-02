@@ -82,6 +82,7 @@ func _sparkle() -> CPUParticles3D:
 	m.emission_enabled = true
 	m.emission = Color(1.0, 0.85, 0.3)
 	m.emission_energy_multiplier = 3.0
+	SoftDot.apply(m)
 	q.material = m
 	p.mesh = q
 	p.emitting = false

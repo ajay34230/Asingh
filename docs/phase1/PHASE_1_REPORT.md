@@ -207,3 +207,9 @@ Pickups are now small 3D models built from primitives (heart with cross, lightni
 - All other small props stop drawing beyond 170/125/90 m (High/Medium/Low).
 - Settings > Debug tab: switch rain, smoke, clouds, grass, lamps, people, ground, ruins, farm off one at a time to find what causes a glitch. Not saved between launches.
 - Not device-tested: real FPS gain, and merged meshes should be checked for missing or mis-coloured props.
+
+## Addendum: night, square particles, roll
+- Night was too dark: moonlight 0.3 -> 0.7, ambient colour/energy raised, exposure 1.1 -> 1.3, sky night colours lifted. Checked in a software-render night capture (much brighter); not judged on a phone screen.
+- The yellow/white "boxes": particle quads (fireflies, sparkles, hit effects, power-up fx, dust, smoke, festival powder, mist, rain) had no texture and drew as hard squares. All now use a soft round dot texture (`soft_dot.gd`).
+- Roll: the selftest taps the ROLL button and it rolls, so the button path works. Likely cause on device: roll was refused silently when stamina was under 18 (sprinting drains it). Now a tired player can still roll (shorter dodge window), and a press during the cooldown is buffered for 0.35 s.
+- Still open: the large flat slabs seen in town captures (and beams on the device). Hiding individual world parts did not isolate them; use the Settings > Debug tab on the phone.

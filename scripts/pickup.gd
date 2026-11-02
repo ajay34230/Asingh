@@ -50,6 +50,7 @@ func setup(k: String, ply: Player, at: Vector3, respawn_after: float = 0.0) -> P
 	q.size = Vector2(0.06, 0.06)
 	var qm := _glow(col, 2.5)
 	qm.billboard_mode = BaseMaterial3D.BILLBOARD_ENABLED
+	SoftDot.apply(qm)
 	q.material = qm
 	sp.mesh = q
 	sp.position.y = 0.3

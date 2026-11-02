@@ -2143,6 +2143,24 @@ func _selftest_farm(fails: PackedStringArray) -> void:
 	FloatText.spawn(self, player.global_position, "12")
 	if lock_marker == null or diag == null or diag.summary() == "":
 		fails.append("lock marker / diag missing")
+	# touch ROLL button: a tap on it must start a roll
+	player.locked = false
+	player.dead = false
+	player.stamina = 100.0
+	player._roll_cd = 0.0
+	touch.visible = true
+	if touch._vp.x < 100.0:
+		touch._vp = Vector2(1280, 720)
+	var tev := InputEventScreenTouch.new()
+	tev.index = 7
+	tev.pressed = true
+	tev.position = touch._roll_button_centre()
+	touch._input(tev)
+	if player._roll_cd <= 0.0:
+		fails.append("touch: ROLL button did not roll (locked=%s mounted=%s)" % [player.locked, player.mounted])
+	tev.pressed = false
+	touch._input(tev)
+	player._roll_cd = 0.0
 	print("[selftest] farm: plant, water x2, tractor harvest, sell, orchard, contest, honey ok; %d world coins" % coin_sys.coins.size())
 
 
@@ -2722,7 +2740,7 @@ func _run_capture_ride(arg: String) -> void:
 func _run_capture_town(dir: String) -> void:
 	DirAccess.make_dir_recursive_absolute(dir)
 	touch.visible = false
-	atmosphere.time_of_day = 0.42
+	atmosphere.time_of_day = float(OS.get_environment("TOD")) if OS.get_environment("TOD") != "" else 0.42
 	atmosphere.apply_time()
 	var c := TerrainBuilder.TOWN_C
 	var shots := [

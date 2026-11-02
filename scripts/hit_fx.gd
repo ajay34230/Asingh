@@ -23,6 +23,7 @@ static func burst(parent: Node, at: Vector3, heavy: bool = false, tint: Color = 
 	m.emission_enabled = true
 	m.emission = tint
 	m.emission_energy_multiplier = 2.5
+	SoftDot.apply(m)
 	q.material = m
 	p.mesh = q
 	parent.add_child(p)

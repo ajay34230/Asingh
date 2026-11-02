@@ -49,6 +49,7 @@ func _ready() -> void:
 	m2.billboard_mode = BaseMaterial3D.BILLBOARD_ENABLED
 	m2.vertex_color_use_as_albedo = true
 	m2.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	SoftDot.apply(m2)
 	q.material = m2
 	powder.mesh = q
 	add_child(powder)

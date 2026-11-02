@@ -173,6 +173,7 @@ func _waterfall() -> void:
 	pm.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
 	pm.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
 	pm.billboard_mode = BaseMaterial3D.BILLBOARD_ENABLED
+	SoftDot.apply(pm)
 	_mist.material_override = pm
 	add_child(_mist)
 	_fall_loop = Sfx.emitter(self, "water_splash_loop", Vector3(cx, base_y + 2.0, Z_TOP - 6.0), -9.0, 70.0, 10.0)

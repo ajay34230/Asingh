@@ -70,6 +70,7 @@ var _lunge_t := 0.0
 var _lunge_v := Vector3.ZERO
 var _hit_mult := 1.0
 var _roll_cd := 0.0
+var _roll_buf := 0.0
 var wanted_t := 0.0             # >0: the town knows; shops refuse you, guards attack once assaults reach 5
 var assaults := 0               # villagers the player has struck
 var _f_was := false
@@ -419,12 +420,16 @@ func set_block(on: bool) -> void:
 
 ## Quick dodge roll with a short window of invulnerability (ROLL button / V).
 func roll() -> void:
-	if locked or dead or mounted or _throwing or _roll_cd > 0.0:
+	if locked or dead or mounted or _throwing:
 		return
-	if not spend(18.0):
+	if _roll_cd > 0.0:
+		_roll_buf = 0.35          # pressed a moment early: roll as soon as the cooldown ends
 		return
+	_roll_buf = 0.0
+	var tired := stamina < 18.0
+	spend(18.0)                   # a tired player can still roll (shorter dodge window), it just drains what is left
 	_roll_cd = 0.9
-	_invuln = maxf(_invuln, 0.45)
+	_invuln = maxf(_invuln, 0.25 if tired else 0.45)
 	blocking = false
 	_rig.set_react("")
 	var d := Vector3(-sin(_yaw), 0.0, -cos(_yaw)) * move_input.y + Vector3(cos(_yaw), 0.0, -sin(_yaw)) * move_input.x
@@ -645,6 +650,10 @@ func _tick_combat(delta: float) -> void:
 	wanted_t = maxf(0.0, wanted_t - delta)
 	_attack_cd = maxf(0.0, _attack_cd - delta)
 	_roll_cd = maxf(0.0, _roll_cd - delta)
+	if _roll_buf > 0.0:
+		_roll_buf -= delta
+		if _roll_cd <= 0.0:
+			roll()
 	if _buffer > 0.0:
 		_buffer -= delta
 		if _attack_cd <= 0.0:

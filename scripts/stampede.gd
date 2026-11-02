@@ -124,6 +124,7 @@ func start() -> void:
 	pm.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
 	pm.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
 	pm.billboard_mode = BaseMaterial3D.BILLBOARD_ENABLED
+	SoftDot.apply(pm)
 	_dust.material_override = pm
 	main.add_child(_dust)
 	var atmo: Atmosphere = main.get("atmosphere") as Atmosphere

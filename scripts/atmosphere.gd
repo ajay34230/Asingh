@@ -296,6 +296,7 @@ func make_dust(follow: Node3D) -> GPUParticles3D:
 	mat.vertex_color_use_as_albedo = true
 	mat.albedo_color = Color(0.92, 0.82, 0.64, 0.32)
 	mat.disable_receive_shadows = true
+	SoftDot.apply(mat)
 	quad.material = mat
 
 	var p := GPUParticles3D.new()
@@ -352,6 +353,7 @@ func make_rain(follow: Node3D) -> void:
 	mat.billboard_mode = BaseMaterial3D.BILLBOARD_PARTICLES
 	mat.albedo_color = Color(0.8, 0.88, 1.0, 0.42)
 	mat.disable_receive_shadows = true
+	SoftDot.apply(mat)
 	quad.material = mat
 	_rain_p = GPUParticles3D.new()
 	_rain_p.name = "Rain"
@@ -384,6 +386,7 @@ func make_rain(follow: Node3D) -> void:
 	smat.billboard_mode = BaseMaterial3D.BILLBOARD_PARTICLES
 	smat.albedo_color = Color(0.85, 0.9, 1.0, 0.55)
 	smat.disable_receive_shadows = true
+	SoftDot.apply(smat)
 	sq.material = smat
 	_splash_p = GPUParticles3D.new()
 	_splash_p.name = "RainSplash"
@@ -549,21 +552,21 @@ func apply_time() -> void:
 	if e < 0.0:        # moonlight: the same light, cool and dim, shining from above
 		sun.rotation_degrees.x = -42.0
 		sun.light_color = Color(0.55, 0.65, 1.0)
-		sun.light_energy = maxf(sun.light_energy, 0.3 * night)
+		sun.light_energy = maxf(sun.light_energy, 0.7 * night)
 	var top_day := Color(0.26, 0.47, 0.80)
-	var top_night := Color(0.02, 0.03, 0.09)
+	var top_night := Color(0.04, 0.06, 0.16)
 	var hor_day := Color(0.88, 0.78, 0.62)
 	var hor_dusk := Color(0.96, 0.52, 0.30)
-	var hor_night := Color(0.05, 0.06, 0.12)
+	var hor_night := Color(0.09, 0.11, 0.22)
 	sky_mat.sky_top_color = top_night.lerp(top_day, day_k)
 	var hor := hor_night.lerp(hor_day, day_k)
 	sky_mat.sky_horizon_color = hor.lerp(hor_dusk, dusk_k * 0.8)
 	sky_mat.ground_horizon_color = sky_mat.sky_horizon_color
 	sky_mat.ground_bottom_color = Color(0.58, 0.46, 0.32).lerp(Color(0.03, 0.03, 0.05), night)
-	environment.ambient_light_color = Color(0.74, 0.64, 0.52).lerp(Color(0.16, 0.20, 0.38), night)
-	environment.ambient_light_energy = lerpf(1.0, 0.55, night)
+	environment.ambient_light_color = Color(0.74, 0.64, 0.52).lerp(Color(0.34, 0.40, 0.62), night)
+	environment.ambient_light_energy = lerpf(1.0, 1.0, night)
 	environment.fog_light_color = Color(0.84, 0.74, 0.60).lerp(Color(0.06, 0.08, 0.16), night)
-	environment.tonemap_exposure = lerpf(0.85, 1.1, night)
+	environment.tonemap_exposure = lerpf(0.85, 1.3, night)
 	# weather: overcast, desaturated, foggier, with a lightning flash
 	var gloom := maxf(rain, overcast * 0.8)
 	if gloom > 0.0 or mist > 0.0 or _flash > 0.0:
@@ -629,6 +632,7 @@ static func make_smoke(parent: Node3D, pos: Vector3, scale_m: float = 1.0) -> GP
 	m.billboard_mode = BaseMaterial3D.BILLBOARD_ENABLED
 	m.vertex_color_use_as_albedo = true
 	m.disable_receive_shadows = true
+	SoftDot.apply(m)
 	q.material = m
 	var p := GPUParticles3D.new()
 	p.name = "Smoke"

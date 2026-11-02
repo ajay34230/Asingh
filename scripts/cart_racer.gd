@@ -139,6 +139,7 @@ func _bar_quad(size: Vector2, col: Color) -> MeshInstance3D:
 	m.albedo_color = col
 	m.no_depth_test = true
 	m.render_priority = 5
+	SoftDot.apply(m)
 	q.material = m
 	var mi := MeshInstance3D.new()
 	mi.mesh = q
@@ -186,6 +187,7 @@ func _make_dust() -> GPUParticles3D:
 	m.billboard_mode = BaseMaterial3D.BILLBOARD_ENABLED
 	m.vertex_color_use_as_albedo = true
 	m.albedo_texture = _soft_dot()
+	SoftDot.apply(m)
 	q.material = m
 	var p := GPUParticles3D.new()
 	p.amount = 40
@@ -450,6 +452,7 @@ func _sparks(at: Vector3, col: Color) -> void:
 	m.albedo_color = col
 	m.emission_enabled = true
 	m.emission = col
+	SoftDot.apply(m)
 	q.material = m
 	var p := GPUParticles3D.new()
 	p.amount = 24

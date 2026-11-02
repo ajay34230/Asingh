@@ -47,6 +47,7 @@ func _ready() -> void:
 	m.emission_enabled = true
 	m.emission = Color(0.8, 1.0, 0.35)
 	m.emission_energy_multiplier = 3.0
+	SoftDot.apply(m)
 	q.material = m
 	flies.mesh = q
 	flies.emitting = false

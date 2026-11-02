@@ -116,6 +116,7 @@ func _make_particles(c: Color, size: float, life: float, amount: int) -> CPUPart
 	m.billboard_mode = BaseMaterial3D.BILLBOARD_PARTICLES
 	m.albedo_color = c
 	m.vertex_color_use_as_albedo = true
+	SoftDot.apply(m)
 	q.material = m
 	p.mesh = q
 	var g := Gradient.new()
