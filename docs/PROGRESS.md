@@ -54,3 +54,35 @@
 ## Remaining limitations
 - No Godot scene or rendering yet. Only logic is ported.
 - The Android export needs export templates, the Android SDK and a JDK, which are not installed.
+
+
+## Phase status (latest update)
+
+| Phase | Scope | Status |
+|-------|-------|--------|
+| 1 | Audit, engine decision, asset inventory | Done |
+| 2 | Rules engine + board path (GDScript) | Done. 9,673 headless checks, 0 failures. Full 4-player AI games complete headless. |
+| 3 | Import 16 supplied models, place board, tokens, dice | Done for import and placement. Limb rigs are procedural (no skeletons in the files). Token geometry is not decimated yet. |
+| 4 | Token movement + animation state machine | Partial. Movement hops along the logical path via the supplied animation pack (`TransformerToken.move_to_world`). Walk/jump/punch/kick/grab/throw are implemented in the pack but not yet triggered by game events. |
+| 5 | Dice roll and result presentation | Done. Dice reports tap; engine decides result; dice shows it. All six faces verified numerically (`tests/dice_faces.gd`). Sparkle/glow effects not yet added. |
+| 6 | Royal environment, marble, lighting | Partial. Procedural marble shader on tiles and courtyard floors. Decorations placed beside the board (elephant, peacock, statues, fountain, lamps) with their idle scripts. Decoration layout still needs a visual pass; no water shader on the fountain yet. |
+| 7 | UI, menus, settings | Partial: in-game HUD (turn, message, new game, result panel). No main menu, lobby, settings, tutorial. |
+| 8 | AI difficulty + local multiplayer | AI plays all seats in demo. Difficulty levels not built. Local multiplayer: human seats are configurable in code; no UI for choosing them. |
+| 9 | Online multiplayer, backend | Deferred by user decision. |
+| 10 | Economy, shop, ads, battle pass | Deferred by user decision. |
+| 11 | Android export, performance | Blocked: export templates, Android SDK and JDK not installed. Not attempted. |
+| 12 | Full QA, documentation | Partial. Tests listed below. |
+
+### Tests run (Godot 4.3, this container)
+- `tests/run_tests.gd`: 9,673 checks, 0 failures.
+- `tests/parse_scripts.gd`: 9/9 animation scripts parse.
+- `tests/dice_faces.gd`: all six faces, PASS.
+- `tests/asset_check.gd`: 16/16 models import.
+- `--demo`: a full four-player AI game runs to the end (rankings reported).
+- `--click-test` under Xvfb: real mouse input clicks the dice, the engine rolls a six, and a tap on a glowing token moves it from its yard to the start square. PASS.
+- Screenshots: `docs/screenshots/godot-game.png`, `godot-game-marble.png`.
+
+### Limits, stated plainly
+- Model geometry cannot be made more detailed inside this project. Only materials, lighting, shading and animation can be improved. The supplied models have no skeletons, so limb animation is procedural.
+- Android APK, device tests, performance numbers and frame-rate targets have not been measured.
+- The animation pack was written without being run in a scene. Its behaviour was tested only through the paths above.

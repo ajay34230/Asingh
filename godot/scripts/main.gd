@@ -1,80 +1,181 @@
-## Main scene: the supplied Ludo board, a straight top-down camera, and a
-## camera that fits the board to any screen without cropping it.
+## Main scene: supplied board, straight top-down camera that fits any screen, dice,
+## game controller and HUD.
 ##
-## Screenshot check (needs a display, e.g. xvfb-run):
-##   godot --path . -- --screenshot=/tmp/board.png
+## Options (after --):
+##   --screenshot=PATH   save one frame after the game starts, then quit
+##   --demo              play a full all-AI game without delays, print the result, quit
+##   --seed=N            deterministic dice sequence
 extends Node3D
 
 const BOARD_PATH := "res://assets/models/01_Board/Royal_India_Final_Ludo_Board.glb"
-## Board footprint measured from the mesh: the frame is 12.46 m square, centred on the origin.
-const BOARD_SIZE := 12.46
-## Space kept free around the board for the HUD (fraction of the screen).
+const DICE_PATH := "res://assets/models/02_Dice/Royal_India_Royal_Jewel_Dice.glb"
+const BOARD_SIZE := 12.46      ## metres, measured from the board mesh
 const SCREEN_MARGIN := 0.04
+const DICE_POSITION := Vector3(0, 1.25, 0)
 
 var camera: Camera3D
-var board: Node3D
+var game: GameController
+var hud: Hud
+var _demo := false
+var _demo_done := false
 
 
 func _ready() -> void:
+	get_viewport().physics_object_picking = true
+	var args := OS.get_cmdline_user_args()
+	_demo = "--demo" in args
+	var seed_value := 0
+	var shot := ""
+	for arg in args:
+		if arg.begins_with("--seed="):
+			seed_value = int(arg.trim_prefix("--seed="))
+		elif arg.begins_with("--screenshot="):
+			shot = arg.trim_prefix("--screenshot=")
+
 	_build_environment()
-	board = (load(BOARD_PATH) as PackedScene).instantiate()
-	board.name = "Board"
+	var board := (load(BOARD_PATH) as PackedScene).instantiate()
 	add_child(board)
+	_apply_marble(board)
+	_place_decorations()
+	_build_camera()
+	var dice := _build_dice()
+
+	game = GameController.new()
+	game.name = "Game"
+	add_child(game)
+	game.setup(dice, seed_value)
+
+	hud = Hud.new()
+	add_child(hud)
+	hud.new_game_pressed.connect(_start_new_game)
+	game.message.connect(hud.set_message)
+	game.message.connect(_log_message)
+	game.turn_changed.connect(hud.set_turn)
+	game.game_finished.connect(_on_game_finished)
+
+	if "--dice-face" in args:
+		game.dice.setup_face(int(_arg_value(args, "--dice-face")))
+	if _demo:
+		Engine.time_scale = 40.0  ## demo only: run the whole game quickly
+		game.fast_mode = true
+		_start_new_game_with([], ["blue", "yellow", "green", "red"])
+	else:
+		_start_new_game()
+	if "--click-test" in args:
+		_run_click_test()
+	elif shot != "":
+		_screenshot_and_quit(shot)
+
+
+func _start_new_game() -> void:
+	game.fast_mode = _demo
+	_start_new_game_with(["blue"], ["blue", "yellow", "green", "red"])
+
+
+func _start_new_game_with(humans: Array, seats: Array) -> void:
+	var typed_humans: Array[String] = []
+	for h in humans:
+		typed_humans.append(h)
+	var typed_seats: Array[String] = []
+	for s in seats:
+		typed_seats.append(s)
+	game.new_game(typed_seats, typed_humans)
+
+
+## Royal decorations, placed beside the board (outside the playfield, so they never
+## obstruct the track). Each one gets its matching idle animation script.
+const DECORATIONS := [
+	{"path": "res://assets/models/05_Animals_and_Statues/Royal_India_Elephant.glb", "pos": Vector3(-10.2, 0, -2.2), "yaw": 90, "type": "elephant", "scale": 0.9},
+	{"path": "res://assets/models/05_Animals_and_Statues/Royal_India_Elephant_Statue.glb", "pos": Vector3(-10.0, 0, 3.6), "yaw": 90, "type": "statue", "scale": 1.0},
+	{"path": "res://assets/models/05_Animals_and_Statues/Royal_India_Peacock_HighPoly_Textured.glb", "pos": Vector3(10.0, 0, -2.4), "yaw": -90, "type": "peacock", "scale": 0.9},
+	{"path": "res://assets/models/05_Animals_and_Statues/Royal_India_Peacock_Statue.glb", "pos": Vector3(10.0, 0, 3.6), "yaw": -90, "type": "statue", "scale": 1.0},
+	{"path": "res://assets/models/06_Decorations/Royal_India_Lotus_Fountain.glb", "pos": Vector3(-10.4, 0, -6.0), "yaw": 0, "type": "fountain", "scale": 1.0},
+	{"path": "res://assets/models/06_Decorations/Royal_India_Deepam_Lamp_Set.glb", "pos": Vector3(10.2, 0, -6.2), "yaw": 0, "type": "lamp", "scale": 1.0},
+]
+
+
+func _place_decorations() -> void:
+	for deco in DECORATIONS:
+		var root := Node3D.new()
+		root.name = String(deco["type"]).capitalize()
+		root.position = deco["pos"]
+		root.rotation_degrees.y = deco["yaw"]
+		root.scale = Vector3.ONE * float(deco["scale"])
+		add_child(root)
+		root.add_child((load(deco["path"]) as PackedScene).instantiate())
+		var animator := RoyalEnvironmentAnimator.new()
+		animator.animation_type = deco["type"]
+		root.add_child(animator)
+
+
+func _log_message(text: String) -> void:
+	if _demo:
+		print("[game] " + text)
+
+
+func _on_game_finished(ranking: Array) -> void:
+	hud.show_result(ranking)
+	if _demo and not _demo_done:
+		_demo_done = true
+		print("DEMO RESULT: " + str(ranking))
+		get_tree().quit(0)
+
+
+## Orthographic size is the visible height: choose the height that fits the board
+## by width or height, whichever limits this aspect ratio.
+func _build_camera() -> void:
 	camera = Camera3D.new()
 	camera.name = "BoardCamera"
 	camera.projection = Camera3D.PROJECTION_ORTHOGONAL
-	camera.look_at_from_position(Vector3(0, 30, 0), Vector3.ZERO, Vector3(0, 0, -1))
 	camera.near = 0.1
 	camera.far = 100.0
 	camera.keep_aspect = Camera3D.KEEP_HEIGHT
+	camera.look_at_from_position(Vector3(0, 30, 0), Vector3.ZERO, Vector3(0, 0, -1))
 	add_child(camera)
 	camera.make_current()
 	get_viewport().size_changed.connect(_fit_camera)
 	_fit_camera()
 
-	var args := OS.get_cmdline_user_args()
-	if "--grid" in args:
-		_add_alignment_markers()
-	for arg in args:
-		if arg.begins_with("--screenshot="):
-			_screenshot_and_quit(arg.trim_prefix("--screenshot="))
 
-
-## Debug: marks every ring cell (small dot per team colour) and every courtyard
-## spot, to check that the logical grid lines up with the supplied board.
-func _add_alignment_markers() -> void:
-	var ring_mat := StandardMaterial3D.new()
-	ring_mat.albedo_color = Color("#ff00ff")
-	ring_mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-	var base_mat := StandardMaterial3D.new()
-	base_mat.albedo_color = Color("#00ffff")
-	base_mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-	var dot := SphereMesh.new()
-	dot.radius = 0.12
-	dot.height = 0.24
-	for cell in BoardPath.ring():
-		var m := MeshInstance3D.new()
-		m.mesh = dot
-		m.material_override = ring_mat
-		m.position = BoardPath.to_world(cell.x + 0.5, cell.y + 0.5) + Vector3(0, 0.4, 0)
-		add_child(m)
-	for color in BoardPath.COLORS:
-		for token in range(4):
-			var p := BoardPath.base_spot(color, token)
-			var m := MeshInstance3D.new()
-			m.mesh = dot
-			m.material_override = base_mat
-			m.position = BoardPath.to_world(p.x, p.y) + Vector3(0, 0.4, 0)
-			add_child(m)
-
-
-## Orthographic size is the visible height. Choose the height that fits the
-## board's width and height, whichever is the limit on this aspect ratio.
 func _fit_camera() -> void:
 	var viewport_size := get_viewport().get_visible_rect().size
 	var aspect := viewport_size.x / maxf(viewport_size.y, 1.0)
 	var needed := BOARD_SIZE * (1.0 + SCREEN_MARGIN * 2.0)
 	camera.size = maxf(needed, needed / aspect)
+
+
+func _build_dice() -> DiceController:
+	var dice := DiceController.new()
+	dice.name = "Dice"
+	dice.position = DICE_POSITION
+	var model := Node3D.new()
+	model.name = "DiceModel"
+	model.add_child((load(DICE_PATH) as PackedScene).instantiate())
+	model.scale = Vector3.ONE * 0.9
+	dice.add_child(model)
+	var shape := CollisionShape3D.new()
+	var sphere := SphereShape3D.new()
+	sphere.radius = 0.8
+	shape.shape = sphere
+	dice.add_child(shape)
+	add_child(dice)
+	return dice
+
+
+## Replaces the flat colour of the tile and courtyard floor batches with polished
+## marble, keeping each batch's own colour as the base. Gold trim is left as is.
+func _apply_marble(node: Node) -> void:
+	for child in node.get_children():
+		if child is MeshInstance3D and child.name.begins_with("Batch_"):
+			var lname := String(child.name).to_lower()
+			if lname.contains("gold") or lname.contains("leaf") or lname.contains("pink") or lname.contains("dark"):
+				continue
+			var source := (child as MeshInstance3D).get_active_material(0) as BaseMaterial3D
+			if source == null:
+				continue
+			var base := source.albedo_color
+			(child as MeshInstance3D).material_override = Marble.material(base, base.darkened(0.35))
+		_apply_marble(child)
 
 
 func _build_environment() -> void:
@@ -87,7 +188,6 @@ func _build_environment() -> void:
 	var world := WorldEnvironment.new()
 	world.environment = env
 	add_child(world)
-
 	var sun := DirectionalLight3D.new()
 	sun.light_energy = 1.4
 	sun.light_color = Color("#ffe7bf")
@@ -96,10 +196,90 @@ func _build_environment() -> void:
 	add_child(sun)
 
 
-func _screenshot_and_quit(path: String) -> void:
-	for i in range(4):
+## Taps on a glowing token move it. The ray is cast to a plane just above the track.
+func _unhandled_input(event: InputEvent) -> void:
+	if game == null or not game.awaiting_pick:
+		return
+	var screen := Vector2.ZERO
+	if event is InputEventMouseButton and event.pressed and event.button_index == MOUSE_BUTTON_LEFT:
+		screen = event.position
+	elif event is InputEventScreenTouch and event.pressed:
+		screen = event.position
+	else:
+		return
+	var origin := camera.project_ray_origin(screen)
+	var dir := camera.project_ray_normal(screen)
+	if absf(dir.y) < 0.0001:
+		return
+	var t := (GameController.TRACK_Y + 0.2 - origin.y) / dir.y
+	var hit := origin + dir * t
+	var color := game.current_color()
+	var best := -1
+	var best_dist := GameController.TOKEN_PICK_RADIUS
+	for i in range(BoardPath.TOKENS_PER_PLAYER):
+		var token: Node3D = game.tokens[color][i]
+		var d := Vector2(token.global_position.x - hit.x, token.global_position.z - hit.z).length()
+		if d < best_dist:
+			best_dist = d
+			best = i
+	if best >= 0:
+		game.tap_token(color, best)
+
+
+func _arg_value(args: PackedStringArray, key: String) -> String:
+	for arg in args:
+		if arg.begins_with(key + "="):
+			return arg.trim_prefix(key + "=")
+	return "1"
+
+
+## End-to-end input check: pushes real mouse events into the viewport, so the same
+## physics picking a player's tap uses is exercised. Clicks the dice, then a legal token
+## if the engine asks for a choice, and checks that the rules state changed.
+func _run_click_test() -> void:
+	for i in range(30):
 		await get_tree().process_frame
-	var image := get_viewport().get_texture().get_image()
-	image.save_png(path)
+	var started := Time.get_ticks_msec()
+	var clicks := 0
+	# Click the dice on each human turn until the engine asks for a token choice.
+	while not game.awaiting_pick and Time.get_ticks_msec() - started < 90000:
+		if game.is_human_turn() and game.engine.phase == RulesEngine.PHASE_ROLL and not game.busy:
+			_click(camera.unproject_position(game.dice.global_position))
+			clicks += 1
+			for i in range(5):
+				await get_tree().process_frame
+		await get_tree().process_frame
+	print("click test: dice clicks=%d, engine rolled %d, awaiting_pick=%s" % [clicks, game.engine.dice, str(game.awaiting_pick)])
+	var ok := game.awaiting_pick and game.engine.dice == 6 and clicks >= 1
+	if game.awaiting_pick:
+		var color := game.current_color()
+		var index: int = game._legal[0]
+		var before: int = game.engine.seats[game.engine.current]["tokens"][index]
+		_click(camera.unproject_position(game.tokens[color][index].global_position))
+		for i in range(120):
+			await get_tree().process_frame
+			if not game.busy:
+				break
+		var after: int = game.engine.seats[game.engine.current]["tokens"][index] if game.engine.current == 0 else -1
+		print("click test: tapped %s_%d; progress before=%d after=%d" % [color, index, before, after])
+		ok = ok and after == 1
+	print("CLICK TEST " + ("PASS" if ok else "FAIL"))
+	get_tree().quit(0 if ok else 1)
+
+
+func _click(screen_pos: Vector2) -> void:
+	for pressed in [true, false]:
+		var ev := InputEventMouseButton.new()
+		ev.button_index = MOUSE_BUTTON_LEFT
+		ev.pressed = pressed
+		ev.position = screen_pos
+		ev.global_position = screen_pos
+		get_viewport().push_input(ev)
+
+
+func _screenshot_and_quit(path: String) -> void:
+	for i in range(90):
+		await get_tree().process_frame
+	get_viewport().get_texture().get_image().save_png(path)
 	print("saved " + path)
 	get_tree().quit()
