@@ -88,6 +88,7 @@ func take_hit(dmg: float, dir: Vector3) -> void:
 	_knock = Vector3(dir.x, 0.0, dir.z).normalized() * (2.5 + dmg * 0.12)
 	rig.mode = "idle"
 	rig.set_react("flinch")
+	rig.play_hit("head" if dmg < 12.0 else "body", _rng.randf_range(-1.0, 1.0))
 	say(OUCH[_rng.randi() % OUCH.size()], 2.0)
 	Sfx.ui_at("kick_hit", -8.0)
 	_restore_t = 0.0

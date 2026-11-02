@@ -250,11 +250,13 @@ func take_hit(kind: String, amount: float, from_dir: Vector3) -> void:
 			velocity += dir * 2.5
 			_stun = 0.35
 			rig.set_react("flinch")
+			rig.play_hit("head" if _rng.randf() < 0.5 else "body", _rng.randf_range(-1.0, 1.0))
 			_pain_sfx(false)
 		"kick":
 			velocity += dir * 6.0
 			_stun = 0.7
 			rig.set_react("stagger")
+			rig.play_hit("gut", _rng.randf_range(-1.0, 1.0))
 			_pain_sfx(true)
 		"round", "slam":
 			velocity += dir * 9.0

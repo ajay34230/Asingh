@@ -213,3 +213,13 @@ Pickups are now small 3D models built from primitives (heart with cross, lightni
 - The yellow/white "boxes": particle quads (fireflies, sparkles, hit effects, power-up fx, dust, smoke, festival powder, mist, rain) had no texture and drew as hard squares. All now use a soft round dot texture (`soft_dot.gd`).
 - Roll: the selftest taps the ROLL button and it rolls, so the button path works. Likely cause on device: roll was refused silently when stamina was under 18 (sprinting drains it). Now a tired player can still roll (shorter dodge window), and a press during the cooldown is buffered for 0.35 s.
 - Still open: the large flat slabs seen in town captures (and beams on the device). Hiding individual world parts did not isolate them; use the Settings > Debug tab on the phone.
+
+## Addendum — Combat animation, hit reactions, riding pose
+
+Verified only by selftest and software-rendered captures. **Not tested on a device.**
+
+- **Elbow bug fixed.** Arms rest in a T-pose and are lowered by the shoulder, so elbow "flex" was twisting the forearm. `_apply` now conjugates by the parent's cumulative delta, so the elbow hinges. This affects every pose (idle, NPC, locomotion), so check those on device.
+- **Boxing guard and keyframed moves.** Guard now holds fists at chin height with a bladed stance. Jab, cross, hook and uppercut are keyframed (chamber, extend, retract, return to guard). Taekwondo front-leg kicks (front, round, side) follow the same structure. The hook elbow range is still the roughest part.
+- **Hit reactions.** `play_hit` and `_hit_overlay` add additive head, torso and arm recoil. Wired into Player, Enemy and Npc.
+- **Riding.** Rider sits lower on the saddle (`back_y - 0.55`) and thighs are closer together (reduced abduction, more knee flex). Software capture shows the legs close and the rider seated.
+- Debug prints removed. `lab_variants` remains as a lab-capture helper only.

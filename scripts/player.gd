@@ -599,7 +599,7 @@ func take_damage(amount: float, from: Vector3) -> void:
 	_invuln = 0.35
 	velocity += from.normalized() * 4.0 + Vector3(0, 1.5, 0)
 	Sfx.ui_at("player_hurt", -3.0)
-	_rig.play_action("startle", 0.4)
+	_rig.play_hit("body" if amount < 18.0 else "head", randf_range(-1.0, 1.0))
 	damaged.emit(amount)
 	hp_changed.emit(hp, max_hp)
 	if hp <= 0.0:

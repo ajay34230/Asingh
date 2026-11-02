@@ -190,7 +190,7 @@ func _physics_process(delta: float) -> void:
 			(main.get("footprints") as Footprints).put(a.global_position + fwd * 0.9 + sd * 0.35, _heading, 1.4)
 			(main.get("footprints") as Footprints).put(a.global_position - fwd * 0.9 - sd * 0.35, _heading, 1.4)
 	# the rider sits on the saddle point measured from the model, and the pose follows the gait
-	player.global_position = a.global_position + Basis(Vector3(1, 0, 0), a.rotation.x) * Vector3(0, a.back_y - 0.42, 0.05)
+	player.global_position = a.global_position + Basis(Vector3(1, 0, 0), a.rotation.x) * Vector3(0, a.back_y - 0.55, 0.0)
 	player.velocity = Vector3.ZERO
 	player._model.rotation.y = _heading
 	player._rig.ride_k = clampf(_speed / float(sp[1]), 0.0, 1.0)

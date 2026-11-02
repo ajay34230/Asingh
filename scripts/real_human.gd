@@ -283,7 +283,13 @@ func _apply() -> void:
 		dtot.resize(n)
 		for i in n:
 			var p := sk.get_bone_parent(i)
-			dtot[i] = (dtot[p] if p >= 0 else Basis.IDENTITY) * own[i]
+			var par: Basis = (dtot[p] if p >= 0 else Basis.IDENTITY)
+			var o: Basis = own[i]
+			if i == int(idx["el_L"]) or i == int(idx["el_R"]):
+				# the arms rest in a T-pose and are lowered by the shoulder, which turns the forearm's own axes:
+				# express the elbow hinge in the lowered arm's frame, or the bend becomes a twist along the forearm
+				o = par.inverse() * o * par
+			dtot[i] = par * o
 		for i in n:
 			var p := sk.get_bone_parent(i)
 			var b_i: Basis = (dtot[i] as Basis) * (rg[i] as Basis)
@@ -342,6 +348,7 @@ func animate(delta: float, speed: float, grounded: bool) -> void:
 	if guard and move == "" and react == "" and _speed_smooth < 2.5 and _air < 0.1:
 		_guard_pose()
 	_body_overlays(delta)
+	_hit_overlay(delta)
 	_overlay(delta)
 	_apply()
 
@@ -351,7 +358,7 @@ func animate(delta: float, speed: float, grounded: bool) -> void:
 ## Reactions (looping until cleared): flinch, stagger, plead, held, clutch, sob, crawl.
 const MOVES := {
 	"jab": [0.38, 0.12], "cross": [0.42, 0.15], "hook": [0.46, 0.17], "uppercut": [0.5, 0.2],
-	"kick_front": [0.55, 0.22], "kick_round": [0.72, 0.3], "kick_side": [0.62, 0.26],
+	"kick_front": [0.72, 0.3], "kick_round": [0.75, 0.32], "kick_side": [0.72, 0.3],
 	"roll": [0.45, 0.44], "grab": [0.4, 0.3], "lift": [0.5, 0.5], "throw": [0.45, 0.12],
 }
 var move := ""
@@ -379,13 +386,16 @@ var guard := false
 
 func _guard_pose() -> void:
 	var b := sin(_t * 7.0)
-	_pz("sh_L", Vector3(-1.15 + 0.04 * b, 0.1, 0.1), 0.85); _pz("el_L", Vector3(1.9, 0, 0), 0.85)
-	_pz("sh_R", Vector3(-1.0 - 0.04 * b, -0.15, 0.1), 0.85); _pz("el_R", Vector3(2.0, 0, 0), 0.85)
-	_pose["spine"] = Vector3(-0.12, 0.25, 0)
-	_pose["head"] = Vector3(0.12, 0.0, 0)
-	_pz("hip_L", Vector3(-0.28, 0, 0), 0.8); _pz("kn_L", Vector3(-0.3, 0, 0), 0.8)
-	_pz("hip_R", Vector3(0.3, 0, 0), 0.8); _pz("kn_R", Vector3(-0.2, 0, 0), 0.8)
-	_hips_dy = -0.07 + 0.02 * b
+	for k in GUARD:
+		var v: Variant = GUARD[k]
+		if k == "dy":
+			_hips_dy = float(v) + 0.02 * b
+		elif k == "spine" or k == "hips" or k == "chest" or k == "head":
+			_pose[k] = v
+		else:
+			_pz(k, v as Vector3, 0.85)
+	_pz("sh_L", Vector3(-1.1 + 0.04 * b, 0.12, 0.1), 0.85)
+	_pz("sh_R", Vector3(-1.0 - 0.04 * b, -0.15, 0.1), 0.85)
 
 
 func move_busy() -> bool:
@@ -402,6 +412,164 @@ func _pz(key: String, v: Vector3, w: float = 1.0) -> void:
 	_pose[key] = (_pose[key] as Vector3).lerp(v, w)
 
 
+# --- keyframed fight moves ---------------------------------------------------------------------
+# Poses follow the boxing and taekwondo reference sheets: guard stance with lead foot forward and fists at the
+# chin; jab and cross straight with hip and shoulder turn; hook with a bent elbow swinging flat; uppercut from a
+# knee-bend; kicks as chamber (knee up), pivot, extend, retract. Each frame is [seconds, {key: value}]; a key a
+# frame leaves out falls back to GUARD, and the moves return to GUARD at their end.
+const GUARD := {
+	"sh_L": Vector3(-1.1, 0.12, 0.1), "el_L": Vector3(1.9, 0, 0),
+	"sh_R": Vector3(-1.0, -0.15, 0.1), "el_R": Vector3(2.0, 0, 0),
+	"hip_L": Vector3(0.3, 0, 0), "kn_L": Vector3(-0.3, 0, 0),
+	"hip_R": Vector3(-0.3, 0, 0), "kn_R": Vector3(-0.25, 0, 0),
+	"spine": Vector3(-0.12, 0.3, 0), "hips": Vector3.ZERO, "chest": Vector3.ZERO, "head": Vector3(0.14, 0, 0),
+	"dy": -0.08,
+}
+
+
+func _kf_moves() -> Dictionary:
+	return {
+		"jab": [[0.0, {}],
+			[0.05, {"sh_L": Vector3(-1.2, 0.1, 0.1), "el_L": Vector3(2.1, 0, 0), "spine": Vector3(-0.12, 0.2, 0), "dy": -0.1}],
+			[0.12, {"sh_L": Vector3(-1.55, 0.0, 0.0), "el_L": Vector3(0.04, 0, 0), "spine": Vector3(-0.17, 0.55, 0), "chest": Vector3(0, 0.15, 0), "hips": Vector3(0, 0.2, 0), "head": Vector3(0.2, -0.3, 0), "hip_L": Vector3(0.5, 0, 0), "dy": -0.12}],
+			[0.2, {"sh_L": Vector3(-1.55, 0.0, 0.0), "el_L": Vector3(0.04, 0, 0), "spine": Vector3(-0.17, 0.5, 0), "chest": Vector3(0, 0.15, 0), "hips": Vector3(0, 0.2, 0), "head": Vector3(0.2, -0.3, 0), "hip_L": Vector3(0.5, 0, 0), "dy": -0.12}],
+			[0.38, {}]],
+		"cross": [[0.0, {}],
+			[0.08, {"spine": Vector3(-0.12, 0.05, 0), "hips": Vector3(0, 0.2, 0), "sh_R": Vector3(-1.1, -0.2, 0.1), "el_R": Vector3(2.2, 0, 0), "kn_R": Vector3(-0.45, 0, 0), "dy": -0.12}],
+			[0.15, {"sh_R": Vector3(-1.55, 0.0, 0.0), "el_R": Vector3(0.04, 0, 0), "spine": Vector3(-0.2, -0.75, 0), "hips": Vector3(0, -0.55, 0), "chest": Vector3(0, -0.2, 0), "head": Vector3(0.2, 0.3, 0), "hip_R": Vector3(-0.2, -0.5, 0), "kn_R": Vector3(-0.2, 0, 0), "dy": -0.1}],
+			[0.24, {"sh_R": Vector3(-1.55, 0.0, 0.0), "el_R": Vector3(0.04, 0, 0), "spine": Vector3(-0.2, -0.7, 0), "hips": Vector3(0, -0.5, 0), "chest": Vector3(0, -0.2, 0), "head": Vector3(0.2, 0.3, 0), "hip_R": Vector3(-0.2, -0.5, 0), "dy": -0.1}],
+			[0.42, {}]],
+		"hook": [[0.0, {}],
+			[0.09, {"sh_L": Vector3(-0.6, -0.2, 1.35), "el_L": Vector3(1.3, 0, 0), "spine": Vector3(-0.1, 1.0, 0.1), "hips": Vector3(0, 0.45, 0), "kn_L": Vector3(-0.5, 0, 0), "dy": -0.13}],
+			[0.17, {"sh_L": Vector3(-1.35, 0.55, 0.15), "el_L": Vector3(1.0, 0, 0), "spine": Vector3(-0.1, -0.3, 0.1), "hips": Vector3(0, -0.35, 0), "chest": Vector3(0, -0.2, 0), "head": Vector3(0.2, 0.1, 0), "dy": -0.1}],
+			[0.26, {"sh_L": Vector3(-1.35, 0.55, 0.15), "el_L": Vector3(1.0, 0, 0), "spine": Vector3(-0.1, -0.3, 0.1), "hips": Vector3(0, -0.35, 0), "dy": -0.1}],
+			[0.46, {}]],
+		"uppercut": [[0.0, {}],
+			[0.14, {"sh_R": Vector3(-0.45, 0.0, 0.05), "el_R": Vector3(1.35, 0, 0), "spine": Vector3(0.05, 0.1, 0), "hips": Vector3(0, 0.25, 0), "hip_L": Vector3(0.75, 0, 0), "kn_L": Vector3(-1.0, 0, 0), "hip_R": Vector3(0.1, 0, 0), "kn_R": Vector3(-1.0, 0, 0), "dy": -0.3}],
+			[0.2, {"sh_R": Vector3(-1.75, 0.0, 0.0), "el_R": Vector3(1.2, 0, 0), "spine": Vector3(-0.28, -0.55, 0), "hips": Vector3(0, -0.45, 0), "hip_L": Vector3(0.35, 0, 0), "kn_L": Vector3(-0.35, 0, 0), "hip_R": Vector3(-0.25, 0, 0), "kn_R": Vector3(-0.2, 0, 0), "head": Vector3(-0.1, 0.1, 0), "dy": 0.0}],
+			[0.28, {"sh_R": Vector3(-1.75, 0.0, 0.0), "el_R": Vector3(1.2, 0, 0), "spine": Vector3(-0.28, -0.5, 0), "hips": Vector3(0, -0.4, 0), "dy": 0.0}],
+			[0.5, {}]],
+		"kick_front": [[0.0, {}],
+			[0.16, {"hip_R": Vector3(1.55, 0, 0), "kn_R": Vector3(-2.0, 0, 0), "hip_L": Vector3(0.15, 0, 0), "kn_L": Vector3(-0.4, 0, 0), "spine": Vector3(0.1, 0.1, 0), "hips": Vector3(0, 0.3, 0), "sh_L": Vector3(-0.9, 0, 0.5), "sh_R": Vector3(-0.8, 0, 0.5), "el_L": Vector3(1.5, 0, 0), "el_R": Vector3(1.5, 0, 0), "dy": -0.1}],
+			[0.3, {"hip_R": Vector3(1.45, 0, 0), "kn_R": Vector3(-0.05, 0, 0), "hip_L": Vector3(0.1, 0, 0), "kn_L": Vector3(-0.3, 0, 0), "spine": Vector3(0.3, 0.1, 0), "hips": Vector3(0, 0.3, 0), "sh_L": Vector3(-0.9, 0, 0.6), "sh_R": Vector3(-0.5, 0, 0.6), "el_L": Vector3(1.5, 0, 0), "el_R": Vector3(1.2, 0, 0), "dy": -0.06}],
+			[0.4, {"hip_R": Vector3(1.45, 0, 0), "kn_R": Vector3(-0.05, 0, 0), "hip_L": Vector3(0.1, 0, 0), "kn_L": Vector3(-0.3, 0, 0), "spine": Vector3(0.3, 0.1, 0), "hips": Vector3(0, 0.3, 0), "sh_L": Vector3(-0.9, 0, 0.6), "sh_R": Vector3(-0.5, 0, 0.6), "el_L": Vector3(1.5, 0, 0), "el_R": Vector3(1.2, 0, 0), "dy": -0.06}],
+			[0.52, {"hip_R": Vector3(1.2, 0, 0), "kn_R": Vector3(-1.6, 0, 0), "spine": Vector3(0.1, 0.1, 0), "dy": -0.1}],
+			[0.72, {}]],
+		"kick_round": [[0.0, {}],
+			[0.16, {"hip_R": Vector3(1.35, 0, 0.5), "kn_R": Vector3(-1.9, 0, 0), "hip_L": Vector3(0.1, 0.4, 0), "kn_L": Vector3(-0.45, 0, 0), "hips": Vector3(0, -0.4, 0), "spine": Vector3(0.0, -0.3, 0.1), "sh_L": Vector3(-1.0, 0, 0.3), "sh_R": Vector3(-0.8, 0, 0.5), "dy": -0.12}],
+			[0.32, {"hip_R": Vector3(1.3, 0, 0.95), "kn_R": Vector3(-0.1, 0, 0), "hip_L": Vector3(0.1, 0.9, 0), "kn_L": Vector3(-0.4, 0, 0), "hips": Vector3(0, -1.1, 0), "spine": Vector3(0.15, -0.5, -0.45), "chest": Vector3(0, -0.2, 0), "sh_L": Vector3(-1.0, 0, 0.6), "sh_R": Vector3(-0.4, 0, 1.2), "el_R": Vector3(0.5, 0, 0), "head": Vector3(0.1, 0.5, 0), "dy": -0.08}],
+			[0.4, {"hip_R": Vector3(1.3, 0, 0.95), "kn_R": Vector3(-0.1, 0, 0), "hip_L": Vector3(0.1, 0.9, 0), "kn_L": Vector3(-0.4, 0, 0), "hips": Vector3(0, -1.1, 0), "spine": Vector3(0.15, -0.5, -0.45), "sh_L": Vector3(-1.0, 0, 0.6), "sh_R": Vector3(-0.4, 0, 1.2), "dy": -0.08}],
+			[0.52, {"hip_R": Vector3(1.1, 0, 0.5), "kn_R": Vector3(-1.7, 0, 0), "hips": Vector3(0, -0.6, 0), "dy": -0.1}],
+			[0.75, {}]],
+		"kick_side": [[0.0, {}],
+			[0.16, {"hip_R": Vector3(1.4, 0, 0.2), "kn_R": Vector3(-2.0, 0, 0), "hip_L": Vector3(0.1, 0.5, 0), "kn_L": Vector3(-0.5, 0, 0), "hips": Vector3(0, 0.7, 0), "spine": Vector3(0.0, 0.6, 0.15), "dy": -0.12}],
+			[0.3, {"hip_R": Vector3(1.25, 0, 0.35), "kn_R": Vector3(-0.05, 0, 0), "hip_L": Vector3(0.1, 1.2, 0), "kn_L": Vector3(-0.4, 0, 0), "hips": Vector3(0, 1.35, 0), "spine": Vector3(0.05, 0.55, 0.55), "sh_L": Vector3(-0.7, 0, 0.9), "sh_R": Vector3(-0.7, 0, 0.9), "el_L": Vector3(0.8, 0, 0), "el_R": Vector3(0.8, 0, 0), "head": Vector3(0.1, -0.6, 0), "dy": -0.1}],
+			[0.4, {"hip_R": Vector3(1.25, 0, 0.35), "kn_R": Vector3(-0.05, 0, 0), "hip_L": Vector3(0.1, 1.2, 0), "kn_L": Vector3(-0.4, 0, 0), "hips": Vector3(0, 1.35, 0), "spine": Vector3(0.05, 0.55, 0.55), "sh_L": Vector3(-0.7, 0, 0.9), "sh_R": Vector3(-0.7, 0, 0.9), "dy": -0.1}],
+			[0.52, {"hip_R": Vector3(1.2, 0, 0.2), "kn_R": Vector3(-1.7, 0, 0), "hips": Vector3(0, 0.7, 0), "dy": -0.1}],
+			[0.72, {}]],
+	}
+
+
+## Candidate poses for the pose-lab capture (edit while tuning).
+static func lab_variants() -> Array:
+	var g := {"hip_L": Vector3(0.3, 0, 0), "hip_R": Vector3(-0.3, 0, 0), "kn_L": Vector3(-0.3, 0, 0), "kn_R": Vector3(-0.25, 0, 0), "dy": -0.08}
+	var out: Array = []
+	var combos := [[Vector3(0.0, 0.0, 0.0), 0.0], [Vector3(-1.1, 0.0, 0.0), 0.0], [Vector3(0.0, 0.0, 0.0), 1.9], [Vector3(-1.1, 0.0, 0.0), 1.9], [Vector3(1.1, 0.0, 0.0), 0.0]]
+	for c in combos:
+		var d := g.duplicate()
+		d["sh_L"] = c[0]
+		d["sh_R"] = c[0]
+		d["el_L"] = Vector3(c[1], 0, 0)
+		d["el_R"] = Vector3(c[1], 0, 0)
+		out.append(d)
+	return out
+
+
+var _kf_cache: Dictionary = {}
+
+
+func _kf_pose(name_: String, t: float) -> bool:
+	if _kf_cache.is_empty():
+		_kf_cache = _kf_moves()
+	if not _kf_cache.has(name_):
+		return false
+	var frames: Array = _kf_cache[name_]
+	var i := 0
+	while i < frames.size() - 2 and t >= float((frames[i + 1] as Array)[0]):
+		i += 1
+	var fa: Array = frames[i]
+	var fb: Array = frames[i + 1]
+	var span := maxf(float(fb[0]) - float(fa[0]), 0.0001)
+	var u := clampf((t - float(fa[0])) / span, 0.0, 1.0)
+	u = u * u * (3.0 - 2.0 * u)
+	for k in GUARD:
+		var va: Variant = (fa[1] as Dictionary).get(k, GUARD[k])
+		var vb: Variant = (fb[1] as Dictionary).get(k, GUARD[k])
+		if k == "dy":
+			_hips_dy = lerpf(float(va), float(vb), u)
+		elif k == "spine" or k == "hips" or k == "chest" or k == "head":
+			_pose[k] = (va as Vector3).lerp(vb as Vector3, u)
+		else:
+			_pz(k, (va as Vector3).lerp(vb as Vector3, u))
+	return true
+
+
+
+# --- one-shot hit reactions -----------------------------------------------------------------------
+# Added on top of whatever the body is doing: the head snaps, the torso recoils away from the blow, the arms
+# fling out and the knees dip, then it settles in about half a second. kinds: head, body, gut (doubled over).
+var hit_t := -1.0
+var _hit_kind := "body"
+var _hit_side := 1.0
+
+
+func play_hit(kind: String = "body", side: float = 1.0) -> void:
+	hit_t = 0.0
+	_hit_kind = kind
+	_hit_side = 1.0 if side >= 0.0 else -1.0
+
+
+func _hit_overlay(delta: float) -> void:
+	if hit_t < 0.0:
+		return
+	hit_t += delta
+	var dur := 0.55
+	if hit_t >= dur:
+		hit_t = -1.0
+		return
+	var u := hit_t / dur
+	var e := smoothstep(0.0, 0.14, u) * (1.0 - smoothstep(0.35, 1.0, u))     # fast in, slow out
+	var s := _hit_side
+	var sp: Vector3 = _pose["spine"]
+	var hd: Vector3 = _pose["head"]
+	match _hit_kind:
+		"head":
+			sp += Vector3(0.3 * e, 0.25 * s * e, 0.14 * s * e)
+			hd += Vector3(-0.75 * e, 0.6 * s * e, 0.25 * s * e)
+			_add_arms(0.55 * e, 0.6 * e, 0.4 * e)
+		"gut":
+			sp += Vector3(-0.65 * e, 0.0, 0.1 * s * e)
+			hd += Vector3(0.35 * e, 0.0, 0.0)
+			for tg in ["L", "R"]:
+				_pose["sh_" + tg] = (_pose["sh_" + tg] as Vector3).lerp(Vector3(-0.7, 0.0, 0.15), 0.85 * e)
+				_pose["el_" + tg] = (_pose["el_" + tg] as Vector3).lerp(Vector3(1.5, 0.0, 0.0), 0.85 * e)
+		_:
+			sp += Vector3(0.38 * e, 0.3 * s * e, 0.1 * s * e)
+			hd += Vector3(-0.45 * e, 0.3 * s * e, 0.0)
+			_add_arms(0.7 * e, 0.8 * e, 0.5 * e)
+	_pose["spine"] = sp
+	_pose["head"] = hd
+	_hips_dy -= 0.07 * e
+	for tg2 in ["L", "R"]:
+		_pose["kn_" + tg2] = (_pose["kn_" + tg2] as Vector3) + Vector3(-0.35 * e, 0.0, 0.0)
+		_pose["hip_" + tg2] = (_pose["hip_" + tg2] as Vector3) + Vector3(0.18 * e, 0.0, 0.0)
+
+
+func _add_arms(back: float, out: float, bend: float) -> void:
+	for tg in ["L", "R"]:
+		_pose["sh_" + tg] = (_pose["sh_" + tg] as Vector3) + Vector3(back, 0.0, out * 0.6)
+		_pose["el_" + tg] = (_pose["el_" + tg] as Vector3) + Vector3(bend, 0.0, 0.0)
+
 ## Pose for the current move at time move_t. Arms/legs are written directly (no easing) so the
 ## blows snap; an ease-in/out envelope keeps the transitions smooth.
 func _move_pose() -> void:
@@ -414,6 +582,9 @@ func _move_pose() -> void:
 	var snap := smoothstep(hit - 0.06, hit, t) * out          # the strike itself
 	var guard_l := Vector3(-0.95, 0.0, 0.12)
 	var guard_r := Vector3(-0.95, 0.0, 0.0)
+	if _kf_pose(move, t):
+		_pose["head"] = (_pose["head"] as Vector3)
+		return
 	match move:
 		"jab":
 			_pz("sh_L", guard_l.lerp(Vector3(-1.5, 0.0, 0.0), snap))
@@ -573,8 +744,9 @@ func _react_pose() -> void:
 			_hips_dy = -0.5 + gait * (0.012 + 0.03 * k) + 0.16 * ride_air + 0.05 * k
 			for tg in ["L", "R"]:
 				var sg := 1.0 if tg == "L" else -1.0
-				_pz("hip_" + tg, Vector3(0.62 + 0.25 * k + 0.2 * ride_air, 0, 0.6 * sg))
-				_pz("kn_" + tg, Vector3(-1.0 - 0.3 * k - 0.3 * ride_air, 0, 0))
+				# thighs forward and only slightly apart (a rider's legs hug the animal), shins hanging back
+				_pz("hip_" + tg, Vector3(0.5 + 0.2 * k + 0.2 * ride_air, 0, 0.22 * sg))
+				_pz("kn_" + tg, Vector3(-1.25 - 0.3 * k - 0.3 * ride_air, 0, 0))
 				_pz("sh_" + tg, Vector3(-0.8 - 0.35 * k - 0.15 * gait * k, 0, 0.14 * sg))
 				_pz("el_" + tg, Vector3(1.15 + 0.2 * k, 0, 0))
 			_pose["spine"] = Vector3(-lean + 0.025 * gait, -0.1 * ride_turn, 0.16 * ride_turn)

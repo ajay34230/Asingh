@@ -123,6 +123,8 @@ func _ready() -> void:
 			_run_capture_pickups.call_deferred(a.trim_prefix("--capture-pickups="))
 		if a.begins_with("--capture-fight="):
 			_run_capture_fight.call_deferred(a.trim_prefix("--capture-fight="))
+		elif a.begins_with("--capture-lab="):
+			_run_capture_lab.call_deferred(a.trim_prefix("--capture-lab="))
 		elif a.begins_with("--capture-veyra="):
 			_run_capture_veyra.call_deferred(a.trim_prefix("--capture-veyra="))
 		elif a.begins_with("--capture-trees="):
@@ -1959,6 +1961,48 @@ func _run_capture_pickups(dir: String) -> void:
 	get_tree().quit()
 
 
+## Pose lab: eight copies of the player rig in a row, each held in a pose given by the LAB_POSES variants below,
+## shot from the front and from the side. Used to check animation poses against reference sheets.
+func _run_capture_lab(dir: String) -> void:
+	DirAccess.make_dir_recursive_absolute(dir)
+	touch.visible = false
+	atmosphere.time_of_day = 0.42
+	atmosphere.apply_time()
+	_teleport(-60.0, 20.0)
+	for i in 30:
+		await get_tree().physics_frame
+	player.set_distance(4.6)
+	player.set_look(0.0, -0.02)
+	player._model.visible = false
+	player.set_physics_process(false)
+	var pp := player.global_position
+	var variants: Array = RealHuman.lab_variants()
+	var rigs: Array[RealHuman] = []
+	for i in variants.size():
+		var r := RealHuman.new().setup(player._rig.preset.duplicate(), "Lab%d" % i)
+		add_child(r)
+		r.global_position = pp + Vector3(-2.1 + i * 1.4, 0.0, 0.0)
+		rigs.append(r)
+	for view in ["front", "side"]:
+		for i in rigs.size():
+			rigs[i].rotation.y = PI * (1.0 if view == "front" else 0.5)
+			for k in RealHuman.BONES:
+				rigs[i]._pose[k] = Vector3.ZERO
+			rigs[i]._hips_dy = 0.0
+			var v: Dictionary = variants[i]
+			for k in v:
+				if k == "dy":
+					rigs[i]._hips_dy = float(v[k])
+				else:
+					rigs[i]._pose[k] = v[k]
+			rigs[i]._apply()
+		for i in 8:
+			await get_tree().process_frame
+		await RenderingServer.frame_post_draw
+		print("[capture] lab_", view, " -> ", get_viewport().get_texture().get_image().save_png("%s/lab_%s.png" % [dir, view]))
+	get_tree().quit()
+
+
 func _run_capture_fight(dir: String) -> void:
 	DirAccess.make_dir_recursive_absolute(dir)
 	touch.visible = false
@@ -1978,7 +2022,7 @@ func _run_capture_fight(dir: String) -> void:
 	player._model.rotation.y = PI * 0.5 * 1.0 + PI * 0.5 + PI * 0.5 - PI * 0.5
 	player._model.rotation.y = atan2(1.0, 0.0)
 	player.set_physics_process(false)
-	player._model.rotation.y = atan2(1.0, 0.0)
+	player._model.rotation.y = atan2(1.0, 0.0) + (float(OS.get_environment("YAW")) if OS.get_environment("YAW") != "" else 0.0)
 	for i in 10:
 		await get_tree().physics_frame
 		player._rig.animate(1.0 / 60.0, 0.0, true)
@@ -1989,7 +2033,7 @@ func _run_capture_fight(dir: String) -> void:
 	await RenderingServer.frame_post_draw
 	print("[capture] guard -> ", get_viewport().get_texture().get_image().save_png("%s/m_guard.png" % dir))
 	player._rig.guard = false
-	var shots := [["jab", 9], ["cross", 10], ["hook", 11], ["uppercut", 13], ["kick_front", 14], ["kick_round", 18], ["kick_side", 15], ["roll", 16], ["grab", 22], ["lift", 24], ["throw", 6]]
+	var shots := [["jab", 9], ["cross", 10], ["hook", 11], ["uppercut", 13], ["kick_front", 18], ["kick_round", 20], ["kick_side", 18], ["roll", 16], ["grab", 22], ["lift", 24], ["throw", 6]]
 	for sh in shots:
 		player._rig.play_move(sh[0])
 		for i in int(sh[1]):
@@ -2000,6 +2044,17 @@ func _run_capture_fight(dir: String) -> void:
 		for i in 40:
 			await get_tree().physics_frame
 			player._rig.animate(1.0 / 60.0, 0.0, true)
+	for hk in ["head", "body", "gut"]:
+		foe.rig.set_react("")
+		foe.rig.play_hit(hk, 1.0)
+		for i in 7:
+			await get_tree().physics_frame
+			foe.rig.animate(1.0 / 60.0, 0.0, true)
+		await RenderingServer.frame_post_draw
+		print("[capture] hit_", hk, " -> ", get_viewport().get_texture().get_image().save_png("%s/h_%s.png" % [dir, hk]))
+		for i in 40:
+			await get_tree().physics_frame
+			foe.rig.animate(1.0 / 60.0, 0.0, true)
 	for r in ["flinch", "stagger", "plead", "sob", "held", "clutch", "dead"]:
 		foe.rig.set_react(r)
 		for i in 30:
