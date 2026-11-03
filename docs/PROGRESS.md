@@ -90,7 +90,10 @@
 
 ## APK status (2026-11-03)
 
-No APK has been built yet. The current state:
+An arm64 debug APK is built and signed: `build/RoyalIndiaLudo-debug.apk` (92 MB, not committed).
+See the next section for how it was produced. Installation and on-device tests are still open.
+
+Earlier status (superseded):
 
 - Done: Godot 4.3 export templates installed (`~/.local/share/godot/export_templates/4.3.stable`).
   Java 21 and the debug keystore are present. The Android export preset is in `godot/export_presets.cfg`
@@ -126,3 +129,17 @@ Not verified: installation, launch, touch input, performance, and memory on a de
 
 Not yet done: a settings screen for volume and mute, a per-token walk/jump animation driven
 by events, and on-device checks of audio latency and haptics.
+
+
+### How the APK was built (2026-11-03)
+
+- Android SDK: command-line tools, platform-34, build-tools 34.0.0, platform-tools, installed under `/tmp/claude-0/android/sdk`.
+- Godot export templates 4.3.stable installed; Java 21; debug keystore.
+- The export failed with a blank message. Reading Godot 4.3's `export_plugin.cpp` showed the cause:
+  `has_valid_project_configuration` returns false when ETC2/ASTC texture import is off, and it adds no message.
+  Fix: `rendering/textures/vram_compression/import_etc2_astc=true` in `project.godot`.
+- Export: `godot --headless --path godot --export-debug "Android Debug" build/RoyalIndiaLudo-debug.apk`.
+- Checked: package `com.royalindia.ludo`, minSdk 21, targetSdk 34, arm64-v8a `libgodot_android.so`,
+  APK signed (debug certificate), 239 asset entries including the imported scenes, textures and 11 sounds.
+- `aapt` reports one manifest warning about an `android:required` attribute. It comes from the stock
+  Godot template and does not block signing or install; check it on a device.
