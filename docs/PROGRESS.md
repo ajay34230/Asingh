@@ -106,3 +106,23 @@ To build the APK on a machine with Godot 4.3 and the Android SDK:
     adb install -r build/RoyalIndiaLudo-debug.apk
 
 Not verified: installation, launch, touch input, performance, and memory on a device.
+
+
+## Sound and effects (2026-11-03)
+
+- Sound: 11 original sounds synthesised by `tools/make_sfx.py` (dice roll and landing,
+  token select, step, jump, land, capture, finish bell, victory fanfare, UI click, and a
+  16 s background loop). No third-party audio. Files in `godot/assets/audio/`.
+- `scripts/audio/audio_manager.gd`: separate Music and SFX buses, a 10-voice SFX pool with
+  pitch variation, mute, haptics (`Input.vibrate_handheld`), settings saved to `user://settings.cfg`.
+  Missing or corrupt settings fall back to defaults.
+- `scripts/effects/effects_manager.gd`: spark trails on the dice, landing bursts, capture
+  shockwave and burst, finish sparkle, victory fireworks, and confetti for a human win.
+- The game controller emits named events (`roll_start`, `roll_land`, `select`, `hop`,
+  `land`, `capture`, `finish`, `click`, `game_over`); `main.gd` maps them to sound, haptics,
+  effects and a short camera shake on capture.
+- Checked: the full AI demo runs with no script errors; the click test still passes;
+  effects render (`docs/screenshots/godot-effects.png`).
+
+Not yet done: a settings screen for volume and mute, a per-token walk/jump animation driven
+by events, and on-device checks of audio latency and haptics.

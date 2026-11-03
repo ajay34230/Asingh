@@ -15,6 +15,10 @@ const DICE_POSITION := Vector3(0, 1.25, 0)
 
 var camera: Camera3D
 var game: GameController
+var audio: AudioManager
+var effects: EffectsManager
+var _shake_time := 0.0
+var _shake_strength := 0.0
 var hud: Hud
 var _demo := false
 var _demo_done := false
@@ -48,10 +52,20 @@ func _ready() -> void:
 	hud = Hud.new()
 	add_child(hud)
 	hud.new_game_pressed.connect(_start_new_game)
+	hud.new_game_pressed.connect(func() -> void: audio.play("ui_click"))
 	game.message.connect(hud.set_message)
 	game.message.connect(_log_message)
 	game.turn_changed.connect(hud.set_turn)
 	game.game_finished.connect(_on_game_finished)
+	game.event.connect(_on_game_event)
+	audio = AudioManager.new()
+	audio.name = "Audio"
+	add_child(audio)
+	effects = EffectsManager.new()
+	effects.name = "Effects"
+	add_child(effects)
+	if not _demo:
+		audio.start_music()
 
 	if "--dice-face" in args:
 		game.dice.setup_face(int(_arg_value(args, "--dice-face")))
@@ -61,6 +75,10 @@ func _ready() -> void:
 		_start_new_game_with([], ["blue", "yellow", "green", "red"])
 	else:
 		_start_new_game()
+	if "--fx-shot" in args:
+		effects.fireworks(3.0)
+		effects.confetti(4.0)
+		effects.burst(Vector3(0, 1.0, 0), EffectsManager.GOLD, 60, 3.0, 1.0)
 	if "--click-test" in args:
 		_run_click_test()
 	elif shot != "":
@@ -106,6 +124,61 @@ func _place_decorations() -> void:
 		var animator := RoyalEnvironmentAnimator.new()
 		animator.animation_type = deco["type"]
 		root.add_child(animator)
+
+
+## Routes presentation cues from the game to sound, haptics and effects.
+func _on_game_event(event_name: String, data: Dictionary) -> void:
+	var pos: Vector3 = data.get("position", Vector3.ZERO)
+	var up := Vector3(0, 0.45, 0)
+	match event_name:
+		"roll_start":
+			audio.play("dice_roll")
+			effects.sparkle_trail(pos + up)
+			audio.vibrate(15)
+		"roll_land":
+			audio.play("dice_land")
+			effects.burst(pos, EffectsManager.GOLD, 14, 1.2, 0.6)
+		"select":
+			audio.play("token_select")
+		"hop":
+			audio.play("token_step", 0.08)
+		"land":
+			audio.play("token_land")
+			effects.burst(pos + Vector3(0, 0.1, 0), EffectsManager.GOLD, 12, 1.0, 0.5)
+		"capture":
+			audio.play("capture")
+			effects.burst(pos + up, EffectsManager.TEAM.get(data.get("color", "red"), EffectsManager.GOLD), 50, 3.2, 1.0)
+			effects.shockwave(pos)
+			_shake(0.12, 0.4)
+			audio.vibrate(40)
+		"finish":
+			audio.play("token_finish")
+			effects.burst(pos + up, EffectsManager.GOLD, 40, 2.4, 1.2)
+		"click":
+			audio.play("ui_click")
+		"game_over":
+			audio.play("victory")
+			effects.fireworks(3.0)
+			var ranking: Array = data.get("ranking", [])
+			if not ranking.is_empty() and ranking[0]["human"]:
+				effects.confetti(4.0)
+
+
+## Short camera shake: a random offset that decays over the duration.
+func _shake(strength: float, duration: float) -> void:
+	_shake_strength = strength
+	_shake_time = duration
+
+
+func _process(delta: float) -> void:
+	if camera == null:
+		return
+	if _shake_time > 0.0:
+		_shake_time -= delta
+		var fade := clampf(_shake_time / 0.4, 0.0, 1.0)
+		camera.position = Vector3(0, 30, 0) + Vector3(randf_range(-1, 1), 0, randf_range(-1, 1)) * _shake_strength * fade
+	else:
+		camera.position = Vector3(0, 30, 0)
 
 
 func _log_message(text: String) -> void:
@@ -226,6 +299,13 @@ func _unhandled_input(event: InputEvent) -> void:
 		game.tap_token(color, best)
 
 
+func _has_arg(key: String) -> bool:
+	for arg in OS.get_cmdline_user_args():
+		if arg.begins_with(key):
+			return true
+	return false
+
+
 func _arg_value(args: PackedStringArray, key: String) -> String:
 	for arg in args:
 		if arg.begins_with(key + "="):
@@ -278,8 +358,8 @@ func _click(screen_pos: Vector2) -> void:
 
 
 func _screenshot_and_quit(path: String) -> void:
-	for i in range(90):
-		await get_tree().process_frame
+	## Wait in real time, so effects that run for seconds are still on screen.
+	await get_tree().create_timer(float(_arg_value(OS.get_cmdline_user_args(), "--shot-delay")) if _has_arg("--shot-delay") else 1.0).timeout
 	get_viewport().get_texture().get_image().save_png(path)
 	print("saved " + path)
 	get_tree().quit()

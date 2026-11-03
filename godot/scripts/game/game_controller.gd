@@ -9,6 +9,8 @@ extends Node3D
 signal turn_changed(color: String, human: bool)
 signal message(text: String)
 signal game_finished(rankings: Array)
+## Presentation cues for sound and effects. The data is read-only; nothing here changes state.
+signal event(event_name: String, data: Dictionary)
 
 const TOKEN_SCALE := 0.75
 const TRACK_Y := 0.44          ## measured track tile height on the supplied board
@@ -98,8 +100,10 @@ func _roll_now() -> void:
 		return
 	busy = true
 	dice.set_rollable(false)
+	event.emit("roll_start", {"position": dice.global_position})
 	var outcome := engine.roll()     ## the engine decides; the dice only shows it
 	await dice.roll_to(outcome["value"])
+	event.emit("roll_land", {"position": dice.global_position, "value": outcome["value"]})
 	if outcome["forfeited"]:
 		message.emit("Three sixes: turn lost")
 	elif outcome["passed"]:
@@ -131,6 +135,7 @@ func tap_token(color: String, index: int) -> void:
 		return
 	awaiting_pick = false
 	_highlight(false)
+	event.emit("click", {})
 	_execute(index)
 
 func _execute(token_index: int) -> void:
@@ -146,14 +151,18 @@ func _animate_move(move: Dictionary) -> void:
 	var from: int = move["from"]
 	var to: int = move["to"]
 	for progress in range(from + 1 if from > 0 else 1, to + 1):
+		event.emit("hop", {"position": token.global_position})
 		await token.move_to_world(_track_world(color, progress, move["token"]), _hop())
+	event.emit("land", {"position": token.global_position})
 	for victim in move["captured"]:
 		var victim_color: String = engine.seats[victim["seat"]]["color"]
 		var victim_token: TransformerToken = tokens[victim_color][victim["token"]]
 		message.emit("%s token sent home!" % victim_color.capitalize())
+		event.emit("capture", {"position": victim_token.global_position, "color": victim_color})
 		await victim_token.move_to_world(_base_world(victim_color, victim["token"]), _hop(2.0))
 	if move["finishes"]:
 		message.emit("%s token reached home" % color.capitalize())
+		event.emit("finish", {"position": token.global_position, "color": color})
 		await token.move_to_world(_track_world(color, BoardPath.FINISH_PROGRESS, move["token"]), _hop(1.5))
 	if move["seat_finished"]:
 		message.emit("%s finished!" % color.capitalize())
@@ -186,6 +195,9 @@ func _highlight(on: bool) -> void:
 		var token: TransformerToken = tokens[current_color()][index]
 		var vfx: RoyalTokenVFX = token.get_meta("vfx")
 		vfx.set_selected(on and _legal.has(index))
+	if on and not _legal.is_empty():
+		var first: TransformerToken = tokens[current_color()][_legal[0]]
+		event.emit("select", {"position": first.global_position})
 
 func _finish_game() -> void:
 	var ranking: Array = []
@@ -193,4 +205,5 @@ func _finish_game() -> void:
 		var seat := engine.seats[engine.rankings[i]]
 		ranking.append({"place": i + 1, "color": seat["color"], "human": seat["human"]})
 	message.emit("Game over")
+	event.emit("game_over", {"ranking": ranking})
 	game_finished.emit(ranking)
