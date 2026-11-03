@@ -31,7 +31,7 @@ func _build_terrace(side: float) -> void:
 
 	# Raised marble platform with a gold rim.
 	_box(root, Vector3(0, -0.12, 0), Vector3(width, 0.24, DEPTH), _marble)
-	_box(root, Vector3(0, 0.005, 0), Vector3(width - 0.2, 0.02, DEPTH - 0.2), _terrace_top())
+	_top_plane(root, Vector3(0, 0.01, 0), Vector2(width - 0.2, DEPTH - 0.2), _terrace_top())
 	_box(root, Vector3(0, 0.02, 0), Vector3(width + 0.08, 0.06, DEPTH + 0.08), _gold)
 
 	# Two rows of columns along the outer and inner edges, with arches between them.
@@ -61,6 +61,17 @@ func _column(parent: Node3D, at: Vector3) -> void:
 func _arch(parent: Node3D, at: Vector3, span: float) -> void:
 	_box(parent, at + Vector3(0, 2.3, 0), Vector3(span, 0.18, 0.3), _marble)
 	_box(parent, at + Vector3(0, 2.14, 0), Vector3(span * 0.9, 0.06, 0.34), _gold)
+
+
+## A horizontal, double-sided plane. Used for the terrace top so it is never culled.
+func _top_plane(parent: Node3D, at: Vector3, size: Vector2, mat: Material) -> void:
+	var m := MeshInstance3D.new()
+	var plane := PlaneMesh.new()
+	plane.size = size
+	m.mesh = plane
+	m.material_override = mat
+	m.position = at
+	parent.add_child(m)
 
 
 func _box(parent: Node3D, at: Vector3, size: Vector3, mat: Material) -> void:

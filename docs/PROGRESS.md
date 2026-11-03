@@ -143,3 +143,16 @@ by events, and on-device checks of audio latency and haptics.
   APK signed (debug certificate), 239 asset entries including the imported scenes, textures and 11 sounds.
 - `aapt` reports one manifest warning about an `android:required` attribute. It comes from the stock
   Godot template and does not block signing or install; check it on a device.
+
+
+## Open issues (2026-11-03, after the palace-terrace round)
+
+Not fixed, and not claimed as fixed:
+- Terrace tops do not render in the phone-landscape view. Ruled out: shadow casting, and
+  culling (a double-sided plane also fails to appear). The cause is still unknown. The probe
+  that would print node positions was not inserted because its edit didn't match the code.
+- The palace floor is a brown noise texture, not marble. The marble shader washed out, and the
+  plain stone reads as blotchy.
+- The extra detail requested (carvings, inlays, lanterns on the terraces) is not built.
+- Fight animations (punch, kick, grab-throw) have not been seen running on screen.
+- The APK has not been tested on a phone.
