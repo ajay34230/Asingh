@@ -20,7 +20,7 @@ const TOKENS_PER_PLAYER := 4
 
 ## Cells are wider than they are deep, so the board is wider than it is tall.
 ## The grid itself (indices, paths, safe squares) does not change.
-const CELL_X := 1.17
+const CELL_X := 1.5
 const CELL_Z := 0.73
 ## Turn order is clockwise on screen.
 ## Clockwise seat order on the supplied board: blue (top-left), yellow (top-right),

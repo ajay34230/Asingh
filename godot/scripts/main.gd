@@ -342,7 +342,7 @@ func _fit_camera() -> void:
 	var el := deg_to_rad(CAMERA_ELEVATION_DEG if _camera_tilt else 89.0)
 	var dir := Vector3(0, sin(el), cos(el))
 	var outer := RoyalBoard.outer_size()
-	var half_x := outer.x * 0.5 * (1.0 + SCREEN_MARGIN)
+	var half_x := outer.x * 0.5
 	var half_z := outer.y * 0.5 + DECOR_DEPTH
 	var corners: Array[Vector3] = []
 	for x in [-half_x, half_x]:
@@ -370,9 +370,10 @@ func _corners_fit(position: Vector3, corners: Array[Vector3]) -> bool:
 		if camera.is_position_behind(c):
 			return false
 		var p := camera.unproject_position(c)
-		if absf(p.x - vp.x * 0.5) > vp.x * 0.5 * 0.97:
+		if absf(p.x - vp.x * 0.5) > vp.x * 0.5 * 0.995:
 			return false
-		if absf(p.y - vp.y * 0.5) > vp.y * 0.5 * 0.92:
+		## Width is the limit: the board may run slightly past the top and bottom of the screen.
+		if absf(p.y - vp.y * 0.5) > vp.y * 0.5 * 1.25:
 			return false
 	return true
 
