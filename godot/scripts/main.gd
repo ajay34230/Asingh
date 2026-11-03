@@ -28,6 +28,8 @@ var _shake_time := 0.0
 var _shake_strength := 0.0
 var _camera_base := Vector3.ZERO
 var hud: Hud
+var menu: GameMenu
+var _camera_tilt := true
 var _demo := false
 var _demo_done := false
 
@@ -38,11 +40,14 @@ func _ready() -> void:
 	_demo = "--demo" in args
 	var seed_value := 0
 	var shot := ""
+	var menu_shot := ""
 	for arg in args:
 		if arg.begins_with("--seed="):
 			seed_value = int(arg.trim_prefix("--seed="))
 		elif arg.begins_with("--screenshot="):
 			shot = arg.trim_prefix("--screenshot=")
+		elif arg.begins_with("--menu-screenshot="):
+			menu_shot = arg.trim_prefix("--menu-screenshot=")
 
 	_build_environment()
 	var board := (load(BOARD_PATH) as PackedScene).instantiate()
@@ -73,17 +78,24 @@ func _ready() -> void:
 	effects = EffectsManager.new()
 	effects.name = "Effects"
 	add_child(effects)
-	if not _demo:
-		audio.start_music()
 
 	if "--dice-face" in args:
 		game.dice.setup_face(int(_arg_value(args, "--dice-face")))
+	_build_menu()
 	if _demo:
 		Engine.time_scale = 40.0  ## demo only: run the whole game quickly
 		game.fast_mode = true
 		_start_new_game_with([], ["blue", "yellow", "green", "red"])
+	elif _is_test_launch(args):
+		_start_new_game_test()
+	elif "--menu-play" in args:
+		audio.start_music()
+		_start_from_menu({"mode": "ai", "players": 4, "difficulty": 1, "rules": GameSettings.get_rules()})
 	else:
-		_start_new_game()
+		hud.visible = false
+		menu.show_page("main")
+		audio.start_music()
+	_apply_settings()
 	if "--fx-shot" in args:
 		effects.fireworks(3.0)
 		effects.confetti(4.0)
@@ -92,9 +104,119 @@ func _ready() -> void:
 		_run_click_test()
 	elif shot != "":
 		_screenshot_and_quit(shot)
+	elif menu_shot != "" and "--menu-play" in args:
+		_screenshot_and_quit(menu_shot)
+	elif menu_shot != "":
+		if "--menu-page=settings" in args:
+			menu.show_page("settings")
+			_load_settings_page()
+		_screenshot_and_quit(menu_shot)
 
 
+func _is_test_launch(args: PackedStringArray) -> bool:
+	for arg in args:
+		if arg.begins_with("--screenshot=") or arg.begins_with("--seed="):
+			return true
+	return "--click-test" in args or "--fx-shot" in args or "--dice-face" in args
+
+
+## Main menu, settings and pause overlays. The menu sits above the 3D scene.
+func _build_menu() -> void:
+	var layer := CanvasLayer.new()  ## Controls only draw inside a CanvasLayer
+	layer.layer = 20
+	layer.process_mode = Node.PROCESS_MODE_ALWAYS
+	add_child(layer)
+	menu = GameMenu.new()
+	menu.name = "Menu"
+	menu.process_mode = Node.PROCESS_MODE_ALWAYS
+	layer.add_child(menu)
+	menu.set_audio(audio)
+	menu.start_game.connect(_start_from_menu)
+	menu.settings_changed.connect(_apply_settings)
+	menu.quit_requested.connect(func() -> void: get_tree().quit())
+	menu.closed.connect(_on_menu_closed)
+	hud.menu_pressed.connect(_quit_to_menu)
+	hud.rematch_pressed.connect(func() -> void: _start_new_game())
+	hud.settings_pressed.connect(func() -> void:
+		menu.set_overlay(true)
+		menu.show_page("settings")
+		menu.visible = true)
+	hud.help_pressed.connect(func() -> void:
+		menu.set_overlay(true)
+		menu.show_page("howto")
+		menu.visible = true)
+
+
+func _start_from_menu(config: Dictionary) -> void:
+	var colors: Array[String] = []
+	var players: int = config["players"]
+	if players == 2:
+		colors = ["blue", "green"]  ## opposite corners
+	elif players == 3:
+		colors = ["blue", "yellow", "green"]
+	else:
+		colors = ["blue", "yellow", "green", "red"]
+	var humans: Array[String] = []
+	if config["mode"] == "pass":
+		humans = colors.duplicate()
+	else:
+		humans = ["blue"]
+	menu.visible = false
+	hud.visible = true
+	hud.hide_result()
+	game.fast_mode = false
+	game.new_game(colors, humans, config["rules"], config["difficulty"])
+	_last_config = config
+
+
+var _last_config: Dictionary = {}
+
+
+## Rematch and restart use the last configuration.
 func _start_new_game() -> void:
+	if _last_config.is_empty():
+		_start_new_game_with(["blue"], ["blue", "yellow", "green", "red"])
+		return
+	_start_from_menu(_last_config)
+
+
+func _quit_to_menu() -> void:
+	get_tree().paused = false
+	get_tree().reload_current_scene()
+
+
+func _on_menu_closed() -> void:
+	menu.visible = false
+	if get_tree().paused:
+		hud.open_pause()
+
+
+func _load_settings_page() -> void:
+	menu._load_settings_into_controls()
+
+
+## Applies graphics, camera and animation settings. Called at start and after changes.
+func _apply_settings() -> void:
+	var quality: String = GameSettings.get_option("graphics")
+	var high := quality == "high"
+	var medium := quality != "low"
+	var env: Environment = null
+	for child in get_children():
+		if child is WorldEnvironment:
+			env = (child as WorldEnvironment).environment
+		if child is DirectionalLight3D:
+			(child as DirectionalLight3D).shadow_enabled = medium
+	if env:
+		env.glow_enabled = medium
+	get_viewport().scaling_3d_scale = 0.75 if quality == "low" else 1.0
+	get_viewport().msaa_3d = Viewport.MSAA_4X if high else Viewport.MSAA_DISABLED
+	_camera_tilt = GameSettings.get_option("camera_tilt")
+	game.anim_scale = [1.6, 1.0, 0.6][int(GameSettings.get_option("anim_speed"))]
+	hud.set_fps_visible(GameSettings.get_option("show_fps"))
+	_fit_camera()
+
+
+func _start_new_game_test() -> void:
 	game.fast_mode = _demo
 	_start_new_game_with(["blue"], ["blue", "yellow", "green", "red"])
 
@@ -219,7 +341,7 @@ func _build_camera() -> void:
 
 
 func _fit_camera() -> void:
-	var el := deg_to_rad(CAMERA_ELEVATION_DEG)
+	var el := deg_to_rad(CAMERA_ELEVATION_DEG if _camera_tilt else 89.0)
 	var dir := Vector3(0, sin(el), cos(el))
 	var half_x := WING_OUTER_X * (1.0 + SCREEN_MARGIN)
 	var half_z := BOARD_SIZE / 2.0 * (1.0 + SCREEN_MARGIN)

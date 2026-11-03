@@ -16,7 +16,6 @@ const SOUND_FILES := {
 	"ui_click": "res://assets/audio/ui_click.wav",
 }
 const MUSIC_FILE := "res://assets/audio/music_loop.wav"
-const SETTINGS_PATH := "user://settings.cfg"
 
 var music_volume_db := -10.0
 var sfx_volume_db := -2.0
@@ -117,19 +116,14 @@ func apply_settings() -> void:
 
 
 func _load_settings() -> void:
-	var cfg := ConfigFile.new()
-	if cfg.load(SETTINGS_PATH) != OK:
-		return  ## missing or corrupt settings fall back to the defaults
-	music_volume_db = float(cfg.get_value("audio", "music_db", music_volume_db))
-	sfx_volume_db = float(cfg.get_value("audio", "sfx_db", sfx_volume_db))
-	muted = bool(cfg.get_value("audio", "muted", muted))
-	haptics = bool(cfg.get_value("audio", "haptics", haptics))
+	music_volume_db = float(GameSettings.load_value("audio", "music_db", music_volume_db))
+	sfx_volume_db = float(GameSettings.load_value("audio", "sfx_db", sfx_volume_db))
+	muted = bool(GameSettings.load_value("audio", "muted", muted))
+	haptics = bool(GameSettings.load_value("audio", "haptics", haptics))
 
 
 func _save_settings() -> void:
-	var cfg := ConfigFile.new()
-	cfg.set_value("audio", "music_db", music_volume_db)
-	cfg.set_value("audio", "sfx_db", sfx_volume_db)
-	cfg.set_value("audio", "muted", muted)
-	cfg.set_value("audio", "haptics", haptics)
-	cfg.save(SETTINGS_PATH)
+	GameSettings.save_value("audio", "music_db", music_volume_db)
+	GameSettings.save_value("audio", "sfx_db", sfx_volume_db)
+	GameSettings.save_value("audio", "muted", muted)
+	GameSettings.save_value("audio", "haptics", haptics)

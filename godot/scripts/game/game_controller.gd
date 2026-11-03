@@ -36,12 +36,16 @@ func setup(dice_node: DiceController, seed_value: int = 0) -> void:
 	_seed = seed_value
 	dice.roll_requested.connect(_on_roll_requested)
 
-func new_game(seat_colors: Array[String] = ["blue", "yellow", "green", "red"], humans: Array[String] = ["blue"]) -> void:
+var difficulty := 1            ## AiController.Difficulty
+var anim_scale := 1.0         ## 1.0 normal; >1 slower, <1 faster
+
+func new_game(seat_colors: Array[String] = ["blue", "yellow", "green", "red"], humans: Array[String] = ["blue"], rules: Dictionary = {}, ai_difficulty: int = 1) -> void:
 	human_colors = humans
+	difficulty = ai_difficulty
 	var seats: Array = []
 	for color in seat_colors:
 		seats.append({"color": color, "human": humans.has(color)})
-	engine.setup(seats, _seed)
+	engine.setup(seats, _seed, rules)
 	_spawn_tokens(seat_colors)
 	busy = false
 	awaiting_pick = false
@@ -123,7 +127,7 @@ func _roll_now() -> void:
 			message.emit("Tap a glowing %s token" % current_color())
 			busy = false
 	else:
-		var choice := AiController.choose_move(engine, _legal)
+		var choice := AiController.choose_move(engine, _legal, difficulty)
 		if not fast_mode:
 			await get_tree().create_timer(AI_DELAY * 0.6).timeout
 		await _execute(choice)
@@ -199,7 +203,7 @@ func _animate_move(move: Dictionary) -> void:
 
 ## Seconds for one animation step; zero-length tweens are not allowed, so use a tiny value in fast mode.
 func _hop(scale: float = 1.0) -> float:
-	return 0.01 if fast_mode else HOP_SECONDS * scale
+	return 0.01 if fast_mode else HOP_SECONDS * scale * anim_scale
 
 func _base_world(color: String, token_index: int) -> Vector3:
 	var p := BoardPath.base_spot(color, token_index)

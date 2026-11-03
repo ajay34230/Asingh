@@ -20,9 +20,28 @@ var consecutive_sixes: int = 0
 var rankings: Array[int] = []
 var _rng := RandomNumberGenerator.new()
 
+## House rules. Defaults are standard Ludo. Each flag is shown as a toggle in the menu.
+## six_to_start: a token leaves its yard only on a six.
+## three_sixes_penalty: three consecutive sixes forfeit the turn.
+## capture_bonus: capturing grants another roll.
+## home_bonus: moving a token into the centre grants another roll.
+## quick_end: the game ends as soon as the first player finishes.
+const DEFAULT_RULES := {
+	"six_to_start": true,
+	"three_sixes_penalty": true,
+	"capture_bonus": true,
+	"home_bonus": true,
+	"quick_end": false,
+}
+var rules: Dictionary = DEFAULT_RULES.duplicate()
+
 
 ## seat_specs: Array of {"color": String, "human": bool}.
-func setup(seat_specs: Array, rng_seed: int = 0) -> void:
+func setup(seat_specs: Array, rng_seed: int = 0, rule_overrides: Dictionary = {}) -> void:
+	rules = DEFAULT_RULES.duplicate()
+	for key in rule_overrides:
+		if rules.has(key):
+			rules[key] = bool(rule_overrides[key])
 	assert(seat_specs.size() >= 2 and seat_specs.size() <= 4, "a game needs 2 to 4 seats")
 	seats.clear()
 	var used := {}
@@ -61,7 +80,7 @@ func roll_with_value(value: int) -> Dictionary:
 	assert(value >= 1 and value <= 6)
 	dice = value
 	consecutive_sixes = consecutive_sixes + 1 if value == 6 else 0
-	if consecutive_sixes == 3:
+	if consecutive_sixes == 3 and rules["three_sixes_penalty"]:
 		consecutive_sixes = 0
 		_advance_turn(false)
 		return {"value": value, "moves": [], "forfeited": true, "passed": false}
@@ -80,7 +99,7 @@ func legal_moves() -> Array[int]:
 	for token in range(tokens.size()):
 		var progress: int = tokens[token]
 		if progress == 0:
-			if dice == 6:
+			if dice == 6 or not rules["six_to_start"]:
 				moves.append(token)
 		elif progress + dice <= BoardPath.FINISH_PROGRESS:
 			moves.append(token)
@@ -126,7 +145,12 @@ func apply_move(token: int) -> Dictionary:
 		_finish_seat(current)
 		finished_seat = true
 
-	var extra_turn := dice == 6 and not finished_seat and phase != PHASE_OVER
+	var earned_bonus := dice == 6
+	if rules["capture_bonus"] and not preview["captures"].is_empty():
+		earned_bonus = true
+	if rules["home_bonus"] and preview["finishes"]:
+		earned_bonus = true
+	var extra_turn := earned_bonus and not finished_seat and phase != PHASE_OVER
 	_advance_turn(extra_turn)
 
 	var result := preview.duplicate()
@@ -159,6 +183,10 @@ func _active_seat_count() -> int:
 func _finish_seat(index: int) -> void:
 	seats[index]["rank"] = rankings.size() + 1
 	rankings.append(index)
+	if rules["quick_end"] and rankings.size() == 1:
+		_rank_remaining_by_progress()
+		phase = PHASE_OVER
+		return
 	if _active_seat_count() == 1:
 		for i in range(seats.size()):
 			if not _is_finished(seats[i]):
@@ -166,6 +194,23 @@ func _finish_seat(index: int) -> void:
 				rankings.append(i)
 		phase = PHASE_OVER
 
+
+## Quick play: the rest of the table is ranked by how far their tokens have travelled.
+func _rank_remaining_by_progress() -> void:
+	var remaining: Array[int] = []
+	for i in range(seats.size()):
+		if not _is_finished(seats[i]):
+			remaining.append(i)
+	remaining.sort_custom(func(a: int, b: int) -> bool: return _progress_sum(seats[a]) > _progress_sum(seats[b]))
+	for i in remaining:
+		seats[i]["rank"] = rankings.size() + 1
+		rankings.append(i)
+
+func _progress_sum(seat: Dictionary) -> int:
+	var total := 0
+	for p in seat["tokens"]:
+		total += int(p)
+	return total
 
 func _advance_turn(same_seat: bool) -> void:
 	if phase == PHASE_OVER:

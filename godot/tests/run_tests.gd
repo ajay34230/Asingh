@@ -21,6 +21,8 @@ func _init() -> void:
 	_test_finish_ranks_and_game_over()
 	_test_every_colour_reaches_home()
 	_test_ai_full_games_finish()
+	_test_house_rules()
+	_test_ai_difficulties_finish()
 
 	print("%d checks, %d failures" % [_checks, _failures.size()])
 	for message in _failures:
@@ -218,3 +220,60 @@ func _test_ai_full_games_finish() -> void:
 			turns += 1
 		check(e.phase == RulesEngine.PHASE_OVER, "AI game %d finishes" % seed_value)
 		check(e.rankings.size() == 4, "AI game %d ranks all four seats" % seed_value)
+
+
+func _test_house_rules() -> void:
+	# Six to start off: a token leaves the yard on any roll.
+	var e := RulesEngine.new()
+	e.setup([{"color": "blue", "human": true}, {"color": "green", "human": false}], 5, {"six_to_start": false})
+	e.roll_with_value(2)
+	check(e.legal_moves().size() == 4, "any roll brings a token out when six_to_start is off")
+
+	# Capture bonus off: a capture passes the turn.
+	e = RulesEngine.new()
+	e.setup([{"color": "blue", "human": true}, {"color": "green", "human": false}], 5, {"capture_bonus": false})
+	e.seats[0]["tokens"] = [10, 0, 0, 0]
+	var target := BoardPath.ring_index_for_progress("blue", 13)
+	e.seats[1]["tokens"] = [((target - BoardPath.start_of("green") + 52) % 52) + 1, 0, 0, 0]
+	e.roll_with_value(3)
+	var result := e.apply_move(0)
+	check(result["captured"].size() == 1 and not result["extra_turn"], "capture gives no bonus when capture_bonus is off")
+
+	# Three sixes penalty off: the third six is a normal move.
+	e = RulesEngine.new()
+	e.setup([{"color": "blue", "human": true}, {"color": "green", "human": false}], 5, {"three_sixes_penalty": false})
+	e.seats[0]["tokens"] = [5, 0, 0, 0]
+	for i in range(3):
+		e.roll_with_value(6)
+		e.apply_move(0)
+	check(e.current == 0 and e.seats[0]["tokens"][0] == 23, "three sixes do not forfeit when the penalty is off")
+
+	# Quick end: the game stops at the first finish, and the rest are ranked by progress.
+	e = RulesEngine.new()
+	e.setup([{"color": "blue", "human": true}, {"color": "green", "human": false}, {"color": "red", "human": false}], 5, {"quick_end": true})
+	e.seats[0]["tokens"] = [57, 57, 57, 55]
+	e.seats[1]["tokens"] = [40, 0, 0, 0]
+	e.seats[2]["tokens"] = [10, 0, 0, 0]
+	e.roll_with_value(2)
+	e.apply_move(3)
+	check(e.phase == RulesEngine.PHASE_OVER and e.rankings.size() == 3, "quick end ranks everyone and ends the game")
+	check(e.rankings == [0, 1, 2], "remaining seats are ranked by progress")
+
+
+func _test_ai_difficulties_finish() -> void:
+	for difficulty in range(4):
+		for seed_value in range(1, 6):
+			var e := _engine([
+				{"color": "red", "human": false}, {"color": "green", "human": false},
+				{"color": "yellow", "human": false}, {"color": "blue", "human": false},
+			], seed_value)
+			var turns := 0
+			while e.phase != RulesEngine.PHASE_OVER and turns < 20000:
+				var outcome := e.roll()
+				if e.phase == RulesEngine.PHASE_MOVE:
+					var choice := AiController.choose_move(e, outcome["moves"], difficulty)
+					check(outcome["moves"].has(choice), "difficulty %d picks a legal move" % difficulty)
+					e.apply_move(choice)
+				turns += 1
+			check(e.phase == RulesEngine.PHASE_OVER, "difficulty %d game %d finishes" % [difficulty, seed_value])
+
