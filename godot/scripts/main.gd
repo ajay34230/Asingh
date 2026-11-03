@@ -258,6 +258,12 @@ func _build_environment() -> void:
 	env.ambient_light_source = Environment.AMBIENT_SOURCE_COLOR
 	env.ambient_light_color = Color("#fff1d6")
 	env.ambient_light_energy = 0.6
+	## Glow (bloom) is supported by the Mobile renderer, with its lower HDR range.
+	env.glow_enabled = true
+	env.glow_intensity = 0.3
+	env.glow_bloom = 0.08
+	env.glow_hdr_threshold = 1.4
+	env.glow_blend_mode = Environment.GLOW_BLEND_MODE_SCREEN
 	var world := WorldEnvironment.new()
 	world.environment = env
 	add_child(world)
@@ -267,6 +273,39 @@ func _build_environment() -> void:
 	sun.rotation_degrees = Vector3(-55, -35, 0)
 	sun.shadow_enabled = true
 	add_child(sun)
+	_build_palace_floor()
+
+## A large marble palace floor under the board. Board and decorations sit on it, so
+## wide phone screens are filled edge to edge instead of showing a dark border.
+func _build_palace_floor() -> void:
+	var floor_mesh := MeshInstance3D.new()
+	floor_mesh.name = "PalaceFloor"
+	var plane := _make_plane(160.0)
+	floor_mesh.mesh = plane
+	var stone := StandardMaterial3D.new()
+	stone.albedo_color = Color("#8a6a4c")
+	stone.roughness = 0.35
+	stone.clearcoat_enabled = true
+	stone.clearcoat = 0.3
+	var grain := FastNoiseLite.new()
+	grain.frequency = 0.012
+	grain.fractal_octaves = 3
+	var grain_tex := NoiseTexture2D.new()
+	grain_tex.noise = grain
+	grain_tex.seamless = true
+	grain_tex.width = 512
+	grain_tex.height = 512
+	stone.albedo_texture = grain_tex
+	stone.uv1_scale = Vector3(4, 4, 4)
+	floor_mesh.material_override = stone
+	floor_mesh.position = Vector3(0, -0.62, 0)
+	floor_mesh.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	add_child(floor_mesh)
+
+func _make_plane(size: float) -> PlaneMesh:
+	var plane := PlaneMesh.new()
+	plane.size = Vector2(size, size)
+	return plane
 
 
 ## Taps on a glowing token move it. The ray is cast to a plane just above the track.

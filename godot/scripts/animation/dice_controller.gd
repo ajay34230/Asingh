@@ -13,9 +13,12 @@ signal dice_rolled(result: int)
 @onready var dice_model: Node3D = $DiceModel
 var is_rolling := false
 var rollable := false
+var _glow_ring: MeshInstance3D
+var _glow_time := 0.0
 
 func _ready() -> void:
     input_ray_pickable = true
+    _build_glow_ring()
     input_event.connect(_on_input_event)
 
 func _on_input_event(_camera: Camera3D, event: InputEvent, _position: Vector3, _normal: Vector3, _shape_idx: int) -> void:
@@ -31,6 +34,35 @@ func _on_input_event(_camera: Camera3D, event: InputEvent, _position: Vector3, _
 func set_rollable(on: bool) -> void:
     rollable = on
     input_ray_pickable = on
+    if is_instance_valid(_glow_ring):
+        _glow_ring.visible = on
+
+## Gold ring under the dice that pulses while the dice is waiting to be tapped.
+func _build_glow_ring() -> void:
+    var torus := TorusMesh.new()
+    torus.inner_radius = 0.72
+    torus.outer_radius = 0.82
+    _glow_ring = MeshInstance3D.new()
+    _glow_ring.mesh = torus
+    var mat := StandardMaterial3D.new()
+    mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+    mat.albedo_color = Color(1.0, 0.82, 0.42, 0.85)
+    mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+    mat.emission_enabled = true
+    mat.emission = Color(1.0, 0.75, 0.3)
+    mat.emission_energy_multiplier = 2.5
+    _glow_ring.material_override = mat
+    _glow_ring.position = Vector3(0, -0.9, 0)
+    _glow_ring.rotation_degrees.x = 90
+    _glow_ring.visible = false
+    add_child(_glow_ring)
+
+func _process(delta: float) -> void:
+    if not rollable or not is_instance_valid(_glow_ring):
+        return
+    _glow_time += delta
+    var pulse := 1.0 + sin(_glow_time * 4.0) * 0.08
+    _glow_ring.scale = Vector3.ONE * pulse
 
 ## Debug: puts the dice straight into the orientation for `value`.
 func setup_face(value: int) -> void:
