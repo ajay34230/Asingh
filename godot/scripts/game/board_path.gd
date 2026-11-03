@@ -17,6 +17,11 @@ const COMMON_STEPS := 51
 const LANE_STEPS := 5
 const FINISH_PROGRESS := 57
 const TOKENS_PER_PLAYER := 4
+
+## Cells are wider than they are deep, so the board is wider than it is tall.
+## The grid itself (indices, paths, safe squares) does not change.
+const CELL_X := 1.17
+const CELL_Z := 0.73
 ## Turn order is clockwise on screen.
 ## Clockwise seat order on the supplied board: blue (top-left), yellow (top-right),
 ## green (bottom-right), red (bottom-left).
@@ -24,10 +29,7 @@ const COLORS: Array[String] = ["blue", "yellow", "green", "red"]
 
 ## World size of one cell, measured from the supplied board model: the
 ## 15 x 15 playfield (ivory tiles) is about 10.98 m wide.
-const CELL_SIZE := 10.98 / 15.0
 
-## The board keeps its true square proportions. Width is filled by the palace terraces around it.
-const BOARD_ASPECT_X := 1.0
 
 ## Per-colour data, matching the supplied board model.
 ## entry = ring index of the outer end of the colour's arm (its home column mouth).
@@ -151,4 +153,4 @@ static func progress_point(color: String, progress: int, token: int = 0) -> Vect
 ## Grid to world: board centred on the origin, top surface at y = 0.
 ## Screen top (row 0) is -Z when the camera looks straight down.
 static func to_world(gx: float, gy: float) -> Vector3:
-	return Vector3((gx - GRID_SIZE / 2.0) * CELL_SIZE * BOARD_ASPECT_X, 0.0, (gy - GRID_SIZE / 2.0) * CELL_SIZE)
+	return Vector3((gx - GRID_SIZE / 2.0) * CELL_X, 0.0, (gy - GRID_SIZE / 2.0) * CELL_Z)

@@ -7,16 +7,14 @@
 ##   --seed=N            deterministic dice sequence
 extends Node3D
 
-const BOARD_PATH := "res://assets/models/01_Board/Royal_India_Final_Ludo_Board.glb"
 const DICE_PATH := "res://assets/models/02_Dice/Royal_India_Royal_Jewel_Dice.glb"
-const BOARD_SIZE := 12.46      ## metres, measured from the board mesh
 const SCREEN_MARGIN := 0.04
 ## Tilted perspective so tokens read as 3D figures, not flat discs.
 const CAMERA_FOV := 36.0
 const CAMERA_ELEVATION_DEG := 52.0
 const CAMERA_HEIGHT_MAX := 1.2
 ## Outer edge of the palace terraces. The camera is fitted to this, so the scene spans the screen width.
-const WING_OUTER_X := 12.0
+const DECOR_DEPTH := 2.4   ## room for front and back decorations in the camera fit
 const DICE_POSITION := Vector3(0, 1.25, 0)
 const DICE_TAP_RADIUS_PX := 120.0
 
@@ -51,10 +49,7 @@ func _ready() -> void:
 			menu_shot = arg.trim_prefix("--menu-screenshot=")
 
 	_build_environment()
-	var board := (load(BOARD_PATH) as PackedScene).instantiate()
-	add_child(board)
-	_build_palace_wings()
-	_apply_marble(board)
+	add_child(RoyalBoard.new())
 	_place_decorations()
 	_build_camera()
 	var dice := _build_dice()
@@ -242,14 +237,13 @@ func _start_new_game_with(humans: Array, seats: Array) -> void:
 ## Royal decorations, placed beside the board (outside the playfield, so they never
 ## obstruct the track). Each one gets its matching idle animation script.
 const DECORATIONS := [
-	{"path": "res://assets/models/05_Animals_and_Statues/Royal_India_Elephant.glb", "pos": Vector3(-11.4, 0, -2.2), "yaw": 90, "type": "elephant", "scale": 0.9},
-	{"path": "res://assets/models/05_Animals_and_Statues/Royal_India_Elephant_Statue.glb", "pos": Vector3(-11.2, 0, 3.6), "yaw": 90, "type": "statue", "scale": 1.0},
-	{"path": "res://assets/models/05_Animals_and_Statues/Royal_India_Peacock_HighPoly_Textured.glb", "pos": Vector3(11.2, 0, -2.4), "yaw": -90, "type": "peacock", "scale": 0.9},
-	{"path": "res://assets/models/05_Animals_and_Statues/Royal_India_Peacock_Statue.glb", "pos": Vector3(11.2, 0, 3.6), "yaw": -90, "type": "statue", "scale": 1.0},
-	{"path": "res://assets/models/06_Decorations/Royal_India_Lotus_Fountain.glb", "pos": Vector3(-11.6, 0, -6.0), "yaw": 0, "type": "fountain", "scale": 1.0},
-	{"path": "res://assets/models/06_Decorations/Royal_India_Deepam_Lamp_Set.glb", "pos": Vector3(11.6, 0, -6.2), "yaw": 0, "type": "lamp", "scale": 1.0},
+	{"path": "res://assets/models/05_Animals_and_Statues/Royal_India_Elephant.glb", "pos": Vector3(-6.2, 0, 7.6), "yaw": 0, "type": "elephant", "scale": 0.5},
+	{"path": "res://assets/models/05_Animals_and_Statues/Royal_India_Elephant_Statue.glb", "pos": Vector3(6.2, 0, 7.6), "yaw": 0, "type": "statue", "scale": 1.1},
+	{"path": "res://assets/models/05_Animals_and_Statues/Royal_India_Peacock_HighPoly_Textured.glb", "pos": Vector3(-7.4, 0, -7.6), "yaw": 180, "type": "peacock", "scale": 0.6},
+	{"path": "res://assets/models/05_Animals_and_Statues/Royal_India_Peacock_Statue.glb", "pos": Vector3(7.4, 0, -7.6), "yaw": 180, "type": "statue", "scale": 1.0},
+	{"path": "res://assets/models/06_Decorations/Royal_India_Lotus_Fountain.glb", "pos": Vector3(0, 0, 8.1), "yaw": 0, "type": "fountain", "scale": 0.9},
+	{"path": "res://assets/models/06_Decorations/Royal_India_Deepam_Lamp_Set.glb", "pos": Vector3(0, 0, -8.1), "yaw": 180, "type": "lamp", "scale": 0.7},
 ]
-
 
 func _place_decorations() -> void:
 	for deco in DECORATIONS:
@@ -347,14 +341,14 @@ func _build_camera() -> void:
 func _fit_camera() -> void:
 	var el := deg_to_rad(CAMERA_ELEVATION_DEG if _camera_tilt else 89.0)
 	var dir := Vector3(0, sin(el), cos(el))
-	var half_x := WING_OUTER_X * (1.0 + SCREEN_MARGIN)
-	var half_z := BOARD_SIZE / 2.0 * (1.0 + SCREEN_MARGIN)
+	var outer := RoyalBoard.outer_size()
+	var half_x := outer.x * 0.5 * (1.0 + SCREEN_MARGIN)
+	var half_z := outer.y * 0.5 + DECOR_DEPTH
 	var corners: Array[Vector3] = []
 	for x in [-half_x, half_x]:
 		for y in [0.0, CAMERA_HEIGHT_MAX]:
 			for z in [-half_z, half_z]:
 				corners.append(Vector3(x, y, z))
-	half_z = maxf(half_z, BOARD_SIZE * 0.55)
 	var near_d := 4.0
 	var far_d := 150.0
 	for i in range(40):
@@ -383,10 +377,6 @@ func _corners_fit(position: Vector3, corners: Array[Vector3]) -> bool:
 	return true
 
 
-func _build_palace_wings() -> void:
-	add_child(PalaceWings.new())
-
-
 func _build_dice() -> DiceController:
 	var dice := DiceController.new()
 	dice.name = "Dice"
@@ -403,22 +393,6 @@ func _build_dice() -> DiceController:
 	dice.add_child(shape)
 	add_child(dice)
 	return dice
-
-
-## Replaces the flat colour of the tile and courtyard floor batches with polished
-## marble, keeping each batch's own colour as the base. Gold trim is left as is.
-func _apply_marble(node: Node) -> void:
-	for child in node.get_children():
-		if child is MeshInstance3D and child.name.begins_with("Batch_"):
-			var lname := String(child.name).to_lower()
-			if lname.contains("gold") or lname.contains("leaf") or lname.contains("pink") or lname.contains("dark"):
-				continue
-			var source := (child as MeshInstance3D).get_active_material(0) as BaseMaterial3D
-			if source == null:
-				continue
-			var base := source.albedo_color
-			(child as MeshInstance3D).material_override = Marble.material(base, base.darkened(0.35))
-		_apply_marble(child)
 
 
 func _build_environment() -> void:

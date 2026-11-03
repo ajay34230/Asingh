@@ -13,10 +13,10 @@ signal game_finished(rankings: Array)
 signal event(event_name: String, data: Dictionary)
 
 const TOKEN_SCALE := 0.75
-const TRACK_Y := 0.44          ## measured track tile height on the supplied board
-const DISC_Y := 0.40           ## courtyard gold disc (token spots 0 and 1)
-const FLOOR_Y := 0.30          ## courtyard floor (token spots 2 and 3)
-const FINISH_Y := 0.60         ## centre lotus height
+const TRACK_Y := 0.12          ## top of the track tiles (RoyalBoard.TILE_TOP)
+const DISC_Y := 0.13           ## courtyard token disc (spots 0 and 1)
+const FLOOR_Y := 0.10          ## courtyard floor (spots 2 and 3)
+const FINISH_Y := 0.24         ## top of the centre lotus medallion
 const HOP_SECONDS := 0.2
 const AI_DELAY := 0.6
 const TOKEN_PICK_RADIUS := 0.55
