@@ -27,6 +27,7 @@ var effects: EffectsManager
 var _shake_time := 0.0
 var _shake_strength := 0.0
 var _camera_base := Vector3.ZERO
+var director: CameraDirector
 var hud: Hud
 var menu: GameMenu
 var _camera_tilt := true
@@ -61,6 +62,7 @@ func _ready() -> void:
 	game = GameController.new()
 	game.name = "Game"
 	add_child(game)
+	game.director = director
 	game.setup(dice, seed_value)
 
 	hud = Hud.new()
@@ -85,7 +87,13 @@ func _ready() -> void:
 	if _demo:
 		Engine.time_scale = 40.0  ## demo only: run the whole game quickly
 		game.fast_mode = true
-		_start_new_game_with([], ["blue", "yellow", "green", "red"])
+		var players := int(_arg_value(args, "--players")) if _has_arg("--players=") else 4
+		var demo_colors: Array = ["blue", "yellow", "green", "red"]
+		if players == 2:
+			demo_colors = ["blue", "green"]
+		elif players == 3:
+			demo_colors = ["blue", "yellow", "green"]
+		_start_new_game_with([], demo_colors)
 	elif _is_test_launch(args):
 		_start_new_game_test()
 	elif "--menu-play" in args:
@@ -297,19 +305,11 @@ func _on_game_event(event_name: String, data: Dictionary) -> void:
 
 ## Short camera shake: a random offset that decays over the duration.
 func _shake(strength: float, duration: float) -> void:
-	_shake_strength = strength
-	_shake_time = duration
+	director.shake(strength, duration)
 
 
-func _process(delta: float) -> void:
-	if camera == null:
-		return
-	if _shake_time > 0.0:
-		_shake_time -= delta
-		var fade := clampf(_shake_time / 0.4, 0.0, 1.0)
-		camera.position = _camera_base + Vector3(randf_range(-1, 1), 0, randf_range(-1, 1)) * _shake_strength * fade
-	else:
-		camera.position = _camera_base
+func _process(_delta: float) -> void:
+	pass
 
 
 func _log_message(text: String) -> void:
@@ -330,6 +330,10 @@ func _on_game_finished(ranking: Array) -> void:
 func _build_camera() -> void:
 	camera = Camera3D.new()
 	camera.name = "BoardCamera"
+	director = CameraDirector.new()
+	director.name = "CameraDirector"
+	add_child(director)
+	director.setup(camera)
 	camera.projection = Camera3D.PROJECTION_PERSPECTIVE
 	camera.fov = CAMERA_FOV
 	camera.near = 0.1
@@ -361,6 +365,8 @@ func _fit_camera() -> void:
 			near_d = mid
 	_camera_base = dir * far_d
 	camera.look_at_from_position(_camera_base, Vector3(0, 0.3, 0), Vector3.UP)
+	if director:
+		director.set_base(_camera_base, Vector3(0, 0.3, 0), CAMERA_FOV)
 
 
 func _corners_fit(position: Vector3, corners: Array[Vector3]) -> bool:

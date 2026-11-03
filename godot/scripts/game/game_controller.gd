@@ -37,6 +37,7 @@ func setup(dice_node: DiceController, seed_value: int = 0) -> void:
 	dice.roll_requested.connect(_on_roll_requested)
 
 var difficulty := 1            ## AiController.Difficulty
+var director: CameraDirector    ## set by the main scene; frames the action
 var anim_scale := 1.0         ## 1.0 normal; >1 slower, <1 faster
 
 func new_game(seat_colors: Array[String] = ["blue", "yellow", "green", "red"], humans: Array[String] = ["blue"], rules: Dictionary = {}, ai_difficulty: int = 1) -> void:
@@ -157,6 +158,8 @@ func _animate_move(move: Dictionary) -> void:
 	var from: int = move["from"]
 	var to: int = move["to"]
 	await token.transform_out(0.2)
+	if director and not fast_mode:
+		director.focus(token.global_position, 0.35)
 	## Walk square by square: the limb cycle runs alongside each hop.
 	for progress in range(from + 1 if from > 0 else 1, to + 1):
 		var step_point := _track_world(color, progress, index)
@@ -175,6 +178,10 @@ func _animate_move(move: Dictionary) -> void:
 		var victim_token: TransformerToken = tokens[victim_color][victim["token"]]
 		var base := _base_world(victim_color, victim["token"])
 		message.emit("%s token sent home!" % victim_color.capitalize())
+		if director and not fast_mode:
+			var mid := token.global_position.lerp(victim_token.global_position, 0.5)
+			director.focus(mid, 0.3, 0.45)
+			director.punch_in(6.0, 1.2)
 		event.emit("capture", {"position": victim_token.global_position, "color": victim_color})
 		victim_token.ground_y = base.y
 		if fast_mode:
@@ -198,6 +205,8 @@ func _animate_move(move: Dictionary) -> void:
 		if not fast_mode:
 			await token.play_home_bounce()
 		token.global_position = centre
+	if director and not fast_mode:
+		director.release(0.5)
 	if move["seat_finished"]:
 		message.emit("%s finished!" % color.capitalize())
 
