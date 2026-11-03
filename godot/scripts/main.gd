@@ -15,6 +15,8 @@ const SCREEN_MARGIN := 0.04
 const CAMERA_FOV := 36.0
 const CAMERA_ELEVATION_DEG := 52.0
 const CAMERA_HEIGHT_MAX := 1.2
+## Outer edge of the palace terraces. The camera is fitted to this, so the scene spans the screen width.
+const WING_OUTER_X := 12.0
 const DICE_POSITION := Vector3(0, 1.25, 0)
 const DICE_TAP_RADIUS_PX := 120.0
 
@@ -44,8 +46,8 @@ func _ready() -> void:
 
 	_build_environment()
 	var board := (load(BOARD_PATH) as PackedScene).instantiate()
-	board.scale.x = BoardPath.BOARD_ASPECT_X
 	add_child(board)
+	_build_palace_wings()
 	_apply_marble(board)
 	_place_decorations()
 	_build_camera()
@@ -219,13 +221,14 @@ func _build_camera() -> void:
 func _fit_camera() -> void:
 	var el := deg_to_rad(CAMERA_ELEVATION_DEG)
 	var dir := Vector3(0, sin(el), cos(el))
-	var half_x := BOARD_SIZE * BoardPath.BOARD_ASPECT_X / 2.0 * (1.0 + SCREEN_MARGIN)
+	var half_x := WING_OUTER_X * (1.0 + SCREEN_MARGIN)
 	var half_z := BOARD_SIZE / 2.0 * (1.0 + SCREEN_MARGIN)
 	var corners: Array[Vector3] = []
 	for x in [-half_x, half_x]:
 		for y in [0.0, CAMERA_HEIGHT_MAX]:
 			for z in [-half_z, half_z]:
 				corners.append(Vector3(x, y, z))
+	half_z = maxf(half_z, BOARD_SIZE * 0.55)
 	var near_d := 4.0
 	var far_d := 150.0
 	for i in range(40):
@@ -250,6 +253,10 @@ func _corners_fit(position: Vector3, corners: Array[Vector3]) -> bool:
 		if absf(p.y - vp.y * 0.5) > vp.y * 0.5 * 0.92:
 			return false
 	return true
+
+
+func _build_palace_wings() -> void:
+	add_child(PalaceWings.new())
 
 
 func _build_dice() -> DiceController:

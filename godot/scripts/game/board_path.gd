@@ -26,8 +26,8 @@ const COLORS: Array[String] = ["blue", "yellow", "green", "red"]
 ## 15 x 15 playfield (ivory tiles) is about 10.98 m wide.
 const CELL_SIZE := 10.98 / 15.0
 
-## The drawn board is stretched along X so it can fill a wide phone screen. The grid is unchanged.
-const BOARD_ASPECT_X := 1.6
+## The board keeps its true square proportions. Width is filled by the palace terraces around it.
+const BOARD_ASPECT_X := 1.0
 
 ## Per-colour data, matching the supplied board model.
 ## entry = ring index of the outer end of the colour's arm (its home column mouth).
