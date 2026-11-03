@@ -17,6 +17,8 @@ var is_transformed := false
 var is_moving := false
 var path_index := -1
 var has_left_home := false
+## Height of the token root when standing on the board. The game sets this per square.
+var ground_y := 0.25
 
 const BODY_PATHS := {
     "red": "res://assets/models/03_Player_Tokens/Royal_Red_Token.glb",
@@ -248,7 +250,7 @@ func play_punch(target: Node3D) -> void:
     recover.tween_property(lead["elbow"], "rotation", Vector3.ZERO, 0.18)
     recover.tween_property(lead["wrist"], "rotation", Vector3.ZERO, 0.18)
     recover.tween_property(support["shoulder"], "rotation", Vector3.ZERO, 0.18)
-    recover.tween_property(self, "position:y", 0.25, 0.20)
+    recover.tween_property(self, "position:y", ground_y, 0.20)
     await recover.finished
 
 func play_kick(target: Node3D) -> void:
@@ -277,7 +279,7 @@ func play_kick(target: Node3D) -> void:
     land.tween_property(support["hip"], "rotation", Vector3.ZERO, 0.20)
     land.tween_property(support["knee"], "rotation", Vector3.ZERO, 0.20)
     land.tween_property(body_node, "rotation", Vector3.ZERO, 0.20)
-    land.tween_property(self, "position:y", 0.25, 0.22)
+    land.tween_property(self, "position:y", ground_y, 0.22)
     await land.finished
 
 func play_hit_recoil(from_direction: Vector3) -> void:
@@ -334,7 +336,7 @@ func play_grab_throw(target: Node3D, home_position: Vector3) -> void:
     release.tween_property(right["elbow"], "rotation", Vector3.ZERO, 0.22)
     release.tween_property(left["wrist"], "rotation", Vector3.ZERO, 0.22)
     release.tween_property(right["wrist"], "rotation", Vector3.ZERO, 0.22)
-    release.tween_property(self, "position:y", 0.25, 0.24)
+    release.tween_property(self, "position:y", ground_y, 0.24)
     await release.finished
 
 func play_thrown_to_home(home_position: Vector3) -> void:
@@ -364,7 +366,7 @@ func play_landing_impact() -> void:
     impact.tween_property(body_node, "scale", Vector3(1.13, 0.78, 1.13), 0.07)
     await impact.finished
     var settle := create_tween().set_parallel(true)
-    settle.tween_property(self, "position:y", 0.25, 0.20).set_trans(Tween.TRANS_BOUNCE).set_ease(Tween.EASE_OUT)
+    settle.tween_property(self, "position:y", ground_y, 0.20).set_trans(Tween.TRANS_BOUNCE).set_ease(Tween.EASE_OUT)
     settle.tween_property(body_node, "scale", Vector3.ONE, 0.20).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
     await settle.finished
 

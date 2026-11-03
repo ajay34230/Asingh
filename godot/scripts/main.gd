@@ -11,7 +11,12 @@ const BOARD_PATH := "res://assets/models/01_Board/Royal_India_Final_Ludo_Board.g
 const DICE_PATH := "res://assets/models/02_Dice/Royal_India_Royal_Jewel_Dice.glb"
 const BOARD_SIZE := 12.46      ## metres, measured from the board mesh
 const SCREEN_MARGIN := 0.04
+## Tilted perspective so tokens read as 3D figures, not flat discs.
+const CAMERA_FOV := 36.0
+const CAMERA_ELEVATION_DEG := 52.0
+const CAMERA_HEIGHT_MAX := 1.2
 const DICE_POSITION := Vector3(0, 1.25, 0)
+const DICE_TAP_RADIUS_PX := 120.0
 
 var camera: Camera3D
 var game: GameController
@@ -19,6 +24,7 @@ var audio: AudioManager
 var effects: EffectsManager
 var _shake_time := 0.0
 var _shake_strength := 0.0
+var _camera_base := Vector3.ZERO
 var hud: Hud
 var _demo := false
 var _demo_done := false
@@ -38,6 +44,7 @@ func _ready() -> void:
 
 	_build_environment()
 	var board := (load(BOARD_PATH) as PackedScene).instantiate()
+	board.scale.x = BoardPath.BOARD_ASPECT_X
 	add_child(board)
 	_apply_marble(board)
 	_place_decorations()
@@ -103,12 +110,12 @@ func _start_new_game_with(humans: Array, seats: Array) -> void:
 ## Royal decorations, placed beside the board (outside the playfield, so they never
 ## obstruct the track). Each one gets its matching idle animation script.
 const DECORATIONS := [
-	{"path": "res://assets/models/05_Animals_and_Statues/Royal_India_Elephant.glb", "pos": Vector3(-10.2, 0, -2.2), "yaw": 90, "type": "elephant", "scale": 0.9},
-	{"path": "res://assets/models/05_Animals_and_Statues/Royal_India_Elephant_Statue.glb", "pos": Vector3(-10.0, 0, 3.6), "yaw": 90, "type": "statue", "scale": 1.0},
-	{"path": "res://assets/models/05_Animals_and_Statues/Royal_India_Peacock_HighPoly_Textured.glb", "pos": Vector3(10.0, 0, -2.4), "yaw": -90, "type": "peacock", "scale": 0.9},
-	{"path": "res://assets/models/05_Animals_and_Statues/Royal_India_Peacock_Statue.glb", "pos": Vector3(10.0, 0, 3.6), "yaw": -90, "type": "statue", "scale": 1.0},
-	{"path": "res://assets/models/06_Decorations/Royal_India_Lotus_Fountain.glb", "pos": Vector3(-10.4, 0, -6.0), "yaw": 0, "type": "fountain", "scale": 1.0},
-	{"path": "res://assets/models/06_Decorations/Royal_India_Deepam_Lamp_Set.glb", "pos": Vector3(10.2, 0, -6.2), "yaw": 0, "type": "lamp", "scale": 1.0},
+	{"path": "res://assets/models/05_Animals_and_Statues/Royal_India_Elephant.glb", "pos": Vector3(-11.4, 0, -2.2), "yaw": 90, "type": "elephant", "scale": 0.9},
+	{"path": "res://assets/models/05_Animals_and_Statues/Royal_India_Elephant_Statue.glb", "pos": Vector3(-11.2, 0, 3.6), "yaw": 90, "type": "statue", "scale": 1.0},
+	{"path": "res://assets/models/05_Animals_and_Statues/Royal_India_Peacock_HighPoly_Textured.glb", "pos": Vector3(11.2, 0, -2.4), "yaw": -90, "type": "peacock", "scale": 0.9},
+	{"path": "res://assets/models/05_Animals_and_Statues/Royal_India_Peacock_Statue.glb", "pos": Vector3(11.2, 0, 3.6), "yaw": -90, "type": "statue", "scale": 1.0},
+	{"path": "res://assets/models/06_Decorations/Royal_India_Lotus_Fountain.glb", "pos": Vector3(-11.6, 0, -6.0), "yaw": 0, "type": "fountain", "scale": 1.0},
+	{"path": "res://assets/models/06_Decorations/Royal_India_Deepam_Lamp_Set.glb", "pos": Vector3(11.6, 0, -6.2), "yaw": 0, "type": "lamp", "scale": 1.0},
 ]
 
 
@@ -176,9 +183,9 @@ func _process(delta: float) -> void:
 	if _shake_time > 0.0:
 		_shake_time -= delta
 		var fade := clampf(_shake_time / 0.4, 0.0, 1.0)
-		camera.position = Vector3(0, 30, 0) + Vector3(randf_range(-1, 1), 0, randf_range(-1, 1)) * _shake_strength * fade
+		camera.position = _camera_base + Vector3(randf_range(-1, 1), 0, randf_range(-1, 1)) * _shake_strength * fade
 	else:
-		camera.position = Vector3(0, 30, 0)
+		camera.position = _camera_base
 
 
 func _log_message(text: String) -> void:
@@ -194,16 +201,15 @@ func _on_game_finished(ranking: Array) -> void:
 		get_tree().quit(0)
 
 
-## Orthographic size is the visible height: choose the height that fits the board
-## by width or height, whichever limits this aspect ratio.
+## Tilted perspective camera. The camera distance is chosen so the whole board spans
+## the screen width (or height, whichever is the limit), so it fills the phone screen.
 func _build_camera() -> void:
 	camera = Camera3D.new()
 	camera.name = "BoardCamera"
-	camera.projection = Camera3D.PROJECTION_ORTHOGONAL
+	camera.projection = Camera3D.PROJECTION_PERSPECTIVE
+	camera.fov = CAMERA_FOV
 	camera.near = 0.1
-	camera.far = 100.0
-	camera.keep_aspect = Camera3D.KEEP_HEIGHT
-	camera.look_at_from_position(Vector3(0, 30, 0), Vector3.ZERO, Vector3(0, 0, -1))
+	camera.far = 300.0
 	add_child(camera)
 	camera.make_current()
 	get_viewport().size_changed.connect(_fit_camera)
@@ -211,10 +217,39 @@ func _build_camera() -> void:
 
 
 func _fit_camera() -> void:
-	var viewport_size := get_viewport().get_visible_rect().size
-	var aspect := viewport_size.x / maxf(viewport_size.y, 1.0)
-	var needed := BOARD_SIZE * (1.0 + SCREEN_MARGIN * 2.0)
-	camera.size = maxf(needed, needed / aspect)
+	var el := deg_to_rad(CAMERA_ELEVATION_DEG)
+	var dir := Vector3(0, sin(el), cos(el))
+	var half_x := BOARD_SIZE * BoardPath.BOARD_ASPECT_X / 2.0 * (1.0 + SCREEN_MARGIN)
+	var half_z := BOARD_SIZE / 2.0 * (1.0 + SCREEN_MARGIN)
+	var corners: Array[Vector3] = []
+	for x in [-half_x, half_x]:
+		for y in [0.0, CAMERA_HEIGHT_MAX]:
+			for z in [-half_z, half_z]:
+				corners.append(Vector3(x, y, z))
+	var near_d := 4.0
+	var far_d := 150.0
+	for i in range(40):
+		var mid := (near_d + far_d) * 0.5
+		if _corners_fit(dir * mid, corners):
+			far_d = mid
+		else:
+			near_d = mid
+	_camera_base = dir * far_d
+	camera.look_at_from_position(_camera_base, Vector3(0, 0.3, 0), Vector3.UP)
+
+
+func _corners_fit(position: Vector3, corners: Array[Vector3]) -> bool:
+	camera.look_at_from_position(position, Vector3(0, 0.3, 0), Vector3.UP)
+	var vp := get_viewport().get_visible_rect().size
+	for c in corners:
+		if camera.is_position_behind(c):
+			return false
+		var p := camera.unproject_position(c)
+		if absf(p.x - vp.x * 0.5) > vp.x * 0.5 * 0.97:
+			return false
+		if absf(p.y - vp.y * 0.5) > vp.y * 0.5 * 0.92:
+			return false
+	return true
 
 
 func _build_dice() -> DiceController:
@@ -310,7 +345,7 @@ func _make_plane(size: float) -> PlaneMesh:
 
 ## Taps on a glowing token move it. The ray is cast to a plane just above the track.
 func _unhandled_input(event: InputEvent) -> void:
-	if game == null or not game.awaiting_pick:
+	if game == null:
 		return
 	var screen := Vector2.ZERO
 	if event is InputEventMouseButton and event.pressed and event.button_index == MOUSE_BUTTON_LEFT:
@@ -318,6 +353,14 @@ func _unhandled_input(event: InputEvent) -> void:
 	elif event is InputEventScreenTouch and event.pressed:
 		screen = event.position
 	else:
+		return
+	## Tap on the dice (screen-space radius, so it also works on touch screens).
+	if game.dice.rollable:
+		var dice_screen := camera.unproject_position(game.dice.global_position)
+		if screen.distance_to(dice_screen) < DICE_TAP_RADIUS_PX:
+			game.dice.roll_requested.emit()
+			return
+	if not game.awaiting_pick:
 		return
 	var origin := camera.project_ray_origin(screen)
 	var dir := camera.project_ray_normal(screen)
@@ -387,6 +430,10 @@ func _run_click_test() -> void:
 
 
 func _click(screen_pos: Vector2) -> void:
+	var move := InputEventMouseMotion.new()
+	move.position = screen_pos
+	move.global_position = screen_pos
+	get_viewport().push_input(move)
 	for pressed in [true, false]:
 		var ev := InputEventMouseButton.new()
 		ev.button_index = MOUSE_BUTTON_LEFT

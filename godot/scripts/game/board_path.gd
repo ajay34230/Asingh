@@ -26,6 +26,9 @@ const COLORS: Array[String] = ["blue", "yellow", "green", "red"]
 ## 15 x 15 playfield (ivory tiles) is about 10.98 m wide.
 const CELL_SIZE := 10.98 / 15.0
 
+## The drawn board is stretched along X so it can fill a wide phone screen. The grid is unchanged.
+const BOARD_ASPECT_X := 1.6
+
 ## Per-colour data, matching the supplied board model.
 ## entry = ring index of the outer end of the colour's arm (its home column mouth).
 const PLAYERS := {
@@ -148,4 +151,4 @@ static func progress_point(color: String, progress: int, token: int = 0) -> Vect
 ## Grid to world: board centred on the origin, top surface at y = 0.
 ## Screen top (row 0) is -Z when the camera looks straight down.
 static func to_world(gx: float, gy: float) -> Vector3:
-	return Vector3((gx - GRID_SIZE / 2.0) * CELL_SIZE, 0.0, (gy - GRID_SIZE / 2.0) * CELL_SIZE)
+	return Vector3((gx - GRID_SIZE / 2.0) * CELL_SIZE * BOARD_ASPECT_X, 0.0, (gy - GRID_SIZE / 2.0) * CELL_SIZE)

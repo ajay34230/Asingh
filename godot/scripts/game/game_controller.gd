@@ -66,6 +66,7 @@ func _spawn_tokens(seat_colors: Array[String]) -> void:
 			token.set_meta("vfx", vfx)
 			token.set_meta("index", i)
 			token.position = _base_world(color, i)
+			token.ground_y = token.position.y
 			list.append(token)
 		tokens[color] = list
 
@@ -147,23 +148,52 @@ func _execute(token_index: int) -> void:
 
 func _animate_move(move: Dictionary) -> void:
 	var color: String = engine.seats[move["seat"]]["color"]
-	var token: TransformerToken = tokens[color][move["token"]]
+	var index: int = move["token"]
+	var token: TransformerToken = tokens[color][index]
 	var from: int = move["from"]
 	var to: int = move["to"]
+	await token.transform_out(0.2)
+	## Walk square by square: the limb cycle runs alongside each hop.
 	for progress in range(from + 1 if from > 0 else 1, to + 1):
+		var step_point := _track_world(color, progress, index)
+		token.ground_y = step_point.y
 		event.emit("hop", {"position": token.global_position})
-		await token.move_to_world(_track_world(color, progress, move["token"]), _hop())
+		if not fast_mode:
+			token.play_walk(_hop() * 0.9)
+		await token.move_to_world(step_point, _hop())
+	token.ground_y = _track_world(color, to, index).y
+	token.global_position = _track_world(color, to, index)
 	event.emit("land", {"position": token.global_position})
+
+	## Captures: the attacker strikes, then grabs the victim and throws it home.
 	for victim in move["captured"]:
 		var victim_color: String = engine.seats[victim["seat"]]["color"]
 		var victim_token: TransformerToken = tokens[victim_color][victim["token"]]
+		var base := _base_world(victim_color, victim["token"])
 		message.emit("%s token sent home!" % victim_color.capitalize())
 		event.emit("capture", {"position": victim_token.global_position, "color": victim_color})
-		await victim_token.move_to_world(_base_world(victim_color, victim["token"]), _hop(2.0))
+		victim_token.ground_y = base.y
+		if fast_mode:
+			await victim_token.move_to_world(base, _hop(2.0))
+		else:
+			if index % 2 == 0:
+				await token.play_punch(victim_token)
+			else:
+				await token.play_kick(victim_token)
+			token.ground_y = _track_world(color, to, index).y
+			await token.play_grab_throw(victim_token, base)
+		victim_token.global_position = base
+		victim_token.ground_y = base.y
+
 	if move["finishes"]:
 		message.emit("%s token reached home" % color.capitalize())
+		var centre := _track_world(color, BoardPath.FINISH_PROGRESS, index)
+		token.ground_y = centre.y
+		await token.move_to_world(centre, _hop(1.5))
 		event.emit("finish", {"position": token.global_position, "color": color})
-		await token.move_to_world(_track_world(color, BoardPath.FINISH_PROGRESS, move["token"]), _hop(1.5))
+		if not fast_mode:
+			await token.play_home_bounce()
+		token.global_position = centre
 	if move["seat_finished"]:
 		message.emit("%s finished!" % color.capitalize())
 
