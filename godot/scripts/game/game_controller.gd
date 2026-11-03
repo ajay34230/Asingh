@@ -187,12 +187,7 @@ func _animate_move(move: Dictionary) -> void:
 		if fast_mode:
 			await victim_token.move_to_world(base, _hop(2.0))
 		else:
-			if index % 2 == 0:
-				await token.play_punch(victim_token)
-			else:
-				await token.play_kick(victim_token)
-			token.ground_y = _track_world(color, to, index).y
-			await token.play_grab_throw(victim_token, base)
+			await _capture_sequence(token, victim_token, base, index % 2 == 0, color, to, index)
 		victim_token.global_position = base
 		victim_token.ground_y = base.y
 
@@ -209,6 +204,27 @@ func _animate_move(move: Dictionary) -> void:
 		director.release(0.5)
 	if move["seat_finished"]:
 		message.emit("%s finished!" % color.capitalize())
+
+## Capture choreography, split into small phases with a short hold between each:
+## approach -> strike (punch or kick) -> hold -> grab and throw home -> recover.
+func _capture_sequence(attacker: TransformerToken, victim: TransformerToken, base: Vector3, use_punch: bool, color: String, to: int, index: int) -> void:
+	await _beat(0.18)                                   ## approach: square up to the opponent
+	if use_punch:
+		await attacker.play_punch(victim)               ## wind-up, strike, victim recoils, recover
+	else:
+		await attacker.play_kick(victim)
+	await _beat(0.22)                                   ## hold the impact on screen
+	attacker.ground_y = _track_world(color, to, index).y
+	await attacker.play_grab_throw(victim, base)        ## grab, lift, rotate, throw, land home
+	await _beat(0.15)                                   ## settle
+	attacker.ground_y = _track_world(color, to, index).y
+
+
+func _beat(seconds: float) -> void:
+	if fast_mode:
+		return
+	await get_tree().create_timer(seconds).timeout
+
 
 ## Seconds for one animation step; zero-length tweens are not allowed, so use a tiny value in fast mode.
 func _hop(scale: float = 1.0) -> float:

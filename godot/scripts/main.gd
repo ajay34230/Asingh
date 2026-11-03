@@ -103,7 +103,9 @@ func _ready() -> void:
 		effects.fireworks(3.0)
 		effects.confetti(4.0)
 		effects.burst(Vector3(0, 1.0, 0), EffectsManager.GOLD, 60, 3.0, 1.0)
-	if "--click-test" in args:
+	if "--capture-test" in args or "--capture-kick" in args:
+		_run_capture_test()
+	elif "--click-test" in args:
 		_run_click_test()
 	elif shot != "":
 		_screenshot_and_quit(shot)
@@ -120,7 +122,7 @@ func _is_test_launch(args: PackedStringArray) -> bool:
 	for arg in args:
 		if arg.begins_with("--screenshot=") or arg.begins_with("--seed="):
 			return true
-	return "--click-test" in args or "--fx-shot" in args or "--dice-face" in args
+	return "--click-test" in args or "--capture-test" in args or "--capture-kick" in args or "--fx-shot" in args or "--dice-face" in args
 
 
 ## Main menu, settings and pause overlays. The menu sits above the 3D scene.
@@ -508,6 +510,26 @@ func _arg_value(args: PackedStringArray, key: String) -> String:
 ## End-to-end input check: pushes real mouse events into the viewport, so the same
 ## physics picking a player's tap uses is exercised. Clicks the dice, then a legal token
 ## if the engine asks for a choice, and checks that the rules state changed.
+## Runs one real capture at normal speed, so the punch, kick, grab and throw code runs.
+func _run_capture_test() -> void:
+	for i in range(10):
+		await get_tree().process_frame
+	game.fast_mode = false
+	game.new_game(["blue", "green"] as Array[String], ["blue"] as Array[String], GameSettings.get_rules(), 1)
+	var e := game.engine
+	var mover := 1 if "--capture-kick" in OS.get_cmdline_user_args() else 0  ## odd index uses a kick
+	e.seats[0]["tokens"] = [0, 0, 0, 0]
+	e.seats[0]["tokens"][mover] = 10
+	var target := BoardPath.ring_index_for_progress("blue", 13)
+	e.seats[1]["tokens"] = [((target - BoardPath.start_of("green") + 52) % 52) + 1, 0, 0, 0]
+	e.roll_with_value(3)
+	await game._execute(mover)
+	var sent_home: bool = e.seats[1]["tokens"][0] == 0
+	print("capture test: green token sent home=%s" % str(sent_home))
+	print("CAPTURE TEST " + ("PASS" if sent_home else "FAIL"))
+	get_tree().quit(0 if sent_home else 1)
+
+
 func _run_click_test() -> void:
 	for i in range(30):
 		await get_tree().process_frame
