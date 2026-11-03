@@ -46,20 +46,26 @@ const PALETTE := {
 
 
 func _make_marble_texture() -> ImageTexture:
-	var size := 256
+	var size := 512
 	var img := Image.create(size, size, false, Image.FORMAT_RGB8)
-	var noise := FastNoiseLite.new()
-	noise.seed = 11
-	noise.frequency = 0.012
-	noise.fractal_octaves = 4
+	var warp := FastNoiseLite.new()
+	warp.seed = 11
+	warp.frequency = 0.006
+	warp.fractal_octaves = 3
+	var grain := FastNoiseLite.new()
+	grain.seed = 23
+	grain.frequency = 0.25
+	grain.fractal_octaves = 2
 	for y in range(size):
 		for x in range(size):
-			var n := noise.get_noise_2d(x, y)
-			var vein := absf(sin((x * 0.09 + y * 0.05) + n * 9.0))
-			vein = pow(1.0 - vein, 10.0)
-			var grain := noise.get_noise_2d(x * 3.0, y * 3.0) * 0.03
-			var v := clampf(0.96 - vein * 0.28 + grain, 0.0, 1.0)
-			img.set_pixel(x, y, Color(v, v * 0.985, v * 0.97))
+			var w := warp.get_noise_2d(x, y)
+			## Veins: thin dark lines where a warped diagonal sine crosses zero.
+			var phase := (x * 0.035 + y * 0.012) + w * 14.0
+			var vein := pow(1.0 - absf(sin(phase)), 14.0)
+			var cloud := 0.5 + 0.5 * warp.get_noise_2d(x * 0.5, y * 0.5 + 300.0)
+			var g := grain.get_noise_2d(x, y) * 0.025
+			var v := clampf(0.97 - vein * 0.42 - (1.0 - cloud) * 0.06 + g, 0.0, 1.0)
+			img.set_pixel(x, y, Color(v, v * 0.98, v * 0.95))
 	return ImageTexture.create_from_image(img)
 
 
@@ -206,38 +212,46 @@ func _build_courtyards() -> void:
 			_cyl(Vector3(at.x, FLOOR_TOP + 0.03, at.z), 0.22, 0.02, _team[color])
 
 
-## Domed pavilion with columns, a plinth and gold finial, standing on the courtyard floor.
+## Pavilion: two-tier plinth, four columns with gold capitals, a dome, a gold drum and a
+## finial. Built from primitives; faces a board direction given by `facing`.
 func _pavilion(base: Vector3, facing: int) -> void:
 	var white := _marble_material(Color("#fbf6ea"))
 	var p := Node3D.new()
 	p.position = base
 	p.rotation.y = facing * PI * 0.5
 	add_child(p)
-	_box(Vector3(0, 0.07, 0), Vector3(1.9, 0.14, 1.9), white, p)
-	_box(Vector3(0, 0.16, 0), Vector3(1.6, 0.04, 1.6), _gold, p)
-	for x in [-0.7, 0.7]:
-		for z in [-0.7, 0.7]:
-			_cyl(Vector3(x, 0.7, z), 0.08, 1.2, white, p, 16)
-			_box(Vector3(x, 1.34, z), Vector3(0.26, 0.08, 0.26), _gold, p)
-	_cyl(Vector3(0, 1.45, 0), 0.9, 0.16, _gold, p, 32)
-	## Hemispherical dome: a sphere flattened so only its top half shows above the drum.
+	_box(Vector3(0, 0.05, 0), Vector3(2.0, 0.1, 2.0), white, p)
+	_box(Vector3(0, 0.13, 0), Vector3(1.7, 0.06, 1.7), white, p)
+	_box(Vector3(0, 0.2, 0), Vector3(1.5, 0.03, 1.5), _gold, p)
+	## Four columns on the corners, with gold capitals.
+	for x in [-0.62, 0.62]:
+		for z in [-0.62, 0.62]:
+			_cyl(Vector3(x, 0.75, z), 0.09, 1.1, white, p, 18)
+			_cyl(Vector3(x, 0.24, z), 0.13, 0.08, _gold, p, 18)
+			_box(Vector3(x, 1.32, z), Vector3(0.28, 0.07, 0.28), _gold, p)
+	## Gold entablature ring, then the dome on it.
+	_cyl(Vector3(0, 1.42, 0), 0.82, 0.12, _gold, p, 32)
 	var dome := MeshInstance3D.new()
 	var sphere := SphereMesh.new()
-	sphere.radius = 0.8
-	sphere.height = 0.8
+	sphere.radius = 0.7
+	sphere.height = 1.4
+	sphere.radial_segments = 32
+	sphere.rings = 16
 	dome.mesh = sphere
 	dome.material_override = white
-	dome.position = Vector3(0, 1.5, 0)
+	dome.position = Vector3(0, 1.48, 0)
+	dome.scale = Vector3(1.0, 0.75, 1.0)
 	p.add_child(dome)
-	_cyl(Vector3(0, 2.35, 0), 0.04, 0.5, _gold, p, 8)
-	var ball := MeshInstance3D.new()
-	var b := SphereMesh.new()
-	b.radius = 0.1
-	b.height = 0.2
-	ball.mesh = b
-	ball.material_override = _gold
-	ball.position = Vector3(0, 2.6, 0)
-	p.add_child(ball)
+	## Finial: a thin stem and a gold orb.
+	_cyl(Vector3(0, 2.0, 0), 0.035, 0.36, _gold, p, 8)
+	var orb := MeshInstance3D.new()
+	var o := SphereMesh.new()
+	o.radius = 0.09
+	o.height = 0.18
+	orb.mesh = o
+	orb.material_override = _gold
+	orb.position = Vector3(0, 2.2, 0)
+	p.add_child(orb)
 
 
 func _build_centre() -> void:
@@ -256,13 +270,17 @@ func _build_centre() -> void:
 	for color in tris:
 		_flat(_shrink(tris[color], 0.92), TILE_TOP + 0.005, _team[color])
 	## Lotus medallion: eight gold petals around a ruby.
-	for i in range(8):
-		var a := TAU * i / 8.0
-		var petal := PackedVector2Array([Vector2(0, 0), Vector2(0.22, 0.5), Vector2(0, 1.05), Vector2(-0.22, 0.5)])
-		var pts := PackedVector2Array()
-		for q in petal:
-			pts.append(Vector2(q.x * cos(a) - q.y * sin(a), q.x * sin(a) + q.y * cos(a)) * 0.5)
-		_flat(pts, CENTRE_TOP - 0.04, _gold)
+	for ring in [[8, 0.0, 0.62, 0.3], [8, PI / 8.0, 0.95, 0.22]]:
+		var count: int = ring[0]
+		for i in range(count):
+			var a: float = ring[1] + TAU * i / count
+			var len: float = ring[2]
+			var wid: float = ring[3]
+			var petal := PackedVector2Array([Vector2(0, 0), Vector2(wid, len * 0.45), Vector2(0, len), Vector2(-wid, len * 0.45)])
+			var pts := PackedVector2Array()
+			for q in petal:
+				pts.append(Vector2(q.x * cos(a) - q.y * sin(a), q.x * sin(a) + q.y * cos(a)))
+			_flat(pts, CENTRE_TOP - 0.04 - float(ring[3]) * 0.0, _gold)
 	var ruby := MeshInstance3D.new()
 	var rs := SphereMesh.new()
 	rs.radius = 0.16
