@@ -86,3 +86,23 @@
 - Model geometry cannot be made more detailed inside this project. Only materials, lighting, shading and animation can be improved. The supplied models have no skeletons, so limb animation is procedural.
 - Android APK, device tests, performance numbers and frame-rate targets have not been measured.
 - The animation pack was written without being run in a scene. Its behaviour was tested only through the paths above.
+
+
+## APK status (2026-11-03)
+
+No APK has been built yet. The current state:
+
+- Done: Godot 4.3 export templates installed (`~/.local/share/godot/export_templates/4.3.stable`).
+  Java 21 and the debug keystore are present. The Android export preset is in `godot/export_presets.cfg`
+  (arm64-v8a, landscape, package `com.royalindia.ludo`, vibrate permission).
+- Blocked: the Android SDK. The export stops with "A valid Android SDK path is required in Editor Settings".
+  The command-line tools download from dl.google.com ran at roughly 2 MB a minute here and did not finish.
+  The build also needs the platform (android-34) and build-tools (apksigner, zipalign) packages.
+
+To build the APK on a machine with Godot 4.3 and the Android SDK:
+
+    # set the SDK path in Godot: Editor > Editor Settings > Export > Android > Android SDK Path
+    godot --headless --path godot --export-debug "Android Debug" build/RoyalIndiaLudo-debug.apk
+    adb install -r build/RoyalIndiaLudo-debug.apk
+
+Not verified: installation, launch, touch input, performance, and memory on a device.
