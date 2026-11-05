@@ -21,7 +21,7 @@ var _dark: StandardMaterial3D
 
 
 func _ready() -> void:
-	_marble_tex = _make_marble_texture()
+	_marble_tex = make_marble_texture()
 	_ivory = _marble_material(Color("#f3ecdc"))
 	_gold = _metal(Color("#d9a441"))
 	_dark = _solid(Color("#4a1218"), 0.55)
@@ -45,7 +45,7 @@ const PALETTE := {
 }
 
 
-func _make_marble_texture() -> ImageTexture:
+static func make_marble_texture() -> ImageTexture:
 	var size := 512
 	var img := Image.create(size, size, false, Image.FORMAT_RGB8)
 	var warp := FastNoiseLite.new()
@@ -204,6 +204,10 @@ func _build_courtyards() -> void:
 			_box(Vector3(centre.x + s * (w * 0.48 - 0.04), FLOOR_TOP + 0.01, centre.z), Vector3(0.08, 0.02, d * 0.96), _gold)
 			_box(Vector3(centre.x, FLOOR_TOP + 0.01, centre.z + s * (d * 0.48 - 0.04)), Vector3(w * 0.96, 0.02, 0.08), _gold)
 		_pavilion(Vector3(centre.x, FLOOR_TOP, centre.z), BoardPath.COLORS.find(color))
+		## Gold studs at the four corners of each courtyard floor.
+		for cx in [-1.0, 1.0]:
+			for cz in [-1.0, 1.0]:
+				_cyl(Vector3(centre.x + cx * (w * 0.46), FLOOR_TOP + 0.02, centre.z + cz * (d * 0.46)), 0.09, 0.05, _gold, self, 12)
 		## Token discs (the same spots the rules use).
 		for token in range(BoardPath.TOKENS_PER_PLAYER):
 			var p := BoardPath.base_spot(color, token)
@@ -221,6 +225,22 @@ func _pavilion(base: Vector3, facing: int) -> void:
 	p.rotation.y = facing * PI * 0.5
 	add_child(p)
 	_box(Vector3(0, 0.05, 0), Vector3(2.0, 0.1, 2.0), white, p)
+	## Four warm lamps at the plinth corners.
+	var lamp_mat := StandardMaterial3D.new()
+	lamp_mat.albedo_color = Color("#ffd27a")
+	lamp_mat.emission_enabled = true
+	lamp_mat.emission = Color("#ffb44a")
+	lamp_mat.emission_energy_multiplier = 1.6
+	for lx in [-0.95, 0.95]:
+		for lz in [-0.95, 0.95]:
+			var lamp := MeshInstance3D.new()
+			var lm := SphereMesh.new()
+			lm.radius = 0.07
+			lm.height = 0.14
+			lamp.mesh = lm
+			lamp.material_override = lamp_mat
+			lamp.position = Vector3(lx, 0.17, lz)
+			p.add_child(lamp)
 	_box(Vector3(0, 0.13, 0), Vector3(1.7, 0.06, 1.7), white, p)
 	_box(Vector3(0, 0.2, 0), Vector3(1.5, 0.03, 1.5), _gold, p)
 	## Four columns on the corners, with gold capitals.

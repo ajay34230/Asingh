@@ -398,10 +398,16 @@ func _build_dice() -> DiceController:
 	return dice
 
 
+func _make_plane(size: float) -> PlaneMesh:
+	var plane := PlaneMesh.new()
+	plane.size = Vector2(size, size)
+	return plane
+
+
 func _build_environment() -> void:
 	var env := Environment.new()
 	env.background_mode = Environment.BG_COLOR
-	env.background_color = Color("#2a120c")
+	env.background_color = Color("#1a0a06")
 	env.ambient_light_source = Environment.AMBIENT_SOURCE_COLOR
 	env.ambient_light_color = Color("#fff1d6")
 	env.ambient_light_energy = 0.6
@@ -415,7 +421,7 @@ func _build_environment() -> void:
 	world.environment = env
 	add_child(world)
 	var sun := DirectionalLight3D.new()
-	sun.light_energy = 1.4
+	sun.light_energy = 1.25
 	sun.light_color = Color("#ffe7bf")
 	sun.rotation_degrees = Vector3(-55, -35, 0)
 	sun.shadow_enabled = true
@@ -427,32 +433,26 @@ func _build_environment() -> void:
 func _build_palace_floor() -> void:
 	var floor_mesh := MeshInstance3D.new()
 	floor_mesh.name = "PalaceFloor"
-	var plane := _make_plane(160.0)
-	floor_mesh.mesh = plane
+	floor_mesh.mesh = _make_plane(120.0)
+	## Dark rosewood marble under the board, so the board and gold stand out.
 	var stone := StandardMaterial3D.new()
-	stone.albedo_color = Color("#8a6a4c")
-	stone.roughness = 0.35
+	stone.albedo_color = Color("#4a2a1c")
+	stone.albedo_texture = RoyalBoard.make_marble_texture()
+	stone.roughness = 0.3
 	stone.clearcoat_enabled = true
-	stone.clearcoat = 0.3
-	var grain := FastNoiseLite.new()
-	grain.frequency = 0.012
-	grain.fractal_octaves = 3
-	var grain_tex := NoiseTexture2D.new()
-	grain_tex.noise = grain
-	grain_tex.seamless = true
-	grain_tex.width = 512
-	grain_tex.height = 512
-	stone.albedo_texture = grain_tex
-	stone.uv1_scale = Vector3(4, 4, 4)
+	stone.clearcoat = 0.4
+	stone.uv1_scale = Vector3(6, 6, 6)
 	floor_mesh.material_override = stone
 	floor_mesh.position = Vector3(0, -0.62, 0)
 	floor_mesh.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	add_child(floor_mesh)
-
-func _make_plane(size: float) -> PlaneMesh:
-	var plane := PlaneMesh.new()
-	plane.size = Vector2(size, size)
-	return plane
+	## Warm rim light from behind the board, to separate the frame from the backdrop.
+	var rim := DirectionalLight3D.new()
+	rim.light_energy = 0.5
+	rim.light_color = Color("#ffb070")
+	rim.rotation_degrees = Vector3(-25, 150, 0)
+	rim.shadow_enabled = false
+	add_child(rim)
 
 
 ## Taps on a glowing token move it. The ray is cast to a plane just above the track.
