@@ -121,8 +121,8 @@ static func marble_texture(dark: bool) -> NoiseTexture2D:
 	noise.domain_warp_fractal_octaves = 3
 	var ramp := Gradient.new()
 	if dark:
-		ramp.offsets = PackedFloat32Array([0.0, 0.55, 0.82, 0.93, 1.0])
-		ramp.colors = PackedColorArray([Color("#140806"), Color("#24110b"), Color("#3a2014"), Color("#8a6232"), Color("#e0b56a")])
+		ramp.offsets = PackedFloat32Array([0.0, 0.6, 0.85, 0.95, 1.0])
+		ramp.colors = PackedColorArray([Color("#0d0504"), Color("#170a07"), Color("#26130c"), Color("#5e4027"), Color("#a07a44")])
 	else:
 		ramp.offsets = PackedFloat32Array([0.0, 0.5, 0.78, 0.9, 1.0])
 		ramp.colors = PackedColorArray([Color("#ffffff"), Color("#f7f2ea"), Color("#e6ddcf"), Color("#b3a796"), Color("#7d7062")])

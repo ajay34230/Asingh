@@ -107,6 +107,13 @@ func _ready() -> void:
 		hud.visible = false
 		menu.show_page("main")
 		audio.start_music()
+		## Opening: the camera rises over the palace, then the menu fades in.
+		director.start_attract(not _intro_seen)
+		menu.modulate.a = 0.0
+		var fade := create_tween()
+		fade.tween_interval(0.0 if _intro_seen else 2.2)
+		fade.tween_property(menu, "modulate:a", 1.0, 0.8)
+		_intro_seen = true
 	_apply_settings()
 	if "--fx-shot" in args:
 		effects.fireworks(3.0)
@@ -180,12 +187,14 @@ func _start_from_menu(config: Dictionary) -> void:
 	menu.visible = false
 	hud.visible = true
 	hud.hide_result()
+	director.stop_attract(1.4)
 	game.fast_mode = false
 	game.new_game(colors, humans, config["rules"], config["difficulty"])
 	_last_config = config
 
 
 var _last_config: Dictionary = {}
+static var _intro_seen := false   ## the long opening plays once per launch
 
 
 ## Rematch and restart use the last configuration.
@@ -480,6 +489,14 @@ func _build_environment() -> void:
 	env.glow_bloom = 0.06
 	env.glow_hdr_threshold = 1.2
 	env.glow_blend_mode = Environment.GLOW_BLEND_MODE_SOFTLIGHT
+	## Depth fog fades the far table into darkness on low camera angles (title screen).
+	env.fog_enabled = true
+	env.fog_mode = Environment.FOG_MODE_DEPTH
+	env.fog_light_color = Color("#1a0806")
+	env.fog_density = 1.0
+	env.fog_depth_begin = 38.0
+	env.fog_depth_end = 80.0
+	env.fog_sky_affect = 1.0
 	env.adjustment_enabled = true
 	env.adjustment_saturation = 1.08
 	env.adjustment_contrast = 1.04
@@ -507,7 +524,10 @@ func _build_palace_floor() -> void:
 	var floor_mesh := MeshInstance3D.new()
 	floor_mesh.name = "PalaceFloor"
 	floor_mesh.mesh = _make_plane(160.0)
-	floor_mesh.material_override = RoyalBoard.marble_material(RoyalBoard.marble_texture(true), Color.WHITE, 0.05)
+	var table := RoyalBoard.marble_material(RoyalBoard.marble_texture(true), Color.WHITE, 0.05)
+	table.roughness = 0.4
+	table.clearcoat = 0.25
+	floor_mesh.material_override = table
 	floor_mesh.position = Vector3(0, RoyalBoard.SLAB_BOTTOM, 0)
 	floor_mesh.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	add_child(floor_mesh)

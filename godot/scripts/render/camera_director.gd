@@ -19,6 +19,9 @@ var _fov_extra := 0.0      ## extra field-of-view squeeze during captures
 var _shake_time := 0.0
 var _shake_strength := 0.0
 var _tween: Tween
+var _attract := 0.0        ## 1 = title-screen orbit, 0 = normal game camera
+var _attract_time := 0.0
+var _attract_tween: Tween
 
 
 func setup(cam: Camera3D) -> void:
@@ -61,6 +64,35 @@ func fight_view(a: Vector3, b: Vector3, seconds: float, distance := 3.4, elevati
 	_tween_to("_focus", 1.0, seconds)
 
 
+## Title-screen camera: from a low close view it rises and widens into a slow orbit.
+## `intro` false starts straight in the wide orbit (returning from a game).
+func start_attract(intro := true) -> void:
+	if _attract_tween and _attract_tween.is_valid():
+		_attract_tween.kill()
+	_attract = 1.0
+	_attract_time = 0.0 if intro else ATTRACT_RISE
+
+
+## Sweeps from the orbit down into the game view.
+func stop_attract(seconds := 1.4) -> void:
+	if _attract_tween and _attract_tween.is_valid():
+		_attract_tween.kill()
+	_attract_tween = create_tween()
+	_attract_tween.tween_property(self, "_attract", 0.0, seconds).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
+
+
+const ATTRACT_RISE := 4.5
+
+
+func _attract_pose() -> Array:
+	var k := smoothstep(0.0, 1.0, clampf(_attract_time / ATTRACT_RISE, 0.0, 1.0))
+	var radius := lerpf(8.0, 25.0, k)
+	var height := lerpf(4.0, 13.0, k)
+	var angle := 0.5 + _attract_time * 0.07
+	var pos := Vector3(sin(angle) * radius, height, cos(angle) * radius)
+	return [pos, Vector3(0, lerpf(0.9, 0.0, k), 0)]
+
+
 func release(seconds: float) -> void:
 	_tween_to("_focus", 0.0, seconds)
 
@@ -95,5 +127,10 @@ func _process(delta: float) -> void:
 	var close := _close_position if _use_close_position else _focus_point + (base_position - base_target) * _focus_distance
 	var position := base_position.lerp(close, _focus)
 	var target := base_target.lerp(_focus_point, _focus)
+	if _attract > 0.0:
+		_attract_time += delta
+		var pose := _attract_pose()
+		position = position.lerp(pose[0], _attract)
+		target = target.lerp(pose[1], _attract)
 	camera.look_at_from_position(position + offset, target, up)
 	camera.fov = base_fov - _fov_extra

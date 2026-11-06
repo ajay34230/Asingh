@@ -69,9 +69,10 @@ func _ready() -> void:
 	_fit_to_viewport()
 	get_viewport().size_changed.connect(_fit_to_viewport)
 	var shade := ColorRect.new()
-	shade.color = Color(0.1, 0.04, 0.02, 0.55)
+	shade.color = Color(0.1, 0.03, 0.02, 0.28)
 	shade.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	add_child(shade)
+	_add_petals()
 	_build_main()
 	_build_setup()
 	_build_settings()
@@ -186,11 +187,25 @@ func _slider(box: VBoxContainer, label: String, lo: float, hi: float, value: flo
 
 func _build_main() -> void:
 	var box := _page_root("main")
-	_title(box, "Royal India Ludo")
+	var title := Label.new()
+	title.text = "Royal India Ludo"
+	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	title.add_theme_font_size_override("font_size", 60)
+	title.add_theme_color_override("font_color", RoyalTheme.GOLD_LIGHT)
+	title.add_theme_constant_override("outline_size", 14)
+	box.add_child(title)
+	var sub := Label.new()
+	sub.text = "~ the game of maharajas ~"
+	sub.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	sub.add_theme_font_size_override("font_size", 22)
+	sub.add_theme_color_override("font_color", Color("#f3d9a8"))
+	box.add_child(sub)
+	var gap := Control.new()
+	gap.custom_minimum_size = Vector2(0, 8)
+	box.add_child(gap)
 	_button(box, "Play vs AI", func() -> void: _open_setup("ai"))
 	_button(box, "Pass and play (2 to 4 players)", func() -> void: _open_setup("pass"))
 	_button(box, "Quick play (2 players, quick game)", func() -> void: _quick_play())
-	_button(box, "Online multiplayer (needs server: not yet)", func() -> void: pass, false)
 	_button(box, "How to play", func() -> void: show_page("howto"))
 	_button(box, "Settings", func() -> void: _load_settings_into_controls(); show_page("settings"))
 	_button(box, "Quit", func() -> void: quit_requested.emit())
@@ -293,3 +308,42 @@ func _save_settings() -> void:
 		_audio.haptics = _haptics.button_pressed
 		_audio.set_muted(_mute.button_pressed)
 	settings_changed.emit()
+
+
+## Rose and marigold petals drifting down behind the menu panels.
+func _add_petals() -> void:
+	var img := Image.create(24, 16, false, Image.FORMAT_RGBA8)
+	for y in range(16):
+		for x in range(24):
+			var u := (x - 11.5) / 12.0
+			var v := (y - 7.5) / 8.0
+			var d := u * u + v * v
+			img.set_pixel(x, y, Color(1, 1, 1, clampf((1.0 - d) * 3.0, 0.0, 1.0)))
+	var petals := CPUParticles2D.new()
+	petals.texture = ImageTexture.create_from_image(img)
+	petals.amount = 40
+	petals.lifetime = 9.0
+	petals.preprocess = 9.0
+	petals.emission_shape = CPUParticles2D.EMISSION_SHAPE_RECTANGLE
+	petals.direction = Vector2(0.3, 1)
+	petals.spread = 25.0
+	petals.gravity = Vector2(6, 22)
+	petals.initial_velocity_min = 20.0
+	petals.initial_velocity_max = 55.0
+	petals.angular_velocity_min = -90.0
+	petals.angular_velocity_max = 90.0
+	petals.angle_min = 0.0
+	petals.angle_max = 360.0
+	petals.scale_amount_min = 0.6
+	petals.scale_amount_max = 1.4
+	var ramp := Gradient.new()
+	ramp.offsets = PackedFloat32Array([0.0, 0.5, 1.0])
+	ramp.colors = PackedColorArray([Color("#ff6f91"), Color("#ffb347"), Color("#ff4f6d")])
+	petals.color_initial_ramp = ramp
+	add_child(petals)
+	var place := func() -> void:
+		var vp := get_viewport_rect().size
+		petals.position = Vector2(vp.x * 0.5, -20)
+		petals.emission_rect_extents = Vector2(vp.x * 0.6, 10)
+	place.call()
+	get_viewport().size_changed.connect(place)
