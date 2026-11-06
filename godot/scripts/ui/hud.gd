@@ -18,6 +18,8 @@ var _pause_panel: PanelContainer
 var _result: PanelContainer
 var _result_list: Label
 var _pause_button: Button
+var _banner: Label
+var _banner_tween: Tween
 
 
 func _ready() -> void:
@@ -50,6 +52,17 @@ func _ready() -> void:
 	_pause_button = _button(root, "Pause", Vector2(150, 48), Vector2(-166, 12))
 	_pause_button.pressed.connect(open_pause)
 	_button(root, "New game", Vector2(150, 48), Vector2(-330, 12)).pressed.connect(func() -> void: new_game_pressed.emit())
+
+	_banner = Label.new()
+	_banner.add_theme_font_size_override("font_size", 96)
+	_banner.add_theme_constant_override("outline_size", 22)
+	_banner.add_theme_color_override("font_outline_color", Color(0.2, 0.02, 0.02))
+	_banner.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_banner.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	_banner.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	_banner.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_banner.visible = false
+	root.add_child(_banner)
 
 	_build_pause(root)
 	_build_result(root)
@@ -178,3 +191,22 @@ func show_result(ranking: Array) -> void:
 
 func hide_result() -> void:
 	_result.visible = false
+
+
+## Big title that pops in the middle of the screen (KNOCKOUT!, SIX!, HOME!).
+func flash_banner(text: String, color: Color, seconds := 1.1) -> void:
+	_banner.text = text
+	_banner.add_theme_color_override("font_color", color)
+	_banner.visible = true
+	_banner.modulate = Color(1, 1, 1, 0)
+	_banner.pivot_offset = _banner.size * 0.5
+	_banner.scale = Vector2.ONE * 2.2
+	if _banner_tween and _banner_tween.is_valid():
+		_banner_tween.kill()
+	_banner_tween = create_tween()
+	_banner_tween.set_speed_scale(1.0 / maxf(Engine.time_scale, 0.05))  ## pops at normal speed during slow motion
+	_banner_tween.tween_property(_banner, "scale", Vector2.ONE, 0.22).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+	_banner_tween.parallel().tween_property(_banner, "modulate:a", 1.0, 0.12)
+	_banner_tween.tween_interval(seconds)
+	_banner_tween.tween_property(_banner, "modulate:a", 0.0, 0.3)
+	_banner_tween.tween_callback(func() -> void: _banner.visible = false)

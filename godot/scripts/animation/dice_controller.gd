@@ -5,6 +5,7 @@ extends Area3D
 ## The game decides the result. The dice only reports taps and shows the result it is given.
 signal roll_requested
 signal dice_rolled(result: int)
+signal bounced                 ## the dice touched the board during a throw
 
 @export var roll_duration: float = 0.95
 @export var extra_spins_min: int = 2
@@ -15,6 +16,7 @@ var is_rolling := false
 var rollable := false
 var _glow_ring: MeshInstance3D
 var _glow_time := 0.0
+var _last_bounce := 0
 
 func _ready() -> void:
     input_ray_pickable = true
@@ -69,7 +71,9 @@ func setup_face(value: int) -> void:
     dice_model.rotation_degrees = orientation_for_result(value)
 
 ## Shows `result` (already decided by the rules engine) with a tumble and settle.
-func roll_to(result: int) -> void:
+## With `thrown_from` (an offset from the dice's resting spot), the dice is thrown from
+## there and bounces across the board into place.
+func roll_to(result: int, thrown_from := Vector3.ZERO) -> void:
     if is_rolling:
         return
     is_rolling = true
@@ -77,15 +81,39 @@ func roll_to(result: int) -> void:
     var spins := randi_range(extra_spins_min, extra_spins_max)
     var spin_target := final_euler + Vector3(360.0 * spins, 360.0 * (spins + 1), 360.0 * (spins + 2))
     var start_y := dice_model.position.y
-    var tween := create_tween().set_parallel(true)
-    tween.tween_property(dice_model, "rotation_degrees", spin_target, roll_duration).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
-    tween.tween_property(dice_model, "position:y", start_y + 0.32, roll_duration * 0.42).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
-    await tween.finished
-    var settle := create_tween()
-    settle.tween_property(dice_model, "position:y", start_y, 0.16).set_trans(Tween.TRANS_BOUNCE).set_ease(Tween.EASE_OUT)
-    await settle.finished
+    if thrown_from != Vector3.ZERO:
+        var rest := dice_model.position
+        var duration := roll_duration * 1.25
+        dice_model.position = rest + thrown_from
+        var throw := create_tween().set_parallel(true)
+        throw.tween_property(dice_model, "rotation_degrees", spin_target, duration).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
+        throw.tween_method(_bounce.bind(rest + thrown_from, rest), 0.0, 1.0, duration)
+        await throw.finished
+        dice_model.position = rest
+        bounced.emit()
+    else:
+        var tween := create_tween().set_parallel(true)
+        tween.tween_property(dice_model, "rotation_degrees", spin_target, roll_duration).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
+        tween.tween_property(dice_model, "position:y", start_y + 0.32, roll_duration * 0.42).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
+        await tween.finished
+        var settle := create_tween()
+        settle.tween_property(dice_model, "position:y", start_y, 0.16).set_trans(Tween.TRANS_BOUNCE).set_ease(Tween.EASE_OUT)
+        await settle.finished
     is_rolling = false
     dice_rolled.emit(result)
+
+
+## Three bounces that shrink as the dice slides from `from` to `to`.
+func _bounce(p: float, from: Vector3, to: Vector3) -> void:
+    var slide := 1.0 - pow(1.0 - p, 2.2)
+    var pos := from.lerp(to, slide)
+    var hop := absf(sin(p * PI * 3.0)) * 1.3 * pow(1.0 - p, 1.4)
+    pos.y = lerpf(from.y, to.y, minf(1.0, p * 3.0)) + hop
+    dice_model.position = pos
+    if int(p * 3.0) != _last_bounce and p < 0.99:
+        _last_bounce = int(p * 3.0)
+        bounced.emit()
+
 
 ## Outward direction of each face in the model's own coordinates, measured from the
 ## supplied dice file (its meshes are named face_N_...; face N shows N pips).

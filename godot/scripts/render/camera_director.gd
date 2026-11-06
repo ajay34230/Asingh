@@ -13,6 +13,8 @@ var up := Vector3.UP
 var _focus := 0.0          ## 0 = full board, 1 = close on the focus point
 var _focus_point := Vector3.ZERO
 var _focus_distance := 4.0
+var _close_position := Vector3.ZERO
+var _use_close_position := false
 var _fov_extra := 0.0      ## extra field-of-view squeeze during captures
 var _shake_time := 0.0
 var _shake_strength := 0.0
@@ -35,6 +37,27 @@ func set_base(position: Vector3, target: Vector3, fov: float) -> void:
 func focus(point: Vector3, seconds: float, distance := 0.5) -> void:
 	_focus_point = point
 	_focus_distance = distance
+	_use_close_position = false
+	_tween_to("_focus", 1.0, seconds)
+
+
+## Low side-on close-up of two fighters: the camera sits beside the line between them,
+## on the side facing the player, so both stay in profile.
+func fight_view(a: Vector3, b: Vector3, seconds: float, distance := 3.4, elevation_deg := 30.0) -> void:
+	var mid := a.lerp(b, 0.5) + Vector3(0, 0.25, 0)
+	var line := Vector3(b.x - a.x, 0, b.z - a.z).normalized()
+	if line.length_squared() < 0.01:
+		line = Vector3.RIGHT
+	var side := Vector3(-line.z, 0, line.x)
+	var toward_player := Vector3(base_position.x - mid.x, 0, base_position.z - mid.z).normalized()
+	if side.dot(toward_player) < 0.0:
+		side = -side
+	## Lean towards the player's view a little so the board still reads.
+	side = (side * 0.7 + toward_player * 0.3).normalized()
+	var el := deg_to_rad(elevation_deg)
+	_focus_point = mid
+	_close_position = mid + (side * cos(el) + Vector3.UP * sin(el)) * distance
+	_use_close_position = true
 	_tween_to("_focus", 1.0, seconds)
 
 
@@ -69,7 +92,8 @@ func _process(delta: float) -> void:
 		_shake_time -= delta
 		var fade := clampf(_shake_time / 0.4, 0.0, 1.0)
 		offset = Vector3(randf_range(-1, 1), 0, randf_range(-1, 1)) * _shake_strength * fade
-	var position := base_position.lerp(_focus_point + (base_position - base_target) * _focus_distance, _focus)
+	var close := _close_position if _use_close_position else _focus_point + (base_position - base_target) * _focus_distance
+	var position := base_position.lerp(close, _focus)
 	var target := base_target.lerp(_focus_point, _focus)
 	camera.look_at_from_position(position + offset, target, up)
 	camera.fov = base_fov - _fov_extra

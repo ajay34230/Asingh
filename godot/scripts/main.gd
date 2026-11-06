@@ -59,7 +59,12 @@ func _ready() -> void:
 	game.name = "Game"
 	add_child(game)
 	game.director = director
+	var preview := MovePreview.new()
+	preview.name = "MovePreview"
+	add_child(preview)
+	game.preview = preview
 	game.setup(dice, seed_value)
+	dice.bounced.connect(func() -> void: audio.play("dice_land", 0.15))
 
 	hud = Hud.new()
 	add_child(hud)
@@ -107,7 +112,9 @@ func _ready() -> void:
 		effects.fireworks(3.0)
 		effects.confetti(4.0)
 		effects.burst(Vector3(0, 1.0, 0), EffectsManager.GOLD, 60, 3.0, 1.0)
-	if "--capture-test" in args or "--capture-kick" in args:
+	if _has_arg("--preview-shot="):
+		_run_preview_shot(_arg_value(args, "--preview-shot"))
+	elif "--capture-test" in args or "--capture-kick" in args:
 		_run_capture_test()
 	elif "--click-test" in args:
 		_run_click_test()
@@ -126,7 +133,7 @@ func _is_test_launch(args: PackedStringArray) -> bool:
 	for arg in args:
 		if arg.begins_with("--screenshot=") or arg.begins_with("--seed="):
 			return true
-	return "--click-test" in args or "--capture-test" in args or "--capture-kick" in args or "--fx-shot" in args or "--dice-face" in args
+	return "--click-test" in args or _has_arg("--preview-shot=") or "--capture-test" in args or "--capture-kick" in args or "--fx-shot" in args or "--dice-face" in args
 
 
 ## Main menu, settings and pause overlays. The menu sits above the 3D scene.
@@ -277,6 +284,9 @@ func _on_game_event(event_name: String, data: Dictionary) -> void:
 		"roll_land":
 			audio.play("dice_land")
 			effects.burst(pos, EffectsManager.GOLD, 14, 1.2, 0.6)
+			if int(data.get("value", 0)) == 6 and not game.fast_mode:
+				hud.flash_banner("SIX!", Color("#ffd24a"), 0.5)
+				effects.burst(pos + up, EffectsManager.GOLD, 40, 2.8, 0.9)
 		"select":
 			audio.play("token_select")
 		"hop":
@@ -285,11 +295,21 @@ func _on_game_event(event_name: String, data: Dictionary) -> void:
 			audio.play("token_land")
 			effects.burst(pos + Vector3(0, 0.1, 0), EffectsManager.GOLD, 12, 1.0, 0.5)
 		"capture":
+			if game.fast_mode:
+				audio.play("capture")
+		"impact":
 			audio.play("capture")
-			effects.burst(pos + up, EffectsManager.TEAM.get(data.get("color", "red"), EffectsManager.GOLD), 50, 3.2, 1.0)
+			effects.burst(pos, EffectsManager.GOLD, 40, 3.6, 0.8)
+			effects.burst(pos, EffectsManager.TEAM.get(data.get("color", "red"), EffectsManager.GOLD), 30, 2.6, 0.9)
+			effects.shockwave(pos - up * 0.7)
+			_shake(0.08, 0.35)
+			audio.vibrate(50)
+			hud.flash_banner(["KNOCKOUT!", "BOOM!", "SMASH!"].pick_random(), Color("#ffd24a"))
+		"thrown_home":
+			audio.play("token_land")
+			effects.burst(pos + Vector3(0, 0.15, 0), EffectsManager.TEAM.get(data.get("color", "red"), EffectsManager.GOLD), 24, 1.6, 0.7)
 			effects.shockwave(pos)
-			_shake(0.12, 0.4)
-			audio.vibrate(40)
+			audio.vibrate(25)
 		"finish":
 			audio.play("token_finish")
 			effects.burst(pos + up, EffectsManager.GOLD, 40, 2.4, 1.2)
@@ -560,12 +580,44 @@ func _run_capture_test() -> void:
 	e.seats[0]["tokens"][mover] = 10
 	var target := BoardPath.ring_index_for_progress("blue", 13)
 	e.seats[1]["tokens"] = [((target - BoardPath.start_of("green") + 52) % 52) + 1, 0, 0, 0]
+	_place_tokens_from_engine()  ## put the 3D tokens where the rules now say they are
+	await get_tree().create_timer(0.8).timeout
 	e.roll_with_value(3)
 	await game._execute(mover)
 	var sent_home: bool = e.seats[1]["tokens"][0] == 0
 	print("capture test: green token sent home=%s" % str(sent_home))
 	print("CAPTURE TEST " + ("PASS" if sent_home else "FAIL"))
+	await get_tree().create_timer(1.0).timeout  ## let the landing settle on screen (and in recordings)
 	get_tree().quit(0 if sent_home else 1)
+
+
+## Stages a human turn with several legal moves (one captures) and saves a screenshot.
+func _run_preview_shot(path: String) -> void:
+	for i in range(10):
+		await get_tree().process_frame
+	game.new_game(["blue", "green"] as Array[String], ["blue"] as Array[String], GameSettings.get_rules(), 1)
+	var e := game.engine
+	e.seats[0]["tokens"] = [5, 12, 0, 49]
+	var target := BoardPath.ring_index_for_progress("blue", 16)
+	e.seats[1]["tokens"] = [((target - BoardPath.start_of("green") + 52) % 52) + 1, 0, 0, 0]
+	_place_tokens_from_engine()
+	e.roll_with_value(4)
+	game._legal = e.legal_moves()
+	game.awaiting_pick = true
+	game._highlight(true)
+	await get_tree().create_timer(1.5).timeout
+	get_viewport().get_texture().get_image().save_png(path)
+	print("saved " + path)
+	get_tree().quit()
+
+
+func _place_tokens_from_engine() -> void:
+	for seat in game.engine.seats:
+		var color: String = seat["color"]
+		for i in range(BoardPath.TOKENS_PER_PLAYER):
+			var token: TransformerToken = game.tokens[color][i]
+			token.global_position = game._track_world(color, seat["tokens"][i], i)
+			token.ground_y = token.global_position.y
 
 
 func _run_click_test() -> void:

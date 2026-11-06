@@ -344,9 +344,10 @@ func play_thrown_to_home(home_position: Vector3) -> void:
         await transform_out(0.16)
     var start := global_position
     var end := home_position
-    var duration := 0.62
+    var span := Vector2(end.x - start.x, end.z - start.z).length()
+    var duration := 0.62 + span * 0.045
     var flight := create_tween()
-    flight.tween_method(Callable(self, "_update_throw").bind(start, end), 0.0, 1.0, duration).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_IN_OUT)
+    flight.tween_method(Callable(self, "_update_throw").bind(start, end, 0.72 + span * 0.22), 0.0, 1.0, duration).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_IN_OUT)
     await flight.finished
     global_position = end
     rotation = Vector3.ZERO
@@ -354,8 +355,8 @@ func play_thrown_to_home(home_position: Vector3) -> void:
     await play_landing_impact()
     await transform_in(0.32)
 
-func _update_throw(progress: float, start: Vector3, end: Vector3) -> void:
-    global_position = start.lerp(end, progress) + Vector3.UP * sin(progress * PI) * 0.72
+func _update_throw(progress: float, start: Vector3, end: Vector3, arc: float = 0.72) -> void:
+    global_position = start.lerp(end, progress) + Vector3.UP * sin(progress * PI) * arc
     rotation.z = sin(progress * PI * 2.0) * 0.9
     rotation.x = progress * TAU
     body_node.scale = Vector3.ONE * (1.0 - 0.18 * sin(progress * PI))

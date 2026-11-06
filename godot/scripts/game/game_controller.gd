@@ -12,7 +12,7 @@ signal game_finished(rankings: Array)
 ## Presentation cues for sound and effects. The data is read-only; nothing here changes state.
 signal event(event_name: String, data: Dictionary)
 
-const TOKEN_SCALE := 0.75
+const TOKEN_SCALE := 0.95
 const TRACK_Y := 0.12          ## top of the track tiles (RoyalBoard.TILE_TOP)
 const BASE_Y := 0.15           ## courtyard pedestals (RoyalBoard.PEDESTAL_TOP)
 const HOP_SECONDS := 0.2
@@ -35,6 +35,7 @@ func setup(dice_node: DiceController, seed_value: int = 0) -> void:
 	dice.roll_requested.connect(_on_roll_requested)
 
 var difficulty := 1            ## AiController.Difficulty
+var preview: MovePreview        ## set by the main scene; shows where legal moves land
 var director: CameraDirector    ## set by the main scene; frames the action
 var anim_scale := 1.0         ## 1.0 normal; >1 slower, <1 faster
 
@@ -68,6 +69,7 @@ func _spawn_tokens(seat_colors: Array[String]) -> void:
 			token.add_child(vfx)
 			token.set_meta("vfx", vfx)
 			token.set_meta("index", i)
+			token.set_meta("color", color)
 			token.position = _base_world(color, i)
 			token.ground_y = token.position.y
 			list.append(token)
@@ -105,8 +107,9 @@ func _roll_now() -> void:
 	busy = true
 	dice.set_rollable(false)
 	event.emit("roll_start", {"position": dice.global_position})
+	var thrower := current_color()   ## read first: a roll with no move passes the turn
 	var outcome := engine.roll()     ## the engine decides; the dice only shows it
-	await dice.roll_to(outcome["value"])
+	await dice.roll_to(outcome["value"], Vector3.ZERO if fast_mode else _throw_offset(thrower))
 	event.emit("roll_land", {"position": dice.global_position, "value": outcome["value"]})
 	if outcome["forfeited"]:
 		message.emit("Three sixes: turn lost")
@@ -130,6 +133,14 @@ func _roll_now() -> void:
 		if not fast_mode:
 			await get_tree().create_timer(AI_DELAY * 0.6).timeout
 		await _execute(choice)
+
+## Where the dice is thrown from: the edge of the board nearest the player's courtyard.
+func _throw_offset(color: String) -> Vector3:
+	var home: Vector2i = BoardPath.PLAYERS[color]["home"]
+	var c := BoardPath.to_world(home.x + 3, home.y + 3)
+	var dir := Vector3(c.x, 0, c.z).normalized()
+	return dir * 4.2 + Vector3(0, 0.9, 0)
+
 
 ## Called by the input layer when a token is tapped.
 func tap_token(color: String, index: int) -> void:
@@ -158,17 +169,28 @@ func _animate_move(move: Dictionary) -> void:
 	await token.transform_out(0.2)
 	if director and not fast_mode:
 		director.focus(token.global_position, 0.35)
-	## Walk square by square: the limb cycle runs alongside each hop.
-	for progress in range(from + 1 if from > 0 else 1, to + 1):
+	## Walk square by square: the limb cycle runs alongside each hop. With a capture, the
+	## attacker stops just short of the victim's square and squares up to fight.
+	var fighting: bool = not move["captured"].is_empty() and not fast_mode
+	var last := to - 1 if fighting else to
+	for progress in range(from + 1 if from > 0 else 1, last + 1):
 		var step_point := _track_world(color, progress, index)
 		token.ground_y = step_point.y
 		event.emit("hop", {"position": token.global_position})
 		if not fast_mode:
 			token.play_walk(_hop() * 0.9)
 		await token.move_to_world(step_point, _hop())
-	token.ground_y = _track_world(color, to, index).y
-	token.global_position = _track_world(color, to, index)
-	event.emit("land", {"position": token.global_position})
+	var landing := _track_world(color, to, index)
+	if fighting:
+		var approach := landing + (token.global_position - landing).normalized() * 0.74
+		approach.y = landing.y
+		token.ground_y = approach.y
+		token.play_walk(_hop() * 0.9)
+		await token.move_to_world(approach, _hop())
+	else:
+		token.ground_y = landing.y
+		token.global_position = landing
+		event.emit("land", {"position": token.global_position})
 
 	## Captures: the attacker strikes, then grabs the victim and throws it home.
 	for victim in move["captured"]:
@@ -177,10 +199,8 @@ func _animate_move(move: Dictionary) -> void:
 		var base := _base_world(victim_color, victim["token"])
 		message.emit("%s token sent home!" % victim_color.capitalize())
 		if director and not fast_mode:
-			var mid := token.global_position.lerp(victim_token.global_position, 0.5)
-			director.focus(mid, 0.3, 0.45)
-			director.punch_in(6.0, 1.2)
-		event.emit("capture", {"position": victim_token.global_position, "color": victim_color})
+			director.fight_view(token.global_position, victim_token.global_position, 0.45)
+		event.emit("capture", {"position": victim_token.global_position, "color": victim_color, "attacker": color})
 		victim_token.ground_y = base.y
 		if fast_mode:
 			await victim_token.move_to_world(base, _hop(2.0))
@@ -188,6 +208,13 @@ func _animate_move(move: Dictionary) -> void:
 			await _capture_sequence(token, victim_token, base, index % 2 == 0, color, to, index)
 		victim_token.global_position = base
 		victim_token.ground_y = base.y
+	if fighting:
+		## The winner steps onto the square it took.
+		token.ground_y = landing.y
+		token.play_walk(_hop() * 0.9)
+		await token.move_to_world(landing, _hop())
+		event.emit("land", {"position": token.global_position})
+	token.global_position = landing
 
 	if move["finishes"]:
 		message.emit("%s token reached home" % color.capitalize())
@@ -206,16 +233,38 @@ func _animate_move(move: Dictionary) -> void:
 ## Capture choreography, split into small phases with a short hold between each:
 ## approach -> strike (punch or kick) -> hold -> grab and throw home -> recover.
 func _capture_sequence(attacker: TransformerToken, victim: TransformerToken, base: Vector3, use_punch: bool, color: String, to: int, index: int) -> void:
-	await _beat(0.18)                                   ## approach: square up to the opponent
+	var ground := attacker.ground_y
+	victim.transform_out(0.2)                           ## the victim stands up to face the attacker
+	await _beat(0.45)                                   ## approach: camera settles, both square up
+	## Slow motion through the wind-up and strike, with an impact cue at the hit.
+	_slow_motion(0.3, 0.8)
+	_emit_impact_after(0.2 if use_punch else 0.24, victim)
 	if use_punch:
 		await attacker.play_punch(victim)               ## wind-up, strike, victim recoils, recover
 	else:
 		await attacker.play_kick(victim)
-	await _beat(0.22)                                   ## hold the impact on screen
-	attacker.ground_y = _track_world(color, to, index).y
+	await _beat(0.3)                                    ## hold the impact on screen
+	attacker.ground_y = ground
+	if director:
+		director.release(0.9)                           ## pull back so the throw home reads
 	await attacker.play_grab_throw(victim, base)        ## grab, lift, rotate, throw, land home
+	event.emit("thrown_home", {"position": base, "color": victim.get_meta("color", "")})
 	await _beat(0.15)                                   ## settle
-	attacker.ground_y = _track_world(color, to, index).y
+	attacker.ground_y = ground
+
+
+## Engine-wide slow motion for `real_seconds` of wall-clock time.
+func _slow_motion(scale: float, real_seconds: float) -> void:
+	if fast_mode:
+		return
+	Engine.time_scale = scale
+	var timer := get_tree().create_timer(real_seconds, true, false, true)  ## ignores time scale
+	timer.timeout.connect(func() -> void: Engine.time_scale = 1.0)
+
+
+func _emit_impact_after(game_seconds: float, victim: Node3D) -> void:
+	await get_tree().create_timer(game_seconds).timeout
+	event.emit("impact", {"position": victim.global_position + Vector3(0, 0.35, 0), "color": victim.get_meta("color", "")})
 
 
 func _beat(seconds: float) -> void:
@@ -249,6 +298,14 @@ func _highlight(on: bool) -> void:
 		var token: TransformerToken = tokens[current_color()][index]
 		var vfx: RoyalTokenVFX = token.get_meta("vfx")
 		vfx.set_selected(on and _legal.has(index))
+	if preview:
+		if on:
+			var moves: Array = []
+			for index in _legal:
+				moves.append(engine.preview_move(index))
+			preview.show_moves(current_color(), moves, _track_world)
+		else:
+			preview.clear()
 	if on and not _legal.is_empty():
 		var first: TransformerToken = tokens[current_color()][_legal[0]]
 		event.emit("select", {"position": first.global_position})
