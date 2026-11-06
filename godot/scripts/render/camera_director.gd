@@ -14,6 +14,9 @@ var _focus := 0.0          ## 0 = full board, 1 = close on the focus point
 var _focus_point := Vector3.ZERO
 var _focus_distance := 4.0
 var _close_position := Vector3.ZERO
+var _fight_offset := Vector3.ZERO
+var _track_a: Node3D
+var _track_b: Node3D
 var _use_close_position := false
 var _fov_extra := 0.0      ## extra field-of-view squeeze during captures
 var _shake_time := 0.0
@@ -38,6 +41,7 @@ func set_base(position: Vector3, target: Vector3, fov: float) -> void:
 ## Smoothly zooms in on a point. `distance` is how close to get, as a fraction of the
 ## normal distance to the board (0.5 = half as far).
 func focus(point: Vector3, seconds: float, distance := 0.5) -> void:
+	stop_tracking()
 	_focus_point = point
 	_focus_distance = distance
 	_use_close_position = false
@@ -59,9 +63,21 @@ func fight_view(a: Vector3, b: Vector3, seconds: float, distance := 3.4, elevati
 	side = (side * 0.7 + toward_player * 0.3).normalized()
 	var el := deg_to_rad(elevation_deg)
 	_focus_point = mid
-	_close_position = mid + (side * cos(el) + Vector3.UP * sin(el)) * distance
+	_fight_offset = (side * cos(el) + Vector3.UP * sin(el)) * distance
+	_close_position = mid + _fight_offset
 	_use_close_position = true
 	_tween_to("_focus", 1.0, seconds)
+
+
+## Keeps a fight close-up centred on both fighters as they move (knock-backs, throws).
+func track(a: Node3D, b: Node3D) -> void:
+	_track_a = a
+	_track_b = b
+
+
+func stop_tracking() -> void:
+	_track_a = null
+	_track_b = null
 
 
 ## Title-screen camera: from a low close view it rises and widens into a slow orbit.
@@ -124,6 +140,13 @@ func _process(delta: float) -> void:
 		_shake_time -= delta
 		var fade := clampf(_shake_time / 0.4, 0.0, 1.0)
 		offset = Vector3(randf_range(-1, 1), 0, randf_range(-1, 1)) * _shake_strength * fade
+	if _use_close_position and is_instance_valid(_track_a) and is_instance_valid(_track_b):
+		var mid := _track_a.global_position.lerp(_track_b.global_position, 0.5) + Vector3(0, 0.3, 0)
+		var spread := Vector2(_track_a.global_position.x - _track_b.global_position.x, _track_a.global_position.z - _track_b.global_position.z).length()
+		var k := 1.0 - exp(-7.0 * delta)
+		_focus_point = _focus_point.lerp(mid, k)
+		## Pull back a little as the fighters separate.
+		_close_position = _close_position.lerp(mid + _fight_offset * (1.0 + maxf(0.0, spread - 0.8) * 0.35), k)
 	var close := _close_position if _use_close_position else _focus_point + (base_position - base_target) * _focus_distance
 	var position := base_position.lerp(close, _focus)
 	var target := base_target.lerp(_focus_point, _focus)

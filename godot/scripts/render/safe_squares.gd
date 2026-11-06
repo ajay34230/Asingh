@@ -200,6 +200,8 @@ func _resting_safe_tokens() -> Dictionary:
 			if not BoardPath.is_safe_ring(ring):
 				continue
 			var token: Node3D = game.tokens[color][i]
+			if not is_instance_valid(token) or not token.is_inside_tree():
+				continue
 			## Only once the token has arrived on its square: a walking token has no shield.
 			var cell: Vector2i = BoardPath.ring()[ring]
 			var w := BoardPath.to_world(cell.x + 0.5, cell.y + 0.5)

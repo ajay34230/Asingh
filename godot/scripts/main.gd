@@ -345,17 +345,27 @@ func _on_game_event(event_name: String, data: Dictionary) -> void:
 			else:
 				audio.play("blade", 0.03)   ## steel drawn: the fight is on
 				_token_says(data.get("attacker_token"), "taunt", data.get("attacker", ""))
+		"swing":
+			audio.play("swish", 0.1, 0.0 if data.get("heavy", false) else -5.0)
+		"jab":
+			audio.play("punch", 0.08, -5.0)
+			effects.hit_spark(pos, false)
+			_shake(0.03, 0.12)
+			audio.vibrate(12)
 		"impact":
 			audio.play(data.get("kind", "punch"), 0.05)
-			audio.play("impact", 0.06, -6.0)  ## low boom under the recorded hit
-			effects.burst(pos, EffectsManager.GOLD, 40, 3.6, 0.8)
-			effects.burst(pos, EffectsManager.TEAM.get(data.get("color", "red"), EffectsManager.GOLD), 30, 2.6, 0.9)
-			effects.shockwave(pos - up * 0.7)
-			_shake(0.08, 0.35)
-			audio.vibrate(50)
+			audio.play("impact", 0.06, -4.0)  ## low boom under the recorded hit
+			effects.hit_spark(pos, true)
+			effects.burst(pos, EffectsManager.TEAM.get(data.get("color", "red"), EffectsManager.GOLD), 18, 2.2, 0.7)
+			audio.vibrate(60)
 			hud.flash_banner(["KNOCKOUT!", "BOOM!", "SMASH!"].pick_random(), Color("#ffd24a"))
 			_token_says(data.get("victim_token"), "hurt", data.get("color", ""))
-			_announce_later("capture", 1.1)
+			_announce_later("capture", 1.4)
+		"crash":
+			audio.play("thud", 0.05, -2.0)
+			effects.dust(pos)
+		"spin":
+			audio.play("swish", 0.0, -2.0)
 		"throw":
 			audio.play("swish", 0.08)
 		"thrown_home":

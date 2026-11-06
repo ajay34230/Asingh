@@ -224,7 +224,7 @@ func _face_world_point(point: Vector3) -> void:
     var flat := point - global_position
     flat.y = 0.0
     if flat.length_squared() > 0.0001:
-        rotation.y = atan2(-flat.x, -flat.z)
+        rotation.y = atan2(flat.x, flat.z)  ## the model's front (where the limbs reach) is +Z
 
 func play_punch(target: Node3D) -> void:
     if not is_transformed:
@@ -242,7 +242,7 @@ func play_punch(target: Node3D) -> void:
     strike.tween_property(lead["shoulder"], "rotation:x", -1.32, 0.09).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
     strike.tween_property(lead["elbow"], "rotation:x", 0.12, 0.09)
     strike.tween_property(lead["wrist"], "rotation:x", -0.20, 0.09)
-    strike.tween_property(self, "position", global_position + (-global_basis.z * 0.13), 0.09)
+    strike.tween_property(self, "position", global_position + (global_basis.z.normalized() * 0.13), 0.09)
     await strike.finished
     await target.play_hit_recoil(global_basis.z)
     var recover := create_tween().set_parallel(true)
@@ -269,7 +269,7 @@ func play_kick(target: Node3D) -> void:
     kick.tween_property(leg["hip"], "rotation:x", -1.42, 0.13).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
     kick.tween_property(leg["knee"], "rotation:x", 0.78, 0.13)
     kick.tween_property(leg["ankle"], "rotation:x", -0.28, 0.13)
-    kick.tween_property(self, "position", global_position + (-global_basis.z * 0.12), 0.13)
+    kick.tween_property(self, "position", global_position + (global_basis.z.normalized() * 0.12), 0.13)
     await kick.finished
     await target.play_hit_recoil(global_basis.z)
     var land := create_tween().set_parallel(true)
@@ -377,13 +377,16 @@ func move_to_world(target: Vector3, duration: float = 0.45) -> void:
     is_moving = true
     var start := global_position
     var travel := create_tween()
-    travel.tween_method(Callable(self, "_update_move").bind(start, target), 0.0, 1.0, duration).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
+    var flat := Vector3(target.x - start.x, 0, target.z - start.z)
+    var heading := atan2(flat.x, flat.z) if flat.length_squared() > 0.0004 else rotation.y
+    travel.tween_method(Callable(self, "_update_move").bind(start, target, rotation.y, heading), 0.0, 1.0, duration).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
     await travel.finished
     body_node.position.y = 0.0
     is_moving = false
 
-func _update_move(progress: float, start: Vector3, target: Vector3) -> void:
+func _update_move(progress: float, start: Vector3, target: Vector3, from_heading := 0.0, heading := 0.0) -> void:
     global_position = start.lerp(target, progress)
+    rotation.y = lerp_angle(from_heading, heading, minf(1.0, progress * 3.0))  ## turn to face the way it walks
     body_node.position.y = absf(sin(progress * PI * 2.0)) * 0.075
 
 func play_home_bounce() -> void:

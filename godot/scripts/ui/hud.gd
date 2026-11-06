@@ -57,12 +57,15 @@ func _ready() -> void:
 	_button(root, "New game", Vector2(150, 48), Vector2(-330, 12)).pressed.connect(func() -> void: new_game_pressed.emit())
 
 	_banner = Label.new()
-	_banner.add_theme_font_size_override("font_size", 96)
+	_banner.add_theme_font_size_override("font_size", 72)
 	_banner.add_theme_constant_override("outline_size", 22)
 	_banner.add_theme_color_override("font_outline_color", Color(0.2, 0.02, 0.02))
 	_banner.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	_banner.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-	_banner.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	## Upper third of the screen, so it never covers the fighters in the middle.
+	_banner.set_anchors_and_offsets_preset(Control.PRESET_TOP_WIDE)
+	_banner.anchor_top = 0.02
+	_banner.anchor_bottom = 0.16
 	_banner.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_banner.visible = false
 	root.add_child(_banner)
@@ -71,9 +74,11 @@ func _ready() -> void:
 	_caption.add_theme_font_size_override("font_size", 30)
 	_caption.add_theme_color_override("font_color", Color("#fff1c8"))
 	_caption.add_theme_stylebox_override("normal", RoyalTheme.badge(RoyalTheme.GOLD))
-	_caption.set_anchors_and_offsets_preset(Control.PRESET_CENTER_TOP)
+	## Subtitles sit just above the message line at the bottom, clear of banners and fighters.
+	_caption.set_anchors_and_offsets_preset(Control.PRESET_CENTER_BOTTOM)
 	_caption.grow_horizontal = Control.GROW_DIRECTION_BOTH
-	_caption.offset_top = 86
+	_caption.grow_vertical = Control.GROW_DIRECTION_BEGIN
+	_caption.offset_bottom = -78
 	_caption.visible = false
 	_caption.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	root.add_child(_caption)

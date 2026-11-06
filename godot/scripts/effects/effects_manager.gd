@@ -38,6 +38,58 @@ func burst(at: Vector3, color: Color, amount := 36, speed := 2.4, lifetime := 0.
 	_emit_at(p, at, lifetime)
 
 
+## Contact flash for a hit: a bright core that pops and fades, sharp streaks flying
+## outward and a few sparks. `big` for finishers.
+func hit_spark(at: Vector3, big := false) -> void:
+	var size := 0.55 if big else 0.28
+	var core_mat := StandardMaterial3D.new()
+	core_mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	core_mat.albedo_color = Color(1.0, 0.97, 0.85)
+	core_mat.emission_enabled = true
+	core_mat.emission = Color(1.0, 0.85, 0.5)
+	core_mat.emission_energy_multiplier = 6.0
+	core_mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	var core := MeshInstance3D.new()
+	var sphere := SphereMesh.new()
+	sphere.radius = 0.5
+	sphere.height = 1.0
+	core.mesh = sphere
+	core.material_override = core_mat
+	core.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	core.position = at
+	core.scale = Vector3.ONE * 0.05
+	add_child(core)
+	var t := create_tween().set_parallel(true)
+	t.tween_property(core, "scale", Vector3.ONE * size, 0.05).set_trans(Tween.TRANS_EXPO).set_ease(Tween.EASE_OUT)
+	t.tween_property(core_mat, "albedo_color:a", 0.0, 0.18).set_delay(0.04)
+	t.tween_property(core, "scale", Vector3.ONE * size * 1.4, 0.18).set_delay(0.05)
+	t.chain().tween_callback(core.queue_free)
+	## Streaks: thin bright shards shooting out from the contact point.
+	var streak_mat := core_mat.duplicate() as StandardMaterial3D
+	var count := 10 if big else 6
+	for i in range(count):
+		var shard := MeshInstance3D.new()
+		var box := BoxMesh.new()
+		box.size = Vector3(0.025, 0.025, 0.32 if big else 0.2)
+		shard.mesh = box
+		shard.material_override = streak_mat
+		shard.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		var dir := Vector3(randf_range(-1, 1), randf_range(-0.4, 1.0), randf_range(-1, 1)).normalized()
+		add_child(shard)
+		shard.global_position = at
+		shard.look_at(at + dir, Vector3.UP if absf(dir.y) < 0.95 else Vector3.RIGHT)
+		var st := create_tween().set_parallel(true)
+		st.tween_property(shard, "global_position", at + dir * (0.7 if big else 0.4), 0.16).set_trans(Tween.TRANS_EXPO).set_ease(Tween.EASE_OUT)
+		st.tween_property(shard, "scale", Vector3(1, 1, 0.1), 0.16).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_IN)
+		st.chain().tween_callback(shard.queue_free)
+	burst(at, Color(1.0, 0.85, 0.45), 26 if big else 10, 3.4 if big else 2.0, 0.45, 6.0)
+
+
+## Low puff of dust where something crashes onto the board.
+func dust(at: Vector3) -> void:
+	burst(at + Vector3(0, 0.08, 0), Color(0.85, 0.75, 0.6, 0.8), 22, 1.2, 0.6, 1.5)
+
+
 ## Gold dust drifting up from a position (used for dice sparkles and home entry).
 func sparkle_trail(at: Vector3, amount := 24) -> void:
 	var p := _make_particles(amount, 1.2)

@@ -32,9 +32,14 @@ var fast_mode := false          ## set by the demo run: no delays
 func setup(dice_node: DiceController, seed_value: int = 0) -> void:
 	dice = dice_node
 	_seed = seed_value
+	fight = FightChoreography.new()
+	fight.name = "Fight"
+	add_child(fight)
+	fight.cue.connect(_on_fight_cue)
 	dice.roll_requested.connect(_on_roll_requested)
 
 var difficulty := 1            ## AiController.Difficulty
+var fight: FightChoreography
 var preview: MovePreview        ## set by the main scene; shows where legal moves land
 var director: CameraDirector    ## set by the main scene; frames the action
 var anim_scale := 1.0         ## 1.0 normal; >1 slower, <1 faster
@@ -202,7 +207,8 @@ func _animate_move(move: Dictionary) -> void:
 		var base := _base_world(victim_color, victim["token"])
 		message.emit("%s token sent home!" % victim_color.capitalize())
 		if director and not fast_mode:
-			director.fight_view(token.global_position, victim_token.global_position, 0.45)
+			director.fight_view(token.global_position, victim_token.global_position, 0.45, 3.6, 28.0)
+			director.track(token, victim_token)
 		event.emit("capture", {"position": victim_token.global_position, "color": victim_color, "attacker": color,
 			"attacker_token": token, "victim_token": victim_token})
 		victim_token.ground_y = base.y
@@ -236,26 +242,20 @@ func _animate_move(move: Dictionary) -> void:
 
 ## Capture choreography, split into small phases with a short hold between each:
 ## approach -> strike (punch or kick) -> hold -> grab and throw home -> recover.
-func _capture_sequence(attacker: TransformerToken, victim: TransformerToken, base: Vector3, use_punch: bool, color: String, to: int, index: int) -> void:
-	var ground := attacker.ground_y
-	victim.transform_out(0.2)                           ## the victim stands up to face the attacker
-	await _beat(0.45)                                   ## approach: camera settles, both square up
-	## Slow motion through the wind-up and strike, with an impact cue at the hit.
-	_slow_motion(0.3, 0.8)
-	_emit_impact_after(0.2 if use_punch else 0.24, victim, "punch" if use_punch else "kick")
-	if use_punch:
-		await attacker.play_punch(victim)               ## wind-up, strike, victim recoils, recover
-	else:
-		await attacker.play_kick(victim)
-	await _beat(0.3)                                    ## hold the impact on screen
-	attacker.ground_y = ground
-	if director:
-		director.release(0.9)                           ## pull back so the throw home reads
-	_emit_after(0.36, "throw", {"position": victim.global_position})  ## after the grab and lift
-	await attacker.play_grab_throw(victim, base)        ## grab, lift, rotate, throw, land home
-	event.emit("thrown_home", {"position": base, "color": victim.get_meta("color", "")})
-	await _beat(0.15)                                   ## settle
-	attacker.ground_y = ground
+func _capture_sequence(attacker: TransformerToken, victim: TransformerToken, base: Vector3, use_punch: bool, _color: String, _to: int, _index: int) -> void:
+	fight.director = director
+	fight.anim_scale = anim_scale
+	await fight.perform(attacker, victim, base, use_punch)
+
+
+## Fight cues become game events (sound, effects, voices) with the colours filled in.
+func _on_fight_cue(cue_name: String, data: Dictionary) -> void:
+	var out := data.duplicate()
+	var victim: Node3D = data.get("victim")
+	if victim:
+		out["color"] = victim.get_meta("color", "")
+		out["victim_token"] = victim
+	event.emit(cue_name, out)
 
 
 ## Engine-wide slow motion for `real_seconds` of wall-clock time.
