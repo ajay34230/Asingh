@@ -2270,10 +2270,17 @@ func _selftest_walls(fails: PackedStringArray) -> void:
 		if cow._flee_t <= 0.0:
 			fails.append("hits: animal did not bolt")
 		cow._flee_t = 0.0
-	# boxing: the combo is punches only and the roll tucks the body
+	# boxing: punches first, then kicks; every move is known to the rig
+	var saw_kick := false
 	for mv in Player.COMBO:
+		if not RealHuman.MOVES.has(mv):
+			fails.append("combat: combo move %s missing from the rig" % mv)
 		if Player.MOVE_KIND[mv] != "punch":
-			fails.append("combat: combo has a non-punch move %s" % mv)
+			saw_kick = true
+		elif saw_kick:
+			fails.append("combat: punch %s after a kick in the combo" % mv)
+	if not saw_kick:
+		fails.append("combat: combo has no kick")
 	player._rig.play_move("roll")
 	if not RealHuman.MOVES.has("roll"):
 		fails.append("combat: roll move missing")

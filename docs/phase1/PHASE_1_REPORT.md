@@ -223,3 +223,13 @@ Verified only by selftest and software-rendered captures. **Not tested on a devi
 - **Hit reactions.** `play_hit` and `_hit_overlay` add additive head, torso and arm recoil. Wired into Player, Enemy and Npc.
 - **Riding.** Rider sits lower on the saddle (`back_y - 0.55`) and thighs are closer together (reduced abduction, more knee flex). Software capture shows the legs close and the rider seated.
 - Debug prints removed. `lab_variants` remains as a lab-capture helper only.
+
+## Addendum — Combo flow, mission box exit, unstick button (2026-11-06)
+
+Selftest passes. **Not tested on a device.**
+
+- Combo is now jab, cross, hook, uppercut, front kick, round kick. Between a punch string and a kick (and after each kick) the next move waits for the previous one to retract fully and holds the boxing guard for 0.16 s.
+- The left mission tracker has an X button. It comes back on a new mission or when the journal opens.
+- Pause menu has "Stuck? Fix me": clears stale locks and held touches, closes any open dialogue, and moves the player beside the current objective.
+- The "stuck in missions" cause is not identified. Needs the user to name a mission or say whether it is lag or an objective that will not complete.
+- The yellow/brown slab glitch is still unresolved. Needs the Debug-tab bisect on the device.

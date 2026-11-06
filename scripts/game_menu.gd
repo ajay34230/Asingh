@@ -94,6 +94,7 @@ func _ready() -> void:
 	var sp := Control.new()
 	sp.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	nav.add_child(sp)
+	nav.add_child(_button("Stuck? Fix me", unstick))
 	nav.add_child(_button("Restart mission", restart_mission))
 	nav.add_child(_button("New game", func() -> void: _show_page("Confirm")))
 	nav.add_child(_button("Quit", func() -> void:
@@ -549,6 +550,32 @@ func _state() -> Dictionary:
 func _write_checkpoint() -> void:
 	if player != null and story != null and story.get_flag("intro_done"):
 		SaveSystem.write(CHECKPOINT_PATH, _state())
+
+
+## Escape hatch for a stalled mission: free the player (stale locks, held fingers, open dialogue)
+## and, if the current objective is far away or unreachable, drop the player right beside it.
+func unstick() -> void:
+	toggle()                                   # close the pause menu (also unpauses)
+	var dlg: Object = main.get("dlg")
+	if dlg != null and bool(dlg.get("is_open")):
+		dlg.call("close")
+	player.locked = false
+	player.blocking = false
+	player.velocity = Vector3.ZERO
+	var tc: Object = main.get("touch")
+	if tc != null:
+		tc.call("_reset_touches")
+	var objs := story.active_objectives(1)
+	var msg := "Controls reset."
+	if not objs.is_empty():
+		var tgt: Vector3 = objs[0]["target"]
+		if tgt != Vector3.ZERO:
+			var away := player.global_position - tgt
+			away.y = 0.0
+			var dir := away.normalized() if away.length() > 0.1 else Vector3.BACK
+			player.global_position = tgt + dir * 2.2 + Vector3(0.0, 1.5, 0.0)
+			msg = "Moved you next to: " + Loc.t(str(objs[0]["text"]))
+	(main as Node).get("hud").banner(msg)
 
 
 ## Go back to where the current mission began (flags, position, health), then reload the world.

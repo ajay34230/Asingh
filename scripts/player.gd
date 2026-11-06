@@ -198,7 +198,9 @@ func set_first_person(on: bool) -> void:
 
 ## Fighting: tap HIT for a combo: jab, cross, front kick, hook, roundhouse, then a grab-and-throw
 ## (or a hammer smash when nobody is close enough to grab). Auto-aims at the nearest enemy.
-const COMBO := ["jab", "cross", "jab", "hook", "cross", "uppercut"]   # boxing: kicks only when airborne
+## Punches from the guard, settle back into the guard, then a kick, settle again (see _combo_gap).
+const COMBO := ["jab", "cross", "hook", "uppercut", "kick_front", "kick_round"]
+const GUARD_HOLD := 0.16   # seconds spent back in the boxing stance between a punch string and a kick
 const MOVE_CD := {"jab": 0.34, "cross": 0.38, "hook": 0.42, "kick_front": 0.5, "kick_side": 0.55, "kick_round": 0.65, "uppercut": 0.45}
 const MOVE_DMG := {"jab": 9.0, "cross": 12.0, "hook": 14.0, "uppercut": 16.0, "kick_front": 17.0, "kick_side": 19.0, "kick_round": 24.0}
 const MOVE_KIND := {"jab": "punch", "cross": "punch", "hook": "punch", "uppercut": "punch", "kick_front": "kick", "kick_side": "kick", "kick_round": "round"}
@@ -392,6 +394,11 @@ func attack() -> void:
 		mv = "kick_front"
 	_combo += 1
 	_attack_cd = MOVE_CD[mv]
+	# Between a punch and a kick (either way) wait until the move has fully retracted to the guard,
+	# then hold the guard briefly, so the stance reads clearly before the next move starts.
+	var nxt_kick: bool = _combo < COMBO.size() and MOVE_KIND[COMBO[_combo]] != "punch"
+	if (MOVE_KIND[mv] != "punch") != nxt_kick or MOVE_KIND[mv] != "punch":
+		_attack_cd = maxf(_attack_cd, float(RealHuman.MOVES[mv][0]) + GUARD_HOLD)
 	_rig.play_move(mv)
 	Sfx.ui_at("whoosh_kick" if MOVE_KIND[mv] != "punch" else "whoosh_punch", -6.0)
 	if mv == "kick_round" or mv == "cross":

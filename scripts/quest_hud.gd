@@ -51,16 +51,25 @@ func _ready() -> void:
 	sb.content_margin_bottom = 10
 	_tracker.add_theme_stylebox_override("panel", sb)
 	_tracker.position = Vector2(16, 72)
-	_tracker.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_tracker.mouse_filter = Control.MOUSE_FILTER_PASS
 	root.add_child(_tracker)
 	_tracker.visible = tracker_enabled
 	var vb := VBoxContainer.new()
 	vb.add_theme_constant_override("separation", 4)
 	_tracker.add_child(vb)
+	var title_row := HBoxContainer.new()
+	vb.add_child(title_row)
 	_t_title = Label.new()
 	_t_title.add_theme_font_size_override("font_size", 24)
 	_t_title.add_theme_color_override("font_color", Color(0.95, 0.74, 0.32))
-	vb.add_child(_t_title)
+	_t_title.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	title_row.add_child(_t_title)
+	var x_btn := Button.new()          # exit button: hides the mission box (it returns on a new mission or the journal)
+	x_btn.text = "X"
+	x_btn.custom_minimum_size = Vector2(56, 52)
+	x_btn.add_theme_font_size_override("font_size", 26)
+	x_btn.pressed.connect(func() -> void: _tracker.visible = false)
+	title_row.add_child(x_btn)
 	_t_lines = VBoxContainer.new()
 	vb.add_child(_t_lines)
 	# journal button
@@ -157,6 +166,8 @@ func _on_event(kind: String, title: String) -> void:
 	match kind:
 		"new":
 			_queue.append(["NEW MISSION\n" + title, "mission_new"])
+			if _tracker != null:
+				_tracker.visible = tracker_enabled
 		"done":
 			_queue.append(["MISSION COMPLETE\n" + title, "seal_found"])
 
@@ -190,6 +201,8 @@ func _refresh() -> void:
 
 
 func _toggle_journal() -> void:
+	if _tracker != null and tracker_enabled:
+		_tracker.visible = true
 	_journal.visible = not _journal.visible
 	if _journal.visible:
 		_fill_journal()
