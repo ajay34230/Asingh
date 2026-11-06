@@ -22,6 +22,7 @@ func _init() -> void:
 	_test_every_colour_reaches_home()
 	_test_ai_full_games_finish()
 	_test_house_rules()
+	_test_each_colour_owns_its_arm()
 	_test_ai_difficulties_finish()
 
 	print("%d checks, %d failures" % [_checks, _failures.size()])
@@ -276,4 +277,41 @@ func _test_ai_difficulties_finish() -> void:
 					e.apply_move(choice)
 				turns += 1
 			check(e.phase == RulesEngine.PHASE_OVER, "difficulty %d game %d finishes" % [difficulty, seed_value])
+
+
+## Regression test for the colour mix-up: each colour's start square, home-column mouth
+## and home column must all sit beside its own courtyard, and travel must be clockwise.
+func _test_each_colour_owns_its_arm() -> void:
+	for color in BoardPath.COLORS:
+		var home: Vector2i = BoardPath.PLAYERS[color]["home"]
+		var start: Vector2i = BoardPath.ring()[BoardPath.start_of(color)]
+		check(_touches_home(start, home), "%s start square %s touches its own courtyard" % [color, str(start)])
+		for other in BoardPath.COLORS:
+			if other != color:
+				var other_home: Vector2i = BoardPath.PLAYERS[other]["home"]
+				check(not _touches_home(start, other_home), "%s start is not beside the %s courtyard" % [color, other])
+		var lane: Array = BoardPath.PLAYERS[color]["lane"]
+		var mouth: Vector2i = BoardPath.ring()[BoardPath.PLAYERS[color]["entry"]]
+		check(absi(mouth.x - lane[0].x) + absi(mouth.y - lane[0].y) == 1, "%s column starts at its mouth" % color)
+		check((lane[4] as Vector2i).distance_to(Vector2i(7, 7)) < 3.0, "%s column ends next to the centre" % color)
+		## The start square and the column mouth are on the same arm (two ring steps apart).
+		check((BoardPath.PLAYERS[color]["entry"] + 2) % 52 == BoardPath.start_of(color), "%s starts two steps after its mouth" % color)
+		## Last common square before the column is the mouth itself.
+		check(BoardPath.ring_index_for_progress(color, BoardPath.COMMON_STEPS) == BoardPath.PLAYERS[color]["entry"], "%s reaches its own mouth last" % color)
+	## Turn order is clockwise round the courtyards: TL, TR, BR, BL.
+	var homes: Array[Vector2i] = []
+	for color in BoardPath.COLORS:
+		homes.append(BoardPath.PLAYERS[color]["home"])
+	check(homes == [Vector2i(0, 0), Vector2i(9, 0), Vector2i(9, 9), Vector2i(0, 9)], "turn order goes clockwise round the courtyards")
+
+
+func _touches_home(cell: Vector2i, home: Vector2i) -> bool:
+	for dx in range(-1, 2):
+		for dy in range(-1, 2):
+			if absi(dx) + absi(dy) != 1:
+				continue
+			var n := cell + Vector2i(dx, dy)
+			if n.x >= home.x and n.x < home.x + 6 and n.y >= home.y and n.y < home.y + 6:
+				return true
+	return false
 

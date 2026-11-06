@@ -18,29 +18,31 @@ const LANE_STEPS := 5
 const FINISH_PROGRESS := 57
 const TOKENS_PER_PLAYER := 4
 
-## Cells are wider than they are deep, so the board is wider than it is tall.
-## The grid itself (indices, paths, safe squares) does not change.
-const CELL_X := 1.5
-const CELL_Z := 0.73
+## Square cells, 1 m each. The screen is filled by the board's side wings, not by
+## stretching the playfield.
+const CELL_X := 1.0
+const CELL_Z := 1.0
 ## Turn order is clockwise on screen.
 ## Clockwise seat order on the supplied board: blue (top-left), yellow (top-right),
 ## green (bottom-right), red (bottom-left).
 const COLORS: Array[String] = ["blue", "yellow", "green", "red"]
 
-## World size of one cell, measured from the supplied board model: the
-## 15 x 15 playfield (ivory tiles) is about 10.98 m wide.
-
-
-## Per-colour data, matching the supplied board model.
+## Per-colour data. Standard Ludo: travelling clockwise, each colour starts on the arm
+## beside its own courtyard, goes once round the board, and turns into its home column
+## on that same arm.
+##   blue (top-left courtyard)     -> left arm    (start (1,6),  column (1..5,7))
+##   yellow (top-right courtyard)  -> top arm     (start (8,1),  column (7,1..5))
+##   green (bottom-right courtyard)-> right arm   (start (13,8), column (13..9,7))
+##   red (bottom-left courtyard)   -> bottom arm  (start (6,13), column (7,13..9))
 ## entry = ring index of the outer end of the colour's arm (its home column mouth).
 const PLAYERS := {
-	"red": {"index": 3, "entry": 51, "home": Vector2i(0, 9),
+	"blue": {"index": 0, "entry": 51, "home": Vector2i(0, 0),
 		"lane": [Vector2i(1, 7), Vector2i(2, 7), Vector2i(3, 7), Vector2i(4, 7), Vector2i(5, 7)]},
-	"blue": {"index": 0, "entry": 12, "home": Vector2i(0, 0),
+	"yellow": {"index": 1, "entry": 12, "home": Vector2i(9, 0),
 		"lane": [Vector2i(7, 1), Vector2i(7, 2), Vector2i(7, 3), Vector2i(7, 4), Vector2i(7, 5)]},
-	"yellow": {"index": 1, "entry": 25, "home": Vector2i(9, 0),
+	"green": {"index": 2, "entry": 25, "home": Vector2i(9, 9),
 		"lane": [Vector2i(13, 7), Vector2i(12, 7), Vector2i(11, 7), Vector2i(10, 7), Vector2i(9, 7)]},
-	"green": {"index": 2, "entry": 38, "home": Vector2i(9, 9),
+	"red": {"index": 3, "entry": 38, "home": Vector2i(0, 9),
 		"lane": [Vector2i(7, 13), Vector2i(7, 12), Vector2i(7, 11), Vector2i(7, 10), Vector2i(7, 9)]},
 }
 
@@ -124,17 +126,12 @@ static func track_cell(color: String, progress: int) -> Dictionary:
 	return {"kind": "lane", "cell": lane[progress - COMMON_STEPS - 1]}
 
 
-## Courtyard spot for a token (0..3), in continuous grid coordinates.
-## Measured from the supplied model: the two gold token discs sit 2.2 cells in from
-## the courtyard's inner edge (toward the board centre), at 1.1 and 4.1 cells across
-## a 6-cell courtyard. Tokens 0 and 1 use those discs; tokens 2 and 3 sit 1.1 cells
-## further in, so all four stay clear of the pavilion at the outer edge.
+## Courtyard spot for a token (0..3), in continuous grid coordinates: a 2 x 2 group
+## in the middle of the 6 x 6 courtyard, one token per pedestal.
 static func base_spot(color: String, token: int) -> Vector2:
 	var home: Vector2i = PLAYERS[color]["home"]
-	var top_home := home.y < GRID_SIZE / 2
-	var inset := 2.2 if token < 2 else 1.1
-	var x := 1.9 if token % 2 == 0 else 4.1
-	var y := 6.0 - inset if top_home else inset
+	var x := 2.0 if token % 2 == 0 else 4.0
+	var y := 2.0 if token < 2 else 4.0
 	return Vector2(home.x + x, home.y + y)
 
 
