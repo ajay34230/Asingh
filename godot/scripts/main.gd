@@ -106,7 +106,7 @@ func _ready() -> void:
 	else:
 		hud.visible = false
 		menu.show_page("main")
-		audio.start_music()
+		audio.start_music("menu")
 		## Opening: the camera rises over the palace, then the menu fades in.
 		director.start_attract(not _intro_seen)
 		menu.modulate.a = 0.0
@@ -188,6 +188,7 @@ func _start_from_menu(config: Dictionary) -> void:
 	hud.visible = true
 	hud.hide_result()
 	director.stop_attract(1.4)
+	audio.start_music("game")
 	game.fast_mode = false
 	game.new_game(colors, humans, config["rules"], config["difficulty"])
 	_last_config = config
@@ -295,6 +296,7 @@ func _on_game_event(event_name: String, data: Dictionary) -> void:
 			effects.burst(pos, EffectsManager.GOLD, 14, 1.2, 0.6)
 			if int(data.get("value", 0)) == 6 and not game.fast_mode:
 				hud.flash_banner("SIX!", Color("#ffd24a"), 0.5)
+				audio.play("six", 0.0)
 				effects.burst(pos + up, EffectsManager.GOLD, 40, 2.8, 0.9)
 		"select":
 			audio.play("token_select")
@@ -307,7 +309,7 @@ func _on_game_event(event_name: String, data: Dictionary) -> void:
 			if game.fast_mode:
 				audio.play("capture")
 		"impact":
-			audio.play("capture")
+			audio.play("impact", 0.06)
 			effects.burst(pos, EffectsManager.GOLD, 40, 3.6, 0.8)
 			effects.burst(pos, EffectsManager.TEAM.get(data.get("color", "red"), EffectsManager.GOLD), 30, 2.6, 0.9)
 			effects.shockwave(pos - up * 0.7)

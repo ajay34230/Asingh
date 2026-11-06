@@ -182,9 +182,8 @@ def main():
     write("token_land", land_thump())
     write("capture", capture_crunch())
     write("token_finish", finish_bell())
-    write("victory", victory_fanfare())
+    # victory.wav and the music tracks come from tools/make_music.py
     write("ui_click", button_click(), 0.5)
-    write("music_loop", background_loop(), 0.5)
 
 
 if __name__ == "__main__":

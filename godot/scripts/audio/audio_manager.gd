@@ -14,8 +14,14 @@ const SOUND_FILES := {
 	"token_finish": "res://assets/audio/token_finish.wav",
 	"victory": "res://assets/audio/victory.wav",
 	"ui_click": "res://assets/audio/ui_click.wav",
+	"impact": "res://assets/audio/impact.wav",
+	"six": "res://assets/audio/six.wav",
 }
-const MUSIC_FILE := "res://assets/audio/music_loop.wav"
+## Sitar and tanpura alaap for menus; sitar gat with tabla during play.
+const MUSIC_FILES := {
+	"menu": "res://assets/audio/music_menu.wav",
+	"game": "res://assets/audio/music_loop.wav",
+}
 
 var music_volume_db := -10.0
 var sfx_volume_db := -2.0
@@ -25,6 +31,8 @@ var haptics := true
 var _sounds: Dictionary = {}
 var _pool: Array[AudioStreamPlayer] = []
 var _music: AudioStreamPlayer
+var _tracks: Dictionary = {}
+var _track := "menu"
 
 
 func _ready() -> void:
@@ -38,11 +46,13 @@ func _ready() -> void:
 		p.bus = "SFX"
 		add_child(p)
 		_pool.append(p)
-	var music_stream := load(MUSIC_FILE) as AudioStreamWAV
-	music_stream.loop_mode = AudioStreamWAV.LOOP_FORWARD
-	music_stream.loop_end = int(music_stream.get_length() * music_stream.mix_rate)
+	for key in MUSIC_FILES:
+		var stream := load(MUSIC_FILES[key]) as AudioStreamWAV
+		stream.loop_mode = AudioStreamWAV.LOOP_FORWARD
+		stream.loop_end = int(stream.get_length() * stream.mix_rate)
+		_tracks[key] = stream
 	_music = AudioStreamPlayer.new()
-	_music.stream = music_stream
+	_music.stream = _tracks["menu"]
 	_music.bus = "Music"
 	add_child(_music)
 	apply_settings()
@@ -70,7 +80,19 @@ func play(sound_name: String, pitch_jitter := 0.04) -> void:
 			return
 
 
-func start_music() -> void:
+## Starts (or switches to) a music track, fading across when one is already playing.
+func start_music(track := "") -> void:
+	if track != "" and track != _track and _tracks.has(track):
+		_track = track
+		if _music.playing:
+			var fade := create_tween()
+			fade.tween_property(_music, "volume_db", -40.0, 0.6)
+			fade.tween_callback(func() -> void:
+				_music.stream = _tracks[_track]
+				_music.play()
+				_music.volume_db = music_volume_db)
+			return
+		_music.stream = _tracks[_track]
 	if not muted and not _music.playing:
 		_music.volume_db = music_volume_db
 		_music.play()
