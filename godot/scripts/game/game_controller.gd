@@ -14,9 +14,7 @@ signal event(event_name: String, data: Dictionary)
 
 const TOKEN_SCALE := 0.75
 const TRACK_Y := 0.12          ## top of the track tiles (RoyalBoard.TILE_TOP)
-const DISC_Y := 0.13           ## courtyard token disc (spots 0 and 1)
-const FLOOR_Y := 0.10          ## courtyard floor (spots 2 and 3)
-const FINISH_Y := 0.24         ## top of the centre lotus medallion
+const BASE_Y := 0.15           ## courtyard pedestals (RoyalBoard.PEDESTAL_TOP)
 const HOP_SECONDS := 0.2
 const AI_DELAY := 0.6
 const TOKEN_PICK_RADIUS := 0.55
@@ -233,17 +231,14 @@ func _hop(scale: float = 1.0) -> float:
 func _base_world(color: String, token_index: int) -> Vector3:
 	var p := BoardPath.base_spot(color, token_index)
 	var w := BoardPath.to_world(p.x, p.y)
-	w.y = DISC_Y if token_index < 2 else FLOOR_Y
+	w.y = BASE_Y
 	return w
 
 func _track_world(color: String, progress: int, token_index: int) -> Vector3:
 	if progress <= 0:
 		return _base_world(color, token_index)
 	if progress >= BoardPath.FINISH_PROGRESS:
-		var f := BoardPath.progress_point(color, progress, token_index)
-		var fw := BoardPath.to_world(f.x, f.y)
-		fw.y = FINISH_Y
-		return fw
+		return RoyalBoard.finish_world(color, token_index)
 	var c := BoardPath.progress_point(color, progress, token_index)
 	var w := BoardPath.to_world(c.x, c.y)
 	w.y = TRACK_Y

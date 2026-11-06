@@ -10,15 +10,14 @@ extends Node3D
 const DICE_PATH := "res://assets/models/02_Dice/Royal_India_Royal_Jewel_Dice.glb"
 const SCREEN_MARGIN := 0.04
 ## Tilted perspective so tokens read as 3D figures, not flat discs.
-const CAMERA_FOV := 36.0
-const CAMERA_ELEVATION_DEG := 52.0
-const CAMERA_HEIGHT_MAX := 1.2
-## Outer edge of the palace terraces. The camera is fitted to this, so the scene spans the screen width.
-const DECOR_DEPTH := 2.4   ## room for front and back decorations in the camera fit
+const CAMERA_FOV := 32.0
+const CAMERA_ELEVATION_DEG := 64.0
+const CAMERA_HEIGHT_MAX := 0.3
 const DICE_POSITION := Vector3(0, 1.25, 0)
 const DICE_TAP_RADIUS_PX := 120.0
 
 var camera: Camera3D
+var board: RoyalBoard
 var game: GameController
 var audio: AudioManager
 var effects: EffectsManager
@@ -49,7 +48,9 @@ func _ready() -> void:
 			menu_shot = arg.trim_prefix("--menu-screenshot=")
 
 	_build_environment()
-	add_child(RoyalBoard.new())
+	board = RoyalBoard.new()
+	board.name = "Board"
+	add_child(board)
 	_place_decorations()
 	_build_camera()
 	var dice := _build_dice()
@@ -67,6 +68,8 @@ func _ready() -> void:
 	game.message.connect(hud.set_message)
 	game.message.connect(_log_message)
 	game.turn_changed.connect(hud.set_turn)
+	game.turn_changed.connect(func(color: String, _human: bool) -> void: board.update_plaques(game.engine.seats, color))
+	game.event.connect(func(_name: String, _data: Dictionary) -> void: board.update_plaques(game.engine.seats, game.current_color() if game.engine.phase != RulesEngine.PHASE_OVER else ""))
 	game.game_finished.connect(_on_game_finished)
 	game.event.connect(_on_game_event)
 	audio = AudioManager.new()
@@ -90,6 +93,7 @@ func _ready() -> void:
 			demo_colors = ["blue", "yellow", "green"]
 		_start_new_game_with([], demo_colors)
 	elif _is_test_launch(args):
+		menu.visible = false
 		_start_new_game_test()
 	elif "--menu-play" in args:
 		audio.start_music()
@@ -239,12 +243,12 @@ func _start_new_game_with(humans: Array, seats: Array) -> void:
 ## Royal decorations, placed beside the board (outside the playfield, so they never
 ## obstruct the track). Each one gets its matching idle animation script.
 const DECORATIONS := [
-	{"path": "res://assets/models/05_Animals_and_Statues/Royal_India_Elephant.glb", "pos": Vector3(-6.2, 0, 7.6), "yaw": 0, "type": "elephant", "scale": 0.5},
-	{"path": "res://assets/models/05_Animals_and_Statues/Royal_India_Elephant_Statue.glb", "pos": Vector3(6.2, 0, 7.6), "yaw": 0, "type": "statue", "scale": 1.1},
-	{"path": "res://assets/models/05_Animals_and_Statues/Royal_India_Peacock_HighPoly_Textured.glb", "pos": Vector3(-7.4, 0, -7.6), "yaw": 180, "type": "peacock", "scale": 0.6},
-	{"path": "res://assets/models/05_Animals_and_Statues/Royal_India_Peacock_Statue.glb", "pos": Vector3(7.4, 0, -7.6), "yaw": 180, "type": "statue", "scale": 1.0},
-	{"path": "res://assets/models/06_Decorations/Royal_India_Lotus_Fountain.glb", "pos": Vector3(0, 0, 8.1), "yaw": 0, "type": "fountain", "scale": 0.9},
-	{"path": "res://assets/models/06_Decorations/Royal_India_Deepam_Lamp_Set.glb", "pos": Vector3(0, 0, -8.1), "yaw": 180, "type": "lamp", "scale": 0.7},
+	{"path": "res://assets/models/05_Animals_and_Statues/Royal_India_Elephant.glb", "pos": Vector3(-12.7, RoyalBoard.WING_TOP, 0.0), "yaw": 90, "type": "elephant", "scale": 0.75},
+	{"path": "res://assets/models/06_Decorations/Royal_India_Lotus_Fountain.glb", "pos": Vector3(12.7, RoyalBoard.WING_TOP, 0.0), "yaw": 0, "type": "fountain", "scale": 0.9},
+	{"path": "res://assets/models/05_Animals_and_Statues/Royal_India_Peacock_HighPoly_Textured.glb", "pos": Vector3(-18.4, RoyalBoard.WING_TOP, 0.6), "yaw": 60, "type": "peacock", "scale": 0.7},
+	{"path": "res://assets/models/06_Decorations/Royal_India_Deepam_Lamp_Set.glb", "pos": Vector3(-18.4, RoyalBoard.WING_TOP, 7.2), "yaw": 0, "type": "lamp", "scale": 0.7},
+	{"path": "res://assets/models/05_Animals_and_Statues/Royal_India_Peacock_Statue.glb", "pos": Vector3(18.4, RoyalBoard.WING_TOP, 0.6), "yaw": -60, "type": "statue", "scale": 1.0},
+	{"path": "res://assets/models/05_Animals_and_Statues/Royal_India_Elephant_Statue.glb", "pos": Vector3(18.4, RoyalBoard.WING_TOP, 7.2), "yaw": -90, "type": "statue", "scale": 1.1},
 ]
 
 func _place_decorations() -> void:
@@ -343,39 +347,65 @@ func _build_camera() -> void:
 func _fit_camera() -> void:
 	var el := deg_to_rad(CAMERA_ELEVATION_DEG if _camera_tilt else 89.0)
 	var dir := Vector3(0, sin(el), cos(el))
-	var outer := RoyalBoard.outer_size()
-	var half_x := outer.x * 0.5
-	var half_z := outer.y * 0.5 + DECOR_DEPTH
+	## The square main board must fit the height and the plaque columns the width. On a
+	## wide phone the height is the limit, so the wings run past both screen edges.
+	var half_x := RoyalBoard.VISIBLE_HALF_X
+	var half_z := RoyalBoard.outer_size().y * 0.5 + 0.2
+	var plaque_z := RoyalBoard.PLAQUE_Z + RoyalBoard.PLAQUE_SIZE.y * 0.5 + 0.2
 	var corners: Array[Vector3] = []
-	for x in [-half_x, half_x]:
-		for y in [0.0, CAMERA_HEIGHT_MAX]:
-			for z in [-half_z, half_z]:
+	for y in [0.0, CAMERA_HEIGHT_MAX]:
+		for z in [-half_z, half_z]:
+			corners.append(Vector3(0.0, y, z))
+		for x in [-half_x, half_x]:
+			for z in [-plaque_z, plaque_z]:
 				corners.append(Vector3(x, y, z))
+	## Search the look-at point along z too, so the gaps above and below the board are
+	## equal (a tilted camera would otherwise leave more room at the far edge).
+	var lo := -1.0
+	var hi := 4.0
+	for i in range(18):
+		_camera_target = Vector3(0, 0, (lo + hi) * 0.5)
+		_fit_distance(dir, corners)
+		var top := camera.unproject_position(Vector3(0, 0, -half_z)).y
+		var bottom := get_viewport().get_visible_rect().size.y - camera.unproject_position(Vector3(0, 0, half_z)).y
+		if top > bottom:
+			lo = _camera_target.z
+		else:
+			hi = _camera_target.z
+	_camera_target = Vector3(0, 0, (lo + hi) * 0.5)
+	var distance := _fit_distance(dir, corners)
+	_camera_base = _camera_target + dir * distance
+	camera.look_at_from_position(_camera_base, _camera_target, Vector3.UP)
+	if director:
+		director.set_base(_camera_base, _camera_target, CAMERA_FOV)
+
+
+var _camera_target := Vector3.ZERO
+
+
+func _fit_distance(dir: Vector3, corners: Array[Vector3]) -> float:
 	var near_d := 4.0
 	var far_d := 150.0
-	for i in range(40):
+	for i in range(32):
 		var mid := (near_d + far_d) * 0.5
-		if _corners_fit(dir * mid, corners):
+		if _corners_fit(_camera_target + dir * mid, corners):
 			far_d = mid
 		else:
 			near_d = mid
-	_camera_base = dir * far_d
-	camera.look_at_from_position(_camera_base, Vector3(0, 0.3, 0), Vector3.UP)
-	if director:
-		director.set_base(_camera_base, Vector3(0, 0.3, 0), CAMERA_FOV)
+	_corners_fit(_camera_target + dir * far_d, corners)
+	return far_d
 
 
 func _corners_fit(position: Vector3, corners: Array[Vector3]) -> bool:
-	camera.look_at_from_position(position, Vector3(0, 0.3, 0), Vector3.UP)
+	camera.look_at_from_position(position, _camera_target, Vector3.UP)
 	var vp := get_viewport().get_visible_rect().size
 	for c in corners:
 		if camera.is_position_behind(c):
 			return false
 		var p := camera.unproject_position(c)
-		if absf(p.x - vp.x * 0.5) > vp.x * 0.5 * 0.995:
+		if absf(p.x - vp.x * 0.5) > vp.x * 0.5:
 			return false
-		## Width is the limit: the board may run slightly past the top and bottom of the screen.
-		if absf(p.y - vp.y * 0.5) > vp.y * 0.5 * 1.25:
+		if absf(p.y - vp.y * 0.5) > vp.y * 0.5:
 			return false
 	return true
 
@@ -387,7 +417,7 @@ func _build_dice() -> DiceController:
 	var model := Node3D.new()
 	model.name = "DiceModel"
 	model.add_child((load(DICE_PATH) as PackedScene).instantiate())
-	model.scale = Vector3.ONE * 0.9
+	model.scale = Vector3.ONE * 1.15
 	dice.add_child(model)
 	var shape := CollisionShape3D.new()
 	var sphere := SphereShape3D.new()
@@ -406,53 +436,61 @@ func _make_plane(size: float) -> PlaneMesh:
 
 func _build_environment() -> void:
 	var env := Environment.new()
-	env.background_mode = Environment.BG_COLOR
-	env.background_color = Color("#1a0a06")
-	env.ambient_light_source = Environment.AMBIENT_SOURCE_COLOR
-	env.ambient_light_color = Color("#fff1d6")
-	env.ambient_light_energy = 0.6
+	## A warm palace sky: never seen directly (the camera looks down), but gold, gems
+	## and polished marble reflect it.
+	var sky_mat := ProceduralSkyMaterial.new()
+	sky_mat.sky_top_color = Color("#3d2b52")
+	sky_mat.sky_horizon_color = Color("#ffd9a0")
+	sky_mat.ground_horizon_color = Color("#c2874a")
+	sky_mat.ground_bottom_color = Color("#2a140a")
+	sky_mat.sun_angle_max = 40.0
+	var sky := Sky.new()
+	sky.sky_material = sky_mat
+	env.sky = sky
+	env.background_mode = Environment.BG_SKY
+	env.ambient_light_source = Environment.AMBIENT_SOURCE_SKY
+	env.ambient_light_energy = 0.55
+	env.reflected_light_source = Environment.REFLECTION_SOURCE_SKY
+	env.tonemap_mode = Environment.TONE_MAPPER_ACES
+	env.tonemap_exposure = 1.05
+	env.tonemap_white = 6.0
 	## Glow (bloom) is supported by the Mobile renderer, with its lower HDR range.
 	env.glow_enabled = true
-	env.glow_intensity = 0.3
-	env.glow_bloom = 0.08
-	env.glow_hdr_threshold = 1.4
-	env.glow_blend_mode = Environment.GLOW_BLEND_MODE_SCREEN
+	env.glow_intensity = 0.45
+	env.glow_bloom = 0.06
+	env.glow_hdr_threshold = 1.2
+	env.glow_blend_mode = Environment.GLOW_BLEND_MODE_SOFTLIGHT
+	env.adjustment_enabled = true
+	env.adjustment_saturation = 1.08
+	env.adjustment_contrast = 1.04
 	var world := WorldEnvironment.new()
 	world.environment = env
 	add_child(world)
 	var sun := DirectionalLight3D.new()
-	sun.light_energy = 1.25
-	sun.light_color = Color("#ffe7bf")
-	sun.rotation_degrees = Vector3(-55, -35, 0)
+	sun.light_energy = 1.5
+	sun.light_color = Color("#ffe9c4")
+	sun.rotation_degrees = Vector3(-58, -32, 0)
 	sun.shadow_enabled = true
+	sun.shadow_blur = 1.5
+	sun.directional_shadow_max_distance = 80.0
 	add_child(sun)
+	## Cool fill from the opposite side, so shadows are not black.
+	var fill := DirectionalLight3D.new()
+	fill.light_energy = 0.35
+	fill.light_color = Color("#c9d6ff")
+	fill.rotation_degrees = Vector3(-40, 150, 0)
+	add_child(fill)
 	_build_palace_floor()
 
-## A large marble palace floor under the board. Board and decorations sit on it, so
-## wide phone screens are filled edge to edge instead of showing a dark border.
+## Black-and-gold marble table under the board, seen past its long edges on 16:9 screens.
 func _build_palace_floor() -> void:
 	var floor_mesh := MeshInstance3D.new()
 	floor_mesh.name = "PalaceFloor"
-	floor_mesh.mesh = _make_plane(120.0)
-	## Dark rosewood marble under the board, so the board and gold stand out.
-	var stone := StandardMaterial3D.new()
-	stone.albedo_color = Color("#4a2a1c")
-	stone.albedo_texture = RoyalBoard.make_marble_texture()
-	stone.roughness = 0.3
-	stone.clearcoat_enabled = true
-	stone.clearcoat = 0.4
-	stone.uv1_scale = Vector3(6, 6, 6)
-	floor_mesh.material_override = stone
-	floor_mesh.position = Vector3(0, -0.62, 0)
+	floor_mesh.mesh = _make_plane(160.0)
+	floor_mesh.material_override = RoyalBoard.marble_material(RoyalBoard.marble_texture(true), Color.WHITE, 0.05)
+	floor_mesh.position = Vector3(0, RoyalBoard.SLAB_BOTTOM, 0)
 	floor_mesh.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	add_child(floor_mesh)
-	## Warm rim light from behind the board, to separate the frame from the backdrop.
-	var rim := DirectionalLight3D.new()
-	rim.light_energy = 0.5
-	rim.light_color = Color("#ffb070")
-	rim.rotation_degrees = Vector3(-25, 150, 0)
-	rim.shadow_enabled = false
-	add_child(rim)
 
 
 ## Taps on a glowing token move it. The ray is cast to a plane just above the track.

@@ -65,6 +65,7 @@ var _overlay := false
 
 func _ready() -> void:
 	set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	theme = RoyalTheme.build()
 	_fit_to_viewport()
 	get_viewport().size_changed.connect(_fit_to_viewport)
 	var shade := ColorRect.new()
@@ -114,13 +115,6 @@ func _page_root(name: String) -> VBoxContainer:
 	add_child(center)
 	var panel := PanelContainer.new()
 	panel.custom_minimum_size = Vector2(440, 0)
-	var style := StyleBoxFlat.new()
-	style.bg_color = Color(0.13, 0.06, 0.04, 0.96)
-	style.border_color = Color("#d9a441")
-	style.set_border_width_all(2)
-	style.set_corner_radius_all(16)
-	style.set_content_margin_all(22)
-	panel.add_theme_stylebox_override("panel", style)
 	center.add_child(panel)
 	var box := VBoxContainer.new()
 	box.add_theme_constant_override("separation", 10)
@@ -134,7 +128,9 @@ func _title(box: VBoxContainer, text: String) -> void:
 	var l := Label.new()
 	l.text = text
 	l.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	l.add_theme_font_size_override("font_size", 30)
+	l.add_theme_font_size_override("font_size", 40)
+	l.add_theme_color_override("font_color", RoyalTheme.GOLD_LIGHT)
+	l.add_theme_constant_override("outline_size", 10)
 	box.add_child(l)
 
 
