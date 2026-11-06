@@ -56,13 +56,18 @@ var menu: GameMenu
 var map_ui: MapUI
 var combat: CombatBuilder
 var combat_hud: CombatHUD
+var frontier: FrontierBuilder
 
 
 func _ready() -> void:
 	var t0 := Time.get_ticks_msec()
 	terrain = TerrainBuilder.new(1337)
+	frontier = FrontierBuilder.new()
+	frontier.generate()
+	terrain.frontier = frontier
 	terrain.generate_heights()
 	terrain.build(self)
+	frontier.build_ground(self, terrain)
 	RuinsBuilder.new(terrain).build(self)
 	EntranceBuilder.new(terrain).build(self)
 	houses = HouseBuilder.new(terrain)
@@ -89,6 +94,9 @@ func _ready() -> void:
 	_spawn_player()
 	npcs = NpcBuilder.build(self, terrain, houses, railway, player)
 	life = LifeBuilder.build(self, terrain, houses, railway, player)
+	frontier.build_places(self, terrain, player)
+	npcs.append_array(frontier.npcs)
+	life.append_array(frontier.animals)
 	water = WaterBuilder.new(terrain)
 	water.build(self, houses)
 	water.spawn_carriers(self, houses, player)
@@ -125,6 +133,8 @@ func _ready() -> void:
 			_run_capture_fight.call_deferred(a.trim_prefix("--capture-fight="))
 		elif a.begins_with("--capture-lab="):
 			_run_capture_lab.call_deferred(a.trim_prefix("--capture-lab="))
+		elif a.begins_with("--capture-road="):
+			_run_capture_road.call_deferred(a.trim_prefix("--capture-road="))
 		elif a.begins_with("--capture-fist="):
 			_run_capture_fist.call_deferred(a.trim_prefix("--capture-fist="))
 		elif a.begins_with("--capture-veyra="):
@@ -1520,6 +1530,7 @@ func _run_selftest() -> void:
 	await _selftest_map_route(fails, notes)
 	_selftest_cin_ground(fails)
 	_selftest_night_life(fails)
+	await _selftest_frontier(fails)
 	await _selftest_walls(fails)
 	await _selftest_farm(fails)
 	items.give("hide", 3)
@@ -2390,6 +2401,46 @@ func _selftest_walls(fails: PackedStringArray) -> void:
 		fails.append("combat: roll move missing")
 
 
+## Southern Road: the ground joins the valley without a step, the pass is open, and the stops exist.
+func _selftest_frontier(fails: PackedStringArray) -> void:
+	var worst := 0.0
+	for xi in 40:
+		var x := -199.0 + xi * 8.0
+		var a := terrain.sample_height(x, 199.95)
+		var b := terrain.sample_height(x, 200.05)
+		worst = maxf(worst, absf(a - b))
+	if worst > 0.35:
+		fails.append("frontier: step of %.2f m at the valley seam" % worst)
+	# walk up through the pass from the valley side
+	player.global_position = Vector3(TerrainBuilder.PASS_X, terrain.sample_height(TerrainBuilder.PASS_X, 172.0) + 0.4, 172.0)
+	player.velocity = Vector3.ZERO
+	player.locked = false
+	player.set_look(PI, -0.1)            # face +z (south)
+	for i in 10:
+		await get_tree().physics_frame
+	player.move_input = Vector2(0, 1)
+	player.sprint = true
+	for i in 420:
+		await get_tree().physics_frame
+	player.move_input = Vector2.ZERO
+	player.sprint = false
+	var pz := player.global_position.z
+	print("[selftest] frontier: seam step %.3f m, walked the pass to z=%.1f (y=%.1f)" % [worst, pz, player.global_position.y])
+	if pz < 215.0:
+		fails.append("frontier: could not walk out through the south pass (stopped at z=%.1f)" % pz)
+	var oh := terrain.sample_height(Act4.OUTPOSTS[2].x, Act4.OUTPOSTS[2].y)
+	if oh > 30.0 or oh < 10.0:
+		fails.append("frontier: third outpost ground at odd height %.1f" % oh)
+	var names := []
+	for n in npcs:
+		names.append(n.name)
+	for want in ["SaraiKeeper", "Headman"]:
+		if not want in names:
+			fails.append("frontier: %s missing" % want)
+		elif story.dialogue_for(want).is_empty():
+			fails.append("frontier: %s has no dialogue" % want)
+
+
 func _selftest_night_life(fails: PackedStringArray) -> void:
 	if night_life == null or night_life.points.size() < 6:
 		fails.append("night life: lamp points missing")
@@ -2900,6 +2951,44 @@ func _run_capture_ride(arg: String) -> void:
 			await RenderingServer.frame_post_draw
 			print("[capture] ", an.species, view[0], " -> ", get_viewport().get_texture().get_image().save_png("%s/%s_%s.png" % [dir, an.species, view[0]]))
 		mounts.dismount()
+	get_tree().quit()
+
+
+func _run_capture_road(dir: String) -> void:
+	DirAccess.make_dir_recursive_absolute(dir)
+	touch.visible = false
+	atmosphere.time_of_day = 0.42
+	atmosphere.apply_time()
+	var sc := FrontierBuilder.SARAI_C
+	var dc := FrontierBuilder.DHOOP_C
+	var shots := [
+		["r1_pass_up", Vector3(-40.0, 0.0, 165.0), Vector3(-40.0, 22.0, 215.0), -0.02],
+		["r2_pass_top", Vector3(-38.0, 0.0, 232.0), Vector3(-20.0, 32.0, 300.0), -0.02],
+		["r3_back_view", Vector3(-30.0, 0.0, 270.0), Vector3(-40.0, 10.0, 150.0), -0.05],
+		["r4_sarai", Vector3(sc.x - 34.0, 0.0, sc.y - 12.0), Vector3(sc.x, 33.0, sc.y), -0.05],
+		["r5_sarai_in", Vector3(sc.x - 8.0, 0.0, sc.y + 2.0), Vector3(sc.x + 8.0, 33.0, sc.y - 2.0), -0.05],
+		["r6_dhoop", Vector3(dc.x - 4.0, 0.0, dc.y - 40.0), Vector3(dc.x, 33.0, dc.y), -0.05],
+		["r7_over", Vector3(-30.0, 60.0, 300.0), Vector3(-30.0, 30.0, 420.0), -0.35],
+	]
+	for s in shots:
+		var sp: Vector3 = s[1]
+		player.set_distance(5.0)
+		var gy := terrain.sample_height(sp.x, sp.z)
+		player.global_position = Vector3(sp.x, maxf(gy + 0.4, sp.y), sp.z)
+		player.velocity = Vector3.ZERO
+		player.locked = true
+		_look_at_point(s[2], s[3])
+		for i in 70:
+			await get_tree().process_frame
+		await RenderingServer.frame_post_draw
+		print("[capture] ", s[0], " -> ", get_viewport().get_texture().get_image().save_png("%s/%s.png" % [dir, s[0]]))
+	map_ui.toggle_full()
+	map_ui._view = MapUI.WORLD
+	map_ui._sync_view_btn()
+	for i in 10:
+		await get_tree().process_frame
+	await RenderingServer.frame_post_draw
+	get_viewport().get_texture().get_image().save_png("%s/map_world.png" % dir)
 	get_tree().quit()
 
 

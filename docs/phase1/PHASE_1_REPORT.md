@@ -233,3 +233,41 @@ Selftest passes. **Not tested on a device.**
 - Pause menu has "Stuck? Fix me": clears stale locks and held touches, closes any open dialogue, and moves the player beside the current objective.
 - The "stuck in missions" cause is not identified. Needs the user to name a mission or say whether it is lag or an objective that will not complete.
 - The yellow/brown slab glitch is still unresolved. Needs the Debug-tab bisect on the device.
+
+## Addendum: Southern Road, world map, jumps and climbing, fists, weapons, log collector (2026-11-06)
+
+Verified only by the headless selftest (PASS) and software-rendered captures. **Not tested on a device.**
+
+- **Southern Road (new area).**
+  - A pass in the valley's south rim (x = -40) leads up to a plateau, built by FrontierBuilder (320 x 480 m).
+  - A road of about 520 m winds past Act 4's third Ashen outpost to two new stops: Kesar Sarai, a walled caravan inn with rooms, a well and a stall, and Dhoopgarh, a frontier village with a watchtower, a shrine and a well.
+  - The stops have 8 new NPCs with dialogue, red milestones every 60 m, rocks and dead trees.
+  - Horses wait at the foot of the pass and at each stop, and camels and a donkey at the stops.
+  - Two new fast-travel shrines.
+  - The ground joins the valley mesh along z = 200 with the same x spacing. Selftest: largest step 0.17 m, and the player walks out through the pass.
+  - The distant mountain ring is opened (sunk under the ground) over the road.
+- **Stuck mission found.** Act 4's third outpost (-40, 205) was outside the valley's 400 m terrain and beyond its boundary wall, so it could not be reached. It now sits at the top of the pass on real ground.
+- **Map.**
+  - It covers the valley and the road (a 256 x 563 texture).
+  - The full map has a Valley / Whole map toggle.
+  - New landmarks: Home Farm, Mirror Pond, South Pass, Kesar Sarai, Dhoopgarh and the three Ashen outposts.
+  - Shrines show as lit or unlit.
+  - A mission goal outside the current view shows as an arrow on the border.
+  - In Veyra and the other off-map halls the minimap shows the place name instead of garbage.
+- **Jumps.**
+  - Standing jump: an anticipation crouch (0.15 s), both feet, a knee tuck at the apex, arms up then forward, and a deep landing.
+  - Walking jump: a short crouch, then one-foot take-off.
+  - Running jump: a leap with the lead leg forward and the trail leg folded, a forward lean, opposite-arm drive and a light landing.
+- **Climbing (GTA SA style).** Jumping at a wall checks for a ledge:
+  - Higher than 1.3 m: climb (reach, hang, pull with bent elbows while a knee walks up, push down, knee over, stand).
+  - Lower: mantle.
+  - A thin fence with ground beyond it: vault.
+  - In the air, pushing into a wall with a reachable ledge grabs it.
+  - The selftest climbs a 1.5 m wall and vaults a 1 m fence.
+- **Fists.** Finger bones curl about their local X axis (checked in close-up captures on both rig types). Hands are fists in the guard, while striking and while blocking, and loosely curled otherwise. A punch thrown from relaxed hands first spends 0.14 s in the guard closing the fist.
+- **Weapon button.** A new HUD button (FISTS / HAMMER / AXE / SPEAR / BOW) cycles the weapons you own and shows the weapon in hand. Fists = the boxing combo, with no hammer in hand.
+- **Crash and log collector.**
+  - Pause menu > Crash & logs: copy the report to the clipboard, save it as a file (Downloads, or the game folder as a fallback), note a problem now, or clear.
+  - The report has device and GPU info, the stored crash reports (the last breadcrumb plus the tail of the previous run's Godot log), recent events (missions, unstick, low-fps quality drops) and the tails of Godot's logs.
+  - The title screen offers "Copy crash report" after a crash.
+- **Load time.** World build in headless went from about 4.6 s to 5.7 s (the new ground, its places and the larger map texture). The phone will be slower.

@@ -9,6 +9,8 @@ const SPOTS := [
 	["forest", "Forest Shrine", Vector2(-150.0 + 46.0, -110.0)],
 	["ruins", "Ruins Shrine", Vector2(0.0, -112.0)],
 	["farm", "Home Farm", Vector2(TerrainBuilder.FARM_C.x - 11.0, TerrainBuilder.FARM_C.y + 12.0)],   # always lit: home
+	["sarai", "Kesar Sarai", Vector2(FrontierBuilder.SARAI_C.x - 18.0, FrontierBuilder.SARAI_C.y - 4.0)],
+	["dhoop", "Dhoopgarh", Vector2(FrontierBuilder.DHOOP_C.x + 6.0, FrontierBuilder.DHOOP_C.y - 18.0)],
 ]
 
 var main: Node3D

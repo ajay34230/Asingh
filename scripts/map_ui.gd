@@ -5,7 +5,11 @@ extends CanvasLayer
 ## height field (hill-shaded, no extra assets).
 
 const HALF := TerrainBuilder.HALF
-const TEX := 320
+## The map covers the valley and the Southern Road below it. Texture pixels are about 1.56 m square.
+const WORLD := Rect2(-200.0, -200.0, 400.0, 880.0)
+const VALLEY := Rect2(-200.0, -200.0, 400.0, 400.0)
+const TEX_W := 256
+const TEX_H := 563
 const MINI := 220.0
 const MINI_RADIUS_M := 55.0
 
@@ -27,7 +31,12 @@ var extra: Array = []            # farm markers: {pos: Vector3, col: Color, labe
 var landmarks := [
 	["Sun Gate", Vector2(0, -168)], ["Village", Vector2(-90, 12)], ["Temple", Vector2(-35, -10)], ["Race Track", Vector2(118, -48)], ["Bazaar Town", Vector2(22, -42)], ["Sal Forest", Vector2(-150, -110)], ["Goods yard", Vector2(-20, 96)],
 	["Caravan", Vector2(47, 45)], ["Arin's office", Vector2(92, 150)], ["Dig site", Vector2(-95, 25)],
+	["Home Farm", TerrainBuilder.FARM_C], ["Mirror Pond", TerrainBuilder.POND_C], ["South Pass", Vector2(TerrainBuilder.PASS_X, 188)],
+	["Kesar Sarai", FrontierBuilder.SARAI_C], ["Dhoopgarh", FrontierBuilder.DHOOP_C],
+	["Ashen Outpost", Act4.OUTPOSTS[0]], ["Ashen Outpost", Act4.OUTPOSTS[1]], ["Ashen Outpost", Act4.OUTPOSTS[2]],
 ]
+var _view := VALLEY              # part of the world shown on the full map
+var _view_btn: Button
 
 
 func set_minimap_visible(on: bool) -> void:
@@ -79,6 +88,18 @@ func _ready() -> void:
 	_clear_btn.custom_minimum_size = Vector2(190, 56)
 	_clear_btn.pressed.connect(clear_waypoint)
 	_full.add_child(_clear_btn)
+	_view_btn = Button.new()
+	_view_btn.add_theme_font_size_override("font_size", 26)
+	_view_btn.anchor_left = 1.0
+	_view_btn.anchor_right = 1.0
+	_view_btn.offset_left = -250
+	_view_btn.offset_right = -20
+	_view_btn.offset_top = 14
+	_view_btn.offset_bottom = 70
+	_view_btn.pressed.connect(func() -> void:
+		_view = WORLD if _view == VALLEY else VALLEY
+		_sync_view_btn())
+	_full.add_child(_view_btn)
 	_btn = Button.new()
 	_btn.text = "Map"
 	_btn.add_theme_font_size_override("font_size", 26)
@@ -92,11 +113,24 @@ func _ready() -> void:
 	root.add_child(_btn)
 
 
-## The square the map picture occupies in the full-screen view.
+func _sync_view_btn() -> void:
+	_view_btn.text = "Whole map" if _view == VALLEY else "Valley"
+
+
+## The rectangle the map picture occupies in the full-screen view (keeps the view's aspect).
 func _full_rect() -> Rect2:
 	var vp := _full.get_viewport_rect().size
-	var side := minf(vp.x - 40.0, vp.y - 120.0)
-	return Rect2(Vector2((vp.x - side) * 0.5, 80.0), Vector2(side, side))
+	var aw := vp.x - 40.0
+	var ah := vp.y - 120.0
+	var k := minf(aw / _view.size.x, ah / _view.size.y)
+	var sz := _view.size * k
+	return Rect2(Vector2((vp.x - sz.x) * 0.5, 80.0), sz)
+
+
+## World position -> screen point on the full map.
+func _v2s(p: Vector3) -> Vector2:
+	var r := _full_rect()
+	return r.position + (Vector2(p.x, p.z) - _view.position) / _view.size * r.size
 
 
 func _on_full_input(ev: InputEvent) -> void:
@@ -108,11 +142,11 @@ func _on_full_input(ev: InputEvent) -> void:
 		return
 	# snap to a landmark when the tap is close to one, otherwise use the exact spot
 	var u := (pos - r.position) / r.size
-	var wx := u.x * HALF * 2.0 - HALF
-	var wz := u.y * HALF * 2.0 - HALF
+	var wx := _view.position.x + u.x * _view.size.x
+	var wz := _view.position.y + u.y * _view.size.y
 	for lm in landmarks:
 		var w: Vector2 = lm[1]
-		if (r.position + _w2u(Vector3(w.x, 0, w.y)) * r.size.x).distance_to(pos) < 28.0:
+		if _v2s(Vector3(w.x, 0, w.y)).distance_to(pos) < 28.0:
 			wx = w.x
 			wz = w.y
 			break
@@ -157,6 +191,11 @@ func _update_beam() -> void:
 
 func toggle_full() -> void:
 	_full.visible = not _full.visible
+	if _full.visible and player != null:
+		_view = VALLEY if VALLEY.has_point(Vector2(player.global_position.x, player.global_position.z)) and not has_waypoint else WORLD
+		if has_waypoint and VALLEY.has_point(Vector2(waypoint.x, waypoint.z)) and VALLEY.has_point(Vector2(player.global_position.x, player.global_position.z)):
+			_view = VALLEY
+		_sync_view_btn()
 	Sfx.ui("page_turn", -6.0)
 
 
@@ -175,30 +214,43 @@ func _process(_d: float) -> void:
 # --- terrain picture --------------------------------------------------------------------------
 
 func _render_terrain() -> ImageTexture:
-	var img := Image.create(TEX, TEX, false, Image.FORMAT_RGB8)
-	var step := HALF * 2.0 / TEX
-	for j in TEX:
-		for i in TEX:
-			var x := -HALF + (i + 0.5) * step
-			var z := -HALF + (j + 0.5) * step
+	var img := Image.create(TEX_W, TEX_H, false, Image.FORMAT_RGB8)
+	var step := WORLD.size.x / TEX_W
+	var plain := Color(0.80, 0.68, 0.48)
+	for j in TEX_H:
+		for i in TEX_W:
+			var x := WORLD.position.x + (i + 0.5) * step
+			var z := WORLD.position.y + (j + 0.5) * step
+			var in_valley := absf(x) <= HALF and absf(z) <= HALF
+			var in_road := terrain.frontier != null and FrontierBuilder.contains(x, z)
+			if not in_valley and not in_road:
+				img.set_pixel(i, j, plain * 0.8)
+				continue
 			var h := terrain.sample_height(x, z)
 			var hx := terrain.sample_height(x + step, z) - terrain.sample_height(x - step, z)
 			var hz := terrain.sample_height(x, z + step) - terrain.sample_height(x, z - step)
 			var shade := clampf(0.78 - (hx * 0.9 + hz * 0.6) * 0.08, 0.35, 1.15)
 			var t := clampf((h + 2.0) / 40.0, 0.0, 1.0)
 			var base := Color(0.86, 0.74, 0.52).lerp(Color(0.62, 0.46, 0.30), t).lerp(Color(0.55, 0.50, 0.46), clampf((h - 28.0) / 40.0, 0.0, 1.0))
-			if absf(x - terrain.river_x(z)) < 5.0 and h < 3.0:
-				base = Color(0.52, 0.42, 0.33)        # dry riverbed
-			var pd := Vector2(x - TerrainBuilder.POND_C.x, z - TerrainBuilder.POND_C.y).length()
-			base = base.lerp(Color(0.42, 0.62, 0.30), 1.0 - smoothstep(TerrainBuilder.POND_R * 1.2, 38.0, pd))
-			if pd < TerrainBuilder.POND_R * 1.05:
-				base = Color(0.22, 0.55, 0.78)
+			if in_valley:
+				if absf(x - terrain.river_x(z)) < 5.0 and h < 3.0:
+					base = Color(0.52, 0.42, 0.33)        # dry riverbed
+				var pd := Vector2(x - TerrainBuilder.POND_C.x, z - TerrainBuilder.POND_C.y).length()
+				base = base.lerp(Color(0.42, 0.62, 0.30), 1.0 - smoothstep(TerrainBuilder.POND_R * 1.2, 38.0, pd))
+				if pd < TerrainBuilder.POND_R * 1.05:
+					base = Color(0.22, 0.55, 0.78)
+			else:
+				if FrontierBuilder.road_dist(x, z) < 3.2:
+					base = Color(0.48, 0.34, 0.22)        # the Southern Road
+				for c in [FrontierBuilder.SARAI_C, FrontierBuilder.DHOOP_C]:
+					if Vector2(x, z).distance_to(c) < 16.0:
+						base = base.lerp(Color(0.7, 0.45, 0.3), 0.5)
 			img.set_pixel(i, j, Color(base.r * shade, base.g * shade, base.b * shade))
 	return ImageTexture.create_from_image(img)
 
 
-func _w2u(p: Vector3) -> Vector2:     # world -> 0..1 map coordinates
-	return Vector2((p.x + HALF) / (HALF * 2.0), (p.z + HALF) / (HALF * 2.0))
+func _w2u(p: Vector3) -> Vector2:     # world -> 0..1 texture coordinates
+	return Vector2((p.x - WORLD.position.x) / WORLD.size.x, (p.z - WORLD.position.y) / WORLD.size.y)
 
 
 # --- markers ---------------------------------------------------------------------------------
@@ -226,10 +278,16 @@ func _draw_mini() -> void:
 		return
 	var p := player.global_position
 	var u := _w2u(p)
-	var half_u := MINI_RADIUS_M / (HALF * 2.0)
-	var src := Rect2((u.x - half_u) * TEX, (u.y - half_u) * TEX, half_u * 2.0 * TEX, half_u * 2.0 * TEX)
+	var hx := MINI_RADIUS_M / WORLD.size.x
+	var hz := MINI_RADIUS_M / WORLD.size.y
+	var src := Rect2((u.x - hx) * TEX_W, (u.y - hz) * TEX_H, hx * 2.0 * TEX_W, hz * 2.0 * TEX_H)
 	_mini.draw_rect(Rect2(Vector2.ZERO, Vector2(MINI, MINI)), Color(0.08, 0.06, 0.04))
-	_mini.draw_texture_rect_region(tex, Rect2(Vector2.ZERO, Vector2(MINI, MINI)), src)
+	if WORLD.has_point(Vector2(p.x, p.z)):
+		_mini.draw_texture_rect_region(tex, Rect2(Vector2.ZERO, Vector2(MINI, MINI)), src)
+	else:
+		# far off the map (Veyra and the other halls beneath the kingdom): no ground picture, just the place name
+		_mini.draw_rect(Rect2(Vector2.ZERO, Vector2(MINI, MINI)), Color(0.22, 0.18, 0.14))
+		_mini.draw_string(ThemeDB.fallback_font, Vector2(10, MINI - 14), _zone_name(p), HORIZONTAL_ALIGNMENT_LEFT, MINI - 20, 20, Color(1, 0.9, 0.7))
 	var scale := MINI / (MINI_RADIUS_M * 2.0)
 	var centre := Vector2(MINI, MINI) * 0.5
 	for n in main.npcs:
@@ -271,53 +329,92 @@ func _draw_mini() -> void:
 	_mini.draw_string(ThemeDB.fallback_font, Vector2(MINI * 0.5 - 5, 20), "N", HORIZONTAL_ALIGNMENT_LEFT, -1, 20, Color(1, 1, 1, 0.9))
 
 
+func _zone_name(p: Vector3) -> String:
+	if p.x > 400.0:
+		return Loc.t("Veyra, beneath the kingdom")
+	if p.x < -400.0:
+		return Loc.t("The Sun Heart halls")
+	return Loc.t("Off the map")
+
+
 func _draw_full() -> void:
 	var vp := _full.get_viewport_rect().size
 	_full.draw_rect(Rect2(Vector2.ZERO, vp), Color(0.05, 0.04, 0.03, 0.94))
-	var side := minf(vp.x - 40.0, vp.y - 120.0)
-	var origin := Vector2((vp.x - side) * 0.5, 80.0)
-	_full.draw_texture_rect(tex, Rect2(origin, Vector2(side, side)), false)
-	_full.draw_rect(Rect2(origin, Vector2(side, side)), Color(0.9, 0.7, 0.3), false, 4.0)
+	var r := _full_rect()
+	var src := Rect2((_view.position - WORLD.position) / WORLD.size * Vector2(TEX_W, TEX_H), _view.size / WORLD.size * Vector2(TEX_W, TEX_H))
+	_full.draw_texture_rect_region(tex, r, src)
+	_full.draw_rect(r, Color(0.9, 0.7, 0.3), false, 4.0)
 	var font := ThemeDB.fallback_font
 	_full.draw_string(font, Vector2(420, 56), "Tap the map to set a route", HORIZONTAL_ALIGNMENT_LEFT, -1, 26, Color(0.95, 0.74, 0.32))
+	var inside := func(q: Vector2) -> bool: return r.grow(-2.0).has_point(q)
 	for lm in landmarks:
 		var w: Vector2 = lm[1]
-		var q := origin + _w2u(Vector3(w.x, 0, w.y)) * side
+		var q := _v2s(Vector3(w.x, 0, w.y))
+		if not inside.call(q):
+			continue
 		_full.draw_rect(Rect2(q - Vector2(6, 6), Vector2(12, 12)), Color(0.35, 0.2, 0.1))
 		_full.draw_rect(Rect2(q - Vector2(6, 6), Vector2(12, 12)), Color(1, 0.9, 0.7), false, 2.0)
-		_full.draw_string(font, q + Vector2(10, -8), lm[0], HORIZONTAL_ALIGNMENT_LEFT, -1, 22, Color(1, 1, 1))
+		_full.draw_string(font, q + Vector2(10, -8), Loc.t(String(lm[0])), HORIZONTAL_ALIGNMENT_LEFT, -1, 22, Color(1, 1, 1))
+	# fast-travel shrines: lit ones glow
+	var sh: Object = main.get("shrines") if main != null else null
+	if sh != null:
+		for spt in Shrines.SPOTS:
+			var sp2: Vector2 = spt[2]
+			var qs := _v2s(Vector3(sp2.x, 0, sp2.y))
+			if inside.call(qs):
+				var lit := bool(sh.call("is_lit", String(spt[0])))
+				_full.draw_circle(qs, 7.0, Color(1.0, 0.75, 0.2) if lit else Color(0.5, 0.45, 0.4))
+				_full.draw_arc(qs, 7.0, 0.0, TAU, 16, Color(0.1, 0.05, 0.0), 2.0)
 	for ex2 in extra:
 		var ep2: Vector3 = ex2["pos"]
-		var q3 := origin + _w2u(ep2) * side
-		_diamond(_full, q3, 10.0, ex2["col"])
-		_full.draw_string(font, q3 + Vector2(14, 6), Loc.t(String(ex2["label"])), HORIZONTAL_ALIGNMENT_LEFT, -1, 22, Color(1, 1, 0.8))
+		var q3 := _v2s(ep2)
+		if inside.call(q3):
+			_diamond(_full, q3, 10.0, ex2["col"])
+			_full.draw_string(font, q3 + Vector2(14, 6), Loc.t(String(ex2["label"])), HORIZONTAL_ALIGNMENT_LEFT, -1, 22, Color(1, 1, 0.8))
 	for n in main.npcs:
-		_full.draw_circle(origin + _w2u(n.global_position) * side, 4.0, Color(0.35, 0.85, 1.0))
+		var qn := _v2s(n.global_position)
+		if inside.call(qn):
+			_full.draw_circle(qn, 4.0, Color(0.35, 0.85, 1.0))
 	for e in get_tree().get_nodes_in_group("enemies"):
-		_full.draw_circle(origin + _w2u(e.global_position) * side, 5.0, Color(1.0, 0.2, 0.15))
+		var qe := _v2s((e as Node3D).global_position)
+		if inside.call(qe):
+			_full.draw_circle(qe, 5.0, Color(1.0, 0.2, 0.15))
 	var idx := 1
+	var centre := r.get_center()
 	for o in _objectives():
 		var t: Vector3 = o["target"]
 		if t == Vector3.ZERO:
 			continue
-		var q2 := origin + _w2u(t) * side
+		var q2 := _v2s(t)
+		if not inside.call(q2):
+			# goal outside this view (or far off the map): an arrow on the border pointing to it
+			var dir := (q2 - centre).normalized()
+			var k := minf((r.size.x * 0.5 - 18.0) / maxf(absf(dir.x), 0.001), (r.size.y * 0.5 - 18.0) / maxf(absf(dir.y), 0.001))
+			q2 = centre + dir * k
 		_diamond(_full, q2, 11.0, Color(1.0, 0.82, 0.25))
 		_full.draw_string(font, q2 + Vector2(-5, 7), str(idx), HORIZONTAL_ALIGNMENT_LEFT, -1, 18, Color(0.1, 0.05, 0))
 		idx += 1
 	if has_waypoint:
-		var a := origin + _w2u(player.global_position) * side
-		var b := origin + _w2u(waypoint) * side
+		var a := _v2s(player.global_position)
+		var b := _v2s(waypoint)
 		_full.draw_dashed_line(a, b, Color(1.0, 0.3, 0.25), 4.0, 12.0)
 		_full.draw_circle(b, 10.0, Color(1.0, 0.3, 0.25))
 		_full.draw_circle(b, 4.0, Color.WHITE)
 		var dist := Vector2(waypoint.x - player.global_position.x, waypoint.z - player.global_position.z).length()
 		_full.draw_string(font, (a + b) * 0.5 + Vector2(8, -8), "%d m" % int(dist), HORIZONTAL_ALIGNMENT_LEFT, -1, 24, Color(1, 0.9, 0.85))
-	_arrow(_full, origin + _w2u(player.global_position) * side, player.look_yaw(), 14.0)
+	var pq := _v2s(player.global_position)
+	if inside.call(pq):
+		_arrow(_full, pq, player.look_yaw(), 14.0)
+	else:
+		_full.draw_string(font, r.position + Vector2(12, r.size.y - 14), Loc.t("You are in: ") + _zone_name(player.global_position), HORIZONTAL_ALIGNMENT_LEFT, r.size.x - 24, 22, Color(1, 0.9, 0.7))
 	# legend
-	var ly := origin.y + side + 28.0
-	_full.draw_circle(Vector2(origin.x + 10, ly - 6), 5, Color(0.35, 0.85, 1.0))
-	_full.draw_string(font, Vector2(origin.x + 24, ly), "people", HORIZONTAL_ALIGNMENT_LEFT, -1, 20, Color.WHITE)
-	_diamond(_full, Vector2(origin.x + 150, ly - 6), 8.0, Color(1.0, 0.82, 0.25))
-	_full.draw_string(font, Vector2(origin.x + 166, ly), "mission goal", HORIZONTAL_ALIGNMENT_LEFT, -1, 20, Color.WHITE)
-	_full.draw_circle(Vector2(origin.x + 330, ly - 6), 5, Color(1.0, 0.2, 0.15))
-	_full.draw_string(font, Vector2(origin.x + 344, ly), "enemies", HORIZONTAL_ALIGNMENT_LEFT, -1, 20, Color.WHITE)
+	var ly := minf(r.position.y + r.size.y + 28.0, vp.y - 8.0)
+	var lx := r.position.x
+	_full.draw_circle(Vector2(lx + 10, ly - 6), 5, Color(0.35, 0.85, 1.0))
+	_full.draw_string(font, Vector2(lx + 24, ly), "people", HORIZONTAL_ALIGNMENT_LEFT, -1, 20, Color.WHITE)
+	_diamond(_full, Vector2(lx + 120, ly - 6), 8.0, Color(1.0, 0.82, 0.25))
+	_full.draw_string(font, Vector2(lx + 136, ly), "mission goal", HORIZONTAL_ALIGNMENT_LEFT, -1, 20, Color.WHITE)
+	_full.draw_circle(Vector2(lx + 290, ly - 6), 5, Color(1.0, 0.2, 0.15))
+	_full.draw_string(font, Vector2(lx + 304, ly), "enemies", HORIZONTAL_ALIGNMENT_LEFT, -1, 20, Color.WHITE)
+	_full.draw_circle(Vector2(lx + 410, ly - 6), 6, Color(1.0, 0.75, 0.2))
+	_full.draw_string(font, Vector2(lx + 424, ly), "shrine", HORIZONTAL_ALIGNMENT_LEFT, -1, 20, Color.WHITE)

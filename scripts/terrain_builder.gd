@@ -15,6 +15,10 @@ const CHUNKS := 5
 const CHUNK_CELLS := 50           # N / CHUNKS
 const EDGE_Y := 32.0              # terrain border is forced to this height (skirt meets it)
 const RIM_HEIGHT := 22.0
+## The south pass: a gap in the rim where the road climbs out of the valley to the Southern Road (FrontierBuilder).
+const PASS_X := -40.0
+const PASS_Y := 18.0               # road height where the pass meets the plateau, at the valley's south edge
+var frontier: FrontierBuilder      # ground south of the valley; sample_height() answers for it too
 const FORECOURT := Vector2(0.0, -138.0)
 const START_MOUND := Vector2(120.0, 160.0)
 ## The family farm: a levelled plateau with the farmhouse (the game starts at its door), fields and an orchard.
@@ -134,6 +138,10 @@ func river_x(z: float) -> float:
 
 
 ## Height of the ground at a world position (formula, used to fill the height grid).
+static func pass_mask(x: float) -> float:
+	return 1.0 - smoothstep(10.0, 26.0, absf(x - PASS_X))
+
+
 func height_at(x: float, z: float) -> float:
 	var h := _ground_base(x, z)
 
@@ -167,11 +175,22 @@ func height_at(x: float, z: float) -> float:
 	# Enclosing rim on the east, west and south sides (not the north: the cliff covers that
 	# side, and a rim there would bury the entrance platform), then the steep north cliff.
 	var edge := maxf(absf(x), absf(z))
-	h += RIM_HEIGHT * smoothstep(160.0, 195.0, maxf(absf(x), z))
+	var pm := pass_mask(x) * smoothstep(120.0, 150.0, z)
+	h += RIM_HEIGHT * smoothstep(160.0, 195.0, maxf(absf(x), z)) * (1.0 - pm)
 	h += smoothstep(-174.5, -190.0, z) * (57.0 + _ridge.get_noise_2d(x, z) * 8.0)
+	# the south pass: the ground ramps up to the road level at the edge instead of the rim
+	h = lerpf(h, lerpf(h, PASS_Y, smoothstep(150.0, 200.0, z)), pm)
+	var core := (1.0 - smoothstep(4.0, 9.0, absf(x - PASS_X))) * smoothstep(140.0, 160.0, z)
+	h = lerpf(h, lerpf(h, PASS_Y, smoothstep(150.0, 200.0, z)), core * 0.85)
 
-	# Border is blended to a constant so the outer skirt joins without a seam.
-	h = lerpf(h, EDGE_Y, smoothstep(190.0, 200.0, edge))
+	# Border is blended to a constant so the outer skirt joins without a seam (the road level in the pass).
+	var ey := EDGE_Y
+	if z > absf(x):
+		ey = lerpf(EDGE_Y, PASS_Y, pass_mask(x))
+	var eb := smoothstep(190.0, 200.0, edge)
+	if eb >= 1.0:
+		return ey
+	h = lerpf(h, ey, eb)
 	return h
 
 
@@ -211,6 +230,8 @@ func _ground_base(x: float, z: float) -> float:
 
 ## Bilinear sample of the baked height grid (matches the rendered mesh exactly).
 func sample_height(x: float, z: float) -> float:
+	if z > HALF and frontier != null and FrontierBuilder.contains(x, z):
+		return frontier.sample_height(x, z)
 	var fx := clampf((x + HALF) / CELL, 0.0, float(N) - 0.001)
 	var fz := clampf((z + HALF) / CELL, 0.0, float(N) - 0.001)
 	var i := int(fx)
@@ -510,7 +531,9 @@ func _build_boundary(parent: Node3D) -> void:
 	var span := HALF * 2.0 + thickness * 2.0
 	var specs := [
 		[Vector3(0.0, 100.0, -HALF - thickness * 0.5), Vector3(span, 400.0, thickness)],
-		[Vector3(0.0, 100.0, HALF + thickness * 0.5), Vector3(span, 400.0, thickness)],
+		# south wall, with a gap for the pass road (x = PASS_X +- 12)
+		[Vector3((-HALF - thickness + PASS_X - 12.0) * 0.5, 100.0, HALF + thickness * 0.5), Vector3((PASS_X - 12.0) - (-HALF - thickness), 400.0, thickness)],
+		[Vector3((PASS_X + 12.0 + HALF + thickness) * 0.5, 100.0, HALF + thickness * 0.5), Vector3((HALF + thickness) - (PASS_X + 12.0), 400.0, thickness)],
 		[Vector3(-HALF - thickness * 0.5, 100.0, 0.0), Vector3(thickness, 400.0, span)],
 		[Vector3(HALF + thickness * 0.5, 100.0, 0.0), Vector3(thickness, 400.0, span)],
 	]
@@ -532,7 +555,10 @@ func _build_skirt(parent: Node3D) -> void:
 	var idx := PackedInt32Array()
 	var rects := [
 		Rect2(Vector2(-outer, -outer), Vector2(outer * 2.0, outer - HALF)),
-		Rect2(Vector2(-outer, HALF), Vector2(outer * 2.0, outer - HALF)),
+		# south: around the Southern Road ground (FrontierBuilder X0..X1, up to Z1)
+		Rect2(Vector2(-outer, HALF), Vector2(outer - HALF, outer - HALF)),
+		Rect2(Vector2(FrontierBuilder.X1, HALF), Vector2(outer - FrontierBuilder.X1, outer - HALF)),
+		Rect2(Vector2(-HALF, FrontierBuilder.Z1), Vector2(FrontierBuilder.X1 + HALF, outer - FrontierBuilder.Z1)),
 		Rect2(Vector2(-outer, -HALF), Vector2(outer - HALF, HALF * 2.0)),
 		Rect2(Vector2(HALF, -HALF), Vector2(outer - HALF, HALF * 2.0)),
 	]
@@ -562,6 +588,12 @@ func _mountain_height(x: float, z: float) -> float:
 	var n := _mountain.get_noise_2d(cos(ang) * 900.0, sin(ang) * 900.0)
 	var peak := 90.0 + 260.0 * clampf(n * 0.5 + 0.55, 0.0, 1.0)
 	var rough := 0.75 + 0.25 * _dunes.get_noise_2d(x * 0.5, z * 0.5)
+	# open the ring over the Southern Road so its villages are not buried in the backdrop
+	var dx := maxf(maxf(FrontierBuilder.X0 - x, x - FrontierBuilder.X1), 0.0)
+	var dz := maxf(maxf(FrontierBuilder.Z0 - z, z - FrontierBuilder.Z1), 0.0)
+	var gap := smoothstep(20.0, 110.0, Vector2(dx, dz).length())
+	if gap < 1.0:
+		return lerpf(-45.0, maxf(0.0, peak * profile * rough - 25.0), gap)   # sink the ring under the road's ground
 	return maxf(0.0, peak * profile * rough - 25.0)
 
 
