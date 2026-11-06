@@ -63,6 +63,14 @@ func _ready() -> void:
 	preview.name = "MovePreview"
 	add_child(preview)
 	game.preview = preview
+	var safe := SafeSquares.new()
+	safe.name = "SafeSquares"
+	safe.game = game
+	add_child(safe)
+	safe.shield_raised.connect(func(at: Vector3) -> void:
+		if not game.fast_mode:
+			audio.play("token_select", 0.0)
+			effects.burst(at + Vector3(0, 0.5, 0), EffectsManager.GOLD, 18, 1.4, 0.6))
 	game.setup(dice, seed_value)
 	dice.bounced.connect(func() -> void: audio.play("dice_land", 0.15))
 
@@ -629,7 +637,7 @@ func _run_preview_shot(path: String) -> void:
 		await get_tree().process_frame
 	game.new_game(["blue", "green"] as Array[String], ["blue"] as Array[String], GameSettings.get_rules(), 1)
 	var e := game.engine
-	e.seats[0]["tokens"] = [5, 12, 0, 49]
+	e.seats[0]["tokens"] = [1, 12, 9, 49]  ## 1 = start square, 9 = star square (both safe)
 	var target := BoardPath.ring_index_for_progress("blue", 16)
 	e.seats[1]["tokens"] = [((target - BoardPath.start_of("green") + 52) % 52) + 1, 0, 0, 0]
 	_place_tokens_from_engine()
