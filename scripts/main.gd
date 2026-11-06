@@ -125,6 +125,8 @@ func _ready() -> void:
 			_run_capture_fight.call_deferred(a.trim_prefix("--capture-fight="))
 		elif a.begins_with("--capture-lab="):
 			_run_capture_lab.call_deferred(a.trim_prefix("--capture-lab="))
+		elif a.begins_with("--capture-fist="):
+			_run_capture_fist.call_deferred(a.trim_prefix("--capture-fist="))
 		elif a.begins_with("--capture-veyra="):
 			_run_capture_veyra.call_deferred(a.trim_prefix("--capture-veyra="))
 		elif a.begins_with("--capture-trees="):
@@ -824,6 +826,7 @@ func _build_story() -> void:
 		if a == "--selftest" or a == "--audit" or a.begins_with("--capture"):
 			testing = true
 	story = Story.new()
+	player.story_ref = story
 	add_child(story)
 	dlg = DialogueUI.new()
 	dlg.player = player
@@ -1030,6 +1033,7 @@ func _on_title_chosen(continue_game: bool) -> void:
 	atmosphere.running = true
 	if continue_game and menu.load_save():
 		story_b.apply_loaded_state()
+		player.set_weapon(String(story.get_flag("weapon_sel", "fists")))
 		farm.reload()
 		coin_sys.reload()
 	else:
@@ -2000,6 +2004,65 @@ func _run_capture_lab(dir: String) -> void:
 			await get_tree().process_frame
 		await RenderingServer.frame_post_draw
 		print("[capture] lab_", view, " -> ", get_viewport().get_texture().get_image().save_png("%s/lab_%s.png" % [dir, view]))
+	get_tree().quit()
+
+
+## Close-up of hands for checking the finger curl axis: rigs with arms held forward, one shot per axis.
+func _run_capture_fist(dir: String) -> void:
+	DirAccess.make_dir_recursive_absolute(dir)
+	touch.visible = false
+	atmosphere.time_of_day = 0.42
+	atmosphere.apply_time()
+	_teleport(-60.0, 20.0)
+	for i in 30:
+		await get_tree().physics_frame
+	player.set_distance(2.2)
+	player.set_look(0.0, -0.05)
+	player._model.visible = false
+	player.set_physics_process(false)
+	var pp := player.global_position
+	var presets: Array = [player._rig.preset.duplicate(), {"body": "brute", "robe": false}]
+	var rigs: Array[RealHuman] = []
+	for i in presets.size():
+		var r := RealHuman.new().setup(presets[i], "Fist%d" % i)
+		add_child(r)
+		r.global_position = pp + Vector3(-0.5 + i * 1.0, 0.0, -0.4)
+		r.rotation.y = PI * 0.5
+		r.set_process(false)
+		rigs.append(r)
+	var axes := [[Vector3.RIGHT, 1.0], [Vector3.BACK, 1.0], [Vector3.BACK, -1.0], [Vector3.UP, 1.0]]
+	hud.visible = false
+	map_ui.visible = false
+	for ai in axes.size():
+		RealHuman.fist_axis = axes[ai][0]
+		RealHuman.fist_sign = axes[ai][1]
+		for r in rigs:
+			for k in RealHuman.BONES:
+				r._pose[k] = Vector3.ZERO
+			r._pose["sh_L"] = Vector3(-1.5, 0, 0)
+			r._pose["sh_R"] = Vector3(-1.5, 0, 0)
+			r.fist = 1.0
+			r._apply()
+		for ri in rigs.size():
+			var r: RealHuman = rigs[ri]
+			var sk: Skeleton3D = r._skins[0]
+			var hb: int = r._bone_idx[0]["wr_R"]
+			var hp := sk.global_transform * sk.get_bone_global_pose(hb).origin
+			for vi in 2:
+				var cam := Camera3D.new()
+				add_child(cam)
+				cam.fov = 30.0
+				var fwd := -r.global_transform.basis.z
+				var tgt := hp + fwd * 0.09
+				var off := Vector3(0.0, 0.42, 0.0) if vi == 0 else Vector3(0.0, 0.0, 0.42)
+				cam.global_position = tgt + off
+				cam.look_at(tgt, fwd if vi == 0 else Vector3.UP)
+				cam.current = true
+				for i in 6:
+					await get_tree().process_frame
+				await RenderingServer.frame_post_draw
+				get_viewport().get_texture().get_image().save_png("%s/fist_%d_r%d_v%d.png" % [dir, ai, ri, vi])
+				cam.queue_free()
 	get_tree().quit()
 
 

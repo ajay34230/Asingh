@@ -44,6 +44,12 @@ func _ready() -> void:
 		w.autowrap_mode = TextServer.AUTOWRAP_WORD
 		w.custom_minimum_size = Vector2(700, 0)
 		box.add_child(w)
+		var cp := _button("Copy crash report", func() -> void: pass)
+		cp.pressed.connect(func() -> void:
+			var n := LogCollector.copy_report()
+			cp.text = "Copied (%d characters). Paste it to the developer." % n)
+		cp.add_theme_font_size_override("font_size", 24)
+		box.add_child(cp)
 	if has_save:
 		box.add_child(_button("Continue", func() -> void: _pick(true)))
 	box.add_child(_button("New Game", func() -> void: _pick(false)))

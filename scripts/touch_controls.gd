@@ -104,6 +104,10 @@ func _roll_button_centre() -> Vector2:
 	return _corner(380.0, 365.0)
 
 
+func _weapon_button_centre() -> Vector2:
+	return _corner(515.0, 110.0)
+
+
 func _crouch_button_centre() -> Vector2:
 	return _corner(380.0, 95.0)
 
@@ -157,6 +161,11 @@ func _on_press(idx: int, pos: Vector2) -> void:
 			_roll_id = idx
 			player.roll()
 			return
+	if player != null and not player.mounted and pos.distance_to(_weapon_button_centre()) < 50.0 * btn_scale:
+		var w := player.cycle_weapon()
+		_toast = "Weapon: " + Loc.t(w.capitalize())
+		_toast_time = 1.6
+		return
 	if player != null and not player.mounted and pos.distance_to(_crouch_button_centre()) < 56.0 * btn_scale:
 		_crouch_id = idx
 		player.toggle_crouch()
@@ -284,6 +293,7 @@ func _draw() -> void:
 		_draw_button(font, _crouch_button_centre(), 44.0 * btn_scale, "DUCK", player != null and player.crouching)
 		_draw_button(font, _block_button_centre(), 44.0 * btn_scale, "BLOCK", _block_id != -1)
 		_draw_button(font, _roll_button_centre(), 44.0 * btn_scale, "ROLL", _roll_id != -1)
+		_draw_button(font, _weapon_button_centre(), 40.0 * btn_scale, player.weapon.to_upper() if player != null else "FISTS", false)
 
 
 func _draw_button(font: Font, c: Vector2, r: float, label: String, active: bool) -> void:

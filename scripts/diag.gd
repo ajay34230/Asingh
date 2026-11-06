@@ -21,6 +21,8 @@ var _enabled := true
 func _ready() -> void:
 	if FileAccess.file_exists(RUNNING) and FileAccess.file_exists(CRUMB):
 		previous_crash = FileAccess.get_file_as_string(CRUMB)
+		LogCollector.record_crash(previous_crash)
+	LogCollector.event("start " + LogCollector.device_info().replace("\n", " | "))
 	var f := FileAccess.open(RUNNING, FileAccess.WRITE)
 	if f != null:
 		f.store_string("1")
@@ -68,6 +70,7 @@ func _process(delta: float) -> void:
 		_low = 0.0
 		_cool = 40.0
 		GameSettings.set_value("quality", q + 1)
+		LogCollector.event("low fps, quality lowered to %d (%s)" % [q + 1, summary()])
 		if hud != null:
 			hud.banner(Loc.t("Frame rate was low: graphics lowered a step."), "")
 

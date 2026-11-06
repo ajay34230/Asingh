@@ -45,6 +45,12 @@ var _seed := 0.0
 var _skins: Array[Skeleton3D] = []
 var _bone_idx: Array = []         # per skeleton: Dictionary key -> bone index
 var _rest_g: Array = []           # per skeleton: Array[Basis] global rest bases
+var _fingers: Array = []          # per skeleton: Array of [bone index, is_thumb]
+## Hand closure: 0 = open hand, 1 = tight fist. Follows fist_target smoothly (see _hands).
+var fist := 0.25
+var fist_target := 0.25
+static var fist_axis := Vector3.RIGHT   # local finger curl axis (lab-tested)
+static var fist_sign := 1.0
 var _order: Array = []            # per skeleton: bone indices parent-first
 var _arm_rot: Array = []          # per skeleton: {"L": rad, "R": rad} rotation about Z that lowers the arm
 var _pose: Dictionary = {}        # key -> Vector3 (rx, ry, rz) rig-style angles
@@ -109,6 +115,15 @@ func _register(sk: Skeleton3D) -> void:
 		return
 	_skins.append(sk)
 	_bone_idx.append(idx)
+	var fl: Array = []
+	for i in sk.get_bone_count():
+		var bn := sk.get_bone_name(i).to_lower()
+		if bn.ends_with("_end") or bn.contains("leaf") or bn.contains("metacarpal"):
+			continue
+		var thumb := bn.begins_with("thumb")
+		if thumb or bn.begins_with("index") or bn.begins_with("middle") or bn.begins_with("ring") or bn.begins_with("pinky"):
+			fl.append([i, thumb])
+	_fingers.append(fl)
 	var rg: Array = []
 	var order: Array = []
 	for i in sk.get_bone_count():
@@ -215,13 +230,33 @@ func _dye(main_c: Color, trim_c: Color) -> int:
 	return n
 
 
+var _tool_att: BoneAttachment3D
+var weapon := "hammer"
+
+
 func _add_hammer() -> void:
 	if _skins.is_empty() or _bone_idx[0]["wr_R"] < 0:
 		return
 	var sk0 := _skins[0]
-	var att := BoneAttachment3D.new()
-	att.bone_name = sk0.get_bone_name(_bone_idx[0]["wr_R"])
-	_skins[0].add_child(att)
+	_tool_att = BoneAttachment3D.new()
+	_tool_att.bone_name = sk0.get_bone_name(_bone_idx[0]["wr_R"])
+	_skins[0].add_child(_tool_att)
+	set_weapon("hammer")
+
+
+## What the right hand holds: "fists" (nothing), "hammer", "axe", "spear" or "bow". Simple primitive meshes.
+func set_weapon(id: String) -> void:
+	weapon = id
+	if _tool_att == null:
+		if id == "fists" or _skins.is_empty() or _bone_idx[0]["wr_R"] < 0:
+			return
+		_tool_att = BoneAttachment3D.new()
+		_tool_att.bone_name = _skins[0].get_bone_name(_bone_idx[0]["wr_R"])
+		_skins[0].add_child(_tool_att)
+	for c in _tool_att.get_children():
+		c.queue_free()
+	if id == "fists":
+		return
 	var wood := StandardMaterial3D.new()
 	wood.albedo_color = Color(0.32, 0.2, 0.1)
 	var iron := StandardMaterial3D.new()
@@ -232,19 +267,48 @@ func _add_hammer() -> void:
 	var hm := CylinderMesh.new()
 	hm.top_radius = 0.018
 	hm.bottom_radius = 0.02
-	hm.height = 0.4
+	hm.height = {"spear": 1.7, "bow": 1.1, "axe": 0.55}.get(id, 0.4)
 	handle.mesh = hm
 	handle.material_override = wood
-	var head := MeshInstance3D.new()
-	var bm := BoxMesh.new()
-	bm.size = Vector3(0.14, 0.07, 0.07)
-	head.mesh = bm
-	head.material_override = iron
-	head.position = Vector3(0, 0.2, 0)
-	handle.add_child(head)
+	match id:
+		"hammer", "axe":
+			var head := MeshInstance3D.new()
+			var bm := BoxMesh.new()
+			bm.size = Vector3(0.14, 0.07, 0.07) if id == "hammer" else Vector3(0.2, 0.12, 0.02)
+			head.mesh = bm
+			head.material_override = iron
+			head.position = Vector3(0.05 if id == "axe" else 0.0, hm.height * 0.5, 0)
+			handle.add_child(head)
+		"spear":
+			var tip := MeshInstance3D.new()
+			var cm := CylinderMesh.new()
+			cm.top_radius = 0.0
+			cm.bottom_radius = 0.035
+			cm.height = 0.22
+			tip.mesh = cm
+			tip.material_override = iron
+			tip.position = Vector3(0, hm.height * 0.5 + 0.11, 0)
+			handle.add_child(tip)
+		"bow":
+			hm.top_radius = 0.012
+			hm.bottom_radius = 0.012
+			var string_ := MeshInstance3D.new()
+			var sm := CylinderMesh.new()
+			sm.top_radius = 0.003
+			sm.bottom_radius = 0.003
+			sm.height = 1.05
+			string_.mesh = sm
+			var sw := StandardMaterial3D.new()
+			sw.albedo_color = Color(0.9, 0.88, 0.8)
+			string_.material_override = sw
+			string_.position = Vector3(0, 0, -0.14)
+			handle.add_child(string_)
 	handle.position = Vector3(0, 0.08, 0.04)
 	handle.rotation.x = deg_to_rad(90.0)
-	att.add_child(handle)
+	if id == "bow":
+		handle.rotation.x = 0.0
+		handle.position = Vector3(0, 0.08, 0)
+	_tool_att.add_child(handle)
 
 
 # --- pose application ----------------------------------------------------------------------
@@ -300,6 +364,13 @@ func _apply() -> void:
 			else:
 				local = b_i
 			sk.set_bone_pose_rotation(i, local.orthonormalized().get_rotation_quaternion())
+		# curl the fingers into a fist: each joint bends about its own local axis
+		if si < _fingers.size():
+			for f in _fingers[si]:
+				var fi: int = f[0]
+				var ang := fist * fist_sign * (0.45 if bool(f[1]) else 1.1)
+				var q := sk.get_bone_pose_rotation(fi) * Quaternion(fist_axis, ang)
+				sk.set_bone_pose_rotation(fi, q)
 		if idx["hips"] >= 0:
 			var off: Vector3 = (_frame[si] as Basis).inverse() * Vector3(0, _hips_dy / maxf(_inner.scale.y, 0.01), 0)
 			var hp: int = idx["hips"]
@@ -312,6 +383,10 @@ func _apply() -> void:
 
 func animate(delta: float, speed: float, grounded: bool) -> void:
 	_t += delta
+	# hands: a tight fist in the boxing guard, while striking or blocking; loosely curled otherwise
+	var striking := move != "" and move != "roll" and move != "lift"
+	fist_target = 1.0 if (guard or striking or react == "block") else 0.3
+	fist = move_toward(fist, fist_target, delta * 7.0)
 	_speed_smooth = lerpf(_speed_smooth, speed, 1.0 - exp(-10.0 * delta))
 	_air = lerpf(_air, 0.0 if grounded else 1.0, 1.0 - exp(-14.0 * delta))
 	match mode:
@@ -370,14 +445,25 @@ var react := ""
 var react_t := 0.0
 
 
-func play_move(n: String) -> void:
+## Starts a move. Returns the lead time in seconds: a punch thrown from relaxed hands first spends
+## FIST_LEAD in the guard while the hand closes into a fist, then strikes.
+const FIST_LEAD := 0.14
+const PUNCHES := ["jab", "cross", "hook", "uppercut"]
+
+
+func play_move(n: String) -> float:
 	if not MOVES.has(n):
-		return
+		return 0.0
 	move = n
 	move_t = 0.0
+	var lead := 0.0
+	if n in PUNCHES and fist < 0.8:
+		lead = FIST_LEAD
+		move_t = -lead
 	_move_dur = MOVES[n][0]
 	_move_hit_at = MOVES[n][1]
 	_move_sent = false
+	return lead
 
 
 ## Boxing stance: fists up by the chin, lead hand forward, knees soft, a little bounce on the toes.

@@ -69,6 +69,10 @@ func equip(id: String) -> bool:
 		return false
 	story.set_flag("eq_" + t, id)
 	apply_gear()
+	if t == "weapon" and player != null and player.weapon != id:
+		player.weapon = id                     # equipping from the menu also puts it in hand
+		player._rig.set_weapon(id)
+		story.set_flag("weapon_sel", id)
 	return true
 
 

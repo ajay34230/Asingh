@@ -87,6 +87,7 @@ func _ready() -> void:
 			pm.call("enter")))
 	nav.add_child(_button("Settings", func() -> void: _show_page("Settings")))
 	nav.add_child(_button("How to play", func() -> void: _show_page("Help")))
+	nav.add_child(_button("Crash & logs", func() -> void: _show_page("Logs")))
 	nav.add_child(_button("Save slots", func() -> void: _show_page("Slots")))
 	nav.add_child(_button("Save game", func() -> void:
 		save()
@@ -115,6 +116,7 @@ func _ready() -> void:
 	_pages["Settings"] = _build_settings()
 	_pages["Help"] = _build_help()
 	_pages["Confirm"] = _build_confirm()
+	_pages["Logs"] = _build_logs()
 	for k in _pages:
 		var pg: Control = _pages[k]
 		pg.set_anchors_preset(Control.PRESET_FULL_RECT)
@@ -122,7 +124,8 @@ func _ready() -> void:
 		stack.add_child(pg)
 	_show_page("Inventory")
 	story.changed.connect(save)
-	story.mission_event.connect(func(kind: String, _t: String) -> void:
+	story.mission_event.connect(func(kind: String, t: String) -> void:
+		LogCollector.event("mission %s: %s" % [kind, t])
 		if kind == "new":
 			_write_checkpoint.call_deferred())
 	_apply_settings.call_deferred()
@@ -467,6 +470,37 @@ func _build_help() -> Control:
 	return pg[0]
 
 
+## Crash and log collector page: copy or save one text report with crashes, events and Godot's logs.
+func _build_logs() -> Control:
+	var page: Array = _scroll_page("Crash & logs")
+	var vb: VBoxContainer = page[1]
+	var info := Label.new()
+	info.autowrap_mode = TextServer.AUTOWRAP_WORD
+	vb.add_child(info)
+	var status := Label.new()
+	status.autowrap_mode = TextServer.AUTOWRAP_WORD
+	status.add_theme_color_override("font_color", Color(0.95, 0.8, 0.45))
+	var refresh := func() -> void:
+		info.text = "If the game crashes, freezes or a mission gets stuck, make a report and send it to the developer.\n" + LogCollector.summary_line()
+	refresh.call()
+	vb.visibility_changed.connect(refresh)
+	vb.add_child(_button("Copy report to clipboard", func() -> void:
+		var n := LogCollector.copy_report()
+		status.text = "Copied %d characters. Paste it into WhatsApp, email or a GitHub issue." % n))
+	vb.add_child(_button("Save report as a file", func() -> void:
+		var p := LogCollector.save_report()
+		status.text = ("Saved: " + p) if p != "" else "Could not save the file. Use Copy instead."))
+	vb.add_child(_button("Note a problem now", func() -> void:
+		LogCollector.event("PLAYER NOTE: problem reported here. " + (main as Node).get("diag").call("summary"))
+		status.text = "Noted with your position and the time. It will be in the next report."))
+	vb.add_child(_button("Clear stored logs", func() -> void:
+		LogCollector.clear_all()
+		refresh.call()
+		status.text = "Cleared."))
+	vb.add_child(status)
+	return page[0]
+
+
 func _build_confirm() -> Control:
 	var pg := _scroll_page("Start a new game?")
 	var vb: VBoxContainer = pg[1]
@@ -555,6 +589,7 @@ func _write_checkpoint() -> void:
 ## Escape hatch for a stalled mission: free the player (stale locks, held fingers, open dialogue)
 ## and, if the current objective is far away or unreachable, drop the player right beside it.
 func unstick() -> void:
+	LogCollector.event("UNSTICK used. objective=%s" % str(story.active_objectives(1)))
 	toggle()                                   # close the pause menu (also unpauses)
 	var dlg: Object = main.get("dlg")
 	if dlg != null and bool(dlg.get("is_open")):

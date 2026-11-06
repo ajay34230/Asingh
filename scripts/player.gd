@@ -126,6 +126,7 @@ func _ready() -> void:
 	_model.add_child(_rig)
 	_rig.attack_hit.connect(_on_attack_hit)
 	_rig.move_hit.connect(_on_move_hit)
+	_rig.set_weapon("fists")
 	checkpoint = global_position
 
 	_pivot = Node3D.new()
@@ -345,6 +346,9 @@ func attack() -> void:
 		return
 	if locked or dead or _throwing:
 		return
+	if weapon != "fists" and weapon != "bow" and is_on_floor():
+		_weapon_swing()
+		return
 	if _attack_cd > 0.0:
 		if _attack_cd < 0.3:
 			_buffer = 0.3          # queue the next move so combos flow without perfect timing
@@ -399,10 +403,73 @@ func attack() -> void:
 	var nxt_kick: bool = _combo < COMBO.size() and MOVE_KIND[COMBO[_combo]] != "punch"
 	if (MOVE_KIND[mv] != "punch") != nxt_kick or MOVE_KIND[mv] != "punch":
 		_attack_cd = maxf(_attack_cd, float(RealHuman.MOVES[mv][0]) + GUARD_HOLD)
-	_rig.play_move(mv)
+	_attack_cd += _rig.play_move(mv)   # plus the time to close the fist when the hands were relaxed
 	Sfx.ui_at("whoosh_kick" if MOVE_KIND[mv] != "punch" else "whoosh_punch", -6.0)
 	if mv == "kick_round" or mv == "cross":
 		Sfx.ui_at("grunt_%d" % randi_range(0, 2), -14.0)
+
+
+## Weapon in hand: "fists" (boxing combo), "hammer", or a crafted weapon (axe, spear, bow).
+## The WEAPON button cycles through what you own; fists put the weapon away.
+var weapon := "fists"
+var story_ref: Object          # set by Main, used to remember the chosen weapon in the save
+
+
+func weapons_owned() -> Array:
+	var out: Array = ["fists", "hammer"]
+	var it := get_tree().get_first_node_in_group("items")
+	if it != null:
+		for id in ["axe", "spear", "bow"]:
+			if int(it.call("count", id)) > 0:
+				out.append(id)
+	return out
+
+
+func set_weapon(id: String) -> void:
+	weapon = id
+	var it := get_tree().get_first_node_in_group("items")
+	if it != null:
+		if id in ["axe", "spear", "bow"]:
+			it.call("equip", id)
+		else:
+			it.call("unequip", "weapon")
+	if _rig != null:
+		_rig.set_weapon(id)
+	if story_ref != null:
+		story_ref.call("set_flag", "weapon_sel", id)
+
+
+func cycle_weapon() -> String:
+	if dead or _throwing:
+		return weapon
+	var own := weapons_owned()
+	var i := own.find(weapon)
+	set_weapon(String(own[(i + 1) % own.size()]))
+	Sfx.ui_at("swing", -12.0)
+	return weapon
+
+
+## A swing with the weapon in hand (hammer, axe or spear) toward the nearest foe.
+func _weapon_swing() -> void:
+	if _attack_cd > 0.0:
+		if _attack_cd < 0.3:
+			_buffer = 0.3
+		return
+	blocking = false
+	var near := _nearest_enemy(6.0 + gear_reach)
+	if near != null:
+		var to := near.global_position - global_position
+		_model.rotation.y = atan2(-to.x, -to.z)
+		var dist := Vector2(to.x, to.z).length()
+		if dist > 2.0 + gear_reach:
+			_lunge_v = Vector3(to.x, 0.0, to.z).normalized() * clampf((dist - 1.6) / 0.16, 2.0, 9.0)
+			_lunge_t = 0.16
+	if not spend(9.0):
+		_hit_mult = 0.6
+	_attack_cd = 0.75 if weapon == "axe" else 0.62
+	_combat_t = 0.0
+	_rig.start_attack()
+	Sfx.ui_at("swing", -4.0)
 
 
 ## Swing the hammer from the saddle (the HIT button while riding).
@@ -552,7 +619,7 @@ func _on_attack_hit() -> void:
 	for e in get_tree().get_nodes_in_group("enemies"):
 		var to: Vector3 = (e as Node3D).global_position - global_position
 		to.y = 0.0
-		if to.length() < 3.0 and (to.length() < 0.6 or fwd.dot(to.normalized()) > 0.2):
+		if to.length() < 3.0 + gear_reach and (to.length() < 0.6 or fwd.dot(to.normalized()) > 0.2):
 			(e as Enemy).take_hit("slam", dmg, fwd)
 			hit = true
 	if has_knife:
