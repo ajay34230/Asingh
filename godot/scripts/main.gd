@@ -69,15 +69,15 @@ func _ready() -> void:
 	add_child(safe)
 	safe.shield_raised.connect(func(at: Vector3) -> void:
 		if not game.fast_mode:
-			audio.play("token_select", 0.0)
+			audio.play("shield", 0.02)
 			effects.burst(at + Vector3(0, 0.5, 0), EffectsManager.GOLD, 18, 1.4, 0.6))
 	game.setup(dice, seed_value)
-	dice.bounced.connect(func() -> void: audio.play("dice_land", 0.15))
+	dice.bounced.connect(func() -> void: audio.play("dice_bounce", 0.1))
 
 	hud = Hud.new()
 	add_child(hud)
 	hud.new_game_pressed.connect(_start_new_game)
-	hud.new_game_pressed.connect(func() -> void: audio.play("ui_click"))
+	hud.button_sound.connect(func() -> void: audio.play("ui_click", 0.03))
 	game.message.connect(hud.set_message)
 	game.message.connect(_log_message)
 	game.turn_changed.connect(hud.set_turn)
@@ -305,7 +305,7 @@ func _on_game_event(event_name: String, data: Dictionary) -> void:
 	var up := Vector3(0, 0.45, 0)
 	match event_name:
 		"roll_start":
-			audio.play("dice_roll")
+			audio.play("dice_shake", 0.05)
 			effects.sparkle_trail(pos + up)
 			audio.vibrate(15)
 		"roll_land":
@@ -318,31 +318,39 @@ func _on_game_event(event_name: String, data: Dictionary) -> void:
 		"select":
 			audio.play("token_select")
 		"hop":
-			audio.play("token_step", 0.08)
+			audio.play("token_step", 0.1, -2.0)
 		"land":
 			audio.play("token_land")
 			effects.burst(pos + Vector3(0, 0.1, 0), EffectsManager.GOLD, 12, 1.0, 0.5)
 		"capture":
 			if game.fast_mode:
-				audio.play("capture")
+				audio.play("punch")
+			else:
+				audio.play("blade", 0.03)   ## steel drawn: the fight is on
 		"impact":
-			audio.play("impact", 0.06)
+			audio.play(data.get("kind", "punch"), 0.05)
+			audio.play("impact", 0.06, -6.0)  ## low boom under the recorded hit
 			effects.burst(pos, EffectsManager.GOLD, 40, 3.6, 0.8)
 			effects.burst(pos, EffectsManager.TEAM.get(data.get("color", "red"), EffectsManager.GOLD), 30, 2.6, 0.9)
 			effects.shockwave(pos - up * 0.7)
 			_shake(0.08, 0.35)
 			audio.vibrate(50)
 			hud.flash_banner(["KNOCKOUT!", "BOOM!", "SMASH!"].pick_random(), Color("#ffd24a"))
+		"throw":
+			audio.play("swish", 0.08)
 		"thrown_home":
-			audio.play("token_land")
+			audio.play("thud", 0.05)
 			effects.burst(pos + Vector3(0, 0.15, 0), EffectsManager.TEAM.get(data.get("color", "red"), EffectsManager.GOLD), 24, 1.6, 0.7)
 			effects.shockwave(pos)
 			audio.vibrate(25)
 		"finish":
-			audio.play("token_finish")
+			audio.play("token_finish", 0.0, -3.0)
+			audio.play("coins", 0.03)
 			effects.burst(pos + up, EffectsManager.GOLD, 40, 2.4, 1.2)
 		"click":
 			audio.play("ui_click")
+		"invalid":
+			audio.play("error", 0.0, -4.0)
 		"game_over":
 			audio.play("victory")
 			effects.fireworks(3.0)

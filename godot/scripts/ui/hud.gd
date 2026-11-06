@@ -7,6 +7,7 @@ signal rematch_pressed
 signal menu_pressed
 signal settings_pressed
 signal help_pressed
+signal button_sound      ## any HUD button was pressed (the main scene plays the click)
 
 const COLOR_HEX := {"red": "#e0444c", "green": "#43b861", "yellow": "#f7cd55", "blue": "#4f8ce6"}
 
@@ -82,6 +83,7 @@ func _button(parent: Control, text: String, size: Vector2, pos: Vector2) -> Butt
 	b.custom_minimum_size = size
 	b.set_anchors_preset(Control.PRESET_TOP_RIGHT)
 	b.position = pos
+	b.pressed.connect(func() -> void: button_sound.emit())
 	parent.add_child(b)
 	return b
 
@@ -139,6 +141,7 @@ func _menu_button(box: VBoxContainer, text: String, callback: Callable) -> void:
 	var b := Button.new()
 	b.text = text
 	b.custom_minimum_size = Vector2(260, 48)
+	b.pressed.connect(func() -> void: button_sound.emit())
 	b.pressed.connect(callback)
 	box.add_child(b)
 

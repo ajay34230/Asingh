@@ -106,6 +106,8 @@ func _back() -> void:
 
 
 func show_page(name: String) -> void:
+	if _audio and name != _page:
+		_audio.play("ui_back" if name == "main" else "ui_open", 0.02, -4.0)
 	_page = name
 	for key in _pages:
 		(_pages[key] as Control).visible = key == name
@@ -142,6 +144,9 @@ func _button(box: VBoxContainer, text: String, callback: Callable, enabled := tr
 	b.text = text
 	b.custom_minimum_size = Vector2(0, 52)
 	b.disabled = not enabled
+	b.pressed.connect(func() -> void:
+		if _audio:
+			_audio.play("ui_click", 0.03))
 	b.pressed.connect(callback)
 	box.add_child(b)
 	return b

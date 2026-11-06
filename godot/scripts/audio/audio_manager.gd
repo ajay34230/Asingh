@@ -17,6 +17,16 @@ const SOUND_FILES := {
 	"impact": "res://assets/audio/impact.wav",
 	"six": "res://assets/audio/six.wav",
 }
+## Recorded CC0 effects (tools/import_sfx.py): event -> number of variants. A random
+## variant plays each time, so repeated sounds never feel mechanical.
+const SFX_VARIANTS := {
+	"dice_shake": 3, "dice_bounce": 4, "dice_land": 3, "token_step": 10, "token_land": 4,
+	"token_select": 3, "ui_click": 4, "ui_open": 3, "ui_back": 3, "error": 3, "blade": 3,
+	"swish": 6, "punch": 6, "kick": 4, "thud": 4, "shield": 3, "coins": 2, "confirm": 4,
+}
+## Synthesised sounds that recorded ones replace (kept as files for the tools only).
+const REPLACED := ["dice_land", "token_step", "token_land", "token_select", "ui_click"]
+
 ## Sitar and tanpura alaap for menus; sitar gat with tabla during play.
 const MUSIC_FILES := {
 	"menu": "res://assets/audio/music_menu.wav",
@@ -40,8 +50,14 @@ func _ready() -> void:
 	_ensure_bus("SFX")
 	_load_settings()
 	for name in SOUND_FILES:
-		_sounds[name] = load(SOUND_FILES[name])
-	for i in range(10):
+		if not REPLACED.has(name):
+			_sounds[name] = [load(SOUND_FILES[name])]
+	for name in SFX_VARIANTS:
+		var list: Array = []
+		for i in range(1, SFX_VARIANTS[name] + 1):
+			list.append(load("res://assets/audio/sfx/%s_%d.ogg" % [name, i]))
+		_sounds[name] = list
+	for i in range(16):
 		var p := AudioStreamPlayer.new()
 		p.bus = "SFX"
 		add_child(p)
@@ -68,14 +84,15 @@ func _ensure_bus(bus_name: String) -> void:
 
 
 ## Plays a named sound effect. Pitch is varied slightly so repeats do not sound mechanical.
-func play(sound_name: String, pitch_jitter := 0.04) -> void:
+func play(sound_name: String, pitch_jitter := 0.04, volume_offset_db := 0.0) -> void:
 	if muted or not _sounds.has(sound_name):
 		return
+	var variants: Array = _sounds[sound_name]
 	for p in _pool:
 		if not p.playing:
-			p.stream = _sounds[sound_name]
+			p.stream = variants.pick_random()
 			p.pitch_scale = 1.0 + randf_range(-pitch_jitter, pitch_jitter)
-			p.volume_db = sfx_volume_db
+			p.volume_db = sfx_volume_db + volume_offset_db
 			p.play()
 			return
 

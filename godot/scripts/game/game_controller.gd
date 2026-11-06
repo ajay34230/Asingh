@@ -147,6 +147,7 @@ func tap_token(color: String, index: int) -> void:
 	if not awaiting_pick or busy or color != current_color():
 		return
 	if not _legal.has(index):
+		event.emit("invalid", {})
 		return
 	awaiting_pick = false
 	_highlight(false)
@@ -238,7 +239,7 @@ func _capture_sequence(attacker: TransformerToken, victim: TransformerToken, bas
 	await _beat(0.45)                                   ## approach: camera settles, both square up
 	## Slow motion through the wind-up and strike, with an impact cue at the hit.
 	_slow_motion(0.3, 0.8)
-	_emit_impact_after(0.2 if use_punch else 0.24, victim)
+	_emit_impact_after(0.2 if use_punch else 0.24, victim, "punch" if use_punch else "kick")
 	if use_punch:
 		await attacker.play_punch(victim)               ## wind-up, strike, victim recoils, recover
 	else:
@@ -247,6 +248,7 @@ func _capture_sequence(attacker: TransformerToken, victim: TransformerToken, bas
 	attacker.ground_y = ground
 	if director:
 		director.release(0.9)                           ## pull back so the throw home reads
+	_emit_after(0.36, "throw", {"position": victim.global_position})  ## after the grab and lift
 	await attacker.play_grab_throw(victim, base)        ## grab, lift, rotate, throw, land home
 	event.emit("thrown_home", {"position": base, "color": victim.get_meta("color", "")})
 	await _beat(0.15)                                   ## settle
@@ -262,9 +264,14 @@ func _slow_motion(scale: float, real_seconds: float) -> void:
 	timer.timeout.connect(func() -> void: Engine.time_scale = 1.0)
 
 
-func _emit_impact_after(game_seconds: float, victim: Node3D) -> void:
+func _emit_impact_after(game_seconds: float, victim: Node3D, kind: String) -> void:
 	await get_tree().create_timer(game_seconds).timeout
-	event.emit("impact", {"position": victim.global_position + Vector3(0, 0.35, 0), "color": victim.get_meta("color", "")})
+	event.emit("impact", {"position": victim.global_position + Vector3(0, 0.35, 0), "color": victim.get_meta("color", ""), "kind": kind})
+
+
+func _emit_after(game_seconds: float, event_name: String, data: Dictionary) -> void:
+	await get_tree().create_timer(game_seconds).timeout
+	event.emit(event_name, data)
 
 
 func _beat(seconds: float) -> void:
