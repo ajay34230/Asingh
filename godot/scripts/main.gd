@@ -106,6 +106,10 @@ func _ready() -> void:
 	else:
 		hud.visible = false
 		menu.show_page("main")
+		if _reopen_page != "":
+			menu._refresh_themes()
+			menu.show_page(_reopen_page)
+			_reopen_page = ""
 		audio.start_music("menu")
 		## Opening: the camera rises over the palace, then the menu fades in.
 		director.start_attract(not _intro_seen)
@@ -158,6 +162,10 @@ func _build_menu() -> void:
 	menu.settings_changed.connect(_apply_settings)
 	menu.quit_requested.connect(func() -> void: get_tree().quit())
 	menu.closed.connect(_on_menu_closed)
+	## A new theme rebuilds the scene; come back to the themes page afterwards.
+	menu.board_theme_changed.connect(func() -> void:
+		_reopen_page = "themes"
+		get_tree().reload_current_scene())
 	hud.menu_pressed.connect(_quit_to_menu)
 	hud.rematch_pressed.connect(func() -> void: _start_new_game())
 	hud.settings_pressed.connect(func() -> void:
@@ -195,7 +203,8 @@ func _start_from_menu(config: Dictionary) -> void:
 
 
 var _last_config: Dictionary = {}
-static var _intro_seen := false   ## the long opening plays once per launch
+static var _intro_seen := false
+static var _reopen_page := ""   ## the long opening plays once per launch
 
 
 ## Rematch and restart use the last configuration.
@@ -470,17 +479,18 @@ func _build_environment() -> void:
 	## A warm palace sky: never seen directly (the camera looks down), but gold, gems
 	## and polished marble reflect it.
 	var sky_mat := ProceduralSkyMaterial.new()
-	sky_mat.sky_top_color = Color("#3d2b52")
-	sky_mat.sky_horizon_color = Color("#ffd9a0")
-	sky_mat.ground_horizon_color = Color("#c2874a")
-	sky_mat.ground_bottom_color = Color("#2a140a")
+	var theme := BoardThemes.current()
+	sky_mat.sky_top_color = theme["sky_top"]
+	sky_mat.sky_horizon_color = theme["sky_horizon"]
+	sky_mat.ground_horizon_color = theme["ground_horizon"]
+	sky_mat.ground_bottom_color = theme["ground_bottom"]
 	sky_mat.sun_angle_max = 40.0
 	var sky := Sky.new()
 	sky.sky_material = sky_mat
 	env.sky = sky
 	env.background_mode = Environment.BG_SKY
 	env.ambient_light_source = Environment.AMBIENT_SOURCE_SKY
-	env.ambient_light_energy = 0.55
+	env.ambient_light_energy = theme["ambient"]
 	env.reflected_light_source = Environment.REFLECTION_SOURCE_SKY
 	env.tonemap_mode = Environment.TONE_MAPPER_ACES
 	env.tonemap_exposure = 1.05
@@ -506,8 +516,8 @@ func _build_environment() -> void:
 	world.environment = env
 	add_child(world)
 	var sun := DirectionalLight3D.new()
-	sun.light_energy = 1.5
-	sun.light_color = Color("#ffe9c4")
+	sun.light_energy = theme["sun_energy"]
+	sun.light_color = theme["sun"]
 	sun.rotation_degrees = Vector3(-58, -32, 0)
 	sun.shadow_enabled = true
 	sun.shadow_blur = 1.5
@@ -515,8 +525,8 @@ func _build_environment() -> void:
 	add_child(sun)
 	## Cool fill from the opposite side, so shadows are not black.
 	var fill := DirectionalLight3D.new()
-	fill.light_energy = 0.35
-	fill.light_color = Color("#c9d6ff")
+	fill.light_energy = theme["fill_energy"]
+	fill.light_color = theme["fill"]
 	fill.rotation_degrees = Vector3(-40, 150, 0)
 	add_child(fill)
 	_build_palace_floor()
@@ -526,7 +536,7 @@ func _build_palace_floor() -> void:
 	var floor_mesh := MeshInstance3D.new()
 	floor_mesh.name = "PalaceFloor"
 	floor_mesh.mesh = _make_plane(160.0)
-	var table := RoyalBoard.marble_material(RoyalBoard.marble_texture(true), Color.WHITE, 0.05)
+	var table := RoyalBoard.marble_material(RoyalBoard.marble_texture(true), BoardThemes.current()["table"], 0.05)
 	table.roughness = 0.4
 	table.clearcoat = 0.25
 	floor_mesh.material_override = table

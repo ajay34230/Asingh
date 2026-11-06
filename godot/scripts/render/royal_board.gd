@@ -39,16 +39,20 @@ var _team_floor: Dictionary = {}
 var _gem: Dictionary = {}
 var _plaques: Dictionary = {}   ## color -> {root, name, status, pips, glow}
 var _active := ""
+var theme: Dictionary = {}
+var _flames: Array[MeshInstance3D] = []
+var _lamps: Array[OmniLight3D] = []
 var _time := 0.0
 
 
 func _ready() -> void:
 	var light_marble := marble_texture(false)
-	_ivory = marble_material(light_marble, Color("#fbf6ec"))
-	_gold = metal(Color("#e2b04f"), 0.24)
-	_gold_dark = metal(Color("#a8772a"), 0.38)
+	theme = BoardThemes.current()
+	_ivory = marble_material(light_marble, theme["ivory"])
+	_gold = metal(theme["gold"], 0.24)
+	_gold_dark = metal((theme["gold"] as Color).darkened(0.28), 0.38)
 	_lacquer = StandardMaterial3D.new()
-	_lacquer.albedo_color = Color("#5c0d17")
+	_lacquer.albedo_color = theme["lacquer"]
 	_lacquer.roughness = 0.18
 	_lacquer.clearcoat_enabled = true
 	_lacquer.clearcoat = 0.8
@@ -65,10 +69,18 @@ func _ready() -> void:
 	_build_centre()
 	_build_markers()
 	_build_wings()
+	if theme.get("night", false):
+		_build_diyas()
 
 
 func _process(delta: float) -> void:
 	_time += delta
+	for i in range(_flames.size()):
+		var f: MeshInstance3D = _flames[i]
+		var k := 1.0 + 0.12 * sin(_time * 13.0 + i * 1.7) + 0.06 * sin(_time * 29.0 + i)
+		f.scale = Vector3(0.7, 1.3 * k, 0.7)
+	for i in range(_lamps.size()):
+		(_lamps[i] as OmniLight3D).light_energy = 1.6 + 0.25 * sin(_time * 11.0 + i * 2.3)
 	## The active player's plaque glows and its gems pulse.
 	for color in _plaques:
 		var p: Dictionary = _plaques[color]
@@ -174,11 +186,9 @@ static func gem_material(color: Color) -> StandardMaterial3D:
 
 
 ## Gold damask on deep red lacquer: a repeating quatrefoil and lattice pattern.
-static func damask_texture() -> ImageTexture:
+static func damask_texture(base: Color = Color("#3a0710"), ink: Color = Color("#80551f")) -> ImageTexture:
 	var size := 256
 	var img := Image.create(size, size, true, Image.FORMAT_RGB8)
-	var base := Color("#3a0710")
-	var ink := Color("#80551f")
 	for y in range(size):
 		for x in range(size):
 			var u := float(x) / size
@@ -332,7 +342,7 @@ func _build_slabs() -> void:
 	## One wide lacquered table board: the wings and the raised main board.
 	var depth := outer_size().y
 	var wing := StandardMaterial3D.new()
-	wing.albedo_texture = damask_texture()
+	wing.albedo_texture = damask_texture(theme["wing_base"], theme["wing_ink"])
 	wing.roughness = 0.42
 	wing.metallic = 0.25
 	wing.clearcoat_enabled = true
@@ -679,3 +689,38 @@ static func _human_count(seats: Array) -> int:
 		if seat["human"]:
 			n += 1
 	return n
+
+
+## Diwali: clay diyas with flickering flames around the frame, and warm lamp light.
+func _build_diyas() -> void:
+	var clay := StandardMaterial3D.new()
+	clay.albedo_color = Color("#8a4020")
+	clay.roughness = 0.8
+	var flame := StandardMaterial3D.new()
+	flame.albedo_color = Color("#ffd27a")
+	flame.emission_enabled = true
+	flame.emission = Color("#ff9a2a")
+	flame.emission_energy_multiplier = 4.0
+	flame.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	var outer := outer_size()
+	var spots: Array[Vector3] = []
+	var h := outer.x * 0.5 + 0.35
+	for i in range(9):
+		var f := lerpf(-h + 1.0, h - 1.0, i / 8.0)
+		for s in [-1.0, 1.0]:
+			spots.append(Vector3(f, WING_TOP, s * (outer.y * 0.5 + 0.0)))
+			spots.append(Vector3(s * (h + 0.1), WING_TOP, f))
+	for at in spots:
+		_cyl(at + Vector3(0, 0.07, 0), 0.16, 0.14, clay, self, 16, 0.2)
+		var fl := _sphere(at + Vector3(0, 0.24, 0), 0.07, flame, self)
+		fl.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		_flames.append(fl)
+	for color in BoardPath.COLORS:
+		var home: Vector2i = BoardPath.PLAYERS[color]["home"]
+		var c := BoardPath.to_world(home.x + 3, home.y + 3)
+		var lamp := OmniLight3D.new()
+		lamp.light_color = Color("#ffb060")
+		lamp.omni_range = 7.0
+		lamp.position = Vector3(c.x, 1.6, c.z)
+		add_child(lamp)
+		_lamps.append(lamp)

@@ -8,6 +8,7 @@ signal start_game(config: Dictionary)
 signal settings_changed
 signal quit_requested
 signal closed
+signal board_theme_changed
 
 const HOW_TO_PLAY := """Royal India Ludo
 
@@ -77,6 +78,7 @@ func _ready() -> void:
 	_build_setup()
 	_build_settings()
 	_build_howto()
+	_build_themes()
 	show_page("main")
 
 
@@ -206,6 +208,7 @@ func _build_main() -> void:
 	_button(box, "Play vs AI", func() -> void: _open_setup("ai"))
 	_button(box, "Pass and play (2 to 4 players)", func() -> void: _open_setup("pass"))
 	_button(box, "Quick play (2 players, quick game)", func() -> void: _quick_play())
+	_button(box, "Board themes", func() -> void: _refresh_themes(); show_page("themes"))
 	_button(box, "How to play", func() -> void: show_page("howto"))
 	_button(box, "Settings", func() -> void: _load_settings_into_controls(); show_page("settings"))
 	_button(box, "Quit", func() -> void: quit_requested.emit())
@@ -243,6 +246,41 @@ func _build_settings() -> void:
 	_music.value_changed.connect(func(_v: float) -> void: _save_settings())
 	_sfx.value_changed.connect(func(_v: float) -> void: _save_settings())
 	_button(box, "Back", func() -> void: _back())
+
+
+var _theme_buttons: Dictionary = {}
+
+
+func _build_themes() -> void:
+	var box := _page_root("themes")
+	_title(box, "Board themes")
+	for id in BoardThemes.ORDER:
+		var t: Dictionary = BoardThemes.THEMES[id]
+		var b := _button(box, t["name"], func() -> void:
+			BoardThemes.set_current(id)
+			_refresh_themes()
+			board_theme_changed.emit())
+		b.custom_minimum_size = Vector2(420, 60)
+		## A swatch of the theme's lacquer and gold on the button.
+		var sw := ColorRect.new()
+		sw.color = t["lacquer"]
+		sw.custom_minimum_size = Vector2(34, 34)
+		sw.position = Vector2(14, 13)
+		b.add_child(sw)
+		var gold := ColorRect.new()
+		gold.color = t["gold"]
+		gold.size = Vector2(34, 8)
+		gold.position = Vector2(0, 26)
+		sw.add_child(gold)
+		_theme_buttons[id] = b
+	_button(box, "Back", func() -> void: _back())
+
+
+func _refresh_themes() -> void:
+	var current := BoardThemes.current_id()
+	for id in _theme_buttons:
+		var t: Dictionary = BoardThemes.THEMES[id]
+		(_theme_buttons[id] as Button).text = ("[ chosen ]   " if id == current else "") + "%s  -  %s" % [t["name"], t["blurb"]]
 
 
 func _build_howto() -> void:
