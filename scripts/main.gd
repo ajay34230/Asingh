@@ -134,6 +134,8 @@ func _ready() -> void:
 			_run_capture_fight.call_deferred(a.trim_prefix("--capture-fight="))
 		elif a.begins_with("--capture-lab="):
 			_run_capture_lab.call_deferred(a.trim_prefix("--capture-lab="))
+		elif a.begins_with("--capture-fur="):
+			_run_capture_fur.call_deferred(a.trim_prefix("--capture-fur="))
 		elif a.begins_with("--capture-mon="):
 			_run_capture_mon.call_deferred(a.trim_prefix("--capture-mon="))
 		elif a.begins_with("--capture-road="):
@@ -1545,6 +1547,18 @@ func _run_selftest() -> void:
 	_selftest_night_life(fails)
 	await _selftest_frontier(fails)
 	await _selftest_monsters(fails)
+	# hand props must be their real size (a 100x bone scale once turned brooms into giant yellow slabs)
+	for i in 3:
+		await get_tree().process_frame
+	var big := 0
+	for att in find_children("*", "BoneAttachment3D", true, false):
+		for mi in (att as Node).find_children("*", "MeshInstance3D", true, false):
+			var m := mi as MeshInstance3D
+			if m.mesh != null and (m.global_transform * m.get_aabb()).size.length() > 3.5:
+				big += 1
+				if big < 4:
+					fails.append("props: oversized hand prop %s (%s)" % [m.get_path(), (m.global_transform * m.get_aabb()).size])
+	print("[selftest] props: %d oversized hand props" % big)
 	await _selftest_walls(fails)
 	await _selftest_farm(fails)
 	items.give("hide", 3)
@@ -3027,6 +3041,61 @@ func _run_capture_ride(arg: String) -> void:
 			await RenderingServer.frame_post_draw
 			print("[capture] ", an.species, view[0], " -> ", get_viewport().get_texture().get_image().save_png("%s/%s_%s.png" % [dir, an.species, view[0]]))
 		mounts.dismount()
+	get_tree().quit()
+
+
+## Close-ups of every animal species after FurLook (smooth shading, coat, shell fur).
+func _run_capture_fur(dir: String) -> void:
+	DirAccess.make_dir_recursive_absolute(dir)
+	touch.visible = false
+	hud.visible = false
+	atmosphere.time_of_day = 0.4
+	atmosphere.apply_time()
+	_teleport(-60.0, 20.0)
+	for i in 20:
+		await get_tree().physics_frame
+	var only := OS.get_environment("SPECIES")
+	if only == "probe":
+		player.set_look(0.0, -0.08)
+		player.set_distance(3.2)
+		for i in 20:
+			await get_tree().process_frame
+		var cam := get_viewport().get_camera_3d()
+		var px := Vector2(float(OS.get_environment("PX")) / 1280.0, float(OS.get_environment("PY")) / 720.0) * get_viewport().get_visible_rect().size
+		print("[probe] cam ", cam.global_position, " vp ", get_viewport().get_visible_rect().size)
+		var o := cam.project_ray_origin(px)
+		var dv := cam.project_ray_normal(px)
+		var hits: Array = []
+		for mi in find_children("*", "MeshInstance3D", true, false):
+			var m := mi as MeshInstance3D
+			if not m.is_visible_in_tree() or m.mesh == null:
+				continue
+			var bb := m.global_transform * m.get_aabb()
+			var hp: Variant = bb.intersects_ray(o, dv)
+			if hp != null:
+				hits.append([o.distance_to(hp), str(m.get_path()), m.mesh.get_class(), bb.size])
+		hits.sort_custom(func(a: Array, b: Array) -> bool: return float(a[0]) < float(b[0]))
+		for h in hits.slice(0, 12):
+			print("[probe] ", h)
+		get_tree().quit()
+		return
+	for k in Animal.SPECIES:
+		if only != "" and not only.split(",").has(k):
+			continue
+		var a := Animal.new().setup(k, terrain, player, player.global_position + Vector3(0, 0, -5), 0.0)
+		add_child(a)
+		a.global_position = player.global_position + Vector3(1.2, 0, -4.0)
+		a.global_position.y = terrain.sample_height(a.global_position.x, a.global_position.z)
+		a.rotation.y = PI * 0.5
+		a.set_process(false)
+		player.set_look(0.0, -0.08)
+		player.set_distance(1.6 + float(Animal.SPECIES[k]["height"]) * 0.8)
+		player._model.visible = false
+		for i in 25:
+			await get_tree().process_frame
+		await RenderingServer.frame_post_draw
+		get_viewport().get_texture().get_image().save_png("%s/a_%s.png" % [dir, k])
+		a.queue_free()
 	get_tree().quit()
 
 

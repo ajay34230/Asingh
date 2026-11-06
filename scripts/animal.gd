@@ -55,6 +55,8 @@ var back_y := 1.2                # height of the saddle point above the ground (
 static var _back_cache := {}
 var _act := {}                   # the current species activity (see _start_act)
 var _spd := 1.0                  # animation speed of the current activity
+var _fur: Array = []             # shell-fur materials (FurLook), drawn only near the player
+var _fur_near := true
 
 ## Behaviour: "prey" flees, "dog" befriends, "grazer" grazes and calls, "pack" = camels/horses (calm, curious).
 const BEHAVIOUR := {
@@ -150,6 +152,7 @@ func setup(kind: String, ter: TerrainBuilder, ply: Node3D, at: Vector3, wander_r
 					d.albedo_color = d.albedo_color * t
 					mi.set_surface_override_material(s, d)
 	_texture_coat(inst)
+	_fur = FurLook.dress(inst, kind, maxf(length, float(sp["height"])))
 	var aps := inst.find_children("*", "AnimationPlayer", true, false)
 	if not aps.is_empty():
 		_anim = aps[0] as AnimationPlayer
@@ -211,6 +214,11 @@ func ground() -> void:
 
 
 func _process(delta: float) -> void:
+	if not _fur.is_empty() and player != null:
+		var fn := global_position.distance_squared_to(player.global_position) < 484.0     # 22 m
+		if fn != _fur_near:
+			_fur_near = fn
+			FurLook.set_near(_fur, fn)
 	var prev_pos := global_position
 	_step(delta)
 	if player != null and global_position.distance_squared_to(player.global_position) < 3600.0:

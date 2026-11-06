@@ -304,3 +304,19 @@ Verified by the headless selftest (PASS) and software-rendered captures. **Not t
   - drink, read and push (doors).
   - The player stands still while working, and the selftest checks the prompt mapping.
 - **Short story mode.** The new Gameplay setting is on by default. A conversation with no real decision collapses into one line (the first sentence of the opening and closing lines), but every flag it would set is still set. Shops, gifts and choice outcomes keep the full conversation. The intro is cut to two shots that lead straight into the ghost mission.
+
+## Addendum: Animal fur and smooth meshes, and the yellow-slab glitch found (2026-11-06)
+
+Verified by the selftest (PASS) and software-rendered close-ups. **Not tested on a device.**
+
+- **Yellow slabs and brown beams (the long-standing device glitch): found and fixed.**
+  - A probe ray found it: a BoxMesh of 18 x 7 x 25 m hanging off a sweeper NPC's hand bone.
+  - Some character rigs carry a 100x scale in their bones, so the primitive hand props (broom, ladle, knife, cloth, basket, hammer) were drawn about 100x too big. The broom's yellow bristles and brown handle swung around as the NPCs swept: the "rotating figures".
+  - `RealHuman._fit_scale` now undoes the bone scale on every hand prop and weapon.
+  - The selftest fails if any hand prop is larger than 3.5 m. It now reports 0.
+- **FurLook (all 11 animal species).**
+  - Smooth normals averaged across shared corners and material seams (cached per mesh; creases sharper than ~78 deg are kept).
+  - The coat gets a fine hair normal map and soft rim light. Eyes and noses are glossy, hooves and horns waxy.
+  - 5-layer shell fur with very thin tapered strands. Long and soft on dogs, foxes and camels, very short and fine on horses, cattle and deer.
+  - Shells are drawn only within 22 m of the player and are off on the Low preset. There is a new Video setting, "Animal fur".
+- Cost on the phone is unknown: 5 extra passes per furred surface for nearby animals.

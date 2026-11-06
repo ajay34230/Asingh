@@ -16,6 +16,7 @@ const SPEC: Array = [
 	["Audio", "vol_ambience", "Ambience (wind, rain, crowds)", "slider", 1.0, [0.0, 1.0, 0.05]],
 	["Audio", "voices", "Spoken NPC voices", "toggle", true, null],
 	["Video", "quality", "Graphics preset", "choice", 0, ["High", "Medium", "Low"]],
+	["Video", "animal_fur", "Animal fur", "toggle", true, null],
 	["Video", "render_scale", "Resolution scale (0% = automatic)", "slider", 0.0, [0.0, 1.0, 0.05]],
 	["Video", "shadows", "Shadows", "choice", 2, ["Off", "Low", "High"]],
 	["Video", "aa", "Anti-aliasing", "choice", 0, ["Off", "FXAA", "MSAA 2x", "MSAA 4x"]],

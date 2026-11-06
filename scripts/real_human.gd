@@ -334,6 +334,23 @@ func set_weapon(id: String) -> void:
 		model.position = Vector3(0, 0.08, 0.04)
 		model.rotation.x = deg_to_rad(90.0)            # blade or head points forward out of the fist
 	att.add_child(model)
+	_fit_scale(model)
+
+
+## Hand props hang off a bone. Some rigs carry a 100x scale in their bones, which used to blow brooms and
+## tools up into the giant yellow slabs and brown beams seen on the phone. Undo the bone's scale so a
+## prop is always its real size in metres.
+func _fit_scale(n: Node3D) -> void:
+	if not is_inside_tree():
+		await ready
+	await get_tree().process_frame
+	if not is_instance_valid(n) or not n.is_inside_tree():
+		return
+	var par := n.get_parent() as Node3D
+	var s := par.global_transform.basis.get_scale() / global_transform.basis.get_scale()
+	if absf(s.x - 1.0) > 0.05 or absf(s.y - 1.0) > 0.05:
+		n.scale = Vector3(1.0 / maxf(s.x, 0.0001), 1.0 / maxf(s.y, 0.0001), 1.0 / maxf(s.z, 0.0001))
+		n.position = n.position * n.scale
 
 
 # --- pose application ----------------------------------------------------------------------
@@ -1163,6 +1180,7 @@ func _add_prop(kind: String) -> void:
 	var root := Node3D.new()
 	root.position = Vector3(0, 0.08, 0.04)
 	att.add_child(root)
+	_fit_scale(root)
 	var add := func(size: Vector3, pos: Vector3, col: Color) -> void:
 		var m := MeshInstance3D.new()
 		var b := BoxMesh.new()
