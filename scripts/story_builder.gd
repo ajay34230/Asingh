@@ -284,20 +284,11 @@ func open_gate() -> void:
 # --- intro ---------------------------------------------------------------------------------
 
 func intro() -> void:
-	var desk: Vector3 = story.refs["desk"]
-	var o := office.global_position
-	var fp: Vector3 = Farm.start_position(main.terrain)
 	var shots := [
-		{"from": Vector3(40, 34, -105), "to": Vector3(8, 24, -140), "look": Vector3(0, 14, -168), "dur": 6.5, "title": true,
-		 "text": "The Valley of Sands. Beyond the dunes, the ruins of Suryavan: a kingdom that vanished in a single night."},
-		{"from": Vector3(-60, 14, 70), "to": Vector3(-95, 9, 40), "look": Vector3(-90, 4, 12), "dur": 5.5,
-		 "text": "Only a village remains, and the people who still keep its secrets."},
-		{"from": fp + Vector3(16, 7, 8), "to": fp + Vector3(9, 5, 0), "look": fp + Vector3(0, 1.5, -6), "dur": 5.5,
-		 "text": "Home is a small farm at the edge of the dunes. Grow crops, sell them in the bazaar, and build a life while you search for the truth."},
-		{"from": o + Vector3(7, 3.0, 12), "to": o + Vector3(4, 2.6, 8), "look": o + Vector3(0, 1.5, 0), "dur": 5.0,
-		 "text": "Three days ago, your mentor Dr. Arin Rao walked into those ruins, and did not walk out."},
-		{"from": desk + Vector3(1.6, 0.9, 1.6), "to": desk + Vector3(0.8, 0.7, 0.9), "look": desk, "dur": 5.0,
-		 "text": "All he left behind is his field office, and a journal that wants to be read."},
+		{"from": Vector3(40, 34, -105), "to": Vector3(8, 24, -140), "look": Vector3(0, 14, -168), "dur": 4.5, "title": true,
+		 "text": "The Valley of Sands. Your mentor Arin vanished in these ruins."},
+		{"from": Vector3(-60, 14, 70), "to": Vector3(-95, 9, 40), "look": Vector3(-90, 4, 12), "dur": 4.0,
+		 "text": "Tonight the dead rise near the village. Go!"},
 	]
 	Sfx.intro_music()
 	cin.play(shots, "THE LOST KINGDOM", func() -> void:

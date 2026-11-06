@@ -38,6 +38,7 @@ const SPEC: Array = [
 	["Language", "lang", "Language / भाषा", "choice", 0, ["English", "हिन्दी"]],
 	["Gameplay", "outfit", "Outfit colour", "choice", 0, ["Default", "Crimson", "Indigo", "Forest", "Saffron", "Teal", "Violet"]],
 	["Gameplay", "difficulty", "Difficulty", "choice", 1, ["Easy", "Normal", "Hard"]],
+	["Gameplay", "short_dialogue", "Short story and dialogue", "toggle", true, null],
 	["Gameplay", "fov", "Field of view", "slider", 70.0, [60.0, 95.0, 1.0]],
 	["Gameplay", "fp", "First-person view", "toggle", false, null],
 	["Gameplay", "shake", "Camera shake", "toggle", true, null],

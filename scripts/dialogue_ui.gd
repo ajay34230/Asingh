@@ -99,6 +99,8 @@ func close_for_test() -> void:
 func open(data: Dictionary, speaker_node: Node3D = null, voice_name: String = "man", on_end: Callable = Callable()) -> void:
 	if data.is_empty() or is_open:
 		return
+	if bool(GameSettings.v.get("short_dialogue", true)):
+		data = compact(data)
 	_nodes = data["nodes"]
 	_hist.clear()
 	_cur_id = ""
@@ -112,6 +114,67 @@ func open(data: Dictionary, speaker_node: Node3D = null, voice_name: String = "m
 	player.move_input = Vector2.ZERO
 	_panel.visible = true
 	_show(data["start"])
+
+
+static func _first_sentence(t: String) -> String:
+	var best := t.length()
+	for mark in [". ", "! ", "? "]:
+		var i := t.find(mark)
+		if i >= 0:
+			best = mini(best, i + 1)
+	return t.substr(0, best).strip_edges()
+
+
+## Short story mode: a conversation with no real decision in it (no prices, gifts or choice-specific outcomes)
+## collapses into one line, the first sentence of the opening and of the closing line, while every flag the
+## full conversation would set is still set. Conversations with a real choice are left as they are.
+static func compact(data: Dictionary) -> Dictionary:
+	var nodes: Dictionary = data.get("nodes", {})
+	var start: String = data.get("start", "")
+	if not nodes.has(start):
+		return data
+	var seen := {}
+	var queue: Array = [start]
+	var sets := {}
+	var adds := {}
+	var sfx := ""
+	while not queue.is_empty():
+		var id: String = queue.pop_front()
+		if seen.has(id) or not nodes.has(id):
+			continue
+		seen[id] = true
+		var n: Dictionary = nodes[id]
+		for k in n.get("set", {}):
+			sets[k] = n["set"][k]
+		for k in n.get("add", {}):
+			adds[k] = int(adds.get(k, 0)) + int(n["add"][k])
+		if n.has("sfx"):
+			sfx = String(n["sfx"])
+		for c in n.get("choices", []):
+			var cd: Dictionary = c
+			if cd.has("cost") or cd.has("give") or cd.has("set") or cd.has("add") or cd.has("if"):
+				return data                     # a real decision: keep the whole conversation
+			queue.append(String(cd.get("go", "")))
+		if n.has("go"):
+			queue.append(String(n["go"]))
+	if seen.size() <= 1:
+		return data
+	# follow the first answer to find where the conversation naturally ends
+	var path_last := start
+	var cur := start
+	var guard := 0
+	while guard < 12 and nodes.has(cur):
+		guard += 1
+		path_last = cur
+		var ch: Array = nodes[cur].get("choices", [])
+		cur = String(ch[0].get("go", "")) if not ch.is_empty() else String(nodes[cur].get("go", ""))
+	var a := _first_sentence(String(nodes[start]["text"]))
+	var b := _first_sentence(String(nodes[path_last]["text"]))
+	var text := a if (b == a or b == "") else a + " " + b
+	var one := {"who": nodes[start].get("who", ""), "text": text, "set": sets, "add": adds}
+	if sfx != "":
+		one["sfx"] = sfx
+	return {"start": "short", "nodes": {"short": one}}
 
 
 func _nav_button(t: String, fn: Callable) -> Button:

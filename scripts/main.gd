@@ -36,6 +36,7 @@ var rebuild: VillageRebuild
 var campaign: Campaign
 var festival: Festival
 var bounty: BountyBoard
+var monsters: MonsterMissions
 var lock_marker: LockMarker
 var diag: Diag
 var minigames: MiniGames
@@ -133,6 +134,8 @@ func _ready() -> void:
 			_run_capture_fight.call_deferred(a.trim_prefix("--capture-fight="))
 		elif a.begins_with("--capture-lab="):
 			_run_capture_lab.call_deferred(a.trim_prefix("--capture-lab="))
+		elif a.begins_with("--capture-mon="):
+			_run_capture_mon.call_deferred(a.trim_prefix("--capture-mon="))
 		elif a.begins_with("--capture-road="):
 			_run_capture_road.call_deferred(a.trim_prefix("--capture-road="))
 		elif a.begins_with("--capture-fist="):
@@ -1000,6 +1003,16 @@ func _build_story() -> void:
 	bounty.shop = farm.shop
 	add_child(bounty)
 	bounty.build()
+	monsters = MonsterMissions.new()
+	monsters.main = self
+	monsters.story = story
+	monsters.player = player
+	monsters.terrain = terrain
+	monsters.hud = hud
+	monsters.cin = cin
+	monsters.combat = combat
+	add_child(monsters)
+	monsters.build()
 	lock_marker = LockMarker.new()
 	lock_marker.player = player
 	add_child(lock_marker)
@@ -1531,6 +1544,7 @@ func _run_selftest() -> void:
 	_selftest_cin_ground(fails)
 	_selftest_night_life(fails)
 	await _selftest_frontier(fails)
+	await _selftest_monsters(fails)
 	await _selftest_walls(fails)
 	await _selftest_farm(fails)
 	items.give("hide", 3)
@@ -2401,6 +2415,68 @@ func _selftest_walls(fails: PackedStringArray) -> void:
 		fails.append("combat: roll move missing")
 
 
+## Ghost and monster missions: the first one starts, its waves spawn animated models and can be beaten,
+## rewards arrive and the next mission unlocks. Also: mission tasks map to body actions, dialogue compaction.
+func _selftest_monsters(fails: PackedStringArray) -> void:
+	for pair in [["Dig at the stake", "dig"], ["Search the box under the sacks", "search"], ["Light the brazier", "reach"], ["Pray at the altar", "pray"], ["Cut the prisoner free", "cut"], ["Talk to Chief", ""]]:
+		if Player.task_for_prompt(pair[0]) != pair[1]:
+			fails.append("tasks: '%s' -> '%s' (want '%s')" % [pair[0], Player.task_for_prompt(pair[0]), pair[1]])
+	var long_d := {"start": "a", "nodes": {"a": {"who": "X", "text": "One. Two.", "choices": [{"t": "?", "go": "b"}, {"t": "!", "go": "c"}]},
+		"b": {"who": "X", "text": "Three. Four.", "set": {"t_flag": true}, "choices": [{"t": "ok", "go": ""}]}, "c": {"who": "X", "text": "Five.", "set": {"t_flag2": true}}}}
+	var cd := DialogueUI.compact(long_d)
+	var one: Dictionary = (cd["nodes"] as Dictionary).values()[0]
+	if (cd["nodes"] as Dictionary).size() != 1 or not (one["set"] as Dictionary).has("t_flag2") or String(one["text"]) != "One. Three.":
+		fails.append("dialogue: compaction gave %s" % [cd])
+	var shop_d := {"start": "a", "nodes": {"a": {"who": "X", "text": "Buy?", "choices": [{"t": "Yes", "go": "", "cost": 5}]}}}
+	if DialogueUI.compact(shop_d) != shop_d:
+		fails.append("dialogue: a shop conversation was compacted")
+	var m: Dictionary = monsters.available()
+	if m.is_empty() or String(m["id"]) != "m_ghost1":
+		fails.append("monsters: first mission not available (%s)" % [m])
+		return
+	var at: Vector2 = m["at"]
+	player.locked = false
+	_teleport(at.x + 3.0, at.y + 3.0)
+	var coins0 := coin_sys.balance()
+	monsters.start(m, true)
+	await get_tree().physics_frame
+	var spawned := monsters.alive.size()
+	var animated := 0
+	for mon in monsters.alive:
+		if (mon as Monster)._anim != null:
+			animated += 1
+	print("[selftest] monsters: wave 1 spawned %d (%d animated), player weapon %s" % [spawned, animated, player.weapon])
+	if spawned != 3:
+		fails.append("monsters: wave 1 spawned %d, want 3" % spawned)
+	if player.weapon != "bow":
+		fails.append("monsters: the bow was not handed over")
+	var guard := 0
+	while monsters.running != "" and guard < 2000:
+		guard += 1
+		for mon in monsters.alive.duplicate():
+			if is_instance_valid(mon) and not (mon as Enemy).dead:
+				(mon as Enemy).take_hit("arrow", 30.0, Vector3.FORWARD)
+		player.hp = player.max_hp
+		await get_tree().physics_frame
+	if not bool(story.get_flag("m_ghost1_done", false)):
+		fails.append("monsters: the first mission did not complete (wave %d)" % monsters.wave)
+	if coin_sys.balance() <= coins0:
+		fails.append("monsters: no coins for the mission")
+	var nx: Dictionary = monsters.available()
+	if nx.is_empty() or String(nx["id"]) != "m_bones":
+		fails.append("monsters: the second mission did not unlock")
+	# every monster kind loads and stands up
+	for k in Monster.KINDS:
+		var t := Monster.new()
+		t.player = player
+		add_child(t)
+		t.setup_monster(k, player.global_position + Vector3(30, 0, 0), "T_" + k)
+		if t._anim == null and ResourceLoader.exists("res://assets/monsters/%s.gltf" % Monster.KINDS[k]["file"]):
+			fails.append("monsters: %s has no animations" % k)
+		t.queue_free()
+	print("[selftest] monsters: first mission done=%s, coins +%d, next=%s" % [story.get_flag("m_ghost1_done", false), coin_sys.balance() - coins0, nx.get("id", "")])
+
+
 ## Southern Road: the ground joins the valley without a step, the pass is open, and the stops exist.
 func _selftest_frontier(fails: PackedStringArray) -> void:
 	var worst := 0.0
@@ -2951,6 +3027,74 @@ func _run_capture_ride(arg: String) -> void:
 			await RenderingServer.frame_post_draw
 			print("[capture] ", an.species, view[0], " -> ", get_viewport().get_texture().get_image().save_png("%s/%s_%s.png" % [dir, an.species, view[0]]))
 		mounts.dismount()
+	get_tree().quit()
+
+
+func _run_capture_mon(dir: String) -> void:
+	DirAccess.make_dir_recursive_absolute(dir)
+	touch.visible = false
+	hud.visible = false
+	atmosphere.time_of_day = 0.42
+	atmosphere.apply_time()
+	var only := OS.get_environment("PART")
+	_teleport(-60.0, 20.0)
+	for i in 20:
+		await get_tree().physics_frame
+	player.set_physics_process(true)
+	if only == "dbg":
+		player.play_task("dig", 3.0)
+		for i in 30:
+			await get_tree().physics_frame
+		print("[dbg] action=", player._rig.action, " t=", player._rig._action_t, " dur=", player._rig._action_dur, " task=", player._task_t, " phys=", player.is_physics_processing(), " locked=", player.locked, " sh_R=", player._rig._pose["sh_R"], " dy=", player._rig._hips_dy)
+	if only == "" or only == "kinds":
+		for k in Monster.KINDS:
+			var t := Monster.new()
+			t.player = null
+			add_child(t)
+			t.setup_monster(k, player.global_position + Vector3(0, 0, -7.0), "Show_" + k)
+			t.global_position = player.global_position + Vector3(0, 0, -7.0)
+			player.set_look(0.0, -0.02)
+			player.set_distance(4.0)
+			for i in 40:
+				await get_tree().process_frame
+			await RenderingServer.frame_post_draw
+			get_viewport().get_texture().get_image().save_png("%s/k_%s.png" % [dir, k])
+			t.queue_free()
+	if only == "" or only == "tasks":
+		for task in ["dig", "pray", "search", "pickup", "cut", "reach"]:
+			player.set_look(player._model.rotation.y + PI * 0.5, -0.05)
+			player.set_distance(3.0)
+			player.play_task(task, 3.0)
+			for i in 50:
+				await get_tree().physics_frame
+			await RenderingServer.frame_post_draw
+			get_viewport().get_texture().get_image().save_png("%s/t_%s.png" % [dir, task])
+			for i in 160:
+				await get_tree().physics_frame
+		player.set_weapon("bow")
+		player._rig.play_move("bow_shot")
+		for i in 17:
+			await get_tree().physics_frame
+		await RenderingServer.frame_post_draw
+		get_viewport().get_texture().get_image().save_png("%s/t_bow.png" % dir)
+	if only == "" or only == "mission":
+		var m: Dictionary = MonsterMissions.MISSIONS[0]
+		var at: Vector2 = m["at"]
+		_teleport(at.x + 9.0, at.y + 9.0)
+		for i in 20:
+			await get_tree().physics_frame
+		monsters.start(m, true)
+		player.hp = 99999.0
+		player.max_hp = 99999.0
+		hud.visible = true
+		for i in 100:
+			await get_tree().process_frame
+		player.set_distance(6.0)
+		_look_at_point(Vector3(at.x, terrain.sample_height(at.x, at.y) + 1.5, at.y), -0.1)
+		for i in 30:
+			await get_tree().process_frame
+		await RenderingServer.frame_post_draw
+		get_viewport().get_texture().get_image().save_png("%s/m1_night.png" % dir)
 	get_tree().quit()
 
 

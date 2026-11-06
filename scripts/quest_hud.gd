@@ -256,6 +256,9 @@ func progress(label: String, dur: float, done: Callable) -> void:
 	_bar.max_value = dur
 	_bar.value = 0.0
 	_bar_root.visible = true
+	var task := Player.task_for_prompt(label)
+	if task != "":
+		player.play_task(task, dur)       # dig, search... the body does the work while the bar fills
 	player.locked = true
 
 

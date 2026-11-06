@@ -8,6 +8,7 @@ const PATH := "user://achievements.json"
 ## id -> [title, description]
 const DEFS := {
 	"chief": ["Welcome, Musafir", "Meet the village chief."],
+	"ghostbuster": ["Ghost Hunter", "Protect the village from the restless dead."],
 	"temple": ["Blessed Traveller", "Receive the temple's blessing."],
 	"forest": ["Forest Cleared", "Defeat the raiders in the forest."],
 	"tara": ["Tara's Saviour", "Rescue Tara."],

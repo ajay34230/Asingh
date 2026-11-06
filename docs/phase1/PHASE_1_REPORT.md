@@ -271,3 +271,36 @@ Verified only by the headless selftest (PASS) and software-rendered captures. **
   - The report has device and GPU info, the stored crash reports (the last breadcrumb plus the tail of the previous run's Godot log), recent events (missions, unstick, low-fps quality drops) and the tails of Godot's logs.
   - The title screen offers "Copy crash report" after a crash.
 - **Load time.** World build in headless went from about 4.6 s to 5.7 s (the new ground, its places and the larger map texture). The phone will be slower.
+
+## Addendum: Ghost and monster missions, weapons, acted-out tasks, short dialogue (2026-11-06)
+
+Verified by the headless selftest (PASS) and software-rendered captures. **Not tested on a device.**
+
+- **Monsters.** Monster (extends Enemy) uses the Quaternius Ultimate Monsters models (CC0) and their own animation clips: Idle, Walk, Run, Punch, Weapon, HitReact and Death, or Flying_Idle, Fast_Flying and Headbutt for fliers.
+  - Kinds: ghost, ghost_skull, skeleton (Orc_Skull), yeti, mushroom_king, demon and dragon. The last four are bosses with an enraged second phase.
+  - Ghosts are see-through and glowing. Arrows do x2 damage to them, fists x0.55, blades x1.3.
+- **MonsterMissions: seven chained missions.**
+  1. The Restless Dead (first mission of a new game, at night). Ghosts rise from a Kenney graveyard west of the village and haunt the well. The chief hands over the bow.
+  2. Bones of the Old Road: reward sword.
+  3. Skulls over Kesar Sarai: reward dagger.
+  4. The Beast of Sal Forest: yeti.
+  5. The Mushroom King.
+  6. The Demon of Dhoopgarh: reward axe.
+  7. Wings over the Dunes: dragon.
+  - Each mission has a 2-shot intro, monsters rising out of the ground, waves and a village heart bar on protect missions (the mission fails at 0).
+  - Kill-streak coins, a 1-3 star rating, coin rewards and the next mission unlocked.
+  - The mission restarts if the player falls.
+- **Weapons.** Quaternius Medieval Weapons models (CC0) are now held in the hand, auto-scaled and gripped: hammer, sword, dagger, spear, axe, and the bow in the left hand. A lying-down model (the Kenney shovel) is stood up automatically.
+  - New items: Talwar sword and Silver dagger. The WEAPON button cycles everything you own.
+  - Archery: a bow_shot keyframed draw (side-on, bow arm out, string hand to the cheek, release). The arrow model leaves on release.
+- **Tasks are acted out.** Interact prompts and progress bars map to body actions:
+  - dig: with a shovel, drive, lever and throw.
+  - search: bent over, rummaging.
+  - pickup: squat and grab.
+  - reach: light, touch, place.
+  - pray: kneel, palms together.
+  - chop: with an axe.
+  - cut: kneel and saw.
+  - drink, read and push (doors).
+  - The player stands still while working, and the selftest checks the prompt mapping.
+- **Short story mode.** The new Gameplay setting is on by default. A conversation with no real decision collapses into one line (the first sentence of the opening and closing lines), but every flag it would set is still set. Shops, gifts and choice outcomes keep the full conversation. The intro is cut to two shots that lead straight into the ghost mission.

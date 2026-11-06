@@ -305,32 +305,40 @@ func fire_arrow() -> bool:
 	var foe := _nearest_enemy(22.0)
 	if foe == null:
 		return false
-	_attack_cd = 0.6
-	spend(5.0)
+	_attack_cd = 0.68
+	spend(4.0)
 	arrows_fired += 1
 	var from := global_position + Vector3(0, 1.4, 0)
 	var target := foe.global_position + Vector3(0, 1.2, 0)
 	_model.rotation.y = atan2(-(target.x - from.x), -(target.z - from.z))
-	var arrow := MeshInstance3D.new()
-	var cm := CylinderMesh.new()
-	cm.top_radius = 0.02
-	cm.bottom_radius = 0.02
-	cm.height = 0.8
-	var am := StandardMaterial3D.new()
-	am.albedo_color = Color(0.55, 0.4, 0.22)
-	cm.material = am
-	arrow.mesh = cm
+	_rig.play_move("bow_shot")
+	var arrow := Node3D.new()
+	var am := RealHuman.arrow_model()
+	if am != null:
+		arrow.add_child(am)
+	else:
+		var mi := MeshInstance3D.new()
+		var cm := CylinderMesh.new()
+		cm.top_radius = 0.02
+		cm.bottom_radius = 0.02
+		cm.height = 0.8
+		mi.mesh = cm
+		mi.rotation.x = PI * 0.5
+		arrow.add_child(mi)
+	arrow.visible = false
 	get_parent().add_child(arrow)
 	arrow.global_position = from
 	arrow.look_at(target, Vector3.UP)
-	arrow.rotate_object_local(Vector3.RIGHT, PI * 0.5)
-	Sfx.ui_at("swing", -4.0)
 	var dmg := 20.0 * hammer_mult * gear_dmg * (2.0 if power.has("power") else 1.0)
 	var tw := arrow.create_tween()
-	tw.tween_property(arrow, "global_position", target, maxf(0.12, from.distance_to(target) / 28.0))
+	tw.tween_interval(0.3)          # the string is drawn back first; the arrow leaves on release
+	tw.tween_callback(func() -> void:
+		arrow.visible = true
+		Sfx.ui_at("swing", -4.0))
+	tw.tween_property(arrow, "global_position", target, maxf(0.12, from.distance_to(target) / 32.0))
 	tw.tween_callback(func() -> void:
 		if is_instance_valid(foe) and not foe.dead:
-			foe.take_hit("kick", dmg, (target - from))
+			foe.take_hit("arrow", dmg, (target - from))
 			_combat_t = 0.0
 		arrow.queue_free())
 	return true
@@ -386,7 +394,7 @@ func attack() -> void:
 	if _combo >= COMBO.size():
 		_combo = 0
 		var grab := _nearest_enemy(2.6)
-		if grab != null and not grab.is_boss and not grab.surrendered:
+		if grab != null and not grab.is_boss and not grab.surrendered and not grab is Monster:
 			_grab_throw(grab)
 		else:
 			_attack_cd = 0.7
@@ -419,7 +427,7 @@ func weapons_owned() -> Array:
 	var out: Array = ["fists", "hammer"]
 	var it := get_tree().get_first_node_in_group("items")
 	if it != null:
-		for id in ["axe", "spear", "bow"]:
+		for id in ["bow", "sword", "dagger", "spear", "axe"]:
 			if int(it.call("count", id)) > 0:
 				out.append(id)
 	return out
@@ -429,7 +437,7 @@ func set_weapon(id: String) -> void:
 	weapon = id
 	var it := get_tree().get_first_node_in_group("items")
 	if it != null:
-		if id in ["axe", "spear", "bow"]:
+		if id in ["axe", "spear", "bow", "sword", "dagger"]:
 			it.call("equip", id)
 		else:
 			it.call("unequip", "weapon")
@@ -790,9 +798,53 @@ func interact() -> void:
 	if locked:
 		return
 	if focus != null and is_instance_valid(focus):
+		var task := task_for_prompt(focus.prompt)
+		if task != "":
+			var to := focus.global_position - global_position
+			if Vector2(to.x, to.z).length() > 0.2:
+				_model.rotation.y = atan2(-to.x, -to.z)     # turn to face what you are working on
+			play_task(task, TASK_TIME.get(task, 1.0))
 		focus.interact(self)
 		# The prompt may have changed ("Open door" -> "Close door").
 		focus_changed.emit(focus)
+
+
+## Mission actions are acted out: digging, searching, picking up, lighting, praying, chopping, cutting...
+const TASK_TIME := {"search": 1.2, "pickup": 0.9, "reach": 0.9, "pray": 2.0, "chop": 1.8, "cut": 1.6, "drink": 1.4, "read": 1.6, "push": 0.6, "dig": 4.2}
+var _task_t := 0.0
+var _task_prev_weapon := ""
+
+
+static func task_for_prompt(p: String) -> String:
+	var s := p.to_lower()
+	for pair in [["dig", "dig"], ["search", "search"], ["examine", "search"], ["open the", "search"], ["open door", "push"], ["close door", "push"],
+			["pick", "pickup"], ["collect", "pickup"], ["take", "pickup"], ["plant", "pickup"], ["water the", "pickup"], ["skin", "cut"],
+			["cut", "cut"], ["fell", "chop"], ["chop", "chop"], ["light", "reach"], ["touch", "reach"], ["place", "reach"], ["ring", "reach"],
+			["pray", "pray"], ["drink", "drink"], ["read the tablet", "read"], ["look into", "search"]]:
+		if s.begins_with(String(pair[0])) or s.contains(" " + String(pair[0]) + " "):
+			return String(pair[1])
+	return ""
+
+
+## Act out a task for `dur` seconds: the player stands still and the body does the work (with a tool if needed).
+func play_task(kind: String, dur: float) -> void:
+	if mounted or dead:
+		return
+	_task_t = dur
+	velocity = Vector3.ZERO
+	_rig.play_action(kind, dur)
+	if kind == "dig":
+		_task_prev_weapon = weapon
+		_rig.set_weapon("shovel")
+	elif kind == "chop" and weapon != "axe":
+		_task_prev_weapon = weapon
+		_rig.set_weapon("axe")
+
+
+func _end_task() -> void:
+	if _task_prev_weapon != "":
+		_rig.set_weapon(weapon)
+		_task_prev_weapon = ""
 
 
 func say(text: String) -> void:
@@ -1044,6 +1096,14 @@ func _physics_process(delta: float) -> void:
 	if _winded:
 		fast = false
 	_tick_stamina(delta, fast and input.length() > 0.3 and is_on_floor() and not mounted)
+	if _task_t > 0.0:
+		_task_t -= delta
+		if _task_t <= 0.0:
+			_end_task()
+		elif not locked:
+			input = Vector2.ZERO
+			fast = false
+			jump_requested = false
 	if locked:
 		input = Vector2.ZERO
 		fast = false

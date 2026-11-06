@@ -244,71 +244,96 @@ func _add_hammer() -> void:
 	set_weapon("hammer")
 
 
-## What the right hand holds: "fists" (nothing), "hammer", "axe", "spear" or "bow". Simple primitive meshes.
+## What the hands hold: "fists" (nothing), "hammer", "axe", "spear", "sword", "dagger" or "bow" (left hand).
+## Models: Quaternius Medieval Weapons (CC0), scaled to a real length and gripped near the handle end.
+const WEAPON_GLB := {"hammer": "Hammer_Small", "axe": "Axe", "spear": "Spear", "sword": "Sword", "dagger": "Dagger", "bow": "Bow_Wooden", "shovel": "../graveyard/shovel"}
+const WEAPON_LEN := {"hammer": 0.62, "axe": 0.8, "spear": 1.9, "sword": 1.0, "dagger": 0.4, "bow": 1.25, "shovel": 1.15}
+const WEAPON_GRIP := {"hammer": 0.12, "axe": 0.12, "spear": 0.38, "sword": 0.1, "dagger": 0.12, "bow": 0.5, "shovel": 0.75}
+var _bow_att: BoneAttachment3D
+
+
+static func weapon_model(id: String) -> Node3D:
+	var path := "res://assets/weapons/%s.glb" % String(WEAPON_GLB.get(id, ""))
+	if not WEAPON_GLB.has(id) or not ResourceLoader.exists(path):
+		return null
+	var ps := load(path) as PackedScene
+	if ps == null:
+		return null
+	var inst := ps.instantiate() as Node3D
+	var box := AABB()
+	var first := true
+	for mi in inst.find_children("*", "MeshInstance3D", true, false):
+		var m := mi as MeshInstance3D
+		var xf := Transform3D.IDENTITY
+		var n: Node = m
+		while n != null and n != inst:
+			xf = (n as Node3D).transform * xf
+			n = n.get_parent()
+		var bb := xf * m.get_aabb()
+		box = bb if first else box.merge(bb)
+		first = false
+	var holder := Node3D.new()
+	holder.add_child(inst)
+	# stand the model up along +Y if it was modelled lying along X or Z (the long axis is the handle)
+	var rot := Basis.IDENTITY
+	if box.size.z > box.size.y * 1.5 and box.size.z >= box.size.x:
+		rot = Basis(Vector3.RIGHT, -PI * 0.5)
+	elif box.size.x > box.size.y * 1.5:
+		rot = Basis(Vector3.BACK, PI * 0.5)
+	box = Transform3D(rot, Vector3.ZERO) * box
+	var h := maxf(box.size.y, 0.0001)
+	var sc := float(WEAPON_LEN[id]) / h
+	inst.transform = Transform3D(rot.scaled(Vector3.ONE * sc), Vector3.ZERO)
+	var grip_y := box.position.y + h * float(WEAPON_GRIP[id])
+	inst.position = -Vector3(box.get_center().x, grip_y, box.get_center().z) * sc
+	return holder
+
+
+## An arrow (Quaternius Medieval Weapons, CC0), 0.8 m long, pointing along -Z so look_at aims it.
+static func arrow_model() -> Node3D:
+	var path := "res://assets/weapons/Arrow.glb"
+	if not ResourceLoader.exists(path):
+		return null
+	var inst := (load(path) as PackedScene).instantiate() as Node3D
+	var holder := Node3D.new()
+	holder.add_child(inst)
+	inst.scale = Vector3.ONE * 1.86          # the model is 0.43 long along +Z (tip forward) after its own node scale
+	inst.rotation.y = PI                     # tip along -Z, the direction look_at() aims
+	return holder
+
+
 func set_weapon(id: String) -> void:
 	weapon = id
-	if _tool_att == null:
-		if id == "fists" or _skins.is_empty() or _bone_idx[0]["wr_R"] < 0:
-			return
-		_tool_att = BoneAttachment3D.new()
-		_tool_att.bone_name = _skins[0].get_bone_name(_bone_idx[0]["wr_R"])
-		_skins[0].add_child(_tool_att)
-	for c in _tool_att.get_children():
-		c.queue_free()
+	if _skins.is_empty():
+		return
+	for att in [_tool_att, _bow_att]:
+		if att != null:
+			for c in (att as Node).get_children():
+				c.queue_free()
 	if id == "fists":
 		return
-	var wood := StandardMaterial3D.new()
-	wood.albedo_color = Color(0.32, 0.2, 0.1)
-	var iron := StandardMaterial3D.new()
-	iron.albedo_color = Color(0.2, 0.2, 0.22)
-	iron.metallic = 0.8
-	iron.roughness = 0.45
-	var handle := MeshInstance3D.new()
-	var hm := CylinderMesh.new()
-	hm.top_radius = 0.018
-	hm.bottom_radius = 0.02
-	hm.height = {"spear": 1.7, "bow": 1.1, "axe": 0.55}.get(id, 0.4)
-	handle.mesh = hm
-	handle.material_override = wood
-	match id:
-		"hammer", "axe":
-			var head := MeshInstance3D.new()
-			var bm := BoxMesh.new()
-			bm.size = Vector3(0.14, 0.07, 0.07) if id == "hammer" else Vector3(0.2, 0.12, 0.02)
-			head.mesh = bm
-			head.material_override = iron
-			head.position = Vector3(0.05 if id == "axe" else 0.0, hm.height * 0.5, 0)
-			handle.add_child(head)
-		"spear":
-			var tip := MeshInstance3D.new()
-			var cm := CylinderMesh.new()
-			cm.top_radius = 0.0
-			cm.bottom_radius = 0.035
-			cm.height = 0.22
-			tip.mesh = cm
-			tip.material_override = iron
-			tip.position = Vector3(0, hm.height * 0.5 + 0.11, 0)
-			handle.add_child(tip)
-		"bow":
-			hm.top_radius = 0.012
-			hm.bottom_radius = 0.012
-			var string_ := MeshInstance3D.new()
-			var sm := CylinderMesh.new()
-			sm.top_radius = 0.003
-			sm.bottom_radius = 0.003
-			sm.height = 1.05
-			string_.mesh = sm
-			var sw := StandardMaterial3D.new()
-			sw.albedo_color = Color(0.9, 0.88, 0.8)
-			string_.material_override = sw
-			string_.position = Vector3(0, 0, -0.14)
-			handle.add_child(string_)
-	handle.position = Vector3(0, 0.08, 0.04)
-	handle.rotation.x = deg_to_rad(90.0)
-	if id == "bow":
-		handle.rotation.x = 0.0
-		handle.position = Vector3(0, 0.08, 0)
-	_tool_att.add_child(handle)
+	var left := id == "bow"
+	var bone: int = _bone_idx[0]["wr_L" if left else "wr_R"]
+	if bone < 0:
+		return
+	var att: BoneAttachment3D = _bow_att if left else _tool_att
+	if att == null:
+		att = BoneAttachment3D.new()
+		att.bone_name = _skins[0].get_bone_name(bone)
+		_skins[0].add_child(att)
+		if left:
+			_bow_att = att
+		else:
+			_tool_att = att
+	var model := weapon_model(id)
+	if model == null:
+		return
+	if left:
+		model.position = Vector3(0, 0.08, 0.0)        # bow held upright in the left fist
+	else:
+		model.position = Vector3(0, 0.08, 0.04)
+		model.rotation.x = deg_to_rad(90.0)            # blade or head points forward out of the fist
+	att.add_child(model)
 
 
 # --- pose application ----------------------------------------------------------------------
@@ -437,7 +462,7 @@ func animate(delta: float, speed: float, grounded: bool) -> void:
 ## Reactions (looping until cleared): flinch, stagger, plead, held, clutch, sob, crawl.
 const MOVES := {
 	"jab": [0.38, 0.12], "cross": [0.42, 0.15], "hook": [0.46, 0.17], "uppercut": [0.5, 0.2],
-	"kick_front": [0.72, 0.3], "kick_round": [0.75, 0.32], "kick_side": [0.72, 0.3],
+	"kick_front": [0.72, 0.3], "kick_round": [0.75, 0.32], "kick_side": [0.72, 0.3], "bow_shot": [0.62, 0.34],
 	"roll": [0.45, 0.44], "grab": [0.4, 0.3], "lift": [0.5, 0.5], "throw": [0.45, 0.12],
 }
 var move := ""
@@ -557,6 +582,12 @@ func _kf_moves() -> Dictionary:
 			[0.4, {"hip_R": Vector3(1.25, 0, 0.35), "kn_R": Vector3(-0.05, 0, 0), "hip_L": Vector3(0.1, 1.2, 0), "kn_L": Vector3(-0.4, 0, 0), "hips": Vector3(0, 1.35, 0), "spine": Vector3(0.05, 0.55, 0.55), "sh_L": Vector3(-0.7, 0, 0.9), "sh_R": Vector3(-0.7, 0, 0.9), "dy": -0.1}],
 			[0.52, {"hip_R": Vector3(1.2, 0, 0.2), "kn_R": Vector3(-1.7, 0, 0), "hips": Vector3(0, 0.7, 0), "dy": -0.1}],
 			[0.72, {}]],
+		# archery: side-on stance, bow arm straight out at the target, string hand drawn back to the cheek, release
+		"bow_shot": [[0.0, {}],
+			[0.12, {"sh_L": Vector3(-1.5, 0.0, 0.05), "el_L": Vector3(0.1, 0, 0), "sh_R": Vector3(-1.4, 0.35, 0), "el_R": Vector3(1.5, 0, 0), "spine": Vector3(-0.04, 0.75, 0), "hips": Vector3(0, 0.45, 0), "head": Vector3(0.05, -0.7, 0), "dy": -0.05}],
+			[0.3, {"sh_L": Vector3(-1.55, 0.0, 0.05), "el_L": Vector3(0.05, 0, 0), "sh_R": Vector3(-1.35, 0.8, 0), "el_R": Vector3(2.5, 0, 0), "spine": Vector3(-0.04, 0.85, 0), "hips": Vector3(0, 0.5, 0), "head": Vector3(0.05, -0.8, 0), "dy": -0.05}],
+			[0.37, {"sh_L": Vector3(-1.55, 0.0, 0.05), "el_L": Vector3(0.05, 0, 0), "sh_R": Vector3(-1.1, 0.95, 0.45), "el_R": Vector3(1.1, 0, 0), "spine": Vector3(-0.02, 0.85, 0), "hips": Vector3(0, 0.5, 0), "head": Vector3(0.05, -0.8, 0), "dy": -0.05}],
+			[0.62, {}]],
 	}
 
 
@@ -969,9 +1000,133 @@ func _overlay(delta: float) -> void:
 			tgt["sh_R"] = Vector3(1.9, 0.0, 0.4)
 			tgt["el_R"] = Vector3(1.6 + 0.12 * sin(t * 7.0), 0.0, 0.0)
 			tgt["head"] = Vector3(0.12, 0.0, 0.0)
+		# --- mission tasks (conventions: shoulder forward = negative x, elbow flex = positive, thigh forward =
+		# positive, knee flex = negative, spine forward lean = negative). "dy" lowers the hips.
+		"dig":
+			# both hands on the shovel: drive it down with a knee push, lever back, throw the earth aside
+			var c := fmod(t, 1.3) / 1.3
+			var drive := sin(clampf(c / 0.45, 0.0, 1.0) * PI * 0.5)
+			var lift := smoothstep(0.45, 0.8, c) * (1.0 - smoothstep(0.85, 1.0, c))
+			tgt["sh_R"] = Vector3(-0.55 - 0.5 * lift + 0.25 * drive, 0.2, 0.1)
+			tgt["el_R"] = Vector3(0.6 + 0.5 * lift, 0, 0)
+			tgt["sh_L"] = Vector3(-0.9 - 0.4 * lift, -0.3, 0.1)
+			tgt["el_L"] = Vector3(0.5 + 0.4 * drive, 0, 0)
+			tgt["spine"] = Vector3(-0.55 + 0.25 * lift, 0.25 * lift, 0)
+			tgt["head"] = Vector3(0.35, 0, 0)
+			tgt["hip_L"] = Vector3(0.55, 0, 0)
+			tgt["kn_L"] = Vector3(-0.7 - 0.2 * drive, 0, 0)
+			tgt["hip_R"] = Vector3(0.15 + 0.35 * drive, 0, 0)
+			tgt["kn_R"] = Vector3(-0.5 - 0.4 * drive, 0, 0)
+			tgt["dy"] = Vector3(-0.18 - 0.06 * drive, 0, 0)
+		"search":
+			# bent over, both hands rummaging in turn
+			tgt["spine"] = Vector3(-0.85, 0.15 * sin(t * 2.0), 0)
+			tgt["head"] = Vector3(0.45, 0, 0)
+			tgt["sh_L"] = Vector3(-1.1 + 0.25 * sin(t * 7.0), 0, 0.15)
+			tgt["sh_R"] = Vector3(-1.1 + 0.25 * sin(t * 7.0 + 2.0), 0, 0.15)
+			tgt["el_L"] = Vector3(0.5 + 0.3 * sin(t * 6.0), 0, 0)
+			tgt["el_R"] = Vector3(0.5 + 0.3 * sin(t * 6.0 + 1.5), 0, 0)
+			tgt["hip_L"] = Vector3(0.45, 0, 0)
+			tgt["hip_R"] = Vector3(0.45, 0, 0)
+			tgt["kn_L"] = Vector3(-0.7, 0, 0)
+			tgt["kn_R"] = Vector3(-0.7, 0, 0)
+			tgt["dy"] = Vector3(-0.2, 0, 0)
+		"pickup":
+			# squat down, take it with the right hand, stand up holding it close
+			var dn := sin(clampf(t / _action_dur, 0.0, 1.0) * PI)
+			tgt["hip_L"] = Vector3(1.2 * dn, 0, 0)
+			tgt["hip_R"] = Vector3(0.9 * dn, 0, 0)
+			tgt["kn_L"] = Vector3(-2.0 * dn, 0, 0)
+			tgt["kn_R"] = Vector3(-1.6 * dn, 0, 0)
+			tgt["an_L"] = Vector3(-0.5 * dn, 0, 0)
+			tgt["spine"] = Vector3(-0.5 * dn, 0, 0)
+			tgt["head"] = Vector3(0.4 * dn, 0, 0)
+			tgt["sh_R"] = Vector3(-0.9 * dn - 0.2, 0, 0.1)
+			tgt["el_R"] = Vector3(0.3 + 1.2 * (1.0 - dn), 0, 0)
+			tgt["dy"] = Vector3(-0.55 * dn, 0, 0)
+		"reach":
+			# light a lamp, touch a stone, set something down: right arm out and up, a step in
+			tgt["sh_R"] = Vector3(-1.75, 0.1, 0.05)
+			tgt["el_R"] = Vector3(0.15, 0, 0)
+			tgt["sh_L"] = Vector3(-0.3, 0, 0.2)
+			tgt["spine"] = Vector3(-0.12, -0.2, 0)
+			tgt["head"] = Vector3(-0.15, 0, 0)
+			tgt["hip_R"] = Vector3(0.35, 0, 0)
+			tgt["kn_R"] = Vector3(-0.3, 0, 0)
+		"pray":
+			# kneel on both knees, palms together, head bowed
+			tgt["hip_L"] = Vector3(0.1, 0, 0)
+			tgt["hip_R"] = Vector3(0.1, 0, 0)
+			tgt["kn_L"] = Vector3(-2.3, 0, 0)
+			tgt["kn_R"] = Vector3(-2.3, 0, 0)
+			tgt["an_L"] = Vector3(0.6, 0, 0)
+			tgt["an_R"] = Vector3(0.6, 0, 0)
+			tgt["sh_L"] = Vector3(-0.75, -0.55, 0.0)
+			tgt["sh_R"] = Vector3(-0.75, 0.55, 0.0)
+			tgt["el_L"] = Vector3(1.85, 0, 0)
+			tgt["el_R"] = Vector3(1.85, 0, 0)
+			tgt["head"] = Vector3(0.45, 0, 0)
+			tgt["spine"] = Vector3(-0.15, 0, 0)
+			tgt["dy"] = Vector3(-0.5, 0, 0)
+		"chop":
+			# two-handed overhead swing into the wood
+			var c2 := fmod(t, 0.9) / 0.9
+			var up := 1.0 - smoothstep(0.35, 0.55, c2) if c2 > 0.3 else smoothstep(0.0, 0.3, c2)
+			tgt["sh_R"] = Vector3(lerpf(-0.6, -2.7, up), 0.25, 0.1)
+			tgt["sh_L"] = Vector3(lerpf(-0.6, -2.6, up), -0.25, 0.1)
+			tgt["el_R"] = Vector3(lerpf(0.3, 1.0, up), 0, 0)
+			tgt["el_L"] = Vector3(lerpf(0.3, 1.0, up), 0, 0)
+			tgt["spine"] = Vector3(lerpf(-0.45, 0.1, up), 0, 0)
+			tgt["hip_L"] = Vector3(0.3, 0, 0)
+			tgt["kn_L"] = Vector3(-0.35, 0, 0)
+			tgt["dy"] = Vector3(-0.08, 0, 0)
+		"cut":
+			# kneel on one knee and saw at a rope
+			tgt["hip_L"] = Vector3(0.9, 0, 0)
+			tgt["kn_L"] = Vector3(-1.6, 0, 0)
+			tgt["hip_R"] = Vector3(-0.1, 0, 0)
+			tgt["kn_R"] = Vector3(-2.0, 0, 0)
+			tgt["sh_R"] = Vector3(-0.9 + 0.35 * sin(t * 12.0), 0.2, 0.1)
+			tgt["el_R"] = Vector3(0.8 + 0.4 * sin(t * 12.0), 0, 0)
+			tgt["sh_L"] = Vector3(-0.9, -0.1, 0.1)
+			tgt["el_L"] = Vector3(0.6, 0, 0)
+			tgt["spine"] = Vector3(-0.35, 0, 0)
+			tgt["head"] = Vector3(0.3, 0, 0)
+			tgt["dy"] = Vector3(-0.45, 0, 0)
+		"drink":
+			# bend to the water, cup the hands, bring them to the mouth
+			var dd := sin(clampf(t / _action_dur, 0.0, 1.0) * PI)
+			tgt["spine"] = Vector3(-0.75 * dd, 0, 0)
+			tgt["sh_L"] = Vector3(-0.9 - 0.5 * dd, -0.3, 0)
+			tgt["sh_R"] = Vector3(-0.9 - 0.5 * dd, 0.3, 0)
+			tgt["el_L"] = Vector3(1.4, 0, 0)
+			tgt["el_R"] = Vector3(1.4, 0, 0)
+			tgt["hip_L"] = Vector3(0.5 * dd, 0, 0)
+			tgt["hip_R"] = Vector3(0.5 * dd, 0, 0)
+			tgt["kn_L"] = Vector3(-0.8 * dd, 0, 0)
+			tgt["kn_R"] = Vector3(-0.8 * dd, 0, 0)
+			tgt["dy"] = Vector3(-0.25 * dd, 0, 0)
+		"read":
+			tgt["sh_L"] = Vector3(-0.8, -0.3, 0.05)
+			tgt["sh_R"] = Vector3(-0.8, 0.3, 0.05)
+			tgt["el_L"] = Vector3(1.3, 0, 0)
+			tgt["el_R"] = Vector3(1.3, 0, 0)
+			tgt["head"] = Vector3(0.4, 0.1 * sin(t * 1.2), 0)
+		"push":
+			tgt["sh_L"] = Vector3(-1.45, -0.1, 0.1)
+			tgt["sh_R"] = Vector3(-1.45, 0.1, 0.1)
+			tgt["el_L"] = Vector3(0.35, 0, 0)
+			tgt["el_R"] = Vector3(0.35, 0, 0)
+			tgt["spine"] = Vector3(-0.25, 0, 0)
+			tgt["hip_R"] = Vector3(-0.35, 0, 0)
+			tgt["hip_L"] = Vector3(0.35, 0, 0)
+			tgt["kn_L"] = Vector3(-0.35, 0, 0)
 	for k in tgt:
-		var base: Vector3 = _pose[k]
 		var goal: Vector3 = tgt[k]
+		if k == "dy":
+			_hips_dy = lerpf(_hips_dy, goal.x, w)
+			continue
+		var base: Vector3 = _pose[k]
 		_pose[k] = base.lerp(goal, w)
 
 func _ease(key: String, target: Vector3, rate: float, delta: float) -> void:

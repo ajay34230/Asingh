@@ -10,7 +10,9 @@ const DEFS := {
 	"iron": {"name": "Iron scrap", "type": "material", "desc": "Crafting material."},
 	"spear": {"name": "Spear", "type": "weapon", "dmg": 1.15, "reach": 0.7, "desc": "Longer reach."},
 	"axe": {"name": "Axe", "type": "weapon", "dmg": 1.4, "reach": 0.0, "desc": "Heavy hits."},
-	"bow": {"name": "Hunting bow", "type": "weapon", "dmg": 0.8, "reach": 0.0, "ranged": true, "desc": "Fires arrows at the nearest foe, even from the saddle."},
+	"bow": {"name": "Hunting bow", "type": "weapon", "dmg": 0.8, "reach": 0.0, "ranged": true, "desc": "Fires arrows at the nearest foe, even from the saddle. Arrows hurt ghosts twice as much."},
+	"sword": {"name": "Talwar sword", "type": "weapon", "dmg": 1.55, "reach": 0.5, "desc": "Fast, sharp, and cuts through spirits."},
+	"dagger": {"name": "Silver dagger", "type": "weapon", "dmg": 1.25, "reach": 0.0, "desc": "Quick strikes. Silver bites the restless dead."},
 	"leather": {"name": "Leather armour", "type": "armour", "armor": 0.8, "desc": "Takes 20% less damage."},
 	"chain": {"name": "Chain mail", "type": "armour", "armor": 0.62, "desc": "Takes 38% less damage."},
 }
@@ -21,6 +23,8 @@ const RECIPES := {
 	"spear": ["spear", {"iron": 2, "hide": 1}],
 	"axe": ["axe", {"iron": 4}],
 	"bow": ["bow", {"hide": 3, "iron": 1}],
+	"sword": ["sword", {"iron": 6}],
+	"dagger": ["dagger", {"iron": 3}],
 	"leather": ["leather", {"hide": 4}],
 	"chain": ["chain", {"iron": 8, "hide": 2}],
 }
