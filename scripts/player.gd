@@ -840,6 +840,162 @@ func _keyboard_input() -> Vector2:
 
 ## Step up small ledges: if the way ahead is blocked but free one STEP_HEIGHT higher and there is
 ## a walkable surface to land on, lift the body so move_and_slide carries on over the edge.
+# --- jumping, vaulting and climbing ------------------------------------------------------------
+var _jump_prep := 0.0
+var _jump_prep_total := 0.0
+var _climb_t := -1.0
+var _climb_dur := 1.0
+var _climb_cool := 0.0
+var _climb_kind := ""
+var _climb_a := Vector3.ZERO      # where the climb starts (feet)
+var _climb_w := Vector3.ZERO      # feet position against the wall face
+var _climb_top := Vector3.ZERO    # ledge top just past the edge
+var _climb_end := Vector3.ZERO    # where the feet finish
+var climbs := 0                   # counts climbs and vaults (tests, achievements)
+const CLIMB_MAX := 2.6            # highest ledge (above the feet) you can pull yourself onto
+
+
+func _take_off() -> void:
+	var k := {"stand": 0.95, "walk": 1.0, "run": 1.06}.get(_rig.jump_kind, 1.0) as float
+	velocity.y = JUMP_SPEED * k
+	if _rig.jump_kind == "run":
+		var hz := Vector3(velocity.x, 0.0, velocity.z)
+		velocity += hz.normalized() * 0.8     # the leap carries a little further
+	_coyote = 0.0
+	jumped.emit()
+
+
+func _ray(a: Vector3, b: Vector3) -> Dictionary:
+	var q := PhysicsRayQueryParameters3D.create(a, b)
+	q.exclude = [get_rid()]
+	var hit := get_world_3d().direct_space_state.intersect_ray(q)
+	if not hit.is_empty() and (hit.collider is CharacterBody3D or hit.collider is RigidBody3D):
+		return {}                          # people, animals and loose props are not walls
+	return hit
+
+
+## Looks for something to vault over or climb in direction `fwd`. Returns {} when there is nothing,
+## else {kind, h, top, wall, into, land}. `airborne` = a grab during a jump (reach measured from the feet).
+func _ledge_ahead(fwd: Vector3, airborne: bool = false) -> Dictionary:
+	if fwd.length() < 0.1:
+		return {}
+	var base := global_position
+	for hgt in ([0.6, 1.3] if not airborne else [1.0, 1.6]):
+		var a := base + Vector3(0, hgt, 0)
+		var reach := 0.85 + 0.45 * clampf(Vector2(velocity.x, velocity.z).length() / 6.0, 0.0, 1.0)   # running: spot it earlier
+		var hit := _ray(a, a + fwd * reach)
+		if hit.is_empty():
+			continue
+		var n: Vector3 = hit.normal
+		if n.y > 0.45:
+			continue                       # a slope or stairs: walk up it instead
+		var into := -Vector3(n.x, 0.0, n.z).normalized()
+		if into.dot(fwd) < 0.55:
+			continue                       # glancing along the wall
+		var over: Vector3 = hit.position + into * 0.1      # just past the face, so thin fences are found too
+		var top := _ray(Vector3(over.x, base.y + CLIMB_MAX + 0.4, over.z), Vector3(over.x, base.y + 0.2, over.z))
+		if top.is_empty() or (top.normal as Vector3).y < 0.75:
+			continue
+		var tp: Vector3 = top.position
+		var h := tp.y - base.y
+		if h < STEP_HEIGHT + 0.1 or h > CLIMB_MAX or (airborne and h < 0.4):
+			continue
+		# room to stand up on top (nothing over the ledge)
+		if not _ray(tp + Vector3(0, 0.1, 0), tp + Vector3(0, 1.85, 0)).is_empty():
+			continue
+		var out := {"h": h, "top": tp, "wall": Vector3(hit.position.x, base.y, hit.position.z), "into": into}
+		out["kind"] = "climb" if h > 1.3 or airborne else "mantle"
+		# a thin wall or fence: vault over if the ground continues on the far side, lower than the top
+		if h < 1.3 and not airborne:
+			var far: Vector3 = hit.position + into * 1.15
+			var thick := _ray(Vector3(far.x, tp.y + 0.05, far.z) - into * 0.75, Vector3(far.x, tp.y + 0.05, far.z))
+			var beyond := _ray(Vector3(far.x, tp.y + 0.3, far.z), Vector3(far.x, base.y - 2.0, far.z))
+			if thick.is_empty() and not beyond.is_empty() and (beyond.position as Vector3).y < tp.y - 0.35:
+				out["kind"] = "vault"
+				out["land"] = beyond.position
+		return out
+	return {}
+
+
+func _start_climb(l: Dictionary) -> void:
+	_climb_kind = String(l["kind"])
+	var into: Vector3 = l["into"]
+	var h: float = l["h"]
+	_climb_a = global_position
+	_climb_w = (l["wall"] as Vector3) - into * 0.42
+	_climb_w.y = global_position.y
+	_climb_top = (l["top"] as Vector3) + into * 0.05
+	match _climb_kind:
+		"vault":
+			_climb_end = l["land"]
+			_climb_dur = 0.62
+		"mantle":
+			_climb_end = (l["top"] as Vector3) + into * 0.4
+			_climb_dur = 0.55 + 0.25 * h
+		_:
+			_climb_end = (l["top"] as Vector3) + into * 0.45
+			_climb_dur = 0.95 + 0.3 * maxf(0.0, h - 1.2)
+	_model.rotation.y = atan2(-into.x, -into.z)
+	velocity = Vector3.ZERO
+	blocking = false
+	_climb_t = 0.0
+	_rig.climb_kind = _climb_kind
+	_rig.climb_u = 0.0
+	_rig.jump_prep = 0.0
+	_jump_prep = 0.0
+	spend(6.0)
+	Sfx.ui_at("whoosh_kick", -10.0)
+
+
+func _climb_path(u: float) -> Vector3:
+	var tp := _climb_top
+	match _climb_kind:
+		"vault":
+			var flat := _climb_a.lerp(_climb_end, u)
+			var lift := maxf(0.0, tp.y + 0.45 - lerpf(_climb_a.y, _climb_end.y, 0.5))
+			flat.y = lerpf(_climb_a.y, _climb_end.y, u) + lift * sin(u * PI)
+			return flat
+		"mantle":
+			var a := _seg(u, 0.0, 0.6)
+			var p := _climb_a.lerp(_climb_w, _seg(u, 0.0, 0.2))
+			p.y = lerpf(_climb_a.y, tp.y + 0.03, a)
+			var b := _seg(u, 0.5, 1.0)
+			return Vector3(lerpf(p.x, _climb_end.x, b), lerpf(p.y, _climb_end.y + 0.03, b), lerpf(p.z, _climb_end.z, b))
+		_:
+			# jump up the wall and catch the ledge, pull up until the chest is over it, then roll over the edge
+			var w := _climb_a.lerp(_climb_w, _seg(u, 0.0, 0.15))
+			var hang_y := tp.y - 1.75
+			var y := lerpf(_climb_a.y, maxf(hang_y, _climb_a.y), _seg(u, 0.0, 0.18))
+			y = lerpf(y, tp.y - 0.95, _seg(u, 0.18, 0.6))
+			y = lerpf(y, tp.y + 0.03, _seg(u, 0.6, 0.86))
+			var over := _seg(u, 0.62, 1.0)
+			return Vector3(lerpf(w.x, _climb_end.x, over), y, lerpf(w.z, _climb_end.z, over))
+
+
+func _seg(u: float, a: float, b: float) -> float:
+	return smoothstep(0.0, 1.0, clampf((u - a) / maxf(b - a, 0.001), 0.0, 1.0))
+
+
+func _tick_climb(delta: float) -> void:
+	_climb_t += delta
+	var u := clampf(_climb_t / _climb_dur, 0.0, 1.0)
+	global_position = _climb_path(u)
+	velocity = Vector3.ZERO
+	_rig.climb_u = u
+	_rig.animate(delta, 0.0, true)
+	_arm.spring_length = lerpf(_arm.spring_length, _target_distance, 1.0 - exp(-10.0 * delta))
+	if u >= 1.0:
+		_climb_t = -1.0
+		_climb_cool = 0.35
+		_rig.climb_kind = ""
+		climbs += 1
+		_was_floor = true
+		_fall_speed = 0.0
+		if _climb_kind == "vault":
+			_rig.land(6.0)
+		apply_floor_snap()
+
+
 func _try_step_up(horizontal: Vector3, delta: float) -> void:
 	var speed := horizontal.length()
 	if speed < 0.5:
@@ -868,6 +1024,9 @@ func _try_step_up(horizontal: Vector3, delta: float) -> void:
 
 func _physics_process(delta: float) -> void:
 	_tick_combat(delta)
+	if _climb_t >= 0.0:
+		_tick_climb(delta)
+		return
 	if slam_dive and is_on_floor():
 		slam_dive = false
 		ground_slam()
@@ -956,13 +1115,37 @@ func _physics_process(delta: float) -> void:
 		# lighter on the way up, heavier on the way down: a weighty, believable arc
 		velocity.y -= GRAVITY * (0.85 if velocity.y > 0.0 else 1.3) * delta
 	_rig.air_vy = velocity.y
-	if _jump_buffer > 0.0 and _coyote > 0.0:
+	var fwd_m := Vector3(-sin(_model.rotation.y), 0.0, -cos(_model.rotation.y))
+	if _jump_buffer > 0.0 and _coyote > 0.0 and _jump_prep <= 0.0:
 		if crouching:
 			set_crouch(false)
-		velocity.y = JUMP_SPEED
 		_jump_buffer = 0.0
-		_coyote = 0.0
-		jumped.emit()
+		# a wall or ledge in front: vault over it or climb it instead of jumping
+		var ledge := _ledge_ahead(dir.normalized() if dir.length() > 0.3 else fwd_m) if not mounted and on_floor else {}
+		if not ledge.is_empty():
+			_start_climb(ledge)
+			return
+		var hv0 := Vector2(velocity.x, velocity.z).length()
+		_rig.jump_kind = "stand" if hv0 < 0.8 else ("walk" if hv0 < 4.2 else "run")
+		# standing and walking jumps crouch first (anticipation); a running jump takes off at once
+		_jump_prep = {"stand": 0.15, "walk": 0.07}.get(_rig.jump_kind, 0.0)
+		_jump_prep_total = _jump_prep
+		if _jump_prep <= 0.0:
+			_take_off()
+	if _jump_prep > 0.0:
+		_jump_prep -= delta
+		_rig.jump_prep = clampf(1.0 - _jump_prep / maxf(_jump_prep_total, 0.01), 0.0, 1.0)
+		if _jump_prep <= 0.0:
+			_rig.jump_prep = 0.0
+			if on_floor or _coyote > 0.0:
+				_take_off()
+	# GTA-style ledge grab: jumping at a wall with a ledge within reach catches it and climbs up
+	if not on_floor and not mounted and velocity.y < 4.0 and dir.length() > 0.3 and _climb_cool <= 0.0:
+		var grab := _ledge_ahead(dir.normalized(), true)
+		if not grab.is_empty():
+			_start_climb(grab)
+			return
+	_climb_cool = maxf(0.0, _climb_cool - delta)
 
 	if on_floor:
 		_try_step_up(Vector3(velocity.x, 0.0, velocity.z), delta)
@@ -975,7 +1158,7 @@ func _physics_process(delta: float) -> void:
 		if _fall_speed > 4.0:
 			landed.emit(_fall_speed)
 			_rig.land(_fall_speed)
-			_land_slow = 0.18 + clampf(_fall_speed / 40.0, 0.0, 0.3)
+			_land_slow = (0.18 + clampf(_fall_speed / 40.0, 0.0, 0.3)) * (0.3 if _rig.jump_kind == "run" else 1.0)
 		_fall_speed = 0.0
 	_was_floor = floor_now
 	if floor_now:

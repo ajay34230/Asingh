@@ -420,8 +420,12 @@ func animate(delta: float, speed: float, grounded: bool) -> void:
 			attack_hit.emit()
 		if attack_t > 0.75:
 			attack_t = -1.0
-	if guard and move == "" and react == "" and _speed_smooth < 2.5 and _air < 0.1:
+	if guard and move == "" and react == "" and _speed_smooth < 2.5 and _air < 0.1 and climb_kind == "":
 		_guard_pose()
+	if climb_kind != "":
+		_climb_pose()
+	elif jump_prep > 0.0:
+		_jump_prep_pose()
 	_body_overlays(delta)
 	_hit_overlay(delta)
 	_overlay(delta)
@@ -1046,6 +1050,8 @@ var _land_k := 0.0
 ## Landing recovery: knees absorb the impact, then the body rises again.
 func land(impact: float) -> void:
 	_land_k = clampf(impact / 14.0, 0.25, 1.0)
+	if jump_kind == "run" and impact < 11.0:
+		_land_k *= 0.45            # a running landing rolls straight on into the next stride
 	_land_t = 0.42
 
 
@@ -1077,6 +1083,79 @@ func _body_overlays(delta: float) -> void:
 			_pose["kn_" + tg2] = (_pose["kn_" + tg2] as Vector3) + Vector3(-1.2 * k, 0.0, 0.0)
 			_pose["sh_" + tg2] = (_pose["sh_" + tg2] as Vector3) + Vector3(-0.5 * k, 0.0, 0.25 * k * (1.0 if tg2 == "L" else -1.0))
 		_pose["spine"] = (_pose["spine"] as Vector3) + Vector3(-0.35 * k, 0.0, 0.0)
+
+
+# --- jump anticipation and climbing ------------------------------------------------------------
+var jump_kind := "walk"           # "stand", "walk" or "run": set by the player at take-off
+var jump_prep := 0.0              # 0..1 anticipation crouch before take-off
+var climb_kind := ""              # "", "climb" (hang and pull up), "mantle" (low wall) or "vault" (hop over)
+var climb_u := 0.0                # 0..1 progress of the climb
+
+
+## Anticipation: hips drop and sit back, knees bend, chest folds forward, arms swing back.
+func _jump_prep_pose() -> void:
+	var k := jump_prep
+	_hips_dy -= 0.24 * k
+	for tg in ["L", "R"]:
+		_pz("hip_" + tg, Vector3(0.7 * k, 0, 0))
+		_pz("kn_" + tg, Vector3(-1.15 * k, 0, 0))
+		_pz("an_" + tg, Vector3(-0.35 * k, 0, 0))
+		_pz("sh_" + tg, Vector3(0.65 * k, 0, 0.1 * k))
+		_pz("el_" + tg, Vector3(0.25, 0, 0))
+	_pose["spine"] = Vector3(-0.42 * k, 0, 0)
+	_pose["head"] = Vector3(0.3 * k, 0, 0)
+
+
+func _seg(u: float, a: float, b: float) -> float:
+	return smoothstep(0.0, 1.0, clampf((u - a) / maxf(b - a, 0.001), 0.0, 1.0))
+
+
+## Climbing poses (GTA-style): reach, hang and pull with bent elbows while a knee walks up the wall, push down
+## on the ledge with straight arms as the knee comes over, then stand. Mantle = the push-up half on a low wall.
+## Vault = hands planted on top, legs tucked to one side and swung over, then reach for the ground.
+func _climb_pose() -> void:
+	var u := climb_u
+	var pp := {}
+	match climb_kind:
+		"climb":
+			var a := _seg(u, 0.0, 0.18)
+			var b := _seg(u, 0.18, 0.6)
+			var c := _seg(u, 0.6, 0.86)
+			var d := _seg(u, 0.86, 1.0)
+			var sh := lerpf(lerpf(lerpf(-0.6, -2.75, a), -1.5, b), -0.15, c)
+			var el := lerpf(lerpf(0.2, 2.2, b), 0.1, c)
+			pp = {"sh_L": Vector3(lerpf(sh, 0.0, d), 0, 0.12), "sh_R": Vector3(lerpf(sh, 0.0, d), 0, 0.12),
+				"el_L": Vector3(lerpf(el, 0.25, d), 0, 0), "el_R": Vector3(lerpf(el, 0.25, d), 0, 0),
+				"hip_R": Vector3(lerpf(lerpf(lerpf(0.4, 0.15, a), 1.05, b), 1.65, c) * (1.0 - d), 0, 0),
+				"kn_R": Vector3(-lerpf(lerpf(lerpf(0.9, 0.3, a), 1.5, b), 2.1, c) * (1.0 - d) - 0.15 * d, 0, 0),
+				"hip_L": Vector3(lerpf(lerpf(0.4, 0.05, a), 0.45, c) * (1.0 - d), 0, 0),
+				"kn_L": Vector3(-lerpf(lerpf(0.9, 0.35, a), 0.9, c) * (1.0 - d) - 0.15 * d, 0, 0),
+				"spine": Vector3(lerpf(lerpf(-0.1, -0.2, b), -0.65, c) * (1.0 - d) - 0.06 * d, 0, 0),
+				"head": Vector3(lerpf(lerpf(-0.25, 0.1, b), 0.45, c) * (1.0 - d), 0, 0)}
+		"mantle":
+			var c2 := _seg(u, 0.0, 0.55)
+			var d2 := _seg(u, 0.55, 1.0)
+			pp = {"sh_L": Vector3(lerpf(lerpf(-1.1, -0.2, c2), 0.0, d2), 0, 0.15), "sh_R": Vector3(lerpf(lerpf(-1.1, -0.2, c2), 0.0, d2), 0, 0.15),
+				"el_L": Vector3(lerpf(lerpf(1.0, 0.1, c2), 0.25, d2), 0, 0), "el_R": Vector3(lerpf(lerpf(1.0, 0.1, c2), 0.25, d2), 0, 0),
+				"hip_R": Vector3(lerpf(1.6, 0.0, d2), 0, 0), "kn_R": Vector3(-lerpf(2.05, 0.15, d2), 0, 0),
+				"hip_L": Vector3(lerpf(0.35, 0.0, d2), 0, 0), "kn_L": Vector3(-lerpf(0.7, 0.15, d2), 0, 0),
+				"spine": Vector3(lerpf(-0.55, -0.06, d2), 0, 0), "head": Vector3(lerpf(0.4, 0.0, d2), 0, 0)}
+		"vault":
+			var tuck := sin(clampf(u / 0.75, 0.0, 1.0) * PI)
+			var reach := _seg(u, 0.6, 1.0)
+			pp = {"sh_L": Vector3(lerpf(-1.05, -0.3, reach), 0, 0.1), "sh_R": Vector3(lerpf(-1.05, -0.3, reach), 0, 0.25 * reach),
+				"el_L": Vector3(0.1, 0, 0), "el_R": Vector3(0.1, 0, 0),
+				"hip_L": Vector3(lerpf(0.2, 1.25, tuck), 0, 0), "kn_L": Vector3(-lerpf(0.3, 1.7, tuck), 0, 0),
+				"hip_R": Vector3(lerpf(0.2, 1.05, tuck), 0, 0), "kn_R": Vector3(-lerpf(0.3, 1.5, tuck), 0, 0),
+				"hips": Vector3(0, 0, 0.45 * tuck), "spine": Vector3(-0.35 * tuck, 0, -0.3 * tuck), "head": Vector3(0.25 * tuck, 0, 0.2 * tuck)}
+	for k in pp:
+		var v: Vector3 = pp[k]
+		if k == "spine" or k == "hips" or k == "head" or k == "chest":
+			_pose[k] = v
+		else:
+			_pose[k] = v
+	_pose["chest"] = Vector3.ZERO
+	_hips_dy = 0.0
 
 
 func _beat(on: bool) -> void:
@@ -1243,20 +1322,46 @@ func _locomotion(delta: float) -> void:
 		var up := clampf(air_vy / 6.0, 0.0, 1.0)
 		var down := clampf(-air_vy / 8.0, 0.0, 1.0)
 		var lead: bool = side == 0
-		# take-off: lead knee driven up, trailing leg tucked behind; descent: legs reach for the ground
-		var air_hip := (lerpf(0.2, 1.0, up) if lead else lerpf(-0.2, -0.55, up)) + down * (0.1 if lead else 0.5)
-		var air_kn := (lerpf(0.35, 1.3, up) if lead else lerpf(0.5, 1.4, up)) * (1.0 - 0.5 * down)
+		var apex := 1.0 - clampf(absf(air_vy) / 5.0, 0.0, 1.0)
+		var air_hip: float
+		var air_kn: float
+		match jump_kind:
+			"stand":
+				# two-footed vertical jump: legs push straight, tuck both knees at the top, reach down to land
+				air_hip = lerpf(0.15, 1.05, apex) * (1.0 - down) + 0.45 * down
+				air_kn = lerpf(0.2, 1.7, apex) * (1.0 - down) + 0.55 * down
+			"run":
+				# running leap: lead leg reaches forward almost straight, trailing leg folds behind
+				air_hip = (lerpf(0.75, 1.1, up) if lead else -0.75) * (1.0 - 0.4 * down) + (0.25 * down if lead else 0.3 * down)
+				air_kn = (0.35 if lead else 1.55) * (1.0 - 0.5 * down) + (0.15 * down if lead else 0.0)
+			_:
+				# walking jump off one foot: lead knee driven up, trailing leg tucked behind; descent: legs reach down
+				air_hip = (lerpf(0.2, 1.0, up) if lead else lerpf(-0.2, -0.55, up)) + down * (0.1 if lead else 0.5)
+				air_kn = (lerpf(0.35, 1.3, up) if lead else lerpf(0.5, 1.4, up)) * (1.0 - 0.5 * down)
 		_pose["hip_" + tag] = Vector3(lerpf(amp * swing, air_hip, air), 0.0, 0.0)
 		_pose["kn_" + tag] = Vector3(-lerpf(flex, air_kn, air), 0.0, 0.0)
 		_pose["an_" + tag] = Vector3(lerpf(-0.25 * cos(ph + 0.35) * stride + 0.4 * maxf(0.0, -swing) * 0.4, 0.4 - 0.5 * down, air), 0.0, 0.0)
 		var arm_swing := -sin(ph) * lerpf(0.38, 0.8, run_k) * minf(1.0, stride + 0.2)
-		# arms swing up through the jump and spread wide for balance on the way down
-		_pose["sh_" + tag] = Vector3(lerpf(arm_swing, -0.4 - 1.1 * up - 0.3 * down, air), 0.0, 0.0)
+		# arms: stand = both swing up overhead and come forward at the top; run = opposite arm to the lead leg
+		# drives forward; walk = swing up and spread for balance on the way down
+		var air_sh := -0.4 - 1.1 * up - 0.3 * down
+		var air_ab := 0.0
+		if jump_kind == "stand":
+			air_sh = -lerpf(2.5, 1.2, apex) * (1.0 - down) - 0.8 * down
+			air_ab = 0.35 * down
+		elif jump_kind == "run":
+			air_sh = (0.55 if lead else -1.15)
+			air_ab = 0.25 * down
+		_pose["sh_" + tag] = Vector3(lerpf(arm_swing, air_sh, air), 0.0, air_ab * air)
 		_pose["el_" + tag] = Vector3(lerpf(0.22 + lerpf(0.1, 1.0, run_k) * (0.5 + 0.5 * maxf(0.0, -sin(ph))), 0.5, air), 0.0, 0.0)
 	var bob := (0.018 + 0.03 * run_k) * stride
 	_hips_dy = -bob * (1.0 - cos(2.0 * _phase)) * 0.5
 	_pose["hips"] = Vector3(0.0, 0.14 * sin(_phase) * stride, -0.03 * sin(_phase) * stride)
 	var lean := 0.03 + 0.07 * stride + 0.14 * run_k
+	if jump_kind == "run":
+		lean = lerpf(lean, 0.28, air)
+	elif jump_kind == "stand":
+		lean = lerpf(lean, 0.12 * (1.0 - clampf(absf(air_vy) / 5.0, 0.0, 1.0)), air)
 	_pose["spine"] = Vector3(-lean, -0.2 * sin(_phase) * stride, 0.025 * sin(_phase) * stride)
 	_pose["chest"] = Vector3.ZERO
 	_pose["head"] = Vector3(lean * 0.8 - 0.02, 0.1 * sin(_phase) * stride, 0.0)

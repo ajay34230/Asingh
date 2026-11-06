@@ -1175,6 +1175,47 @@ func _run_selftest() -> void:
 	notes.append("wall test: player %s" % [player.global_position.snappedf(0.01)])
 	if player.global_position.z < -3.0 or player.global_position.y > top + 0.3:
 		fails.append("player passed or climbed a 1.5 m wall (%s)" % [player.global_position])
+	# Climb: jump at the 1.5 m wall and pull up onto it.
+	player.global_position = Vector3(20, top + 0.3, -1.6)
+	player.velocity = Vector3.ZERO
+	for i in 20:
+		await get_tree().physics_frame
+	var climbs0 := player.climbs
+	player.move_input = Vector2(0, 1)
+	player.jump_requested = true
+	for i in 150:
+		await get_tree().physics_frame
+		if player.climbs > climbs0:
+			player.move_input = Vector2.ZERO
+	player.move_input = Vector2.ZERO
+	notes.append("climb test: player %s climbs=%d" % [player.global_position.snappedf(0.01), player.climbs - climbs0])
+	if player.climbs <= climbs0 or player.global_position.y < top + 1.4:
+		fails.append("player did not climb onto a 1.5 m wall (%s)" % [player.global_position])
+	# Vault: a thin 1 m fence with ground behind it.
+	var fence := StaticBody3D.new()
+	var fcs := CollisionShape3D.new()
+	var fbs := BoxShape3D.new()
+	fbs.size = Vector3(6, 1.0, 0.25)
+	fcs.shape = fbs
+	fence.add_child(fcs)
+	fence.position = Vector3(-20, top + 0.5, -4)
+	add_child(fence)
+	player.global_position = Vector3(-20, top + 0.3, -3.1)
+	player.velocity = Vector3.ZERO
+	for i in 20:
+		await get_tree().physics_frame
+	climbs0 = player.climbs
+	player.move_input = Vector2(0, 1)
+	player.jump_requested = true
+	for i in 70:
+		await get_tree().physics_frame
+		if player.climbs > climbs0:
+			player.move_input = Vector2.ZERO
+	player.move_input = Vector2.ZERO
+	notes.append("vault test: player %s vaults=%d" % [player.global_position.snappedf(0.01), player.climbs - climbs0])
+	if player.climbs <= climbs0 or player.global_position.z > -4.4:
+		fails.append("player did not vault a 1 m fence (%s)" % [player.global_position])
+	fence.queue_free()
 	# Jump with coyote time: walk off the slab edge and jump just after leaving it.
 	player.global_position = Vector3(0, top + 0.3, 6)
 	player.velocity = Vector3.ZERO
