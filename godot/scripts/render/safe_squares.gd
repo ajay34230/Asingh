@@ -160,9 +160,14 @@ func _process(delta: float) -> void:
 	var occupied := {}
 	for token in resting:
 		occupied[resting[token]] = true
+	var cam := get_viewport().get_camera_3d()
 	for sq in _squares:
 		var target := 0.0 if occupied.has(sq["index"]) else 1.0
-		sq["show"] = move_toward(sq["show"], target, delta * 3.0)
+		## Fade out emblems the camera is close to (fight close-ups), so they never block the view.
+		if cam:
+			var d := cam.global_position.distance_to((sq["root"] as Node3D).global_position)
+			target *= clampf((d - 4.0) / 2.5, 0.0, 1.0)
+		sq["show"] = move_toward(sq["show"], target, delta * 5.0)
 		var k: float = sq["show"]
 		var emblem: Node3D = sq["emblem"]
 		emblem.visible = k > 0.01

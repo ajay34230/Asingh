@@ -20,6 +20,8 @@ var _result: PanelContainer
 var _result_list: Label
 var _pause_button: Button
 var _banner: Label
+var _caption: Label
+var _caption_tween: Tween
 var _banner_tween: Tween
 
 
@@ -64,6 +66,17 @@ func _ready() -> void:
 	_banner.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_banner.visible = false
 	root.add_child(_banner)
+
+	_caption = Label.new()
+	_caption.add_theme_font_size_override("font_size", 30)
+	_caption.add_theme_color_override("font_color", Color("#fff1c8"))
+	_caption.add_theme_stylebox_override("normal", RoyalTheme.badge(RoyalTheme.GOLD))
+	_caption.set_anchors_and_offsets_preset(Control.PRESET_CENTER_TOP)
+	_caption.grow_horizontal = Control.GROW_DIRECTION_BOTH
+	_caption.offset_top = 86
+	_caption.visible = false
+	_caption.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	root.add_child(_caption)
 
 	_build_pause(root)
 	_build_result(root)
@@ -213,3 +226,19 @@ func flash_banner(text: String, color: Color, seconds := 1.1) -> void:
 	_banner_tween.tween_interval(seconds)
 	_banner_tween.tween_property(_banner, "modulate:a", 0.0, 0.3)
 	_banner_tween.tween_callback(func() -> void: _banner.visible = false)
+
+
+## Subtitle for the announcer, under the top bar: speaker icon text and a short fade.
+func show_caption(text: String, seconds := 1.8) -> void:
+	if text == "":
+		return
+	_caption.text = "~ " + text + " ~"
+	_caption.visible = true
+	_caption.modulate.a = 0.0
+	if _caption_tween and _caption_tween.is_valid():
+		_caption_tween.kill()
+	_caption_tween = create_tween()
+	_caption_tween.tween_property(_caption, "modulate:a", 1.0, 0.15)
+	_caption_tween.tween_interval(seconds)
+	_caption_tween.tween_property(_caption, "modulate:a", 0.0, 0.4)
+	_caption_tween.tween_callback(func() -> void: _caption.visible = false)

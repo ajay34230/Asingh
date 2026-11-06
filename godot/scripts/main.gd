@@ -18,6 +18,9 @@ const DICE_TAP_RADIUS_PX := 120.0
 
 var camera: Camera3D
 var board: RoyalBoard
+var voice: VoiceManager
+var bubbles: SpeechBubbles
+var _last_turn_human := false
 var game: GameController
 var audio: AudioManager
 var effects: EffectsManager
@@ -70,6 +73,8 @@ func _ready() -> void:
 	safe.shield_raised.connect(func(at: Vector3) -> void:
 		if not game.fast_mode:
 			audio.play("shield", 0.02)
+			if randf() < 0.6:
+				_announce("safe")
 			effects.burst(at + Vector3(0, 0.5, 0), EffectsManager.GOLD, 18, 1.4, 0.6))
 	game.setup(dice, seed_value)
 	dice.bounced.connect(func() -> void: audio.play("dice_bounce", 0.1))
@@ -91,6 +96,14 @@ func _ready() -> void:
 	effects = EffectsManager.new()
 	effects.name = "Effects"
 	add_child(effects)
+	voice = VoiceManager.new()
+	voice.name = "Voice"
+	voice.audio = audio
+	add_child(voice)
+	bubbles = SpeechBubbles.new()
+	bubbles.name = "SpeechBubbles"
+	add_child(bubbles)
+	game.turn_changed.connect(_on_turn_voice)
 
 	if "--dice-face" in args:
 		game.dice.setup_face(int(_arg_value(args, "--dice-face")))
@@ -205,6 +218,7 @@ func _start_from_menu(config: Dictionary) -> void:
 	hud.hide_result()
 	director.stop_attract(1.4)
 	audio.start_music("game")
+	_announce_later("start", 1.0, true)
 	game.fast_mode = false
 	game.new_game(colors, humans, config["rules"], config["difficulty"])
 	_last_config = config
@@ -256,6 +270,8 @@ func _apply_settings() -> void:
 	_camera_tilt = GameSettings.get_option("camera_tilt")
 	game.anim_scale = [1.6, 1.0, 0.6][int(GameSettings.get_option("anim_speed"))]
 	hud.set_fps_visible(GameSettings.get_option("show_fps"))
+	if voice:
+		voice.enabled = GameSettings.get_option("voice")
 	_fit_camera()
 
 
@@ -313,6 +329,7 @@ func _on_game_event(event_name: String, data: Dictionary) -> void:
 			effects.burst(pos, EffectsManager.GOLD, 14, 1.2, 0.6)
 			if int(data.get("value", 0)) == 6 and not game.fast_mode:
 				hud.flash_banner("SIX!", Color("#ffd24a"), 0.5)
+				_announce("six")
 				audio.play("six", 0.0)
 				effects.burst(pos + up, EffectsManager.GOLD, 40, 2.8, 0.9)
 		"select":
@@ -327,6 +344,7 @@ func _on_game_event(event_name: String, data: Dictionary) -> void:
 				audio.play("punch")
 			else:
 				audio.play("blade", 0.03)   ## steel drawn: the fight is on
+				_token_says(data.get("attacker_token"), "taunt", data.get("attacker", ""))
 		"impact":
 			audio.play(data.get("kind", "punch"), 0.05)
 			audio.play("impact", 0.06, -6.0)  ## low boom under the recorded hit
@@ -336,6 +354,8 @@ func _on_game_event(event_name: String, data: Dictionary) -> void:
 			_shake(0.08, 0.35)
 			audio.vibrate(50)
 			hud.flash_banner(["KNOCKOUT!", "BOOM!", "SMASH!"].pick_random(), Color("#ffd24a"))
+			_token_says(data.get("victim_token"), "hurt", data.get("color", ""))
+			_announce_later("capture", 1.1)
 		"throw":
 			audio.play("swish", 0.08)
 		"thrown_home":
@@ -346,17 +366,52 @@ func _on_game_event(event_name: String, data: Dictionary) -> void:
 		"finish":
 			audio.play("token_finish", 0.0, -3.0)
 			audio.play("coins", 0.03)
+			_token_says(data.get("token"), "cheer", data.get("color", ""))
+			_announce_later("home", 1.2)
 			effects.burst(pos + up, EffectsManager.GOLD, 40, 2.4, 1.2)
 		"click":
 			audio.play("ui_click")
+		"three_sixes":
+			_announce("three_sixes", true)
+		"no_move":
+			if data.get("human", false):
+				_announce("no_move")
 		"invalid":
 			audio.play("error", 0.0, -4.0)
 		"game_over":
 			audio.play("victory")
+			var won: bool = not (data.get("ranking", []) as Array).is_empty() and data["ranking"][0]["human"]
+			var any_human: bool = (data.get("ranking", []) as Array).any(func(r: Dictionary) -> bool: return r["human"])
+			if any_human:
+				_announce_later("win" if won else "lose", 0.6)
 			effects.fireworks(3.0)
 			var ranking: Array = data.get("ranking", [])
 			if not ranking.is_empty() and ranking[0]["human"]:
 				effects.confetti(4.0)
+
+
+## Dialogue: the announcer speaks with a subtitle; tokens speak in a bubble.
+func _announce(key: String, force := false) -> void:
+	if game.fast_mode or voice == null:
+		return
+	hud.show_caption(voice.announce(key, force))
+
+
+func _announce_later(key: String, seconds: float, force := false) -> void:
+	await get_tree().create_timer(seconds, true, false, true).timeout
+	_announce(key, force)
+
+
+func _token_says(token: Variant, key: String, color: String) -> void:
+	if game.fast_mode or voice == null or not (token is Node3D):
+		return
+	bubbles.say(token, voice.token_line(key, color), color)
+
+
+func _on_turn_voice(_color: String, human: bool) -> void:
+	if human and not _last_turn_human and randf() < 0.35:
+		_announce("your_turn")
+	_last_turn_human = human
 
 
 ## Short camera shake: a random offset that decays over the duration.

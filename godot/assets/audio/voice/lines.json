@@ -1,0 +1,306 @@
+{
+ "announcer": {
+  "start": [
+   {
+    "file": "ann_start_1",
+    "caption": "Chalo, khel shuru karte hain!",
+    "text": "चलो, खेल शुरू करते हैं!"
+   },
+   {
+    "file": "ann_start_2",
+    "caption": "Khel shuru karte hain!",
+    "text": "खेल शुरू करते हैं!"
+   }
+  ],
+  "six": [
+   {
+    "file": "ann_six_1",
+    "caption": "Kya baat hai, chhakka aaya!",
+    "text": "क्या बात है, छक्का आया!"
+   },
+   {
+    "file": "ann_six_2",
+    "caption": "Waah! Chhakka aaya!",
+    "text": "वाह! छक्का आया!"
+   },
+   {
+    "file": "ann_six_3",
+    "caption": "Shaandaar chhakka!",
+    "text": "शानदार छक्का!"
+   }
+  ],
+  "capture": [
+   {
+    "file": "ann_capture_1",
+    "caption": "Ek hi vaar mein!",
+    "text": "एक ही वार में!"
+   },
+   {
+    "file": "ann_capture_2",
+    "caption": "Goti kat gayi!",
+    "text": "गोटी कट गई!"
+   },
+   {
+    "file": "ann_capture_3",
+    "caption": "Ghar wapas jao!",
+    "text": "घर वापस जाओ!"
+   }
+  ],
+  "safe": [
+   {
+    "file": "ann_safe_1",
+    "caption": "Yahan koi nahin maar sakta!",
+    "text": "यहाँ कोई नहीं मार सकता!"
+   },
+   {
+    "file": "ann_safe_2",
+    "caption": "Ab surakshit ho!",
+    "text": "अब सुरक्षित हो!"
+   }
+  ],
+  "home": [
+   {
+    "file": "ann_home_1",
+    "caption": "Shabaash! Ek goti ghar pahunchi!",
+    "text": "शाबाश! एक गोटी घर पहुँची!"
+   },
+   {
+    "file": "ann_home_2",
+    "caption": "Bahut badhiya!",
+    "text": "बहुत बढ़िया!"
+   }
+  ],
+  "three_sixes": [
+   {
+    "file": "ann_three_sixes_1",
+    "caption": "Teen chhakke, baari gayi!",
+    "text": "तीन छक्के, बारी गई!"
+   }
+  ],
+  "no_move": [
+   {
+    "file": "ann_no_move_1",
+    "caption": "Arre, koi chaal nahin!",
+    "text": "अरे, कोई चाल नहीं!"
+   }
+  ],
+  "your_turn": [
+   {
+    "file": "ann_your_turn_1",
+    "caption": "Aapki baari!",
+    "text": "आपकी बारी!"
+   }
+  ],
+  "win": [
+   {
+    "file": "ann_win_1",
+    "caption": "Jeet mubaarak ho!",
+    "text": "जीत मुबारक हो!"
+   },
+   {
+    "file": "ann_win_2",
+    "caption": "Aap jeet gaye!",
+    "text": "आप जीत गए!"
+   }
+  ],
+  "lose": [
+   {
+    "file": "ann_lose_1",
+    "caption": "Agli baar zaroor!",
+    "text": "अगली बार ज़रूर!"
+   }
+  ]
+ },
+ "token": {
+  "taunt": {
+   "blue": [
+    {
+     "file": "blue_taunt_1",
+     "caption": "Ye lo ek!",
+     "text": "ये लो एक!"
+    },
+    {
+     "file": "blue_taunt_2",
+     "caption": "Hat jao raaste se!",
+     "text": "हट जाओ रास्ते से!"
+    },
+    {
+     "file": "blue_taunt_3",
+     "caption": "Taiyaar ho jao!",
+     "text": "तैयार हो जाओ!"
+    }
+   ],
+   "yellow": [
+    {
+     "file": "yellow_taunt_1",
+     "caption": "Ye lo ek!",
+     "text": "ये लो एक!"
+    },
+    {
+     "file": "yellow_taunt_2",
+     "caption": "Hat jao raaste se!",
+     "text": "हट जाओ रास्ते से!"
+    },
+    {
+     "file": "yellow_taunt_3",
+     "caption": "Taiyaar ho jao!",
+     "text": "तैयार हो जाओ!"
+    }
+   ],
+   "green": [
+    {
+     "file": "green_taunt_1",
+     "caption": "Ye lo ek!",
+     "text": "ये लो एक!"
+    },
+    {
+     "file": "green_taunt_2",
+     "caption": "Hat jao raaste se!",
+     "text": "हट जाओ रास्ते से!"
+    },
+    {
+     "file": "green_taunt_3",
+     "caption": "Taiyaar ho jao!",
+     "text": "तैयार हो जाओ!"
+    }
+   ],
+   "red": [
+    {
+     "file": "red_taunt_1",
+     "caption": "Ye lo ek!",
+     "text": "ये लो एक!"
+    },
+    {
+     "file": "red_taunt_2",
+     "caption": "Hat jao raaste se!",
+     "text": "हट जाओ रास्ते से!"
+    },
+    {
+     "file": "red_taunt_3",
+     "caption": "Taiyaar ho jao!",
+     "text": "तैयार हो जाओ!"
+    }
+   ]
+  },
+  "hurt": {
+   "blue": [
+    {
+     "file": "blue_hurt_1",
+     "caption": "Arre nahin!",
+     "text": "अरे नहीं!"
+    },
+    {
+     "file": "blue_hurt_2",
+     "caption": "Bachao!",
+     "text": "बचाओ!"
+    },
+    {
+     "file": "blue_hurt_3",
+     "caption": "Arre baap re!",
+     "text": "अरे बाप रे!"
+    }
+   ],
+   "yellow": [
+    {
+     "file": "yellow_hurt_1",
+     "caption": "Arre nahin!",
+     "text": "अरे नहीं!"
+    },
+    {
+     "file": "yellow_hurt_2",
+     "caption": "Bachao!",
+     "text": "बचाओ!"
+    },
+    {
+     "file": "yellow_hurt_3",
+     "caption": "Arre baap re!",
+     "text": "अरे बाप रे!"
+    }
+   ],
+   "green": [
+    {
+     "file": "green_hurt_1",
+     "caption": "Arre nahin!",
+     "text": "अरे नहीं!"
+    },
+    {
+     "file": "green_hurt_2",
+     "caption": "Bachao!",
+     "text": "बचाओ!"
+    },
+    {
+     "file": "green_hurt_3",
+     "caption": "Arre baap re!",
+     "text": "अरे बाप रे!"
+    }
+   ],
+   "red": [
+    {
+     "file": "red_hurt_1",
+     "caption": "Arre nahin!",
+     "text": "अरे नहीं!"
+    },
+    {
+     "file": "red_hurt_2",
+     "caption": "Bachao!",
+     "text": "बचाओ!"
+    },
+    {
+     "file": "red_hurt_3",
+     "caption": "Arre baap re!",
+     "text": "अरे बाप रे!"
+    }
+   ]
+  },
+  "cheer": {
+   "blue": [
+    {
+     "file": "blue_cheer_1",
+     "caption": "Main ghar aa gaya!",
+     "text": "मैं घर आ गया!"
+    },
+    {
+     "file": "blue_cheer_2",
+     "caption": "Jai ho!",
+     "text": "जय हो!"
+    }
+   ],
+   "yellow": [
+    {
+     "file": "yellow_cheer_1",
+     "caption": "Main ghar aa gaya!",
+     "text": "मैं घर आ गया!"
+    },
+    {
+     "file": "yellow_cheer_2",
+     "caption": "Jai ho!",
+     "text": "जय हो!"
+    }
+   ],
+   "green": [
+    {
+     "file": "green_cheer_1",
+     "caption": "Main ghar aa gaya!",
+     "text": "मैं घर आ गया!"
+    },
+    {
+     "file": "green_cheer_2",
+     "caption": "Jai ho!",
+     "text": "जय हो!"
+    }
+   ],
+   "red": [
+    {
+     "file": "red_cheer_1",
+     "caption": "Main ghar aa gaya!",
+     "text": "मैं घर आ गया!"
+    },
+    {
+     "file": "red_cheer_2",
+     "caption": "Jai ho!",
+     "text": "जय हो!"
+    }
+   ]
+  }
+ }
+}

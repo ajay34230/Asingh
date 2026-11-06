@@ -11,6 +11,7 @@ const DEFAULTS := {
 	"camera_tilt": true,        ## true: tilted 3D view; false: straight top-down
 	"anim_speed": 1,            ## 0 slow, 1 normal, 2 fast
 	"show_fps": false,
+	"voice": true,              ## spoken Hindi commentary and token dialogue
 	"language": "en",
 	"players": 4,               ## 2 | 3 | 4
 	"difficulty": 1,            ## 0 Easy .. 3 Expert

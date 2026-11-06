@@ -42,12 +42,21 @@ var _sounds: Dictionary = {}
 var _pool: Array[AudioStreamPlayer] = []
 var _music: AudioStreamPlayer
 var _tracks: Dictionary = {}
+var _duck_tween: Tween
 var _track := "menu"
 
 
 func _ready() -> void:
 	_ensure_bus("Music")
 	_ensure_bus("SFX")
+	## Gentle limiter on the master output: music, effects and voices can stack up
+	## during a fight; this keeps the mix loud but never distorted.
+	var master := AudioServer.get_bus_index("Master")
+	if AudioServer.get_bus_effect_count(master) == 0:
+		var limiter := AudioEffectHardLimiter.new()
+		limiter.ceiling_db = -1.0
+		limiter.pre_gain_db = 0.0
+		AudioServer.add_bus_effect(master, limiter)
 	_load_settings()
 	for name in SOUND_FILES:
 		if not REPLACED.has(name):
@@ -113,6 +122,14 @@ func start_music(track := "") -> void:
 	if not muted and not _music.playing:
 		_music.volume_db = music_volume_db
 		_music.play()
+
+
+## Dips the music under spoken dialogue.
+func duck_music(on: bool) -> void:
+	if _duck_tween and _duck_tween.is_valid():
+		_duck_tween.kill()
+	_duck_tween = create_tween()
+	_duck_tween.tween_property(_music, "volume_db", music_volume_db - (7.0 if on else 0.0), 0.25 if on else 0.6)
 
 
 func stop_music() -> void:

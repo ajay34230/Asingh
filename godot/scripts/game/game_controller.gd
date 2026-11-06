@@ -113,8 +113,10 @@ func _roll_now() -> void:
 	event.emit("roll_land", {"position": dice.global_position, "value": outcome["value"]})
 	if outcome["forfeited"]:
 		message.emit("Three sixes: turn lost")
+		event.emit("three_sixes", {})
 	elif outcome["passed"]:
 		message.emit("No legal move")
+		event.emit("no_move", {"human": is_human_turn()})
 	if outcome["passed"] or outcome["forfeited"]:
 		busy = false
 		_start_turn()
@@ -201,7 +203,8 @@ func _animate_move(move: Dictionary) -> void:
 		message.emit("%s token sent home!" % victim_color.capitalize())
 		if director and not fast_mode:
 			director.fight_view(token.global_position, victim_token.global_position, 0.45)
-		event.emit("capture", {"position": victim_token.global_position, "color": victim_color, "attacker": color})
+		event.emit("capture", {"position": victim_token.global_position, "color": victim_color, "attacker": color,
+			"attacker_token": token, "victim_token": victim_token})
 		victim_token.ground_y = base.y
 		if fast_mode:
 			await victim_token.move_to_world(base, _hop(2.0))
@@ -222,7 +225,7 @@ func _animate_move(move: Dictionary) -> void:
 		var centre := _track_world(color, BoardPath.FINISH_PROGRESS, index)
 		token.ground_y = centre.y
 		await token.move_to_world(centre, _hop(1.5))
-		event.emit("finish", {"position": token.global_position, "color": color})
+		event.emit("finish", {"position": token.global_position, "color": color, "token": token})
 		if not fast_mode:
 			await token.play_home_bounce()
 		token.global_position = centre
@@ -266,7 +269,8 @@ func _slow_motion(scale: float, real_seconds: float) -> void:
 
 func _emit_impact_after(game_seconds: float, victim: Node3D, kind: String) -> void:
 	await get_tree().create_timer(game_seconds).timeout
-	event.emit("impact", {"position": victim.global_position + Vector3(0, 0.35, 0), "color": victim.get_meta("color", ""), "kind": kind})
+	event.emit("impact", {"position": victim.global_position + Vector3(0, 0.35, 0), "color": victim.get_meta("color", ""), "kind": kind,
+		"victim_token": victim})
 
 
 func _emit_after(game_seconds: float, event_name: String, data: Dictionary) -> void:
