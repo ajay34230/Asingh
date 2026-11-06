@@ -8,7 +8,7 @@ extends Node3D
 
 const MISSIONS := [
 	{"id": "m_ghost1", "title": "The Restless Dead", "short": "Ghosts rise from the old graveyard. Protect the village!",
-	 "at": Vector2(-122.0, 56.0), "goal": Vector2(-90.0, 12.0), "night": true, "place": "the village graveyard",
+	 "at": Vector2(-122.0, 56.0), "goal": Vector2(-90.0, 12.0), "night": true, "place": "the village graveyard", "protect": "the village",
 	 "waves": [[["ghost", 3]], [["ghost", 4]], [["ghost", 3], ["ghost_skull", 2]]],
 	 "gift": "bow", "coins": 60, "line": "Chief Bhairav: Take my bow! Arrows hurt ghosts the most."},
 	{"id": "m_bones", "title": "Bones of the Old Road", "short": "Skeleton raiders block the Southern Road.",
@@ -92,7 +92,7 @@ func _obj_text(m: Dictionary) -> String:
 		var left := alive.size()
 		var s := "Wave %d/%d: %d left" % [wave + 1, n, left]
 		if Vector2(m["goal"]) != Vector2.ZERO:
-			s = "Protect %s (%d%%). " % [String(m["place"]), int(village)] + s
+			s = "Protect %s (%d%%). " % [String(m.get("protect", m["place"])), int(village)] + s
 		return s
 	return String(m["short"])
 
@@ -263,6 +263,7 @@ func _spawn_wave(rise: bool) -> void:
 			n += 1
 	if n > 0:
 		Sfx.at("scream", _ground(at) + Vector3(0, 2, 0), -6.0, 0.6)
+	story.changed.emit()                  # the tracker shows the new count
 
 
 func _on_kill(e: Enemy) -> void:
