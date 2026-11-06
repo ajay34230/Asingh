@@ -28,6 +28,8 @@ func _ready() -> void:
 	for color in BoardPath.COLORS:
 		_team[color] = _marble_material(PALETTE[color])
 	_build_frame()
+	var grout_size := outer_size() - FRAME_MARGIN * 2.0
+	_box(Vector3(0, 0.01, 0), Vector3(grout_size.x, 0.02, grout_size.y), _solid(Color("#2a1410"), 0.9))
 	_build_tiles()
 	_build_courtyards()
 	_build_centre()
@@ -282,9 +284,9 @@ func _build_centre() -> void:
 	var half_w := w * 0.5
 	var half_d := d * 0.5
 	var tris := {
-		"green": PackedVector2Array([Vector2(-half_w, -half_d), Vector2(half_w, -half_d), Vector2(0, 0)]),
+		"blue": PackedVector2Array([Vector2(-half_w, -half_d), Vector2(half_w, -half_d), Vector2(0, 0)]),
 		"yellow": PackedVector2Array([Vector2(half_w, -half_d), Vector2(half_w, half_d), Vector2(0, 0)]),
-		"blue": PackedVector2Array([Vector2(half_w, half_d), Vector2(-half_w, half_d), Vector2(0, 0)]),
+		"green": PackedVector2Array([Vector2(half_w, half_d), Vector2(-half_w, half_d), Vector2(0, 0)]),
 		"red": PackedVector2Array([Vector2(-half_w, half_d), Vector2(-half_w, -half_d), Vector2(0, 0)]),
 	}
 	for color in tris:
@@ -346,4 +348,4 @@ func _build_markers() -> void:
 		var arrow := PackedVector2Array([Vector2(0, 0.3), Vector2(0.22, -0.05), Vector2(0.08, -0.05), Vector2(0.08, -0.3), Vector2(-0.08, -0.3), Vector2(-0.08, -0.05), Vector2(-0.22, -0.05)])
 		var m := _flat(arrow, TILE_TOP + 0.01, _team[color])
 		m.position = Vector3(at.x, 0, at.z)
-		m.rotation.y = atan2(-toward.x, -toward.z)
+		m.rotation.y = atan2(toward.x, toward.z)  ## shape points along +Z; face the centre
