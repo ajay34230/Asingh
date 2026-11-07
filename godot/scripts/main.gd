@@ -18,6 +18,7 @@ const DICE_TAP_RADIUS_PX := 120.0
 
 var camera: Camera3D
 var board: RoyalBoard
+var loading: LoadingScreen
 var voice: VoiceManager
 var bubbles: SpeechBubbles
 var _last_turn_human := false
@@ -50,6 +51,18 @@ func _ready() -> void:
 		elif arg.begins_with("--menu-screenshot="):
 			menu_shot = arg.trim_prefix("--menu-screenshot=")
 
+	## Loading screen first, so it is on screen while the palace is built.
+	loading = LoadingScreen.new()
+	add_child(loading)
+	if not _demo and not _is_test_launch(args):
+		await get_tree().process_frame
+		await get_tree().process_frame
+		if _has_arg("--loading-shot="):
+			await get_tree().create_timer(0.5).timeout
+			get_viewport().get_texture().get_image().save_png(_arg_value(args, "--loading-shot"))
+			print("saved loading shot")
+			get_tree().quit()
+			return
 	_build_environment()
 	_build_vignette()
 	board = RoyalBoard.new()
@@ -146,6 +159,7 @@ func _ready() -> void:
 		fade.tween_property(menu, "modulate:a", 1.0, 0.8)
 		_intro_seen = true
 	_apply_settings()
+	loading.reveal(0.0 if (_demo or _is_test_launch(args) or menu_shot != "") else 0.7)
 	if "--fx-shot" in args:
 		effects.fireworks(3.0)
 		effects.confetti(4.0)
@@ -194,7 +208,7 @@ func _build_menu() -> void:
 	## A new theme rebuilds the scene; come back to the themes page afterwards.
 	menu.board_theme_changed.connect(func() -> void:
 		_reopen_page = "themes"
-		get_tree().reload_current_scene())
+		loading.cover(func() -> void: get_tree().reload_current_scene()))
 	hud.menu_pressed.connect(_quit_to_menu)
 	hud.rematch_pressed.connect(func() -> void: _start_new_game())
 	hud.settings_pressed.connect(func() -> void:
@@ -248,7 +262,7 @@ func _start_new_game() -> void:
 
 func _quit_to_menu() -> void:
 	get_tree().paused = false
-	get_tree().reload_current_scene()
+	loading.cover(func() -> void: get_tree().reload_current_scene())
 
 
 func _on_menu_closed() -> void:
