@@ -338,3 +338,17 @@ Verified by the selftest (PASS) and a software-rendered capture of the new Hero 
 - **Login streak.** One reward per calendar day, growing over 7 days; day 7 also gives a skill point. Missing a day restarts at day 1. Checked at start and again if you play past midnight.
 - **Night raids.** After the first ghost mission, each night has a 60% chance that ghosts raid the village, Bazaar Town, Kesar Sarai or Dhoopgarh. It is announced with a banner and a tracker or map goal, starts when you arrive and fades at dawn. Waves scale with your level, and you protect the settlement's heart for coins.
 - **Menu.** The pause menu's button list now scrolls (it was taller than a phone screen). There is a new Hero & challenges page with the XP bar, challenges, streak, skill buttons and upgrade buttons, each saying what is missing.
+
+## Addendum: Wardrobe, uniforms and shops (2026-11-07)
+
+Verified by the selftest (PASS) and software-rendered captures of all 10 outfits and the shop. **Not tested on a device.**
+
+- **Things to spend coins on.** Ten outfits, dyes and supplies, on top of weapon upgrades.
+  - **Bazaar cloth stalls:** Village Kurta 60, Adventurer's Gear 120, Maharaja's Robes 1000 (+15% XP), 8 dyes at 25 each, supplies (potion 40, herb 12, iron 30, monster essence 70).
+  - **Tailor of Kesar Sarai:** Shadow Garb 220, Ghost Hunter Set 480 (+20% vs ghosts, +10% arrows).
+  - **Dhoopgarh Armourer:** Rajput Warrior 350, Royal Guard Uniform 450, Brute Warlord 650, Knight of Veyra 800 (38% armour, 4% slower).
+- An outfit swaps the whole body model (`Player.set_body`, which keeps the weapon, the riding pose and the signals) and its colours. It can add a helmet or shoulder pads (`RealHuman.add_gear`, placed from the rest pose and following the bone).
+- Each outfit has armour (`outfit_armor`) and small bonuses folded into `Progression.apply`.
+- "Try on" previews an outfit and reverts on close unless you buy it. The shop panel sits on the right and the camera turns to show you from the front.
+- Owned outfits can be worn anywhere from II > Wardrobe, with a helmet show/hide toggle.
+- Natural-colour bodies (Adventurer, Maharaja, Knight) skip the random dye.

@@ -74,7 +74,9 @@ func setup(p: Dictionary, name_: String = "Human") -> RealHuman:
 	_inner.rotation.y = PI          # the models face +Z; we face -Z
 	add_child(_inner)
 	var body: String = p.get("body", "veteran")
-	if body.begins_with("m_") or body.begins_with("w_"):
+	if body == "knight":
+		_load("res://assets/outfits/KnightCharacter.glb")      # Quaternius Knight (CC0)
+	elif body.begins_with("m_") or body.begins_with("w_"):
 		_load("res://assets/people/" + body + ".glb")
 	else:
 		_load(DIR + body + ".glb")
@@ -86,7 +88,8 @@ func setup(p: Dictionary, name_: String = "Human") -> RealHuman:
 	for k in BONES:
 		_pose[k] = Vector3.ZERO
 	_fit()
-	_tint()
+	if not p.get("natural", false):
+		_tint()
 	if p.get("tool", "") == "hammer":
 		_add_hammer()
 	elif p.get("tool", "") != "":
@@ -111,6 +114,8 @@ func _register(sk: Skeleton3D) -> void:
 	var idx := {}
 	for k in BONES:
 		idx[k] = sk.find_bone(map[k])
+		if idx[k] < 0 and String(map[k]).begins_with("Hand."):
+			idx[k] = sk.find_bone(String(map[k]).replace("Hand.", "Palm."))     # the Knight rig
 	if idx["hips"] < 0:
 		return
 	_skins.append(sk)
@@ -335,6 +340,89 @@ func set_weapon(id: String) -> void:
 		model.rotation.x = deg_to_rad(90.0)            # blade or head points forward out of the fist
 	att.add_child(model)
 	_fit_scale(model)
+
+
+# --- armour pieces (helmets, shoulder pads) ------------------------------------------------------------
+var _gear: Array[Node3D] = []
+
+
+static func _norm_model(path: String, width: float) -> Node3D:
+	if not ResourceLoader.exists(path):
+		return null
+	var inst := (load(path) as PackedScene).instantiate() as Node3D
+	var box := AABB()
+	var first := true
+	for mi in inst.find_children("*", "MeshInstance3D", true, false):
+		var m := mi as MeshInstance3D
+		var xf := Transform3D.IDENTITY
+		var n: Node = m
+		while n != null and n != inst:
+			xf = (n as Node3D).transform * xf
+			n = n.get_parent()
+		var bb := xf * m.get_aabb()
+		box = bb if first else box.merge(bb)
+		first = false
+	var holder := Node3D.new()
+	holder.add_child(inst)
+	var sc := width / maxf(box.size.x, 0.0001)
+	inst.scale = Vector3.ONE * sc
+	inst.position = -box.get_center() * sc
+	inst.rotation.y = PI                 # the models face +Z, people face -Z
+	inst.position = Basis(Vector3.UP, PI) * inst.position
+	return holder
+
+
+## Put on a helmet ("helmet") or shoulder pads ("pads") from a model file. The piece is placed upright over
+## the head (or across the shoulders) using the skeleton's rest pose, then follows the bone as it moves.
+func add_gear(file: String, kind: String) -> void:
+	if _skins.is_empty():
+		return
+	var key := "head" if kind == "helmet" else "chest"
+	var bi: int = _bone_idx[0][key]
+	if bi < 0:
+		return
+	var sk: Skeleton3D = _skins[0]
+	var width := 0.27 if kind == "helmet" else 0.5
+	var piece := _norm_model("res://assets/outfits/%s.glb" % file, width)
+	if piece == null:
+		return
+	var att := BoneAttachment3D.new()
+	att.bone_name = sk.get_bone_name(bi)
+	sk.add_child(att)
+	att.add_child(piece)
+	_gear.append(att)
+	_place_gear(att, piece, kind)
+
+
+func _place_gear(att: BoneAttachment3D, piece: Node3D, kind: String) -> void:
+	if not is_inside_tree():
+		await ready
+	var sk := att.get_parent() as Skeleton3D
+	var bi := sk.find_bone(att.bone_name)
+	var bone_rest := sk.global_transform * sk.get_bone_global_rest(bi)
+	var up := global_transform.basis.y.normalized()
+	var k := global_transform.basis.get_scale().y            # NPC size variants
+	var where := bone_rest.origin
+	var grow := 1.0
+	if kind == "helmet":
+		where += up * 0.12 * k
+	else:
+		var l: int = _bone_idx[0]["sh_L"]
+		var r: int = _bone_idx[0]["sh_R"]
+		if l >= 0 and r >= 0:
+			var pl := (sk.global_transform * sk.get_bone_global_rest(l)).origin
+			var pr := (sk.global_transform * sk.get_bone_global_rest(r)).origin
+			where = (pl + pr) * 0.5 + up * 0.03 * k
+			grow = clampf(pl.distance_to(pr) * 1.45 / (0.5 * k), 0.7, 1.6)
+	var want := Transform3D(global_transform.basis.orthonormalized().scaled(Vector3.ONE * k * grow), where)
+	piece.transform = bone_rest.affine_inverse() * want
+
+
+func clear_gear() -> void:
+	for g in _gear:
+		if is_instance_valid(g):
+			g.queue_free()
+	_gear.clear()
 
 
 ## Hand props hang off a bone. Some rigs carry a 100x scale in their bones, which used to blow brooms and

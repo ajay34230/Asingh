@@ -83,6 +83,11 @@ func _ready() -> void:
 	nav.add_child(h)
 	nav.add_child(_button("Resume", toggle))
 	nav.add_child(_button("Hero & challenges", func() -> void: _show_page("Hero")))
+	nav.add_child(_button("Wardrobe", func() -> void:
+		toggle()
+		var wr: Object = main.get("wardrobe")
+		if wr != null:
+			wr.call("open_shop", "")))
 	nav.add_child(_button("Inventory", func() -> void: _show_page("Inventory")))
 	nav.add_child(_button("Items & crafting", func() -> void: _show_page("Items")))
 	nav.add_child(_button("Journal", func() -> void: _show_page("Journal")))

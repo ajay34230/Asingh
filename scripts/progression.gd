@@ -98,6 +98,7 @@ func points() -> int:
 func gain(amount: int, why: String = "") -> void:
 	if amount <= 0 or story == null:
 		return
+	amount = int(round(amount * (1.0 + float(player.outfit_bonus.get("xp", 0.0)))))
 	var x := xp() + amount
 	var lv := level()
 	var ups := 0
@@ -157,6 +158,13 @@ func apply() -> void:
 	player.roll_cost_mult = 1.0 - 0.2 * rank("nimble")
 	player.run_mult = 1.0 + 0.04 * rank("nimble")
 	player.regen_mult = 1.0 + 0.25 * rank("second_wind")
+	# outfit bonuses (Wardrobe)
+	var ob: Dictionary = player.outfit_bonus
+	player.run_mult *= 1.0 + float(ob.get("run", 0.0))
+	player.melee_mult *= 1.0 + float(ob.get("melee", 0.0))
+	player.ghost_mult *= 1.0 + float(ob.get("ghost", 0.0))
+	player.regen_mult *= 1.0 + float(ob.get("regen", 0.0))
+	player.arrow_mult *= 1.0 + float(ob.get("arrow", 0.0))
 	var mx := 100.0 + 15.0 * rank("vitality")
 	if absf(player.max_hp - mx) > 0.1:
 		var frac := player.hp / maxf(player.max_hp, 1.0)

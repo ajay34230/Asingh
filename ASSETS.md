@@ -55,3 +55,9 @@ Credit: models by Quaternius (CC0). Credit is not required but is given.
 | `assets/graveyard/*.glb` (gravestones, crypt, fence, lantern, fire basket, coffin, pumpkin, shovel) | Kenney *Graveyard Kit 3.0* (www.kenney.nl), from public GitHub repo `electronstudio/godot_vr_wave_shooter` (`models/graveyard`, with Kenney's `License.txt`, copied alongside) | CC0 1.0 |
 
 Credit: monsters and weapons by Quaternius, graveyard by Kenney (CC0; credit not required but given).
+
+## Outfits (added 2026-11-07)
+
+| Path | Source | Licence |
+|---|---|---|
+| `assets/outfits/KnightCharacter.glb`, `Helmet1-3.glb`, `ShoulderPads.glb` | Quaternius *Knight Character* pack, from public GitHub repo `trebeljahr/quaternius-showcase` (`public/glb/single_knight_pack`) | CC0 1.0 |

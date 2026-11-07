@@ -320,6 +320,9 @@ func _sarai(root: Node3D) -> void:
 			PropFactory.cylinder(root, 0.06, 0.07, 2.4, c + Vector3(7.0 + px, 1.2, 4.0 + pz), PropFactory.wood(), Vector3.ZERO, false, 6, 0, false)
 	PropFactory.box(root, Vector3(3.4, 0.06, 2.6), c + Vector3(7.0, 2.42, 4.0), PropFactory.cloth(Color(0.75, 0.2, 0.15)), Vector3(4, 0, 0), false, false)
 	PropFactory.box(root, Vector3(2.6, 0.9, 1.4), c + Vector3(7.0, 0.45, 4.0), PropFactory.aged_wood(Color(0.55, 0.4, 0.25)))
+	for b in 5:
+		PropFactory.box(root, Vector3(0.3, 1.2, 0.05), c + Vector3(5.9 + b * 0.55, 1.65, 5.2), PropFactory.cloth([Color(0.9, 0.5, 0.1), Color(0.2, 0.3, 0.7), Color(0.15, 0.15, 0.18), Color(0.8, 0.15, 0.2), Color(0.9, 0.85, 0.75)][b]), Vector3.ZERO, false, false)
+	_shop(root, c + Vector3(7.0, 1.2, 2.6), "Browse the tailor's clothes", "sarai")
 
 
 func _dhoopgarh(root: Node3D) -> void:
@@ -341,12 +344,30 @@ func _dhoopgarh(root: Node3D) -> void:
 	for sx in [-1.0, 1.0]:
 		for sz in [-1.0, 1.0]:
 			PropFactory.box(root, Vector3(0.5, 0.9, 0.5), tp + Vector3(sx * 1.75, 9.5, sz * 1.75), PropFactory.sandstone_dark(), Vector3.ZERO, false, true)
+	# the armourer's rack beside the tower
+	var ar := c + Vector3(11.0, 0, -12.0)
+	PropFactory.box(root, Vector3(3.0, 0.15, 1.0), ar + Vector3(0, 1.0, 0), PropFactory.aged_wood(Color(0.35, 0.25, 0.15)))
+	for b in 3:
+		PropFactory.cylinder(root, 0.22, 0.26, 0.6, ar + Vector3(-1.0 + b, 1.4, 0), PropFactory.iron(), Vector3.ZERO, false, 10)
+	_shop(root, ar + Vector3(0, 1.2, 0.9), "Browse the armourer's uniforms", "dhoop")
 	var sp := c + Vector3(-8.0, 0, 6.0)
 	PropFactory.box(root, Vector3(3.0, 0.5, 3.0), sp + Vector3(0, 0.25, 0), PropFactory.sandstone_pale())
 	PropFactory.box(root, Vector3(2.0, 2.4, 2.0), sp + Vector3(0, 1.7, 0), PropFactory.sandstone_pale())
 	PropFactory.cylinder(root, 0.0, 1.3, 1.8, sp + Vector3(0, 3.8, 0), PropFactory.plaster(), Vector3.ZERO, false, 10)
 	PropFactory.sphere(root, 0.15, sp + Vector3(0, 4.8, 0), PropFactory.glow_bronze())
 	PropFactory.cylinder(root, 1.0, 1.1, 0.85, c + Vector3(3.0, 0.42, 3.0), PropFactory.sandstone(), Vector3.ZERO, true, 14)
+
+
+func _shop(root: Node3D, at: Vector3, prompt: String, shop: String) -> void:
+	var it := Interactable.new()
+	it.reach = 2.6
+	it.prompt = prompt
+	root.add_child(it)
+	it.global_position = at
+	it.on_interact = func(_by: Node3D, _me: Interactable) -> void:
+		var wr := it.get_tree().get_first_node_in_group("wardrobe")
+		if wr != null:
+			wr.call("open_shop", shop)
 
 
 func _road_dressing(root: Node3D) -> void:

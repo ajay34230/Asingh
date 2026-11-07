@@ -283,6 +283,28 @@ const OUTFITS := [Color(0.86, 0.16, 0.18), Color(0.16, 0.22, 0.78), Color(0.12, 
 var outfit := 0
 
 
+## Outfit effects (set by Wardrobe): damage taken and small bonuses folded in by Progression.apply().
+var outfit_armor := 1.0
+var outfit_bonus := {}
+
+
+## Change the whole body (outfit). Keeps the weapon in hand, riding pose and signal hookups.
+func set_body(p: Dictionary) -> void:
+	var old := _rig
+	var react := old.react if old != null else ""
+	var rk := old.ride_k if old != null else 0.0
+	_rig = RealHuman.new().setup(p, "Explorer")
+	_model.add_child(_rig)
+	_rig.attack_hit.connect(_on_attack_hit)
+	_rig.move_hit.connect(_on_move_hit)
+	_rig.set_weapon(weapon)
+	if react != "":
+		_rig.set_react(react)
+	_rig.ride_k = rk
+	if old != null:
+		old.queue_free()
+
+
 ## X27: 0 keeps the default clothes; 1-6 dress the explorer in a chosen colour with a gold trim.
 func set_outfit(i: int) -> int:
 	outfit = i
@@ -671,7 +693,7 @@ func take_damage(amount: float, from: Vector3) -> void:
 		return
 	if power.has("shield"):
 		amount *= 0.2
-	amount *= GameSettings.damage_scale() * armor_mult
+	amount *= GameSettings.damage_scale() * armor_mult * outfit_armor
 	if blocking and _block_t < 0.25:
 		# S2: a block raised just before the hit is a parry: no damage, the attacker is staggered
 		parries += 1

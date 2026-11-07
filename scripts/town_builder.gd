@@ -271,6 +271,11 @@ func _trade(kind: String, cost: int) -> void:
 	if player.wanted_t > 0.0:
 		player.say("The stallholder spits: 'Not to a ruffian who beats villagers! Move along.'")
 		return
+	if kind == "cloth":
+		var wr := get_tree().get_first_node_in_group("wardrobe")
+		if wr != null:
+			wr.call("open_shop", "bazaar")
+			return
 	if kind == "leather":
 		var meat := int(story.get_flag("meat", 0))
 		var hides := int(story.get_flag("hides", 0))

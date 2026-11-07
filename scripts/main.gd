@@ -38,6 +38,7 @@ var festival: Festival
 var bounty: BountyBoard
 var monsters: MonsterMissions
 var progression: Progression
+var wardrobe: Wardrobe
 var lock_marker: LockMarker
 var diag: Diag
 var minigames: MiniGames
@@ -135,6 +136,8 @@ func _ready() -> void:
 			_run_capture_fight.call_deferred(a.trim_prefix("--capture-fight="))
 		elif a.begins_with("--capture-lab="):
 			_run_capture_lab.call_deferred(a.trim_prefix("--capture-lab="))
+		elif a.begins_with("--capture-outfits="):
+			_run_capture_outfits.call_deferred(a.trim_prefix("--capture-outfits="))
 		elif a.begins_with("--capture-hero="):
 			_run_capture_hero.call_deferred(a.trim_prefix("--capture-hero="))
 		elif a.begins_with("--capture-fur="):
@@ -1008,6 +1011,9 @@ func _build_story() -> void:
 	bounty.shop = farm.shop
 	add_child(bounty)
 	bounty.build()
+	wardrobe = Wardrobe.new()
+	add_child(wardrobe)
+	wardrobe.setup(story, player, hud)
 	progression = Progression.new()
 	add_child(progression)
 	progression.setup(story, player, hud)
@@ -1069,6 +1075,7 @@ func _on_title_chosen(continue_game: bool) -> void:
 		coin_sys.reload()
 	else:
 		story_b.intro.call_deferred()
+	wardrobe.wear(wardrobe.worn())
 	progression.apply()
 	progression.check_login.call_deferred()
 
@@ -2517,6 +2524,33 @@ func _selftest_progression(fails: PackedStringArray) -> void:
 			await get_tree().physics_frame
 		if int(story.get_flag("raids_won", 0)) < 1:
 			fails.append("progression: night raid could not be won")
+	# wardrobe: buy, wear (armour + bonus), try-on reverts, dye, supplies
+	story.flags["coins"] = int(story.get_flag("coins", 0)) + 3000
+	var c1 := int(story.get_flag("coins", 0))
+	wardrobe.open_shop("dhoop")
+	wardrobe.close()
+	if not wardrobe.buy("rajput") or wardrobe.worn() != "rajput" or absf(player.outfit_armor - 0.8) > 0.001 or int(story.get_flag("coins", 0)) != c1 - 350:
+		fails.append("wardrobe: buying the Rajput set failed (worn %s, armour %.2f)" % [wardrobe.worn(), player.outfit_armor])
+	var rig0 := player._rig
+	wardrobe.open_shop("dhoop")
+	wardrobe._tried = true
+	wardrobe.wear("knight", false)
+	wardrobe.close()
+	if wardrobe.worn() != "rajput" or absf(player.outfit_armor - 0.8) > 0.001:
+		fails.append("wardrobe: try-on did not revert")
+	await get_tree().process_frame
+	if not is_instance_valid(player._rig) or player._rig == rig0 or player._rig._skins.is_empty():
+		fails.append("wardrobe: body swap left no working rig")
+	wardrobe.buy("ghost_hunter")
+	if absf(player.ghost_mult - (1.0 + 0.2 * progression.rank("spirit_bane")) * 1.2) > 0.01:
+		fails.append("wardrobe: Ghost Hunter bonus not applied (%.2f)" % player.ghost_mult)
+	var c2 := int(story.get_flag("coins", 0))
+	if not wardrobe.dye(Color(0.1, 0.5, 0.3)) or int(story.get_flag("coins", 0)) != c2 - Wardrobe.DYE_PRICE:
+		fails.append("wardrobe: dye failed")
+	var pots := items.count("potion")
+	if not wardrobe.buy_supply("potion", 40) or items.count("potion") != pots + 1:
+		fails.append("wardrobe: supplies failed")
+	print("[selftest] wardrobe: wearing %s, armour %.2f, ghost x%.2f, %d outfits" % [wardrobe.worn(), player.outfit_armor, player.ghost_mult, Wardrobe.OUTFITS.size()])
 	print("[selftest] progression: level %d, points %d, streak %d, dailies %s, raids won %d" % [pg.level(), pg.points(), pg.streak(), [ds[0][1], ds[1][1], ds[2][1]], int(story.get_flag("raids_won", 0))])
 
 
@@ -3132,6 +3166,32 @@ func _run_capture_ride(arg: String) -> void:
 			await RenderingServer.frame_post_draw
 			print("[capture] ", an.species, view[0], " -> ", get_viewport().get_texture().get_image().save_png("%s/%s_%s.png" % [dir, an.species, view[0]]))
 		mounts.dismount()
+	get_tree().quit()
+
+
+func _run_capture_outfits(dir: String) -> void:
+	DirAccess.make_dir_recursive_absolute(dir)
+	touch.visible = false
+	hud.visible = false
+	atmosphere.time_of_day = 0.4
+	atmosphere.apply_time()
+	_teleport(-60.0, 20.0)
+	for i in 20:
+		await get_tree().physics_frame
+	for o in Wardrobe.OUTFITS:
+		wardrobe.wear(String(o["id"]), false)
+		player._model.rotation.y = 0.0
+		player.set_look(PI, -0.12)
+		player.set_distance(2.6)
+		for i in 30:
+			await get_tree().process_frame
+		await RenderingServer.frame_post_draw
+		get_viewport().get_texture().get_image().save_png("%s/o_%s.png" % [dir, String(o["id"])])
+	wardrobe.open_shop("dhoop")
+	for i in 10:
+		await get_tree().process_frame
+	await RenderingServer.frame_post_draw
+	get_viewport().get_texture().get_image().save_png("%s/shop.png" % dir)
 	get_tree().quit()
 
 
