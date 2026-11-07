@@ -150,7 +150,7 @@ static func _mi(mesh: Mesh, mat: Material, parent: Node3D, at := Vector3.ZERO) -
 ## Cusped (multifoil) arch outline: a pointed arch with `lobes` scallops cut into it.
 static func cusped_arch(half_w: float, spring_y: float, apex_y: float, lobes := 5, depth := 0.035) -> PackedVector2Array:
 	var pts := PackedVector2Array()
-	var steps := 40
+	var steps := 96
 	for s in range(steps + 1):
 		var t := float(s) / steps
 		# Pointed arch: two circular arcs meeting at the apex.
@@ -189,7 +189,7 @@ func build_chhatri(parent: Node3D, radius := 0.55) -> void:
 	var column := lathe(smooth_profile(PackedVector2Array([
 		Vector2(0, 0), Vector2(0.075, 0), Vector2(0.075, 0.03), Vector2(0.06, 0.05), Vector2(0.07, 0.1),     # base
 		Vector2(0.05, 0.16), Vector2(0.04, 0.22), Vector2(0.036, col_h * 0.55), Vector2(0.04, col_h * 0.8),   # shaft
-		Vector2(0.055, col_h * 0.88), Vector2(0.07, col_h * 0.95), Vector2(0.06, col_h), Vector2(0, col_h)]), 3), 12)
+		Vector2(0.055, col_h * 0.88), Vector2(0.07, col_h * 0.95), Vector2(0.06, col_h), Vector2(0, col_h)]), 6), 32)
 	var corner_angle := func(i: int) -> float: return phase + TAU * i / SIDES   # matches the plinth corners
 	for i in range(SIDES):
 		var a: float = corner_angle.call(i)
@@ -240,7 +240,7 @@ func build_chhatri(parent: Node3D, radius := 0.55) -> void:
 	_mi(lathe(PackedVector2Array([Vector2(R * 1.27, top - 0.075), Vector2(R * 1.3, top - 0.075), Vector2(R * 1.3, top - 0.055), Vector2(R * 1.27, top - 0.055)]), SIDES, flat, phase), gold, parent)
 	# Corner pinnacles (guldastas) on the eave.
 	var pinnacle := lathe(smooth_profile(PackedVector2Array([Vector2(0.04, 0), Vector2(0.03, 0.06), Vector2(0.045, 0.1),
-		Vector2(0.02, 0.17), Vector2(0.008, 0.22), Vector2(0, 0.24)]), 3), 8)
+		Vector2(0.02, 0.17), Vector2(0.008, 0.22), Vector2(0, 0.24)]), 5), 24)
 	for i in range(SIDES):
 		var a: float = corner_angle.call(i)
 		_mi(pinnacle, gold, parent, Vector3(cos(a) * R * 1.0, top + 0.1, sin(a) * R * 1.0))
@@ -257,13 +257,13 @@ func build_chhatri(parent: Node3D, radius := 0.55) -> void:
 	var dome_profile := PackedVector2Array()
 	for p in smooth_profile(ctrl, 5):
 		dome_profile.append(Vector2(p.x * dr, dome_y + p.y * dome_h))
-	_mi(lathe(dome_profile, 32), marble, parent)
+	_mi(lathe(dome_profile, 96), marble, parent)
 	# Lotus petals around the dome's base.
 	var petal := SphereMesh.new()
 	petal.radius = 0.5
 	petal.height = 1.0
-	petal.radial_segments = 10
-	petal.rings = 6
+	petal.radial_segments = 24
+	petal.rings = 12
 	for i in range(16):
 		var a := TAU * i / 16.0
 		var holder := Node3D.new()
@@ -275,9 +275,9 @@ func build_chhatri(parent: Node3D, radius := 0.55) -> void:
 		pm.rotation.z = -0.5
 	# Inverted lotus crown and the kalash finial.
 	var crown_y := dome_y + dome_h * 0.94
-	_mi(lathe(smooth_profile(PackedVector2Array([Vector2(0.0, 0.0), Vector2(0.09, 0.0), Vector2(0.12, 0.03), Vector2(0.05, 0.07), Vector2(0, 0.08)]), 3), 16), gold, parent, Vector3(0, crown_y, 0))
+	_mi(lathe(smooth_profile(PackedVector2Array([Vector2(0.0, 0.0), Vector2(0.09, 0.0), Vector2(0.12, 0.03), Vector2(0.05, 0.07), Vector2(0, 0.08)]), 6), 48), gold, parent, Vector3(0, crown_y, 0))
 	_mi(lathe(smooth_profile(PackedVector2Array([Vector2(0.015, 0.0), Vector2(0.05, 0.02), Vector2(0.065, 0.06), Vector2(0.03, 0.1),
-		Vector2(0.045, 0.13), Vector2(0.02, 0.16), Vector2(0.012, 0.28), Vector2(0, 0.32)]), 3), 16), gold, parent, Vector3(0, crown_y + 0.07, 0))
+		Vector2(0.045, 0.13), Vector2(0.02, 0.16), Vector2(0.012, 0.28), Vector2(0, 0.32)]), 6), 48), gold, parent, Vector3(0, crown_y + 0.07, 0))
 	_mi(_gem_mesh(0.03), gem, parent, Vector3(0, crown_y + 0.18, 0))
 
 
@@ -294,6 +294,6 @@ func _gem_mesh(r := 0.022) -> SphereMesh:
 	var s := SphereMesh.new()
 	s.radius = r
 	s.height = r * 2.0
-	s.radial_segments = 12
-	s.rings = 6
+	s.radial_segments = 24
+	s.rings = 12
 	return s

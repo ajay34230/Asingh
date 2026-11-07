@@ -361,12 +361,12 @@ func _box(at: Vector3, size: Vector3, mat: Material, parent: Node3D = self) -> M
 	return _mesh(box, at, mat, parent)
 
 
-func _cyl(at: Vector3, radius: float, height: float, mat: Material, parent: Node3D = self, sides := 32, top_radius := -1.0) -> MeshInstance3D:
+func _cyl(at: Vector3, radius: float, height: float, mat: Material, parent: Node3D = self, sides := 64, top_radius := -1.0) -> MeshInstance3D:
 	var c := CylinderMesh.new()
 	c.top_radius = radius if top_radius < 0.0 else top_radius
 	c.bottom_radius = radius
 	c.height = height
-	c.radial_segments = sides
+	c.radial_segments = maxi(sides * 2, 48)   ## smooth silhouettes even in close-ups
 	c.rings = 1
 	return _mesh(c, at, mat, parent)
 
@@ -375,8 +375,8 @@ func _sphere(at: Vector3, radius: float, mat: Material, parent: Node3D = self, s
 	var s := SphereMesh.new()
 	s.radius = radius
 	s.height = radius * 2.0
-	s.radial_segments = 24
-	s.rings = 12
+	s.radial_segments = 48
+	s.rings = 24
 	var m := _mesh(s, at, mat, parent)
 	m.scale = Vector3(1, squash, 1)
 	return m
@@ -430,8 +430,8 @@ func _build_frame() -> void:
 	var bead := SphereMesh.new()
 	bead.radius = 0.055
 	bead.height = 0.11
-	bead.radial_segments = 12
-	bead.rings = 6
+	bead.radial_segments = 20
+	bead.rings = 10
 	var beads: Array[Transform3D] = []
 	var r := (play.x * 0.5 + outer.x * 0.5 - 0.14) * 0.5
 	var steps := 34
@@ -588,8 +588,8 @@ func _build_markers() -> void:
 		var ring := TorusMesh.new()
 		ring.inner_radius = 0.26
 		ring.outer_radius = 0.33
-		ring.rings = 32
-		ring.ring_segments = 8
+		ring.rings = 64
+		ring.ring_segments = 16
 		var tm := _mesh(ring, Vector3(s.x, TILE_TOP + 0.01, s.z), _gold)
 		tm.scale = Vector3(1, 0.35, 1)
 

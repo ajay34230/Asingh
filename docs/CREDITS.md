@@ -44,3 +44,13 @@ roughness maps from its scanned roughness pattern.
 | jacquard | Poly Haven | quatrefoil_jacquard_fabric |
 | cherry_wood | Poly Haven | lacquered_cherry_wood |
 | sky/evening_courtyard_1k.hdr | Poly Haven | evening_museum_courtyard (HDRI) |
+
+## Plants (photo-scanned 3D models, CC0 1.0)
+
+Poly Haven: pachira_aquatica_01, potted_plant_02, anthurium_botany_01, periwinkle_plant,
+flower_gazania, shrub_02 (`godot/assets/models/07_Plants/`). Foliage uses a custom wind shader.
+
+## Fonts
+
+Cinzel and Cinzel Decorative, The Cinzel Project Authors, SIL Open Font License 1.1
+(`godot/assets/fonts/OFL.txt`).

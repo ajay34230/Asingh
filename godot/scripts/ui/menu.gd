@@ -71,7 +71,7 @@ func _ready() -> void:
 	_fit_to_viewport()
 	get_viewport().size_changed.connect(_fit_to_viewport)
 	var shade := ColorRect.new()
-	shade.color = Color(0.1, 0.03, 0.02, 0.28)
+	shade.color = Color(0.06, 0.01, 0.01, 0.5)
 	shade.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	add_child(shade)
 	_add_petals()
@@ -198,7 +198,12 @@ func _build_main() -> void:
 	var title := Label.new()
 	title.text = "Royal India Ludo"
 	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	title.add_theme_font_size_override("font_size", 60)
+	var deco := FontVariation.new()
+	deco.base_font = load("res://assets/fonts/CinzelDecorative-Bold.ttf")
+	title.add_theme_font_override("font", deco)
+	title.add_theme_font_size_override("font_size", 64)
+	title.add_theme_color_override("font_shadow_color", Color(0, 0, 0, 0.8))
+	title.add_theme_constant_override("shadow_offset_y", 5)
 	title.add_theme_color_override("font_color", RoyalTheme.GOLD_LIGHT)
 	title.add_theme_constant_override("outline_size", 14)
 	box.add_child(title)

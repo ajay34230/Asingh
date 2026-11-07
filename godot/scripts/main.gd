@@ -56,6 +56,9 @@ func _ready() -> void:
 	board.name = "Board"
 	add_child(board)
 	_place_decorations()
+	var garden := Garden.new()
+	garden.name = "Garden"
+	add_child(garden)
 	_build_camera()
 	var dice := _build_dice()
 
@@ -613,12 +616,20 @@ func _build_environment() -> void:
 	sun.light_color = theme["sun"]
 	sun.rotation_degrees = Vector3(-58, -32, 0)
 	sun.shadow_enabled = true
-	sun.shadow_blur = 1.5
-	sun.directional_shadow_max_distance = 80.0
+	## Late-afternoon sun: lower and warmer, so domes, trees and tokens cast long, soft
+	## shadows that show their shape. Four cascades keep near shadows sharp.
+	sun.rotation_degrees = Vector3(-42, -38, 0)
+	sun.light_color = (theme["sun"] as Color).lerp(Color("#ffc98a"), 0.35)
+	sun.shadow_blur = 2.0
+	sun.directional_shadow_mode = DirectionalLight3D.SHADOW_PARALLEL_4_SPLITS
+	sun.directional_shadow_max_distance = 60.0
+	sun.shadow_bias = 0.03
+	sun.shadow_normal_bias = 1.2
+	sun.light_angular_distance = 1.5   ## soft penumbra like a real sun disc
 	add_child(sun)
 	## Cool fill from the opposite side, so shadows are not black.
 	var fill := DirectionalLight3D.new()
-	fill.light_energy = theme["fill_energy"]
+	fill.light_energy = float(theme["fill_energy"]) * 1.3   ## cool sky fill opens the shadows
 	fill.light_color = theme["fill"]
 	fill.rotation_degrees = Vector3(-40, 150, 0)
 	add_child(fill)
