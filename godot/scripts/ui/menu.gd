@@ -63,6 +63,7 @@ var _voice: CheckButton
 var _mode := "ai"
 var _audio: AudioManager
 var _overlay := false
+var _panels := {}
 
 
 func _ready() -> void:
@@ -112,6 +113,15 @@ func show_page(name: String) -> void:
 	_page = name
 	for key in _pages:
 		(_pages[key] as Control).visible = key == name
+	if _panels.has(name) and is_inside_tree():
+		var panel: Control = _panels[name]
+		await get_tree().process_frame   # sizes are ready one frame after showing
+		UiFx.pop_in(panel)
+		var buttons: Array = []
+		for c in panel.get_child(0).get_children():
+			if c is Button:
+				buttons.append(c)
+		UiFx.cascade(buttons)
 
 
 func _page_root(name: String) -> VBoxContainer:
@@ -125,6 +135,8 @@ func _page_root(name: String) -> VBoxContainer:
 	var box := VBoxContainer.new()
 	box.add_theme_constant_override("separation", 10)
 	panel.add_child(box)
+	UiFx.ornaments(panel)
+	_panels[name] = panel
 	_pages[name] = center
 	center.visible = false
 	return box
@@ -150,6 +162,7 @@ func _button(box: VBoxContainer, text: String, callback: Callable, enabled := tr
 			_audio.play("ui_click", 0.03))
 	b.pressed.connect(callback)
 	box.add_child(b)
+	UiFx.button(b)
 	return b
 
 

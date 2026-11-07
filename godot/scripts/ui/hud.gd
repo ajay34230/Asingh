@@ -103,6 +103,7 @@ func _button(parent: Control, text: String, size: Vector2, pos: Vector2) -> Butt
 	b.position = pos
 	b.pressed.connect(func() -> void: button_sound.emit())
 	parent.add_child(b)
+	UiFx.button(b)
 	return b
 
 
@@ -114,6 +115,7 @@ func _panel(parent: Control) -> Dictionary:
 	var box := VBoxContainer.new()
 	box.add_theme_constant_override("separation", 8)
 	p.add_child(box)
+	UiFx.ornaments(p)
 	return {"panel": p, "box": box}
 
 
@@ -162,6 +164,7 @@ func _menu_button(box: VBoxContainer, text: String, callback: Callable) -> void:
 	b.pressed.connect(func() -> void: button_sound.emit())
 	b.pressed.connect(callback)
 	box.add_child(b)
+	UiFx.button(b)
 
 
 func open_pause() -> void:
@@ -169,6 +172,7 @@ func open_pause() -> void:
 		return
 	_pause_panel.visible = true
 	get_tree().paused = true
+	UiFx.pop_in(_pause_panel)
 
 
 func close_pause() -> void:
@@ -208,6 +212,7 @@ func show_result(ranking: Array) -> void:
 		lines.append("%d. %s" % [entry["place"], who])
 	_result_list.text = "\n".join(lines)
 	_result.visible = true
+	UiFx.pop_in(_result)
 
 
 func hide_result() -> void:
