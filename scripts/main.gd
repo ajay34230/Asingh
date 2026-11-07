@@ -2495,7 +2495,7 @@ func _selftest_progression(fails: PackedStringArray) -> void:
 	if not bool(story.get_flag("dc_chest", false)):
 		fails.append("progression: no bonus chest after all three dailies")
 	# login streak: yesterday -> day 2; a gap -> back to day 1
-	var y := Time.get_date_string_from_unix_time(int(Time.get_unix_time_from_system()) - 86400)
+	var y := Time.get_date_string_from_unix_time((Progression._day_number(Progression.today()) - 1) * 86400 + 43200)   # local yesterday
 	story.flags["ls_last"] = y
 	story.flags["ls_count"] = 1
 	pg.check_login()
@@ -3187,6 +3187,11 @@ func _run_capture_outfits(dir: String) -> void:
 			await get_tree().process_frame
 		await RenderingServer.frame_post_draw
 		get_viewport().get_texture().get_image().save_png("%s/o_%s.png" % [dir, String(o["id"])])
+		player.set_look(PI * 0.25, -0.12)          # three-quarter view from behind: capes, sashes
+		for i in 20:
+			await get_tree().process_frame
+		await RenderingServer.frame_post_draw
+		get_viewport().get_texture().get_image().save_png("%s/b_%s.png" % [dir, String(o["id"])])
 	wardrobe.open_shop("dhoop")
 	for i in 10:
 		await get_tree().process_frame

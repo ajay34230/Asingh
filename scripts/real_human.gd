@@ -375,45 +375,74 @@ static func _norm_model(path: String, width: float) -> Node3D:
 ## Put on a helmet ("helmet") or shoulder pads ("pads") from a model file. The piece is placed upright over
 ## the head (or across the shoulders) using the skeleton's rest pose, then follows the bone as it moves.
 func add_gear(file: String, kind: String) -> void:
+	var width := 0.27 if kind == "helmet" else 0.5
+	var piece := _norm_model("res://assets/outfits/%s.glb" % file, width)
+	if piece != null:
+		add_gear_node(piece, kind)
+
+
+## Attach any built piece: "helmet" / "turban" (head), "pads" / "cape" (shoulders), "sash" (waist).
+var _cape_mats: Array[ShaderMaterial] = []
+
+
+func add_gear_node(piece: Node3D, kind: String) -> void:
 	if _skins.is_empty():
 		return
-	var key := "head" if kind == "helmet" else "chest"
+	var key := "head" if kind in ["helmet", "turban"] else ("spine" if kind == "sash" else "chest")
 	var bi: int = _bone_idx[0][key]
 	if bi < 0:
 		return
 	var sk: Skeleton3D = _skins[0]
-	var width := 0.27 if kind == "helmet" else 0.5
-	var piece := _norm_model("res://assets/outfits/%s.glb" % file, width)
-	if piece == null:
-		return
 	var att := BoneAttachment3D.new()
 	att.bone_name = sk.get_bone_name(bi)
 	sk.add_child(att)
 	att.add_child(piece)
 	_gear.append(att)
+	if kind == "cape":
+		for mi in piece.find_children("*", "MeshInstance3D", true, false):
+			var cm := (mi as MeshInstance3D).material_override as ShaderMaterial
+			if cm != null:
+				_cape_mats.append(cm)
 	_place_gear(att, piece, kind)
 
 
 func _place_gear(att: BoneAttachment3D, piece: Node3D, kind: String) -> void:
 	if not is_inside_tree():
 		await ready
+	if not is_instance_valid(att):
+		return
 	var sk := att.get_parent() as Skeleton3D
 	var bi := sk.find_bone(att.bone_name)
 	var bone_rest := sk.global_transform * sk.get_bone_global_rest(bi)
 	var up := global_transform.basis.y.normalized()
+	var back := global_transform.basis.z.normalized()          # people face -Z: +Z is behind them
 	var k := global_transform.basis.get_scale().y            # NPC size variants
 	var where := bone_rest.origin
 	var grow := 1.0
-	if kind == "helmet":
-		where += up * 0.12 * k
-	else:
-		var l: int = _bone_idx[0]["sh_L"]
-		var r: int = _bone_idx[0]["sh_R"]
-		if l >= 0 and r >= 0:
-			var pl := (sk.global_transform * sk.get_bone_global_rest(l)).origin
-			var pr := (sk.global_transform * sk.get_bone_global_rest(r)).origin
-			where = (pl + pr) * 0.5 + up * 0.03 * k
-			grow = clampf(pl.distance_to(pr) * 1.45 / (0.5 * k), 0.7, 1.6)
+	var l: int = _bone_idx[0]["sh_L"]
+	var r: int = _bone_idx[0]["sh_R"]
+	var pl := Vector3.ZERO
+	var pr := Vector3.ZERO
+	if l >= 0 and r >= 0:
+		pl = (sk.global_transform * sk.get_bone_global_rest(l)).origin
+		pr = (sk.global_transform * sk.get_bone_global_rest(r)).origin
+	match kind:
+		"helmet":
+			where += up * 0.12 * k
+		"turban":
+			where += up * 0.15 * k
+		"sash":
+			where += up * 0.0 * k
+			if l >= 0:
+				grow = clampf(pl.distance_to(pr) / (0.36 * k), 0.8, 1.5)
+		"pads":
+			if l >= 0:
+				where = (pl + pr) * 0.5 + up * 0.03 * k
+				grow = clampf(pl.distance_to(pr) * 1.45 / (0.5 * k), 0.7, 1.6)
+		"cape":
+			if l >= 0:
+				where = (pl + pr) * 0.5 + up * 0.04 * k + back * 0.13 * k
+				grow = clampf(pl.distance_to(pr) / (0.36 * k), 0.8, 1.5)
 	var want := Transform3D(global_transform.basis.orthonormalized().scaled(Vector3.ONE * k * grow), where)
 	piece.transform = bone_rest.affine_inverse() * want
 
@@ -423,6 +452,7 @@ func clear_gear() -> void:
 		if is_instance_valid(g):
 			g.queue_free()
 	_gear.clear()
+	_cape_mats.clear()
 
 
 ## Hand props hang off a bone. Some rigs carry a 100x scale in their bones, which used to blow brooms and
@@ -517,6 +547,8 @@ func animate(delta: float, speed: float, grounded: bool) -> void:
 	var striking := move != "" and move != "roll" and move != "lift"
 	fist_target = 1.0 if (guard or striking or react == "block") else 0.3
 	fist = move_toward(fist, fist_target, delta * 7.0)
+	for cm in _cape_mats:
+		cm.set_shader_parameter("swing", clampf(_speed_smooth / 7.0, 0.0, 1.0) + 0.6 * clampf(-air_vy / 8.0, 0.0, 1.0))
 	_speed_smooth = lerpf(_speed_smooth, speed, 1.0 - exp(-10.0 * delta))
 	_air = lerpf(_air, 0.0 if grounded else 1.0, 1.0 - exp(-14.0 * delta))
 	match mode:

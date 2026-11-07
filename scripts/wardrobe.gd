@@ -11,27 +11,32 @@ const OUTFITS := [
 	{"id": "explorer", "name": "Explorer's Mail", "shop": "", "price": 0, "body": {"body": "striker_mail", "robe": true, "scale": 0.99},
 	 "dye": [Color(0.7, 0.2, 0.12), Color(0.35, 0.22, 0.12)], "armor": 1.0, "bonus": {}, "desc": "Your trusty travelling mail."},
 	{"id": "kurta", "name": "Village Kurta", "shop": "bazaar", "price": 60, "body": {"body": "m_Farmer", "scale": 1.0},
-	 "dye": [Color(0.95, 0.93, 0.86), Color(0.95, 0.55, 0.12)], "armor": 1.0, "bonus": {"run": 0.05}, "desc": "Light cotton. Run 5% faster."},
+	 "dye": [Color(0.95, 0.93, 0.86), Color(0.95, 0.55, 0.12)], "turban": [Color(0.95, 0.55, 0.1), Color(0.85, 0.2, 0.15)],
+	 "sash": Color(0.15, 0.45, 0.25), "armor": 1.0, "bonus": {"run": 0.05}, "desc": "White cotton kurta, saffron safa. Run 5% faster."},
 	{"id": "adventurer", "name": "Adventurer's Gear", "shop": "bazaar", "price": 120, "body": {"body": "m_Adventurer", "scale": 1.0, "natural": true},
 	 "armor": 0.95, "bonus": {"regen": 0.1}, "desc": "Leather straps and a good pack. 5% armour, stamina +10%."},
 	{"id": "maharaja", "name": "Maharaja's Robes", "shop": "bazaar", "price": 1000, "body": {"body": "m_King", "scale": 1.0, "natural": true},
-	 "armor": 0.9, "bonus": {"xp": 0.15}, "desc": "Silk and gold. 10% armour, +15% XP."},
+	 "sash": Color(0.95, 0.76, 0.25), "cape": [Color(0.5, 0.05, 0.1), Color(0.95, 0.78, 0.25), 1.2],
+	 "armor": 0.9, "bonus": {"xp": 0.15}, "desc": "Silk, gold and a royal cape. 10% armour, +15% XP."},
 	{"id": "shadow", "name": "Shadow Garb", "shop": "sarai", "price": 220, "body": {"body": "thief", "robe": true, "scale": 1.0},
-	 "dye": [Color(0.1, 0.1, 0.12), Color(0.6, 0.62, 0.68)], "armor": 0.92, "bonus": {"run": 0.08}, "desc": "Dark and quiet. 8% armour, run 8% faster."},
+	 "dye": [Color(0.1, 0.1, 0.12), Color(0.6, 0.62, 0.68)], "sash": Color(0.3, 0.3, 0.34), "armor": 0.92, "bonus": {"run": 0.08}, "desc": "Dark and quiet. 8% armour, run 8% faster."},
 	{"id": "ghost_hunter", "name": "Ghost Hunter Set", "shop": "sarai", "price": 480, "body": {"body": "thief", "robe": true, "scale": 1.0},
-	 "dye": [Color(0.16, 0.18, 0.24), Color(0.55, 0.8, 0.95)], "helmet": "Helmet2", "pads": true, "armor": 0.8,
+	 "dye": [Color(0.16, 0.18, 0.24), Color(0.55, 0.8, 0.95)], "helmet": "Helmet2", "pads": true, "cape": [Color(0.14, 0.16, 0.22), Color(0.55, 0.8, 0.95), 0.8], "armor": 0.8,
 	 "bonus": {"ghost": 0.2, "arrow": 0.1}, "desc": "Silvered trims. 20% armour, +20% vs ghosts, +10% arrows."},
 	{"id": "rajput", "name": "Rajput Warrior", "shop": "dhoop", "price": 350, "body": {"body": "veteran", "robe": true, "scale": 1.0},
-	 "dye": [Color(0.92, 0.5, 0.1), Color(0.6, 0.08, 0.08)], "helmet": "Helmet1", "pads": true, "armor": 0.8,
-	 "bonus": {"melee": 0.05}, "desc": "Saffron and steel. 20% armour, +5% melee."},
+	 "dye": [Color(0.92, 0.5, 0.1), Color(0.6, 0.08, 0.08)], "turban": [Color(0.93, 0.45, 0.08), Color(0.95, 0.78, 0.25)],
+	 "sash": Color(0.65, 0.08, 0.1), "pads": true, "armor": 0.8,
+	 "bonus": {"melee": 0.05}, "desc": "Saffron angrakha, safa and sash, steel pauldrons. 20% armour, +5% melee."},
 	{"id": "royal_guard", "name": "Royal Guard Uniform", "shop": "dhoop", "price": 450, "body": {"body": "striker_mail", "robe": true, "scale": 1.0},
-	 "dye": [Color(0.1, 0.18, 0.6), Color(0.06, 0.1, 0.32)], "helmet": "Helmet2", "pads": true, "armor": 0.75,
+	 "dye": [Color(0.1, 0.18, 0.6), Color(0.06, 0.1, 0.32)], "helmet": "Helmet2", "pads": true,
+	 "cape": [Color(0.1, 0.16, 0.55), Color(0.95, 0.78, 0.25), 1.05], "sash": Color(0.95, 0.76, 0.25), "armor": 0.75,
 	 "bonus": {}, "desc": "Blue and gold of the palace guard. 25% armour."},
 	{"id": "warlord", "name": "Brute Warlord", "shop": "dhoop", "price": 650, "body": {"body": "brute", "robe": true, "scale": 1.0},
-	 "dye": [Color(0.4, 0.05, 0.05), Color(0.7, 0.5, 0.25)], "helmet": "Helmet1", "pads": true, "armor": 0.72,
+	 "dye": [Color(0.4, 0.05, 0.05), Color(0.7, 0.5, 0.25)], "helmet": "Helmet1", "pads": true,
+	 "cape": [Color(0.25, 0.04, 0.03), Color(0.55, 0.4, 0.2), 0.85], "armor": 0.72,
 	 "bonus": {"melee": 0.1}, "desc": "Heavy hide and iron. 28% armour, +10% melee."},
 	{"id": "knight", "name": "Knight of Veyra", "shop": "dhoop", "price": 800, "body": {"body": "knight", "scale": 1.0, "natural": true},
-	 "helmet": "Helmet3", "armor": 0.62, "bonus": {"run": -0.04}, "desc": "Full plate. 38% armour, but 4% slower."},
+	 "helmet": "Helmet3", "cape": [Color(0.6, 0.05, 0.08), Color(0.95, 0.78, 0.25), 1.1], "armor": 0.62, "bonus": {"run": -0.04}, "desc": "Full plate. 38% armour, but 4% slower."},
 ]
 const DYES := [
 	["Saffron", Color(0.95, 0.55, 0.1)], ["Crimson", Color(0.75, 0.1, 0.12)], ["Royal blue", Color(0.12, 0.2, 0.62)],
@@ -131,13 +136,26 @@ func wear(id: String, keep_flag: bool = true) -> void:
 	player.set_body(o["body"])
 	var main_c: Variant = story.get_flag("dye_" + id + "_main", null)
 	var trim_c: Variant = story.get_flag("dye_" + id + "_trim", null)
+	var dye: Array = []
 	if o.has("dye") or main_c != null:
 		var d: Array = o.get("dye", [Color(0.5, 0.5, 0.5), Color(0.9, 0.75, 0.3)])
-		player._rig.recolor(_col(main_c, d[0]), _col(trim_c, d[1]))
-	if o.has("helmet") and bool(story.get_flag("show_helmet", true)):
+		dye = [_col(main_c, d[0]), _col(trim_c, d[1])]
+	# real-looking fabric, leather and metal; dyes only touch the garments
+	ClothLook.dress(player._rig, dye)
+	var main_dye: Color = dye[0] if not dye.is_empty() else Color(0.6, 0.15, 0.1)
+	var helmet_on := o.has("helmet") and bool(story.get_flag("show_helmet", true))
+	if helmet_on:
 		player._rig.add_gear(String(o["helmet"]), "helmet")
+	if o.has("turban") and not helmet_on:
+		var tc: Array = o["turban"]
+		player._rig.add_gear_node(ClothLook.turban(tc[0], tc[1]), "turban")
 	if bool(o.get("pads", false)):
 		player._rig.add_gear("ShoulderPads", "pads")
+	if o.has("sash"):
+		player._rig.add_gear_node(ClothLook.sash(o["sash"]), "sash")
+	if o.has("cape"):
+		var cc: Array = o["cape"]
+		player._rig.add_gear_node(ClothLook.cape(cc[0] if main_c == null else main_dye, cc[1], float(cc[2]) if cc.size() > 2 else 1.05), "cape")
 	player.outfit_armor = float(o["armor"])
 	player.outfit_bonus = o["bonus"]
 	if keep_flag:

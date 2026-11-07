@@ -352,3 +352,20 @@ Verified by the selftest (PASS) and software-rendered captures of all 10 outfits
 - "Try on" previews an outfit and reverts on close unless you buy it. The shop panel sits on the right and the camera turns to show you from the front.
 - Owned outfits can be worn anywhere from II > Wardrobe, with a helmet show/hide toggle.
 - Natural-colour bodies (Adventurer, Maharaja, Knight) skip the random dye.
+
+## Addendum: More realistic outfits (2026-11-08)
+
+Verified by the selftest (PASS) and software-rendered front and back captures of all 10 outfits. **Not tested on a device.**
+
+- **ClothLook garment shader** on every surface of the player's outfit.
+  - Each surface is classed as cloth, leather, metal or skin: by material name on the flat-colour bodies, and per pixel on the painted-atlas bodies (clothing block vs skin block, with grey low-saturation pixels as metal).
+  - Cloth: woven thread detail (about 4 mm), soft rim sheen, roughness 0.86. Leather: grain, semi-gloss. Metal: brushed and metallic. Skin: natural with a warm backlight.
+  - The detail fades with screen footprint so it never shimmers.
+  - Dyes now recolour only garments while keeping the painted folds. This fixes the red or orange faces the old whole-texture tint gave.
+  - Bodies use the smooth-normal meshes.
+- **Accessories.**
+  - Saffron safa turbans with a gold band, jewel and plume (Kurta, Rajput).
+  - Kamarband waist sashes (Kurta, Shadow, Rajput, Royal Guard, Maharaja).
+  - Capes on Maharaja, Royal Guard, Ghost Hunter, Warlord and Knight. They are gathered at the shoulders, wrap round the body and hang in folds shaded from screen-space normals. They lift and stream behind when running or falling (swing from the rig's speed).
+- The Rajput set now wears a turban instead of a helmet. Helmets still hide or show with the toggle, and the turban appears when the helmet is hidden.
+- Selftest fix: the login-streak test now computes "yesterday" from the local date, not UTC.
