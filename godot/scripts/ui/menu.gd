@@ -72,7 +72,7 @@ func _ready() -> void:
 	_fit_to_viewport()
 	get_viewport().size_changed.connect(_fit_to_viewport)
 	var shade := ColorRect.new()
-	shade.color = Color(0.06, 0.01, 0.01, 0.5)
+	shade.color = Color(0.06, 0.01, 0.01, 0.35)
 	shade.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	add_child(shade)
 	_add_petals()
@@ -122,6 +122,12 @@ func show_page(name: String) -> void:
 			if c is Button:
 				buttons.append(c)
 		UiFx.cascade(buttons)
+		if name == "main" and _logo:
+			_logo.modulate.a = 0.0
+			_logo.position.x -= 60.0
+			var t := _logo.create_tween().set_parallel(true)
+			t.tween_property(_logo, "modulate:a", 1.0, 0.6)
+			t.tween_property(_logo, "position:x", _logo.position.x + 60.0, 0.7).set_trans(Tween.TRANS_QUART).set_ease(Tween.EASE_OUT)
 
 
 func _page_root(name: String) -> VBoxContainer:
@@ -206,32 +212,125 @@ func _slider(box: VBoxContainer, label: String, lo: float, hi: float, value: flo
 	return s
 
 
+const LOGO_SHADER := """
+shader_type canvas_item;
+// Gold leaf: a vertical gradient with a bright band near the top, plus a shimmer
+// sweeping across. Only the light fill is coloured; the dark outline is kept.
+uniform vec4 deep : source_color = vec4(0.78, 0.5, 0.14, 1.0);
+uniform vec4 mid : source_color = vec4(0.95, 0.76, 0.32, 1.0);
+uniform vec4 bright : source_color = vec4(1.0, 0.96, 0.78, 1.0);
+uniform float top = 0.0;
+uniform float height = 100.0;
+void fragment() {
+	vec4 c = COLOR;
+	float lum = dot(c.rgb, vec3(0.33));
+	float y = clamp((SCREEN_UV.y - top) / height, 0.0, 1.0);
+	vec3 g = y < 0.35 ? mix(bright.rgb, mid.rgb, y / 0.35) : mix(mid.rgb, deep.rgb, (y - 0.35) / 0.65);
+	float sweep = fract(TIME * 0.18) * 3.0 - 1.0;
+	float shine = smoothstep(0.08, 0.0, abs(SCREEN_UV.x - sweep - (y - 0.5) * 0.2));
+	g = mix(g, bright.rgb, shine * 0.8);
+	COLOR = vec4(mix(c.rgb, g, step(0.45, lum)), c.a);
+}
+"""
+
+var _logo: Control
+
+
 func _build_main() -> void:
-	var box := _page_root("main")
-	var title := Label.new()
-	title.text = "Royal India Ludo"
-	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	## Title screen: logo on the left over the live 3D palace, menu column on the right.
+	var root := Control.new()
+	root.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	root.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	add_child(root)
+	_pages["main"] = root
+	root.visible = false
+
+	## Soft dark glow behind the logo so it reads over the busy board.
+	var glow := TextureRect.new()
+	var grad := GradientTexture2D.new()
+	grad.fill = GradientTexture2D.FILL_RADIAL
+	grad.fill_from = Vector2(0.5, 0.5)
+	grad.fill_to = Vector2(1.0, 0.5)
+	var g := Gradient.new()
+	g.colors = PackedColorArray([Color(0.05, 0.0, 0.01, 0.8), Color(0.05, 0.0, 0.01, 0.0)])
+	grad.gradient = g
+	glow.texture = grad
+	glow.stretch_mode = TextureRect.STRETCH_SCALE
+	glow.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	glow.anchor_left = -0.05
+	glow.anchor_right = 0.62
+	glow.anchor_top = 0.12
+	glow.anchor_bottom = 0.88
+	glow.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	root.add_child(glow)
+	var logo := VBoxContainer.new()
+	logo.set_anchors_preset(Control.PRESET_CENTER_LEFT)
+	logo.anchor_left = 0.04
+	logo.anchor_right = 0.56
+	logo.anchor_top = 0.16
+	logo.anchor_bottom = 0.84
+	logo.alignment = BoxContainer.ALIGNMENT_CENTER
+	logo.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	root.add_child(logo)
+	_logo = logo
 	var deco := FontVariation.new()
 	deco.base_font = load("res://assets/fonts/CinzelDecorative-Bold.ttf")
-	title.add_theme_font_override("font", deco)
-	title.add_theme_font_size_override("font_size", 64)
-	title.add_theme_color_override("font_shadow_color", Color(0, 0, 0, 0.8))
-	title.add_theme_constant_override("shadow_offset_y", 5)
-	title.add_theme_color_override("font_color", RoyalTheme.GOLD_LIGHT)
-	title.add_theme_constant_override("outline_size", 14)
-	box.add_child(title)
+	var shader := Shader.new()
+	shader.code = LOGO_SHADER
+	for line in [["ROYAL", 70], ["INDIA LUDO", 96]]:
+		var l := Label.new()
+		l.text = line[0]
+		l.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		l.add_theme_font_override("font", deco)
+		l.add_theme_font_size_override("font_size", line[1])
+		l.add_theme_color_override("font_color", Color.WHITE)
+		l.add_theme_color_override("font_outline_color", Color(0.22, 0.05, 0.02))
+		l.add_theme_constant_override("outline_size", 18)
+		l.add_theme_color_override("font_shadow_color", Color(0, 0, 0, 0.85))
+		l.add_theme_constant_override("shadow_offset_x", 0)
+		l.add_theme_constant_override("shadow_offset_y", 8)
+		l.add_theme_constant_override("shadow_outline_size", 22)
+		var mat := ShaderMaterial.new()
+		mat.shader = shader
+		l.material = mat
+		l.resized.connect(func() -> void:
+			var vh := get_viewport_rect().size.y
+			mat.set_shader_parameter("top", (l.global_position.y + l.size.y * 0.18) / vh)
+			mat.set_shader_parameter("height", l.size.y * 0.64 / vh))
+		logo.add_child(l)
+	var rule := HBoxContainer.new()
+	rule.alignment = BoxContainer.ALIGNMENT_CENTER
+	rule.add_theme_constant_override("separation", 14)
+	for part in ["line", "gem", "line"]:
+		var r := ColorRect.new()
+		r.color = RoyalTheme.GOLD if part == "line" else Color("#c0182c")
+		r.custom_minimum_size = Vector2(150, 3) if part == "line" else Vector2(14, 14)
+		r.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+		r.rotation = 0.0 if part == "line" else PI / 4.0
+		rule.add_child(r)
+	logo.add_child(rule)
 	var sub := Label.new()
-	sub.text = "~ the game of maharajas ~"
+	sub.text = "The Game of Maharajas"
 	sub.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	sub.add_theme_font_size_override("font_size", 22)
-	sub.add_theme_color_override("font_color", Color("#f3d9a8"))
-	box.add_child(sub)
-	var gap := Control.new()
-	gap.custom_minimum_size = Vector2(0, 8)
-	box.add_child(gap)
+	sub.add_theme_font_size_override("font_size", 30)
+	sub.add_theme_color_override("font_color", Color("#f6dfb0"))
+	logo.add_child(sub)
+
+	var panel := PanelContainer.new()
+	panel.anchor_left = 0.6
+	panel.anchor_right = 0.96
+	panel.anchor_top = 0.08
+	panel.anchor_bottom = 0.92
+	root.add_child(panel)
+	var box := VBoxContainer.new()
+	box.alignment = BoxContainer.ALIGNMENT_CENTER
+	box.add_theme_constant_override("separation", 12)
+	panel.add_child(box)
+	UiFx.ornaments(panel)
+	_panels["main"] = panel
 	_button(box, "Play vs AI", func() -> void: _open_setup("ai"))
-	_button(box, "Pass and play (2 to 4 players)", func() -> void: _open_setup("pass"))
-	_button(box, "Quick play (2 players, quick game)", func() -> void: _quick_play())
+	_button(box, "Pass and play", func() -> void: _open_setup("pass"))
+	_button(box, "Quick play", func() -> void: _quick_play())
 	_button(box, "Board themes", func() -> void: _refresh_themes(); show_page("themes"))
 	_button(box, "How to play", func() -> void: show_page("howto"))
 	_button(box, "Settings", func() -> void: _load_settings_into_controls(); show_page("settings"))
