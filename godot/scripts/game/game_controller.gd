@@ -42,7 +42,13 @@ var difficulty := 1            ## AiController.Difficulty
 var fight: FightChoreography
 var preview: MovePreview        ## set by the main scene; shows where legal moves land
 var director: CameraDirector    ## set by the main scene; frames the action
-var anim_scale := 1.0         ## 1.0 normal; >1 slower, <1 faster
+var anim_scale := 1.0
+## Turn timer for human players: when it runs out the game rolls or moves for them
+## (the best move, as Ludo apps do). 0 turns it off.
+var turn_seconds := 20.0
+var timer_left := 0.0
+var timer_active := false
+signal turn_timer(left: float, total: float)         ## 1.0 normal; >1 slower, <1 faster
 
 func new_game(seat_colors: Array[String] = ["blue", "yellow", "green", "red"], humans: Array[String] = ["blue"], rules: Dictionary = {}, ai_difficulty: int = 1) -> void:
 	human_colors = humans
@@ -124,6 +130,7 @@ func _start_turn() -> void:
 	if is_human_turn():
 		message.emit("Your turn: tap the dice")
 		dice.set_rollable(true)
+		_start_timer()
 	else:
 		message.emit("%s is rolling" % current_color().capitalize())
 		dice.set_rollable(false)
@@ -139,6 +146,7 @@ func _on_roll_requested() -> void:
 func _roll_now() -> void:
 	if busy or engine.phase != RulesEngine.PHASE_ROLL:
 		return
+	_stop_timer()
 	busy = true
 	dice.set_rollable(false)
 	event.emit("roll_start", {"position": dice.global_position})
@@ -163,6 +171,7 @@ func _roll_now() -> void:
 		else:
 			awaiting_pick = true
 			_highlight(true)
+			_start_timer()
 			message.emit("Tap a glowing %s token" % current_color())
 			busy = false
 	else:
@@ -179,6 +188,39 @@ func _throw_offset(color: String) -> Vector3:
 	return dir * 4.2 + Vector3(0, 0.9, 0)
 
 
+func _start_timer() -> void:
+	if fast_mode or turn_seconds <= 0.0:
+		return
+	timer_left = turn_seconds
+	timer_active = true
+
+
+func _stop_timer() -> void:
+	timer_active = false
+	turn_timer.emit(0.0, 0.0)
+
+
+func _process(delta: float) -> void:
+	if not timer_active:
+		return
+	timer_left -= delta
+	turn_timer.emit(maxf(timer_left, 0.0), turn_seconds)
+	if timer_left > 0.0:
+		return
+	timer_active = false
+	turn_timer.emit(0.0, 0.0)
+	## Time is up: play for the human.
+	if awaiting_pick and not busy:
+		var choice := AiController.choose_move(engine, _legal, 2)
+		awaiting_pick = false
+		_highlight(false)
+		message.emit("Time up: auto move")
+		_execute(choice)
+	elif is_human_turn() and engine.phase == RulesEngine.PHASE_ROLL and not busy:
+		message.emit("Time up: auto roll")
+		_roll_now()
+
+
 ## Called by the input layer when a token is tapped.
 func tap_token(color: String, index: int) -> void:
 	if not awaiting_pick or busy or color != current_color():
@@ -187,6 +229,7 @@ func tap_token(color: String, index: int) -> void:
 		event.emit("invalid", {})
 		return
 	awaiting_pick = false
+	_stop_timer()
 	_highlight(false)
 	event.emit("click", {})
 	_execute(index)

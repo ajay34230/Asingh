@@ -60,6 +60,7 @@ var _mute: CheckButton
 var _haptics: CheckButton
 var _language: OptionButton
 var _voice: CheckButton
+var _timer: CheckButton
 var _mode := "ai"
 var _audio: AudioManager
 var _overlay := false
@@ -361,11 +362,12 @@ func _build_settings() -> void:
 	_mute = _check(box, "Mute all sound", false)
 	_haptics = _check(box, "Vibration", true)
 	_voice = _check(box, "Voice commentary (Hindi)", true)
+	_timer = _check(box, "Turn timer (20 s)", true)
 	_language = _option(box, "Language", ["English", "Hindi (coming soon)"])
 	_language.set_item_disabled(1, true)
 	for c in [_graphics, _anim, _language]:
 		(c as OptionButton).item_selected.connect(func(_i: int) -> void: _save_settings())
-	for c in [_camera, _fps, _mute, _haptics, _voice]:
+	for c in [_camera, _fps, _mute, _haptics, _voice, _timer]:
 		(c as CheckButton).toggled.connect(func(_b: bool) -> void: _save_settings())
 	_music.value_changed.connect(func(_v: float) -> void: _save_settings())
 	_sfx.value_changed.connect(func(_v: float) -> void: _save_settings())
@@ -457,6 +459,7 @@ func _load_settings_into_controls() -> void:
 	_mute.button_pressed = _audio.muted if _audio else false
 	_haptics.button_pressed = _audio.haptics if _audio else true
 	_voice.button_pressed = GameSettings.get_option("voice")
+	_timer.button_pressed = GameSettings.get_option("turn_timer")
 	_language.select(0)
 
 
@@ -466,6 +469,7 @@ func _save_settings() -> void:
 	GameSettings.set_option("anim_speed", _anim.selected)
 	GameSettings.set_option("show_fps", _fps.button_pressed)
 	GameSettings.set_option("voice", _voice.button_pressed)
+	GameSettings.set_option("turn_timer", _timer.button_pressed)
 	if _audio:
 		_audio.set_music_volume_db(_music.value)
 		_audio.set_sfx_volume_db(_sfx.value)

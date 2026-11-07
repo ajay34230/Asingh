@@ -61,6 +61,7 @@ func _ready() -> void:
 	add_child(garden)
 	_build_camera()
 	var dice := _build_dice()
+	_build_dice_holder()
 
 	game = GameController.new()
 	game.name = "Game"
@@ -108,6 +109,7 @@ func _ready() -> void:
 	bubbles.name = "SpeechBubbles"
 	add_child(bubbles)
 	game.turn_changed.connect(_on_turn_voice)
+	game.turn_timer.connect(board.set_turn_timer)
 
 	if "--dice-face" in args:
 		game.dice.setup_face(int(_arg_value(args, "--dice-face")))
@@ -276,6 +278,7 @@ func _apply_settings() -> void:
 	hud.set_fps_visible(GameSettings.get_option("show_fps"))
 	if voice:
 		voice.enabled = GameSettings.get_option("voice")
+	game.turn_seconds = 20.0 if GameSettings.get_option("turn_timer") and not _is_test_launch(OS.get_cmdline_user_args()) else 0.0
 	_fit_camera()
 
 
@@ -433,8 +436,8 @@ func _shake(strength: float, duration: float) -> void:
 	director.shake(strength, duration)
 
 
-func _process(_delta: float) -> void:
-	pass
+func _process(delta: float) -> void:
+	_update_dice_holder(delta)
 
 
 func _log_message(text: String) -> void:
@@ -533,6 +536,64 @@ func _corners_fit(position: Vector3, corners: Array[Vector3]) -> bool:
 		if absf(p.y - vp.y * 0.5) > vp.y * 0.5:
 			return false
 	return true
+
+
+var _holder_rim: StandardMaterial3D
+var _holder_pulse := false
+var _holder_time := 0.0
+
+
+## Gold dish on a stem under the dice. Its rim glows in the current player's colour
+## and pulses while a human may roll.
+func _build_dice_holder() -> void:
+	var root := Node3D.new()
+	root.name = "DiceHolder"
+	root.position = Vector3(0, RoyalBoard.CENTRE_TOP, 0)
+	add_child(root)
+	var gold := RoyalBoard.metal(BoardThemes.current()["gold"], 0.22)
+	var stem := Monuments.lathe(Monuments.smooth_profile(PackedVector2Array([
+		Vector2(0.0, 0.0), Vector2(0.24, 0.0), Vector2(0.2, 0.04), Vector2(0.09, 0.1), Vector2(0.07, 0.22),
+		Vector2(0.12, 0.27), Vector2(0.55, 0.36), Vector2(0.7, 0.42), Vector2(0.66, 0.44), Vector2(0.0, 0.4)]), 6), 96)
+	var m := MeshInstance3D.new()
+	m.mesh = stem
+	m.material_override = gold
+	root.add_child(m)
+	_holder_rim = StandardMaterial3D.new()
+	_holder_rim.albedo_color = Color("#ffe6a0")
+	_holder_rim.emission_enabled = true
+	_holder_rim.emission = Color("#ffcc55")
+	_holder_rim.emission_energy_multiplier = 1.5
+	var rim := MeshInstance3D.new()
+	var torus := TorusMesh.new()
+	torus.inner_radius = 0.64
+	torus.outer_radius = 0.72
+	torus.rings = 96
+	torus.ring_segments = 16
+	rim.mesh = torus
+	rim.material_override = _holder_rim
+	rim.position.y = 0.43
+	rim.scale = Vector3(1, 0.6, 1)
+	root.add_child(rim)
+	for i in range(8):
+		var a := TAU * i / 8.0
+		var gem := MeshInstance3D.new()
+		var sphere := SphereMesh.new()
+		sphere.radius = 0.05
+		sphere.height = 0.1
+		gem.mesh = sphere
+		gem.material_override = RoyalBoard.gem_material(Color("#c0182c"))
+		gem.position = Vector3(cos(a) * 0.5, 0.36, sin(a) * 0.5)
+		root.add_child(gem)
+
+
+func _update_dice_holder(delta: float) -> void:
+	if _holder_rim == null or game == null or game.engine == null or game.engine.seats.is_empty():
+		return
+	_holder_time += delta
+	var color: Color = RoyalBoard.PALETTE.get(game.current_color(), Color("#ffcc55"))
+	_holder_rim.emission = _holder_rim.emission.lerp(color.lightened(0.25), minf(1.0, delta * 4.0))
+	var pulse := game.dice.rollable
+	_holder_rim.emission_energy_multiplier = (2.0 + 2.5 * absf(sin(_holder_time * 4.0))) if pulse else 1.2
 
 
 func _build_dice() -> DiceController:

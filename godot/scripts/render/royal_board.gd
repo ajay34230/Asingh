@@ -49,6 +49,8 @@ var _gem: Dictionary = {}
 var _plaques: Dictionary = {}   ## color -> {root, name, status, pips, glow}
 var _active := ""
 var theme: Dictionary = {}
+var _timer_left := 0.0
+var _timer_total := 0.0
 var _monuments: Monuments
 var _flames: Array[MeshInstance3D] = []
 var _lamps: Array[OmniLight3D] = []
@@ -98,6 +100,18 @@ func _process(delta: float) -> void:
 		glow.emission_energy_multiplier = (1.2 + 1.6 * pulse) if on else 0.0
 		var root: Node3D = p["root"]
 		root.position.y = lerpf(root.position.y, 0.08 if on else 0.0, minf(1.0, delta * 8.0))
+		var statue: Node3D = p["statue"]
+		statue.rotation.y += delta * (1.4 if on else 0.35)
+		statue.position.y = 0.33 + (absf(sin(_time * 5.0)) * 0.12 if on else 0.0)
+		## Turn timer: segments light up for the time left; red in the last five seconds.
+		var segments: Array = p["timer"]
+		var lit := int(ceil(_timer_left / maxf(_timer_total, 0.01) * segments.size())) if on and _timer_total > 0.0 else 0
+		for i in range(segments.size()):
+			(segments[i] as Node3D).visible = i < lit
+		var mat: StandardMaterial3D = p["timer_mat"]
+		var urgent := on and _timer_total > 0.0 and _timer_left < 5.0
+		mat.emission = Color("#ff3030") if urgent else PALETTE[color].lightened(0.2)
+		mat.emission_energy_multiplier = (2.0 + 2.0 * absf(sin(_time * 8.0))) if urgent else 2.0
 
 
 ## Size of the square main board (playfield plus frame). Used for the camera fit.
@@ -641,7 +655,33 @@ func _build_plaque(color: String) -> void:
 	var ex := -sx * (size.x * 0.5 - 0.95)
 	_cyl(Vector3(ex, 0.27, 0), 0.72, 0.06, _gold, base, 40)
 	_cyl(Vector3(ex, 0.31, 0), 0.56, 0.03, _gold_dark, base, 40)
-	_sphere(Vector3(ex, 0.33, 0), 0.38, _gem[color], base, 0.55)
+	## Portrait: the colour's own token stands on the emblem like a statuette, turning
+	## slowly; the active player's statuette bobs. A ring of 48 segments around it is the
+	## turn timer.
+	var statue_root := Node3D.new()
+	statue_root.position = Vector3(ex, 0.33, 0)
+	base.add_child(statue_root)
+	var statue := (load(TransformerToken.BODY_PATHS[color]) as PackedScene).instantiate() as Node3D
+	statue.scale = Vector3.ONE * 0.85
+	statue_root.add_child(statue)
+	var seg_mesh := BoxMesh.new()
+	seg_mesh.size = Vector3(0.07, 0.03, 0.13)
+	var timer_mat := StandardMaterial3D.new()
+	timer_mat.albedo_color = PALETTE[color].lightened(0.35)
+	timer_mat.emission_enabled = true
+	timer_mat.emission = PALETTE[color].lightened(0.2)
+	timer_mat.emission_energy_multiplier = 2.0
+	var segments: Array[MeshInstance3D] = []
+	for i in range(48):
+		var a := -PI * 0.5 + TAU * i / 48.0
+		var seg := MeshInstance3D.new()
+		seg.mesh = seg_mesh
+		seg.material_override = timer_mat
+		seg.position = Vector3(ex + cos(a) * 0.82, 0.3, sin(a) * 0.82)
+		seg.rotation.y = -a
+		seg.visible = false
+		base.add_child(seg)
+		segments.append(seg)
 	var tx := sx * 0.55
 	var name_label := _label(base, Vector3(tx, 0.25, -0.6), 130, Color("#fff6dc"))
 	name_label.text = NAMES[color]
@@ -654,7 +694,8 @@ func _build_plaque(color: String) -> void:
 		_cyl(Vector3(px, 0.235, 0.85), 0.25, 0.03, _gold, base, 24)
 		var pip := _sphere(Vector3(px, 0.27, 0.85), 0.17, _gold_dark, base, 0.6)
 		pips.append(pip)
-	_plaques[color] = {"root": root, "name": name_label, "status": status, "pips": pips, "glow": glow}
+	_plaques[color] = {"root": root, "name": name_label, "status": status, "pips": pips, "glow": glow,
+		"statue": statue_root, "timer": segments, "timer_mat": timer_mat}
 
 
 func _label(parent: Node3D, at: Vector3, font_size: int, color: Color) -> Label3D:
@@ -669,6 +710,12 @@ func _label(parent: Node3D, at: Vector3, font_size: int, color: Color) -> Label3
 	l.double_sided = false
 	parent.add_child(l)
 	return l
+
+
+## Shows the active player's turn timer on its plaque (total 0 hides it).
+func set_turn_timer(left: float, total: float) -> void:
+	_timer_left = left
+	_timer_total = total
 
 
 ## Refreshes every plaque from the rules state. `seats` is RulesEngine.seats.
