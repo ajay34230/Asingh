@@ -25,3 +25,22 @@ Spoken Hindi dialogue generated with **Kokoro-82M** (hexgrad, Apache-2.0 open we
 huggingface.co/hexgrad/Kokoro-82M) by `tools/make_voice.py`. Voices: hm_omega (announcer),
 hm_psi, hf_alpha, hf_beta. Each line was checked for intelligibility by transcribing it
 with Whisper.
+
+## Textures (photo-scanned, CC0 1.0 public domain)
+
+In `godot/assets/textures/`. Jacquard and wood albedo were converted to greyscale so
+themes can dye them; the jacquard's woven figure was turned into albedo, normal and
+roughness maps from its scanned roughness pattern.
+
+| Folder | Source | Asset |
+|---|---|---|
+| marble_white | ambientCG | Marble021 |
+| onyx_red | ambientCG | Onyx010 |
+| onyx_honey | ambientCG | Onyx007 |
+| onyx_white | ambientCG | Onyx015 |
+| travertine_blue | ambientCG | Travertine013 |
+| travertine_brown | ambientCG | Travertine004 (dyed as red sandstone) |
+| granite_dark | ambientCG | Marble009 |
+| jacquard | Poly Haven | quatrefoil_jacquard_fabric |
+| cherry_wood | Poly Haven | lacquered_cherry_wood |
+| sky/evening_courtyard_1k.hdr | Poly Haven | evening_museum_courtyard (HDRI) |

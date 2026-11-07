@@ -51,6 +51,7 @@ func _ready() -> void:
 			menu_shot = arg.trim_prefix("--menu-screenshot=")
 
 	_build_environment()
+	_build_vignette()
 	board = RoyalBoard.new()
 	board.name = "Board"
 	add_child(board)
@@ -564,17 +565,28 @@ func _build_environment() -> void:
 	sky_mat.sky_top_color = theme["sky_top"]
 	sky_mat.sky_horizon_color = theme["sky_horizon"]
 	sky_mat.ground_horizon_color = theme["ground_horizon"]
-	sky_mat.ground_bottom_color = theme["ground_bottom"]
+	## A warm, fairly bright lower sky: gold and gems reflect it on every downward or
+	## sideways face, so a dark ground would make all the gold look brown.
+	sky_mat.ground_bottom_color = (theme["ground_bottom"] as Color).lerp(theme["ground_horizon"], 0.65)
+	sky_mat.ground_horizon_color = (theme["ground_horizon"] as Color).lerp(theme["sky_horizon"], 0.35)
 	sky_mat.sun_angle_max = 40.0
 	var sky := Sky.new()
 	sky.sky_material = sky_mat
+	## Daytime themes light the board with a photographed evening sky (HDRI, CC0): real
+	## light and real reflections in the marble and gold. Diwali keeps its night sky.
+	if not theme.get("night", false):
+		var hdri := PanoramaSkyMaterial.new()
+		hdri.panorama = load("res://assets/textures/sky/evening_courtyard_1k.hdr")
+		hdri.energy_multiplier = 0.7
+		sky.sky_material = hdri
+	sky.radiance_size = Sky.RADIANCE_SIZE_256
 	env.sky = sky
 	env.background_mode = Environment.BG_SKY
 	env.ambient_light_source = Environment.AMBIENT_SOURCE_SKY
-	env.ambient_light_energy = theme["ambient"]
+	env.ambient_light_energy = float(theme["ambient"]) * 0.75
 	env.reflected_light_source = Environment.REFLECTION_SOURCE_SKY
 	env.tonemap_mode = Environment.TONE_MAPPER_ACES
-	env.tonemap_exposure = 1.05
+	env.tonemap_exposure = 0.95
 	env.tonemap_white = 6.0
 	## Glow (bloom) is supported by the Mobile renderer, with its lower HDR range.
 	env.glow_enabled = true
@@ -611,15 +623,50 @@ func _build_environment() -> void:
 	fill.rotation_degrees = Vector3(-40, 150, 0)
 	add_child(fill)
 	_build_palace_floor()
+	## Reflection probe over the board: polished marble and gold reflect the monuments
+	## and tokens (Mobile and Forward+ renderers; updated once, then reused).
+	var probe := ReflectionProbe.new()
+	probe.size = Vector3(RoyalBoard.WING_HALF_X * 2.0, 8.0, RoyalBoard.outer_size().y + 2.0)
+	probe.position = Vector3(0, 3.0, 0)
+	probe.box_projection = true
+	probe.intensity = 0.7
+	probe.update_mode = ReflectionProbe.UPDATE_ONCE
+	probe.ambient_mode = ReflectionProbe.AMBIENT_DISABLED
+	add_child(probe)
+
+## Soft cinematic vignette and a slight warm grade over the 3D view (below the HUD).
+func _build_vignette() -> void:
+	var layer := CanvasLayer.new()
+	layer.layer = 5
+	add_child(layer)
+	var rect := ColorRect.new()
+	rect.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	rect.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	var shader := Shader.new()
+	shader.code = """
+shader_type canvas_item;
+uniform float strength = 0.42;
+uniform vec4 warm : source_color = vec4(1.0, 0.86, 0.66, 1.0);
+void fragment() {
+	vec2 p = UV - 0.5;
+	p.x *= 1.6;                                 // wide screens: ellipse, not a circle
+	float v = smoothstep(0.38, 0.95, length(p));
+	COLOR = vec4(mix(vec3(0.0), warm.rgb * 0.15, 0.4), v * strength);
+}
+"""
+	var mat := ShaderMaterial.new()
+	mat.shader = shader
+	rect.material = mat
+	layer.add_child(rect)
+
 
 ## Black-and-gold marble table under the board, seen past its long edges on 16:9 screens.
 func _build_palace_floor() -> void:
 	var floor_mesh := MeshInstance3D.new()
 	floor_mesh.name = "PalaceFloor"
 	floor_mesh.mesh = _make_plane(160.0)
-	var table := RoyalBoard.marble_material(RoyalBoard.marble_texture(true), BoardThemes.current()["table"], 0.05)
-	table.roughness = 0.4
-	table.clearcoat = 0.25
+	## Polished black-green granite table (scanned).
+	var table := RoyalBoard.pbr("granite_dark", (BoardThemes.current()["table"] as Color).lerp(Color.WHITE, 0.6), 0.12, 0.6, 0.5)
 	floor_mesh.material_override = table
 	floor_mesh.position = Vector3(0, RoyalBoard.SLAB_BOTTOM, 0)
 	floor_mesh.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
@@ -739,7 +786,7 @@ func _run_click_test() -> void:
 	var started := Time.get_ticks_msec()
 	var clicks := 0
 	# Click the dice on each human turn until the engine asks for a token choice.
-	while not game.awaiting_pick and Time.get_ticks_msec() - started < 90000:
+	while not game.awaiting_pick and Time.get_ticks_msec() - started < 240000:
 		if game.is_human_turn() and game.engine.phase == RulesEngine.PHASE_ROLL and not game.busy:
 			_click(camera.unproject_position(game.dice.global_position))
 			clicks += 1
@@ -779,6 +826,12 @@ func _click(screen_pos: Vector2) -> void:
 
 
 func _screenshot_and_quit(path: String) -> void:
+	## Optional test camera: --cam=x,y,z,tx,ty,tz (position, then look-at target).
+	if _has_arg("--cam="):
+		var v := _arg_value(OS.get_cmdline_user_args(), "--cam").split(",")
+		if v.size() == 6:
+			director.set_process(false)
+			camera.look_at_from_position(Vector3(float(v[0]), float(v[1]), float(v[2])), Vector3(float(v[3]), float(v[4]), float(v[5])), Vector3.UP)
 	## Wait in real time, so effects that run for seconds are still on screen.
 	await get_tree().create_timer(float(_arg_value(OS.get_cmdline_user_args(), "--shot-delay")) if _has_arg("--shot-delay") else 1.0).timeout
 	get_viewport().get_texture().get_image().save_png(path)

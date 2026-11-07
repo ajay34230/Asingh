@@ -70,6 +70,7 @@ func _spawn_tokens(seat_colors: Array[String]) -> void:
 			add_child(token)
 			token.configure(color)
 			token.scale = Vector3.ONE * TOKEN_SCALE
+			token.add_child(_contact_shadow())
 			var vfx := RoyalTokenVFX.new()
 			token.add_child(vfx)
 			token.set_meta("vfx", vfx)
@@ -79,6 +80,35 @@ func _spawn_tokens(seat_colors: Array[String]) -> void:
 			token.ground_y = token.position.y
 			list.append(token)
 		tokens[color] = list
+
+static var _shadow_mat: StandardMaterial3D
+
+
+## Soft dark disc under a token, so it sits on the board instead of floating above it
+## (stands in for ambient occlusion, which the Mobile renderer does not have).
+func _contact_shadow() -> MeshInstance3D:
+	if _shadow_mat == null:
+		var size := 64
+		var img := Image.create(size, size, false, Image.FORMAT_RGBA8)
+		for y in range(size):
+			for x in range(size):
+				var d := Vector2(x - size * 0.5 + 0.5, y - size * 0.5 + 0.5).length() / (size * 0.5)
+				img.set_pixel(x, y, Color(0, 0, 0, clampf(1.0 - d, 0.0, 1.0) ** 1.6 * 0.6))
+		_shadow_mat = StandardMaterial3D.new()
+		_shadow_mat.albedo_texture = ImageTexture.create_from_image(img)
+		_shadow_mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+		_shadow_mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+		_shadow_mat.depth_draw_mode = BaseMaterial3D.DEPTH_DRAW_DISABLED
+	var quad := PlaneMesh.new()
+	quad.size = Vector2(0.8, 0.8)
+	var m := MeshInstance3D.new()
+	m.name = "ContactShadow"
+	m.mesh = quad
+	m.material_override = _shadow_mat
+	m.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	m.position = Vector3(0, 0.006, 0)
+	return m
+
 
 func current_color() -> String:
 	return engine.current_seat()["color"]

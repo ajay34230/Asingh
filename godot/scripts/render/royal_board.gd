@@ -27,6 +27,15 @@ const PALETTE := {
 	"red": Color("#c8323c"), "green": Color("#2e9d4f"),
 	"yellow": Color("#e9b430"), "blue": Color("#2f6fd0"),
 }
+## Team stones: [texture set, tint]. Red and honey onyx, blue travertine, white onyx
+## tinted emerald. Tints multiply the scanned colour.
+const TEAM_STONES := {
+	"red": ["onyx_red", Color("#ff5a4a")],
+	"yellow": ["onyx_honey", Color("#ffc23a")],
+	"blue": ["travertine_blue", Color("#3f74ee")],
+	"green": ["onyx_white", Color("#22a65a")],
+}
+
 const NAMES := {"red": "Ruby", "green": "Emerald", "yellow": "Topaz", "blue": "Sapphire"}
 
 var _ivory: StandardMaterial3D
@@ -40,28 +49,27 @@ var _gem: Dictionary = {}
 var _plaques: Dictionary = {}   ## color -> {root, name, status, pips, glow}
 var _active := ""
 var theme: Dictionary = {}
+var _monuments: Monuments
 var _flames: Array[MeshInstance3D] = []
 var _lamps: Array[OmniLight3D] = []
 var _time := 0.0
 
 
 func _ready() -> void:
-	var light_marble := marble_texture(false)
 	theme = BoardThemes.current()
-	_ivory = marble_material(light_marble, theme["ivory"])
+	## Photo-scanned stone, wood and fabric (CC0, see docs/CREDITS.md).
+	_ivory = pbr("marble_white", theme["ivory"], 0.32, 0.55, 0.5)
 	_gold = metal(theme["gold"], 0.24)
 	_gold_dark = metal((theme["gold"] as Color).darkened(0.28), 0.38)
-	_lacquer = StandardMaterial3D.new()
-	_lacquer.albedo_color = theme["lacquer"]
-	_lacquer.roughness = 0.18
-	_lacquer.clearcoat_enabled = true
-	_lacquer.clearcoat = 0.8
-	_lacquer.clearcoat_roughness = 0.1
+	_lacquer = pbr("cherry_wood", (theme["lacquer"] as Color).lightened(0.1), 0.25, 0.6, 0.9)
 	_ruby = gem_material(Color("#d1102a"))
 	for color in BoardPath.COLORS:
-		_team[color] = marble_material(light_marble, PALETTE[color].lerp(Color.WHITE, 0.08))
-		_team_floor[color] = marble_material(light_marble, PALETTE[color].darkened(0.12))
+		## Each colour is a real stone, nudged towards its team hue so play stays readable.
+		var stone: Array = TEAM_STONES[color]
+		_team[color] = pbr(stone[0], stone[1], 0.3, 0.5, 0.45)
+		_team_floor[color] = pbr(stone[0], stone[1], 0.18, 0.55, 0.45)
 		_gem[color] = gem_material(PALETTE[color].lightened(0.1))
+	_monuments = Monuments.new(_ivory, _gold, _gem["blue"])
 	_build_slabs()
 	_build_frame()
 	_build_tiles()
@@ -148,6 +156,36 @@ static func marble_texture(dark: bool) -> NoiseTexture2D:
 
 
 ## Polished marble, mapped in world space so neighbouring tiles show different veins.
+## Physically based material from a scanned texture set in res://assets/textures/<name>/
+## (albedo, normal, roughness), mapped in world space. `polish` adds a clear lacquer coat.
+static var _tex_cache := {}
+
+static func pbr(set_name: String, tint: Color, scale: float, roughness_scale := 1.0, polish := 0.0) -> StandardMaterial3D:
+	var mat := StandardMaterial3D.new()
+	mat.albedo_texture = _tex("res://assets/textures/%s/albedo.jpg" % set_name)
+	mat.albedo_color = tint
+	mat.normal_enabled = true
+	mat.normal_texture = _tex("res://assets/textures/%s/normal.jpg" % set_name)
+	mat.normal_scale = 0.7
+	mat.roughness_texture = _tex("res://assets/textures/%s/rough.jpg" % set_name)
+	mat.roughness = roughness_scale
+	if polish > 0.0:
+		mat.clearcoat_enabled = true
+		mat.clearcoat = polish
+		mat.clearcoat_roughness = 0.08
+	mat.uv1_triplanar = true
+	mat.uv1_world_triplanar = true
+	mat.uv1_scale = Vector3.ONE * scale
+	mat.texture_filter = BaseMaterial3D.TEXTURE_FILTER_LINEAR_WITH_MIPMAPS_ANISOTROPIC
+	return mat
+
+
+static func _tex(path: String) -> Texture2D:
+	if not _tex_cache.has(path):
+		_tex_cache[path] = load(path)
+	return _tex_cache[path]
+
+
 static func marble_material(tex: Texture2D, tint: Color, scale := 0.11) -> StandardMaterial3D:
 	var mat := StandardMaterial3D.new()
 	mat.albedo_texture = tex
@@ -186,36 +224,58 @@ static func gem_material(color: Color) -> StandardMaterial3D:
 
 
 ## Gold damask on deep red lacquer: a repeating quatrefoil and lattice pattern.
-static func damask_texture(base: Color = Color("#3a0710"), ink: Color = Color("#80551f")) -> ImageTexture:
+## Brocade: a woven silk ground (fine twill weave) with a raised gold-thread quatrefoil
+## and lattice pattern. Returns [albedo, normal map, metallic-roughness mask].
+static func brocade_textures(base: Color, ink: Color) -> Array:
 	var size := 256
-	var img := Image.create(size, size, true, Image.FORMAT_RGB8)
+	var height := PackedFloat32Array()
+	height.resize(size * size)
+	var albedo := Image.create(size, size, true, Image.FORMAT_RGB8)
+	var orm := Image.create(size, size, true, Image.FORMAT_RGB8)
 	for y in range(size):
 		for x in range(size):
-			var u := float(x) / size
-			var v := float(y) / size
-			var m := 0.0
-			## Diamond lattice.
-			var f1 := fposmod(u + v, 1.0)
-			var f2 := fposmod(u - v, 1.0)
-			m = maxf(m, 1.0 - smoothstep(0.006, 0.014, minf(f1, 1.0 - f1)))
-			m = maxf(m, 1.0 - smoothstep(0.006, 0.014, minf(f2, 1.0 - f2)))
-			## Quatrefoil in the middle of each diamond, small rosettes on the corners.
-			var p := Vector2(u - 0.5, v - 0.5)
-			var r := p.length()
-			var a := atan2(p.y, p.x)
-			var petal := 0.16 + 0.07 * cos(4.0 * a)
-			m = maxf(m, 1.0 - smoothstep(petal - 0.012, petal, r))
-			m = minf(m, smoothstep(0.035, 0.045, r) * 0.6 + 0.4)  ## darker eye in the flower
-			for cx in [0.0, 1.0]:
-				for cy in [0.0, 1.0]:
-					var q := Vector2(u - cx, v - cy)
-					var rr := q.length()
-					var pet := 0.07 + 0.025 * cos(8.0 * atan2(q.y, q.x))
-					m = maxf(m, 1.0 - smoothstep(pet - 0.01, pet, rr))
-			var grain := 0.03 * sin(x * 0.9 + y * 0.35)
-			img.set_pixel(x, y, base.lerp(ink, clampf(m, 0.0, 1.0)) * (1.0 + grain))
-	img.generate_mipmaps()
-	return ImageTexture.create_from_image(img)
+			var m := _brocade_mask(float(x) / size, float(y) / size)
+			## Twill weave: fine diagonal threads across the silk ground.
+			var weave := 0.5 + 0.5 * sin((x + y) * 1.6) * sin((x - y) * 0.4)
+			var h := m * 0.8 + weave * 0.12 * (1.0 - m)
+			height[y * size + x] = h
+			var ground := base * (0.82 + 0.1 * weave)
+			albedo.set_pixel(x, y, ground.lerp(ink, m))
+			## ORM: occlusion, roughness, metallic. Gold thread shines; silk stays satin.
+			orm.set_pixel(x, y, Color(1.0, lerpf(0.82, 0.32, m), lerpf(0.0, 0.85, m)))
+	var normal := Image.create(size, size, true, Image.FORMAT_RGB8)
+	for y in range(size):
+		for x in range(size):
+			var hl := height[y * size + (x - 1 + size) % size]
+			var hr := height[y * size + (x + 1) % size]
+			var hu := height[((y - 1 + size) % size) * size + x]
+			var hd := height[((y + 1) % size) * size + x]
+			var n := Vector3((hl - hr) * 3.0, (hu - hd) * 3.0, 1.0).normalized()
+			normal.set_pixel(x, y, Color(n.x * 0.5 + 0.5, n.y * 0.5 + 0.5, n.z * 0.5 + 0.5))
+	for img in [albedo, normal, orm]:
+		(img as Image).generate_mipmaps()
+	return [ImageTexture.create_from_image(albedo), ImageTexture.create_from_image(normal), ImageTexture.create_from_image(orm)]
+
+
+static func _brocade_mask(u: float, v: float) -> float:
+	var m := 0.0
+	var f1 := fposmod(u + v, 1.0)
+	var f2 := fposmod(u - v, 1.0)
+	m = maxf(m, 1.0 - smoothstep(0.006, 0.016, minf(f1, 1.0 - f1)))
+	m = maxf(m, 1.0 - smoothstep(0.006, 0.016, minf(f2, 1.0 - f2)))
+	var p := Vector2(u - 0.5, v - 0.5)
+	var r := p.length()
+	var a := atan2(p.y, p.x)
+	var petal := 0.15 + 0.06 * cos(4.0 * a)
+	var ring := 1.0 - smoothstep(0.008, 0.02, absf(r - petal))          # outlined petals
+	var inner := (1.0 - smoothstep(0.05, 0.06, r))                       # gold centre
+	m = maxf(m, maxf(ring, inner))
+	for cx in [0.0, 1.0]:
+		for cy in [0.0, 1.0]:
+			var q := Vector2(u - cx, v - cy)
+			var pet := 0.06 + 0.02 * cos(8.0 * atan2(q.y, q.x))
+			m = maxf(m, 1.0 - smoothstep(0.008, 0.02, absf(q.length() - pet)))
+	return clampf(m, 0.0, 1.0)
 
 
 # --- Mesh helpers -----------------------------------------------------------
@@ -341,15 +401,10 @@ func _multi(mesh: Mesh, transforms: Array[Transform3D], mat: Material) -> void:
 func _build_slabs() -> void:
 	## One wide lacquered table board: the wings and the raised main board.
 	var depth := outer_size().y
-	var wing := StandardMaterial3D.new()
-	wing.albedo_texture = damask_texture(theme["wing_base"], theme["wing_ink"])
-	wing.roughness = 0.42
-	wing.metallic = 0.25
-	wing.clearcoat_enabled = true
-	wing.clearcoat = 0.5
-	wing.uv1_triplanar = true
-	wing.uv1_world_triplanar = true
-	wing.uv1_scale = Vector3.ONE * 0.75
+	## Woven quatrefoil jacquard silk (scanned), dyed in the theme's colour.
+	var wing := pbr("jacquard", (theme["wing_base"] as Color).lightened(0.05), 0.32, 1.15, 0.0)
+	wing.normal_scale = 1.0
+	wing.metallic_specular = 0.25
 	_bevel(Vector3(0, SLAB_BOTTOM, 0), Vector3(WING_HALF_X * 2.0, WING_TOP - SLAB_BOTTOM, depth + 0.4), 0.12, wing)
 	## Gold edge along the long sides of the wide board.
 	for s in [-1.0, 1.0]:
@@ -444,12 +499,12 @@ func _build_courtyards() -> void:
 			var at := BoardPath.to_world(p.x, p.y)
 			_mesh(pedestal_ring, Vector3(at.x, (FLOOR_TOP + PEDESTAL_TOP) * 0.5, at.z), _gold)
 			_cyl(Vector3(at.x, PEDESTAL_TOP - 0.004, at.z), 0.32, 0.012, _team[color], self, 32)
-		## A small pavilion in the middle of the court.
+		## A marble chhatri (domed pavilion) in the middle of the court.
 		var pav := Node3D.new()
-		pav.position = centre + Vector3(0, FLOOR_TOP + 0.01, 0)
-		pav.scale = Vector3.ONE * 0.42
+		pav.position = centre + Vector3(0, FLOOR_TOP, 0)
 		add_child(pav)
-		_pavilion(pav, color)
+		_monuments.gem = _gem[color]
+		_monuments.build_chhatri(pav, 0.5)
 
 
 ## Flat eight-petal gold flower.
@@ -463,34 +518,6 @@ func _rosette(at: Vector3, radius: float) -> void:
 	_sphere(at + Vector3(0, 0.03, 0), radius * 0.22, _ruby, self, 0.5)
 
 
-## Pavilion: stepped plinth, four columns with gold capitals, a dome on a gold drum, finial.
-func _pavilion(p: Node3D, color: String) -> void:
-	var white := _ivory
-	_bevel(Vector3.ZERO, Vector3(2.0, 0.12, 2.0), 0.03, white, p)
-	_bevel(Vector3(0, 0.12, 0), Vector3(1.7, 0.08, 1.7), 0.03, white, p)
-	_bevel(Vector3(0, 0.2, 0), Vector3(1.52, 0.04, 1.52), 0.015, _gold, p)
-	for x in [-0.62, 0.62]:
-		for z in [-0.62, 0.62]:
-			_cyl(Vector3(x, 0.78, z), 0.085, 1.08, white, p, 18, 0.075)
-			_cyl(Vector3(x, 0.28, z), 0.13, 0.08, _gold, p, 18)
-			_cyl(Vector3(x, 1.33, z), 0.1, 0.08, _gold, p, 18, 0.15)
-	## Arches between columns (thin gold lintels) and a coloured jewel on each face.
-	for s in [-1.0, 1.0]:
-		_box(Vector3(0, 1.36, s * 0.62), Vector3(1.38, 0.08, 0.1), _gold, p)
-		_box(Vector3(s * 0.62, 1.36, 0), Vector3(0.1, 0.08, 1.38), _gold, p)
-		_sphere(Vector3(0, 1.36, s * 0.68), 0.07, _gem[color], p)
-		_sphere(Vector3(s * 0.68, 1.36, 0), 0.07, _gem[color], p)
-	_cyl(Vector3(0, 1.46, 0), 0.82, 0.12, _gold, p, 40)
-	_cyl(Vector3(0, 1.55, 0), 0.7, 0.08, white, p, 40)
-	var dome := _sphere(Vector3(0, 1.58, 0), 0.66, white, p, 0.85)
-	dome.scale = Vector3(1, 0.85, 1)
-	## Lotus-bud top: gold ring, small bud, finial and orb.
-	_cyl(Vector3(0, 2.12, 0), 0.16, 0.06, _gold, p, 24)
-	_sphere(Vector3(0, 2.2, 0), 0.12, _gold, p, 1.3)
-	_cyl(Vector3(0, 2.42, 0), 0.025, 0.3, _gold, p, 8)
-	_sphere(Vector3(0, 2.58, 0), 0.06, _gem[color], p)
-
-
 func _build_centre() -> void:
 	_bevel(Vector3(0, BOARD_TOP - 0.02, 0), Vector3(3.0, TILE_TOP - BOARD_TOP + 0.03, 3.0), 0.05, _gold)
 	## Four colour triangles, each pointing out along its colour's home lane.
@@ -501,7 +528,7 @@ func _build_centre() -> void:
 		var shrunk := _shrink(tri, 0.9)
 		_mesh(extrude_mesh(shrunk, TILE_TOP, CENTRE_TOP), Vector3.ZERO, _team[color])
 	## Lotus: two rings of curved 3D petals around a ruby.
-	var petal_white := marble_material(marble_texture(false), Color("#fff3f0"))
+	var petal_white := pbr("marble_white", Color("#fff3f0"), 0.6, 0.5, 0.4)
 	for ring in [[8, 0.0, 0.46, 0.17, 18.0, _gold], [8, PI / 8.0, 0.36, 0.14, 42.0, petal_white]]:
 		var count: int = ring[0]
 		for i in range(count):
