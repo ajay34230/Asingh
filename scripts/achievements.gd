@@ -110,6 +110,9 @@ func _process(delta: float) -> void:
 func note_kill(role: String, by_slam: bool) -> void:
 	if story != null:
 		story.add("kills")
+	var pg := get_tree().get_first_node_in_group("progression")
+	if pg != null:
+		pg.call("on_kill", role)
 	if role == "shield":
 		unlock("shield")
 	if by_slam:

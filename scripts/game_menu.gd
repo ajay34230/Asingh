@@ -68,7 +68,13 @@ func _ready() -> void:
 	var nav := VBoxContainer.new()
 	nav.custom_minimum_size = Vector2(330, 0)
 	nav.add_theme_constant_override("separation", 12)
-	hb.add_child(nav)
+	nav.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	var nav_sc := ScrollContainer.new()          # the list is taller than a phone screen: let it scroll
+	nav_sc.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	nav_sc.custom_minimum_size = Vector2(345, 0)
+	nav_sc.scroll_deadzone = 12
+	nav_sc.add_child(nav)
+	hb.add_child(nav_sc)
 	var h := Label.new()
 	h.text = "PAUSED"
 	h.add_theme_font_size_override("font_size", 40)
@@ -76,6 +82,7 @@ func _ready() -> void:
 	h.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	nav.add_child(h)
 	nav.add_child(_button("Resume", toggle))
+	nav.add_child(_button("Hero & challenges", func() -> void: _show_page("Hero")))
 	nav.add_child(_button("Inventory", func() -> void: _show_page("Inventory")))
 	nav.add_child(_button("Items & crafting", func() -> void: _show_page("Items")))
 	nav.add_child(_button("Journal", func() -> void: _show_page("Journal")))
@@ -117,6 +124,7 @@ func _ready() -> void:
 	_pages["Help"] = _build_help()
 	_pages["Confirm"] = _build_confirm()
 	_pages["Logs"] = _build_logs()
+	_pages["Hero"] = _build_hero()
 	for k in _pages:
 		var pg: Control = _pages[k]
 		pg.set_anchors_preset(Control.PRESET_FULL_RECT)
@@ -147,6 +155,8 @@ func _show_page(n: String) -> void:
 		_fill_items()
 	if n == "Slots":
 		_fill_slots()
+	if n == "Hero":
+		_fill_hero()
 	if n == "Journal" and _jr != null:
 		_jr.text = _journal_text()
 	Loc.apply_to_tree(_panel)
@@ -468,6 +478,92 @@ func _build_help() -> Control:
 		+ "On a keyboard: WASD move, Shift run, Space jump, C crouch, E use or get off."
 	vb.add_child(t)
 	return pg[0]
+
+
+## Hero page: level and XP, skill tree, weapon upgrades, today's challenges and the login streak.
+var _hero_vb: VBoxContainer
+
+
+func _build_hero() -> Control:
+	var page: Array = _scroll_page("Hero & challenges")
+	_hero_vb = page[1]
+	return page[0]
+
+
+func _hero_label(t: String, size: int = 24, col: Color = Color(1, 1, 1)) -> Label:
+	var l := Label.new()
+	l.text = t
+	l.autowrap_mode = TextServer.AUTOWRAP_WORD
+	l.add_theme_font_size_override("font_size", size)
+	l.add_theme_color_override("font_color", col)
+	return l
+
+
+func _fill_hero() -> void:
+	var pg: Progression = main.get("progression")
+	if _hero_vb == null or pg == null:
+		return
+	for c in _hero_vb.get_children():
+		if c.get_index() > 0:
+			c.queue_free()
+	var gold := Color(0.95, 0.74, 0.32)
+	var lv := pg.level()
+	_hero_vb.add_child(_hero_label("Level %d   XP %d / %d" % [lv, pg.xp(), Progression.xp_needed(lv)], 28, gold))
+	var bar := ProgressBar.new()
+	bar.max_value = Progression.xp_needed(lv)
+	bar.value = pg.xp()
+	bar.show_percentage = false
+	bar.custom_minimum_size = Vector2(0, 22)
+	var fill := StyleBoxFlat.new()
+	fill.bg_color = Color(0.95, 0.74, 0.32)
+	fill.set_corner_radius_all(6)
+	bar.add_theme_stylebox_override("fill", fill)
+	_hero_vb.add_child(bar)
+	# daily challenges
+	_hero_vb.add_child(_hero_label("TODAY'S CHALLENGES   (login streak: day %d)" % pg.streak(), 26, gold))
+	var ds := pg.dailies()
+	for i in ds.size():
+		var d: Array = ds[i]
+		var done := bool(story.get_flag("dc_done%d" % i, false))
+		_hero_vb.add_child(_hero_label("%s %s   %d/%d   +%d coins" % ["✔" if done else "•", String(d[1]), pg.daily_progress(i), int(d[3]), int(d[4])], 22, Color(0.6, 1.0, 0.6) if done else Color(1, 1, 1)))
+	_hero_vb.add_child(_hero_label("Finish all three for a bonus chest." if not bool(story.get_flag("dc_chest", false)) else "Bonus chest opened. New challenges tomorrow!", 20, Color(0.85, 0.85, 0.8)))
+	# skills
+	_hero_vb.add_child(_hero_label("SKILLS   (%d point%s to spend: earn more by levelling up)" % [pg.points(), "" if pg.points() == 1 else "s"], 26, gold))
+	for branch in ["Fighter", "Hunter", "Survivor"]:
+		_hero_vb.add_child(_hero_label(branch.to_upper(), 22, Color(0.9, 0.6, 0.35)))
+		for id in Progression.SKILLS:
+			var sk: Dictionary = Progression.SKILLS[id]
+			if String(sk["branch"]) != branch:
+				continue
+			var r := pg.rank(id)
+			var b := _button("%s  %s  (%s)" % [String(sk["name"]), "★".repeat(r) + "☆".repeat(Progression.MAX_RANK - r), String(sk["desc"])], func() -> void:
+				if pg.learn(id):
+					_fill_hero())
+			b.disabled = not pg.can_learn(id)
+			b.add_theme_font_size_override("font_size", 20)
+			_hero_vb.add_child(b)
+	# weapon upgrades
+	_hero_vb.add_child(_hero_label("WEAPON UPGRADES (at Dhruv's forge)", 26, gold))
+	var it := get_tree().get_first_node_in_group("items")
+	if it != null:
+		_hero_vb.add_child(_hero_label("You have %d iron, %d monster essence, %d coins." % [int(it.call("count", "iron")), int(it.call("count", "essence")), int(story.get_flag("coins", 0))], 20, Color(0.85, 0.85, 0.8)))
+	var owned: Array = player.weapons_owned()
+	for w in Progression.UPGRADABLE:
+		if not w in owned:
+			continue
+		var lvw := pg.up_level(w)
+		var why := pg.can_upgrade(w)
+		var c := Progression.upgrade_cost(lvw + 1)
+		var label := "%s +%d" % [String(w).capitalize(), lvw]
+		if lvw < Progression.UPGRADE_MAX:
+			label += "  ->  +%d   (%d iron, %d essence, %d coins)" % [lvw + 1, int(c["iron"]), int(c["essence"]), int(c["coins"])]
+		var b2 := _button(label + ("" if why == "" else "   - " + why), func() -> void:
+			if pg.upgrade(w):
+				_fill_hero())
+		b2.disabled = why != ""
+		b2.add_theme_font_size_override("font_size", 20)
+		_hero_vb.add_child(b2)
+	Loc.apply_to_tree(_hero_vb)
 
 
 ## Crash and log collector page: copy or save one text report with crashes, events and Godot's logs.

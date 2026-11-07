@@ -84,6 +84,18 @@ func build() -> void:
 			story.quests.insert(0, q)       # the first thing to do in a new game
 		else:
 			story.quests.append(q)
+	story.quests.insert(1, {
+		"id": "raid", "title": "Night Raid", "blurb": "Ghosts attack a settlement.",
+		"show": func() -> bool: return not pending_raid.is_empty() or running == "raid",
+		"objs": [
+			{"text": func() -> String: return ("Hurry to " + String(pending_raid["place"])) if not pending_raid.is_empty() else "Hurry to the raid",
+			 "done": func() -> bool: return running == "raid",
+			 "target": func() -> Vector3: return _ground(pending_raid["at"]) if not pending_raid.is_empty() else (_ground(_m["at"]) if running == "raid" else Vector3.ZERO)},
+			{"text": func() -> String: return _obj_text(_m) if running == "raid" else "Drive the ghosts away",
+			 "done": func() -> bool: return pending_raid.is_empty() and running != "raid",
+			 "target": func() -> Vector3: return _ground(_m["at"]) if running == "raid" else Vector3.ZERO},
+		],
+	})
 
 
 func _obj_text(m: Dictionary) -> String:
@@ -180,14 +192,76 @@ func _process(delta: float) -> void:
 	if _tick > 0.0:
 		return
 	_tick = 0.3
+	_check_raids()
 	if player.dead or player.locked or (cin != null and cin.playing):
 		return
+	if not pending_raid.is_empty():
+		var ra: Vector2 = pending_raid["at"]
+		if Vector2(player.global_position.x - ra.x, player.global_position.z - ra.y).length() < START_RADIUS:
+			var pr := pending_raid
+			pending_raid = {}
+			start(pr)
+			return
 	var m := available()
 	if m.is_empty():
 		return
 	var at: Vector2 = m["at"]
 	if Vector2(player.global_position.x - at.x, player.global_position.z - at.y).length() < START_RADIUS:
 		start(m)
+
+
+# --- night raids: after the first mission, some nights ghosts attack a settlement on their own ----------
+const RAID_SPOTS := [
+	["the village", Vector2(-90.0, 12.0)], ["Bazaar Town", Vector2(22.0, -42.0)],
+	["Kesar Sarai", FrontierBuilder.SARAI_C], ["Dhoopgarh", FrontierBuilder.DHOOP_C],
+]
+var pending_raid: Dictionary = {}
+var _raid_rolled := false
+var raid_chance := 0.6
+
+
+static func is_night(tod: float) -> bool:
+	return tod > 0.8 or tod < 0.18
+
+
+func _check_raids() -> void:
+	var atmo: Object = main.get("atmosphere")
+	if atmo == null or not bool(story.get_flag("m_ghost1_done", false)):
+		return
+	var night := is_night(float(atmo.get("time_of_day")))
+	if not night:
+		_raid_rolled = false
+		if not pending_raid.is_empty():
+			pending_raid = {}
+			if hud != null:
+				hud.call("banner", "Dawn. The raiders faded away.", "")
+			story.changed.emit()
+		return
+	if _raid_rolled or running != "":
+		return
+	_raid_rolled = true
+	if randf() < raid_chance:
+		raid_now()
+
+
+## Announce a raid on a random settlement (it starts when the player gets there).
+func raid_now(spot_index: int = -1) -> void:
+	var sp: Array = RAID_SPOTS[spot_index if spot_index >= 0 else randi() % RAID_SPOTS.size()]
+	var lv := 1
+	var pg := get_tree().get_first_node_in_group("progression")
+	if pg != null:
+		lv = int(pg.call("level"))
+	var extra := mini(lv / 3, 4)
+	pending_raid = {
+		"id": "raid", "title": "Night Raid: " + String(sp[0]).capitalize(), "short": "Ghosts are raiding %s! Hurry!" % String(sp[0]),
+		"at": sp[1], "goal": sp[1], "night": false, "place": String(sp[0]), "protect": String(sp[0]),
+		"waves": [[["ghost", 3 + extra]], [["ghost", 2 + extra], ["ghost_skull", 2]]],
+		"gift": "", "coins": 50 + 10 * lv, "line": "", "repeat": true,
+	}
+	Sfx.ui("sting_danger", -4.0)
+	if hud != null:
+		hud.call("banner", "NIGHT RAID!\nGhosts are attacking %s" % String(sp[0]), "mission_new")
+	story.changed.emit()
 
 
 func start(m: Dictionary, skip_intro: bool = false) -> void:
@@ -322,7 +396,10 @@ func _run(delta: float) -> void:
 func _complete() -> void:
 	var id := running
 	running = ""
-	story.set_flag(id + "_done", true)
+	if bool(_m.get("repeat", false)):
+		story.add("raids_won", 1)
+	else:
+		story.set_flag(id + "_done", true)
 	story.add("monster_missions_done", 1)
 	var secs := Time.get_ticks_msec() / 1000.0 - _t0
 	var stars := 1

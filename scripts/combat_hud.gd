@@ -96,7 +96,9 @@ func _ready() -> void:
 func _on_hp(hp: float, mx: float) -> void:
 	_bar.max_value = mx
 	_bar.value = hp
-	_label.text = "HEALTH  %d / %d" % [int(ceil(hp)), int(mx)]
+	var pg := get_tree().get_first_node_in_group("progression") if is_inside_tree() else null
+	var lv := ("Lv %d   " % int(pg.call("level"))) if pg != null else ""
+	_label.text = lv + "HEALTH  %d / %d" % [int(ceil(hp)), int(mx)]
 
 
 func _refresh_chips() -> void:

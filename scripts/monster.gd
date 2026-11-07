@@ -185,6 +185,8 @@ func take_hit(hk: String, amount: float, from_dir: Vector3) -> void:
 				m = 0.55
 			_:
 				m = 1.3 if (player != null and player.weapon in ["sword", "dagger", "spear", "axe"]) else 0.9
+		if player != null:
+			m *= player.ghost_mult              # Hunter: Spirit Bane
 	elif hk == "arrow":
 		m = 1.2
 	amount *= m

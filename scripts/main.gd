@@ -37,6 +37,7 @@ var campaign: Campaign
 var festival: Festival
 var bounty: BountyBoard
 var monsters: MonsterMissions
+var progression: Progression
 var lock_marker: LockMarker
 var diag: Diag
 var minigames: MiniGames
@@ -134,6 +135,8 @@ func _ready() -> void:
 			_run_capture_fight.call_deferred(a.trim_prefix("--capture-fight="))
 		elif a.begins_with("--capture-lab="):
 			_run_capture_lab.call_deferred(a.trim_prefix("--capture-lab="))
+		elif a.begins_with("--capture-hero="):
+			_run_capture_hero.call_deferred(a.trim_prefix("--capture-hero="))
 		elif a.begins_with("--capture-fur="):
 			_run_capture_fur.call_deferred(a.trim_prefix("--capture-fur="))
 		elif a.begins_with("--capture-mon="):
@@ -1005,6 +1008,9 @@ func _build_story() -> void:
 	bounty.shop = farm.shop
 	add_child(bounty)
 	bounty.build()
+	progression = Progression.new()
+	add_child(progression)
+	progression.setup(story, player, hud)
 	monsters = MonsterMissions.new()
 	monsters.main = self
 	monsters.story = story
@@ -1063,6 +1069,8 @@ func _on_title_chosen(continue_game: bool) -> void:
 		coin_sys.reload()
 	else:
 		story_b.intro.call_deferred()
+	progression.apply()
+	progression.check_login.call_deferred()
 
 
 func _look_at_point(target: Vector3, pitch: float) -> void:
@@ -1547,6 +1555,7 @@ func _run_selftest() -> void:
 	_selftest_night_life(fails)
 	await _selftest_frontier(fails)
 	await _selftest_monsters(fails)
+	await _selftest_progression(fails)
 	# hand props must be their real size (a 100x bone scale once turned brooms into giant yellow slabs)
 	for i in 3:
 		await get_tree().process_frame
@@ -2429,6 +2438,88 @@ func _selftest_walls(fails: PackedStringArray) -> void:
 		fails.append("combat: roll move missing")
 
 
+## Levels, skills, weapon upgrades, daily challenges, login streak and night raids.
+func _selftest_progression(fails: PackedStringArray) -> void:
+	var pg := progression
+	var lv0 := pg.level()
+	var pts0 := pg.points()
+	pg.gain(Progression.xp_needed(lv0) + 5, "test")
+	if pg.level() != lv0 + 1 or pg.points() != pts0 + 1:
+		fails.append("progression: level %d->%d, points %d->%d" % [lv0, pg.level(), pts0, pg.points()])
+	var mh := player.max_hp
+	if not pg.learn("vitality") or player.max_hp < mh + 14.0:
+		fails.append("progression: Vitality did not raise max health (%.0f -> %.0f)" % [mh, player.max_hp])
+	story.flags["skill_pts"] = 3
+	for i in 3:
+		pg.learn("heavy_hands")
+	if pg.rank("heavy_hands") != 3 or absf(player.melee_mult - 1.36) > 0.01 or pg.learn("heavy_hands"):
+		fails.append("progression: Heavy Hands ranks wrong (%d, %.2f)" % [pg.rank("heavy_hands"), player.melee_mult])
+	# upgrades: refused away from the forge, done beside it with materials
+	items.give("iron", 10)
+	items.give("essence", 5)
+	story.flags["coins"] = int(story.get_flag("coins", 0)) + 500
+	player.set_weapon("fists")
+	if pg.can_upgrade("fists") == "":
+		fails.append("progression: upgrade allowed away from the blacksmith")
+	var smith: Node3D = null
+	for n in npcs:
+		if String(n.name) == "Blacksmith":
+			smith = n
+	if smith != null:
+		player.global_position = smith.global_position + Vector3(1.5, 0.3, 0)
+		var w0 := player.wpn_up()
+		if not pg.upgrade("fists") or player.wpn_up() <= w0:
+			fails.append("progression: upgrade at the forge failed (%s)" % pg.can_upgrade("fists"))
+	# daily challenges: three different ones, completing one pays
+	var ds := pg.dailies()
+	var ids := {}
+	for d in ds:
+		ids[d[0]] = true
+	if ds.size() != 3 or ids.size() != 3:
+		fails.append("progression: dailies %s" % [ds])
+	story.flags["dc_date"] = ""            # start today's challenges from zero (earlier tests already earned coins)
+	pg._roll_day()
+	var c0 := int(story.get_flag("coins", 0))
+	pg.note(String(ds[0][2]), int(ds[0][3]))
+	if not bool(story.get_flag("dc_done0", false)) or int(story.get_flag("coins", 0)) < c0 + int(ds[0][4]):
+		fails.append("progression: completing a daily paid nothing")
+	pg.note(String(ds[1][2]), int(ds[1][3]))
+	pg.note(String(ds[2][2]), int(ds[2][3]))
+	if not bool(story.get_flag("dc_chest", false)):
+		fails.append("progression: no bonus chest after all three dailies")
+	# login streak: yesterday -> day 2; a gap -> back to day 1
+	var y := Time.get_date_string_from_unix_time(int(Time.get_unix_time_from_system()) - 86400)
+	story.flags["ls_last"] = y
+	story.flags["ls_count"] = 1
+	pg.check_login()
+	var s2 := pg.streak()
+	story.flags["ls_last"] = "2020-01-01"
+	pg.check_login()
+	if s2 != 2 or pg.streak() != 1:
+		fails.append("progression: login streak %d then %d (want 2 then 1)" % [s2, pg.streak()])
+	# a night raid can be announced and won
+	monsters.raid_now(0)
+	var ra: Vector2 = monsters.pending_raid.get("at", Vector2.ZERO)
+	if monsters.pending_raid.is_empty():
+		fails.append("progression: night raid not announced")
+	else:
+		var pr := monsters.pending_raid
+		monsters.pending_raid = {}
+		_teleport(ra.x + 2.0, ra.y + 2.0)
+		monsters.start(pr, true)
+		var g := 0
+		while monsters.running != "" and g < 2000:
+			g += 1
+			for mon in monsters.alive.duplicate():
+				if is_instance_valid(mon) and not (mon as Enemy).dead:
+					(mon as Enemy).take_hit("arrow", 40.0, Vector3.FORWARD)
+			player.hp = player.max_hp
+			await get_tree().physics_frame
+		if int(story.get_flag("raids_won", 0)) < 1:
+			fails.append("progression: night raid could not be won")
+	print("[selftest] progression: level %d, points %d, streak %d, dailies %s, raids won %d" % [pg.level(), pg.points(), pg.streak(), [ds[0][1], ds[1][1], ds[2][1]], int(story.get_flag("raids_won", 0))])
+
+
 ## Ghost and monster missions: the first one starts, its waves spawn animated models and can be beaten,
 ## rewards arrive and the next mission unlocks. Also: mission tasks map to body actions, dialogue compaction.
 func _selftest_monsters(fails: PackedStringArray) -> void:
@@ -3041,6 +3132,20 @@ func _run_capture_ride(arg: String) -> void:
 			await RenderingServer.frame_post_draw
 			print("[capture] ", an.species, view[0], " -> ", get_viewport().get_texture().get_image().save_png("%s/%s_%s.png" % [dir, an.species, view[0]]))
 		mounts.dismount()
+	get_tree().quit()
+
+
+func _run_capture_hero(dir: String) -> void:
+	DirAccess.make_dir_recursive_absolute(dir)
+	for i in 30:
+		await get_tree().process_frame
+	progression.gain(300, "capture")
+	menu.toggle()
+	menu._show_page("Hero")
+	for i in 20:
+		await get_tree().process_frame
+	await RenderingServer.frame_post_draw
+	get_viewport().get_texture().get_image().save_png("%s/hero.png" % dir)
 	get_tree().quit()
 
 

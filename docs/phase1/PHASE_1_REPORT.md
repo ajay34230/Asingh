@@ -320,3 +320,21 @@ Verified by the selftest (PASS) and software-rendered close-ups. **Not tested on
   - 5-layer shell fur with very thin tapered strands. Long and soft on dogs, foxes and camels, very short and fine on horses, cattle and deer.
   - Shells are drawn only within 22 m of the player and are off on the Low preset. There is a new Video setting, "Animal fur".
 - Cost on the phone is unknown: 5 extra passes per furred surface for nearby animals.
+
+## Addendum: Progression, daily challenges, login streak, night raids (2026-11-07)
+
+Verified by the selftest (PASS) and a software-rendered capture of the new Hero page. **Not tested on a device.**
+
+- **XP and levels (Progression).**
+  - XP sources: half of every coin earned, kills (15; monsters 12; bosses 60), +120 per monster mission, harvests (8), climbs and vaults (2), daily challenges (40), the bonus chest (60) and weapon upgrades (30).
+  - Level n needs 80 + 45(n-1) XP.
+  - A level-up gives a skill point, a full heal, a banner, a sound and a burst of light. The level is shown on the HUD ("Lv N   HEALTH ...").
+- **Skill tree.** Three branches, three skills each, up to 3 ranks:
+  - Fighter: Heavy Hands (+12% punch/kick), Combo Flow (-7% strike cooldown), Crusher (+15% weapon swings).
+  - Hunter: Quick Draw (-12% bow cooldown), Piercing Shot (+15% arrows), Spirit Bane (+20% vs ghosts).
+  - Survivor: Vitality (+15 max HP), Nimble (-20% roll cost, +4% run speed), Second Wind (+25% stamina regen).
+- **Weapon upgrades.** Fists, hammer, bow, sword, dagger, spear and axe go to +3 at Dhruv's forge (within 8 m of the Blacksmith). Each level is +12% damage. Level n costs 2+2n iron, 2n-1 monster essence and 40n coins. Monsters drop essence (bosses 4 essence plus 3 iron).
+- **Daily challenges.** Three a day, picked deterministically from the device date out of 9 kinds: kills, ghosts, arrows, kicks, coins, riding distance, climbs, harvests, race wins. Each pays coins and XP, and finishing all three opens a bonus chest (coins plus potions, essence or iron).
+- **Login streak.** One reward per calendar day, growing over 7 days; day 7 also gives a skill point. Missing a day restarts at day 1. Checked at start and again if you play past midnight.
+- **Night raids.** After the first ghost mission, each night has a 60% chance that ghosts raid the village, Bazaar Town, Kesar Sarai or Dhoopgarh. It is announced with a banner and a tracker or map goal, starts when you arrive and fades at dawn. Waves scale with your level, and you protect the settlement's heart for coins.
+- **Menu.** The pause menu's button list now scrolls (it was taller than a phone screen). There is a new Hero & challenges page with the XP bar, challenges, streak, skill buttons and upgrade buttons, each saying what is missing.

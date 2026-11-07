@@ -8,6 +8,7 @@ const DEFS := {
 	"potion": {"name": "Healing potion", "type": "consumable", "heal": 70.0, "desc": "Heals 70."},
 	"hide": {"name": "Hide", "type": "material", "desc": "Crafting material."},
 	"iron": {"name": "Iron scrap", "type": "material", "desc": "Crafting material."},
+	"essence": {"name": "Monster essence", "type": "material", "desc": "Dropped by ghosts and monsters. The blacksmith uses it to upgrade weapons."},
 	"spear": {"name": "Spear", "type": "weapon", "dmg": 1.15, "reach": 0.7, "desc": "Longer reach."},
 	"axe": {"name": "Axe", "type": "weapon", "dmg": 1.4, "reach": 0.0, "desc": "Heavy hits."},
 	"bow": {"name": "Hunting bow", "type": "weapon", "dmg": 0.8, "reach": 0.0, "ranged": true, "desc": "Fires arrows at the nearest foe, even from the saddle. Arrows hurt ghosts twice as much."},
@@ -129,6 +130,17 @@ func craft(rid: String) -> bool:
 
 ## Random loot from a defeated enemy (called by Enemy): herbs often, iron and hides sometimes.
 func loot(role: String, rng: RandomNumberGenerator) -> void:
+	if role in Monster.KINDS:
+		# monsters: essence for weapon upgrades (bosses drop a handful), sometimes iron
+		var boss := bool(Monster.KINDS[role].get("boss", false))
+		if boss:
+			give("essence", 4)
+			give("iron", 3)
+		elif rng.randf() < 0.55:
+			give("essence")
+		elif rng.randf() < 0.3:
+			give("iron")
+		return
 	var r := rng.randf()
 	if r < 0.30:
 		give("herb")

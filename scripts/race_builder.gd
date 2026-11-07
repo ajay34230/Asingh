@@ -679,6 +679,7 @@ func _finish() -> void:
 	racers.clear()
 	if won:
 		story.add("coins", 150)
+		story.add("races_won")
 		story.set_flag("race_won", true)
 		player.hp = player.max_hp
 		player.hp_changed.emit(player.hp, player.max_hp)
