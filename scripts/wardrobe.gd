@@ -8,26 +8,26 @@ extends CanvasLayer
 ## Ownership and the worn outfit are story flags, so they save with the game.
 
 const OUTFITS := [
-	{"id": "explorer", "name": "Explorer's Mail", "shop": "", "price": 0, "body": {"body": "striker_mail", "robe": true, "scale": 0.99},
+	{"id": "explorer", "jewels": ["kada_R", "pouch"], "name": "Explorer's Mail", "shop": "", "price": 0, "body": {"body": "striker_mail", "robe": true, "scale": 0.99},
 	 "dye": [Color(0.7, 0.2, 0.12), Color(0.35, 0.22, 0.12)], "armor": 1.0, "bonus": {}, "desc": "Your trusty travelling mail."},
-	{"id": "kurta", "name": "Village Kurta", "shop": "bazaar", "price": 60, "body": {"body": "m_Farmer", "scale": 1.0},
+	{"id": "kurta", "jewels": ["kada_R"], "name": "Village Kurta", "shop": "bazaar", "price": 60, "body": {"body": "m_Farmer", "scale": 1.0},
 	 "dye": [Color(0.95, 0.93, 0.86), Color(0.95, 0.55, 0.12)], "turban": [Color(0.95, 0.55, 0.1), Color(0.85, 0.2, 0.15)],
 	 "sash": Color(0.15, 0.45, 0.25), "armor": 1.0, "bonus": {"run": 0.05}, "desc": "White cotton kurta, saffron safa. Run 5% faster."},
-	{"id": "adventurer", "name": "Adventurer's Gear", "shop": "bazaar", "price": 120, "body": {"body": "m_Adventurer", "scale": 1.0, "natural": true},
+	{"id": "adventurer", "jewels": ["kada_R"], "name": "Adventurer's Gear", "shop": "bazaar", "price": 120, "body": {"body": "m_Adventurer", "scale": 1.0, "natural": true},
 	 "armor": 0.95, "bonus": {"regen": 0.1}, "desc": "Leather straps and a good pack. 5% armour, stamina +10%."},
-	{"id": "maharaja", "name": "Maharaja's Robes", "shop": "bazaar", "price": 1000, "body": {"body": "m_King", "scale": 1.0, "natural": true},
+	{"id": "maharaja", "jewels": ["kada_R", "kada_L", "mala_gold"], "name": "Maharaja's Robes", "shop": "bazaar", "price": 1000, "body": {"body": "m_King", "scale": 1.0, "natural": true},
 	 "sash": Color(0.95, 0.76, 0.25), "cape": [Color(0.5, 0.05, 0.1), Color(0.95, 0.78, 0.25), 1.2],
 	 "armor": 0.9, "bonus": {"xp": 0.15}, "desc": "Silk, gold and a royal cape. 10% armour, +15% XP."},
-	{"id": "shadow", "name": "Shadow Garb", "shop": "sarai", "price": 220, "body": {"body": "thief", "robe": true, "scale": 1.0},
+	{"id": "shadow", "jewels": ["pouch"], "name": "Shadow Garb", "shop": "sarai", "price": 220, "body": {"body": "thief", "robe": true, "scale": 1.0},
 	 "dye": [Color(0.1, 0.1, 0.12), Color(0.6, 0.62, 0.68)], "sash": Color(0.3, 0.3, 0.34), "armor": 0.92, "bonus": {"run": 0.08}, "desc": "Dark and quiet. 8% armour, run 8% faster."},
 	{"id": "ghost_hunter", "name": "Ghost Hunter Set", "shop": "sarai", "price": 480, "body": {"body": "thief", "robe": true, "scale": 1.0},
 	 "dye": [Color(0.16, 0.18, 0.24), Color(0.55, 0.8, 0.95)], "helmet": "Helmet2", "pads": true, "cape": [Color(0.14, 0.16, 0.22), Color(0.55, 0.8, 0.95), 0.8], "armor": 0.8,
 	 "bonus": {"ghost": 0.2, "arrow": 0.1}, "desc": "Silvered trims. 20% armour, +20% vs ghosts, +10% arrows."},
-	{"id": "rajput", "name": "Rajput Warrior", "shop": "dhoop", "price": 350, "body": {"body": "veteran", "robe": true, "scale": 1.0},
+	{"id": "rajput", "jewels": ["kada_R", "mala"], "name": "Rajput Warrior", "shop": "dhoop", "price": 350, "body": {"body": "veteran", "robe": true, "scale": 1.0},
 	 "dye": [Color(0.92, 0.5, 0.1), Color(0.6, 0.08, 0.08)], "turban": [Color(0.93, 0.45, 0.08), Color(0.95, 0.78, 0.25)],
 	 "sash": Color(0.65, 0.08, 0.1), "pads": true, "armor": 0.8,
 	 "bonus": {"melee": 0.05}, "desc": "Saffron angrakha, safa and sash, steel pauldrons. 20% armour, +5% melee."},
-	{"id": "royal_guard", "name": "Royal Guard Uniform", "shop": "dhoop", "price": 450, "body": {"body": "striker_mail", "robe": true, "scale": 1.0},
+	{"id": "royal_guard", "jewels": ["kada_L"], "name": "Royal Guard Uniform", "shop": "dhoop", "price": 450, "body": {"body": "striker_mail", "robe": true, "scale": 1.0},
 	 "dye": [Color(0.1, 0.18, 0.6), Color(0.06, 0.1, 0.32)], "helmet": "Helmet2", "pads": true,
 	 "cape": [Color(0.1, 0.16, 0.55), Color(0.95, 0.78, 0.25), 1.05], "sash": Color(0.95, 0.76, 0.25), "armor": 0.75,
 	 "bonus": {}, "desc": "Blue and gold of the palace guard. 25% armour."},
@@ -156,6 +156,27 @@ func wear(id: String, keep_flag: bool = true) -> void:
 	if o.has("cape"):
 		var cc: Array = o["cape"]
 		player._rig.add_gear_node(ClothLook.cape(cc[0] if main_c == null else main_dye, cc[1], float(cc[2]) if cc.size() > 2 else 1.05), "cape")
+	# jewellery and carried gear
+	for j in o.get("jewels", []):
+		match String(j):
+			"kada_R":
+				player._rig.add_gear_node(ClothLook.kada(), "wrist_R")
+			"kada_L":
+				player._rig.add_gear_node(ClothLook.kada(), "wrist_L")
+			"mala":
+				player._rig.add_gear_node(ClothLook.mala(Color(0.35, 0.18, 0.1), Color(0.95, 0.75, 0.3)), "neck")
+			"mala_gold":
+				player._rig.add_gear_node(ClothLook.mala(Color(0.95, 0.78, 0.3), Color(0.75, 0.05, 0.12)), "neck")
+			"pouch":
+				player._rig.add_gear_node(ClothLook.pouch(), "hip_R")
+	var it := get_tree().get_first_node_in_group("items")
+	if it != null:
+		if int(it.call("count", "bow")) > 0:
+			player._rig.add_gear_node(ClothLook.quiver(), "back")
+		if int(it.call("count", "sword")) > 0:
+			player._rig.add_gear_node(ClothLook.scabbard(true), "hip_L")
+		if int(it.call("count", "dagger")) > 0 and not "pouch" in o.get("jewels", []):
+			player._rig.add_gear_node(ClothLook.scabbard(false), "hip_R")
 	player.outfit_armor = float(o["armor"])
 	player.outfit_bonus = o["bonus"]
 	if keep_flag:

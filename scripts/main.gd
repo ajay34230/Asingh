@@ -3178,7 +3178,13 @@ func _run_capture_outfits(dir: String) -> void:
 	_teleport(-60.0, 20.0)
 	for i in 20:
 		await get_tree().physics_frame
+	if OS.get_environment("GEAR") != "":
+		items.give("bow")
+		items.give("sword")
+		items.give("dagger")
 	for o in Wardrobe.OUTFITS:
+		if OS.get_environment("ONLY") != "" and not OS.get_environment("ONLY").split(",").has(String(o["id"])):
+			continue
 		wardrobe.wear(String(o["id"]), false)
 		player._model.rotation.y = 0.0
 		player.set_look(PI, -0.12)

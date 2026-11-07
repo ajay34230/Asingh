@@ -293,3 +293,120 @@ static func cape(c: Color, trim_c: Color, length: float = 1.05) -> Node3D:
 	var holder := Node3D.new()
 	holder.add_child(mi)
 	return holder
+
+
+static func _metal(c: Color) -> StandardMaterial3D:
+	var m := StandardMaterial3D.new()
+	m.albedo_color = c
+	m.metallic = 0.9
+	m.roughness = 0.28
+	return m
+
+
+static func _mesh(mesh: Mesh, mat: Material, pos: Vector3, rot_deg: Vector3 = Vector3.ZERO, sc: Vector3 = Vector3.ONE) -> MeshInstance3D:
+	var mi := MeshInstance3D.new()
+	mi.mesh = mesh
+	mi.material_override = mat
+	mi.position = pos
+	mi.rotation_degrees = rot_deg
+	mi.scale = sc
+	return mi
+
+
+## A gold kada (bangle) for the wrist.
+static func kada(c: Color = Color(0.95, 0.75, 0.3)) -> Node3D:
+	var root := Node3D.new()
+	var t := TorusMesh.new()
+	t.inner_radius = 0.034
+	t.outer_radius = 0.046
+	t.rings = 20
+	t.ring_segments = 8
+	root.add_child(_mesh(t, _metal(c), Vector3.ZERO))
+	return root
+
+
+## A bead mala hanging on the chest with a pendant: rudraksha brown, or gold for royalty.
+static func mala(bead: Color, pendant: Color) -> Node3D:
+	var root := Node3D.new()
+	var bm := SphereMesh.new()
+	bm.radius = 0.014
+	bm.height = 0.028
+	bm.radial_segments = 8
+	bm.rings = 4
+	var mat := _mat(bead, 0.45)
+	for i in 17:
+		var a := lerpf(-1.25, 1.25, float(i) / 16.0)
+		root.add_child(_mesh(bm, mat, Vector3(sin(a) * 0.1, -cos(a) * 0.13 + 0.12, -0.035 * cos(a))))
+	var pm := SphereMesh.new()
+	pm.radius = 0.022
+	pm.height = 0.03
+	root.add_child(_mesh(pm, _metal(pendant), Vector3(0, -0.035, -0.045)))
+	return root
+
+
+## A leather belt pouch with a flap and a brass button.
+static func pouch() -> Node3D:
+	var root := Node3D.new()
+	var leather := _mat(Color(0.36, 0.22, 0.12), 0.6)
+	var b := BoxMesh.new()
+	b.size = Vector3(0.1, 0.13, 0.055)
+	root.add_child(_mesh(b, leather, Vector3(0, -0.06, 0)))
+	var f := BoxMesh.new()
+	f.size = Vector3(0.105, 0.05, 0.06)
+	root.add_child(_mesh(f, _mat(Color(0.3, 0.18, 0.1), 0.6), Vector3(0, 0.0, -0.003), Vector3(-8, 0, 0)))
+	var btn := SphereMesh.new()
+	btn.radius = 0.008
+	btn.height = 0.016
+	root.add_child(_mesh(btn, _metal(Color(0.85, 0.65, 0.3)), Vector3(0, -0.02, -0.032)))
+	return root
+
+
+## A leather quiver worn across the back with fletched arrows sticking out.
+static func quiver() -> Node3D:
+	var root := Node3D.new()
+	var tilt := Node3D.new()
+	tilt.rotation_degrees = Vector3(0, 0, 28)
+	root.add_child(tilt)
+	var c := CylinderMesh.new()
+	c.top_radius = 0.06
+	c.bottom_radius = 0.05
+	c.height = 0.58
+	c.radial_segments = 12
+	tilt.add_child(_mesh(c, _mat(Color(0.4, 0.24, 0.12), 0.6), Vector3.ZERO))
+	var rim := TorusMesh.new()
+	rim.inner_radius = 0.055
+	rim.outer_radius = 0.066
+	tilt.add_child(_mesh(rim, _metal(Color(0.8, 0.6, 0.28)), Vector3(0, 0.29, 0)))
+	var shaft := CylinderMesh.new()
+	shaft.top_radius = 0.004
+	shaft.bottom_radius = 0.004
+	shaft.height = 0.2
+	var feather := BoxMesh.new()
+	feather.size = Vector3(0.028, 0.07, 0.003)
+	var wood := _mat(Color(0.55, 0.42, 0.25), 0.7)
+	for i in 6:
+		var x := -0.03 + (i % 3) * 0.03
+		var z := -0.015 + int(i / 3) * 0.03
+		tilt.add_child(_mesh(shaft, wood, Vector3(x, 0.38, z)))
+		var fm := _mat([Color(0.8, 0.15, 0.1), Color(0.95, 0.95, 0.9)][i % 2], 0.8)
+		tilt.add_child(_mesh(feather, fm, Vector3(x, 0.45, z), Vector3(0, 30 * i, 0)))
+	return root
+
+
+## A scabbard (for the talwar) or a short sheath (dagger) hanging from the hip, angled back.
+static func scabbard(long_blade: bool) -> Node3D:
+	var root := Node3D.new()
+	var tilt := Node3D.new()
+	tilt.rotation_degrees = Vector3(-32 if long_blade else -20, 0, 6)
+	root.add_child(tilt)
+	var length := 0.82 if long_blade else 0.3
+	var b := BoxMesh.new()
+	b.size = Vector3(0.022, length, 0.06)
+	tilt.add_child(_mesh(b, _mat(Color(0.18, 0.08, 0.06), 0.45), Vector3(0, -length * 0.5, 0)))
+	var tip := BoxMesh.new()
+	tip.size = Vector3(0.026, 0.07, 0.064)
+	tilt.add_child(_mesh(tip, _metal(Color(0.85, 0.66, 0.3)), Vector3(0, -length + 0.035, 0)))
+	var throat := BoxMesh.new()
+	throat.size = Vector3(0.028, 0.05, 0.068)
+	tilt.add_child(_mesh(throat, _metal(Color(0.85, 0.66, 0.3)), Vector3(0, -0.02, 0)))
+	return root

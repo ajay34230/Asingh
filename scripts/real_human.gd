@@ -206,7 +206,15 @@ func _tint() -> void:
 		# keep the role's hue (guards stay blue-ish, Reavers red-ish) but make it rich, not washed out
 		main_c = Color.from_hsv(c.h, clampf(c.s * 1.5 + 0.35, 0.45, 0.95), clampf(c.v * 0.9, 0.35, 0.95))
 		trim_c = DRESS[(h / 7 + 3) % DRESS.size()].lerp(main_c, 0.3)
-	_dye(main_c, trim_c)
+	if int(GameSettings.v.get("quality", 0)) == 0 and name != "Explorer":
+		# High graphics: villagers get the same real fabric / leather / metal look, and some wear bangles
+		ClothLook.dress(self, [main_c, trim_c])
+		if h % 3 == 0:
+			add_gear_node(ClothLook.kada(), "wrist_R")
+		if h % 5 == 0:
+			add_gear_node(ClothLook.kada(Color(0.85, 0.85, 0.88)), "wrist_L")
+	else:
+		_dye(main_c, trim_c)
 
 
 ## X27: re-dress the body in chosen colours (garments only).
@@ -389,6 +397,10 @@ func add_gear_node(piece: Node3D, kind: String) -> void:
 	if _skins.is_empty():
 		return
 	var key := "head" if kind in ["helmet", "turban"] else ("spine" if kind == "sash" else "chest")
+	if kind == "wrist_L" or kind == "wrist_R":
+		key = "el_" + kind.right(1)
+	elif kind.begins_with("hip_"):
+		key = "hips"
 	var bi: int = _bone_idx[0][key]
 	if bi < 0:
 		return
@@ -443,6 +455,27 @@ func _place_gear(att: BoneAttachment3D, piece: Node3D, kind: String) -> void:
 			if l >= 0:
 				where = (pl + pr) * 0.5 + up * 0.04 * k + back * 0.13 * k
 				grow = clampf(pl.distance_to(pr) / (0.36 * k), 0.8, 1.5)
+		"wrist_L", "wrist_R":
+			# a bangle (kada) just above the wrist, lined up with the forearm bone
+			var wi: int = _bone_idx[0]["wr_" + kind.right(1)]
+			if wi >= 0:
+				var wp := (sk.global_transform * sk.get_bone_global_rest(wi)).origin
+				where = wp + (bone_rest.origin - wp).normalized() * 0.05 * k
+			var b := bone_rest.basis.orthonormalized()
+			piece.transform = bone_rest.affine_inverse() * Transform3D(b.scaled(Vector3.ONE * k), where)
+			return
+		"neck":
+			var ni: int = _bone_idx[0]["neck"]
+			var np := (sk.global_transform * sk.get_bone_global_rest(ni)).origin if ni >= 0 else (pl + pr) * 0.5
+			where = np - up * 0.06 * k - back * 0.12 * k
+			if l >= 0:
+				grow = clampf(pl.distance_to(pr) / (0.36 * k), 0.8, 1.5)
+		"hip_L", "hip_R":
+			var side := global_transform.basis.x.normalized() * (-1.0 if kind == "hip_L" else 1.0)
+			where = bone_rest.origin + side * 0.17 * k - up * 0.02 * k
+		"back":
+			if l >= 0:
+				where = (pl + pr) * 0.5 - up * 0.16 * k + back * 0.14 * k
 	var want := Transform3D(global_transform.basis.orthonormalized().scaled(Vector3.ONE * k * grow), where)
 	piece.transform = bone_rest.affine_inverse() * want
 

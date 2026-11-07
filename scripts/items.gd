@@ -48,6 +48,11 @@ func count(id: String) -> int:
 
 
 func give(id: String, n: int = 1) -> void:
+	if DEFS.has(id) and String(DEFS[id]["type"]) == "weapon" and count(id) == 0:
+		# carried gear (quiver, scabbard) appears on the body once you own the weapon
+		var wr := get_tree().get_first_node_in_group("wardrobe") if is_inside_tree() else null
+		if wr != null:
+			(func() -> void: wr.call("wear", String(wr.call("worn")))).call_deferred()
 	if not DEFS.has(id):
 		return
 	story.set_flag("item_" + id, count(id) + n)

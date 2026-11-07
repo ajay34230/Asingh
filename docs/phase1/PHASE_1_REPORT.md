@@ -369,3 +369,18 @@ Verified by the selftest (PASS) and software-rendered front and back captures of
   - Capes on Maharaja, Royal Guard, Ghost Hunter, Warlord and Knight. They are gathered at the shoulders, wrap round the body and hang in folds shaded from screen-space normals. They lift and stream behind when running or falling (swing from the rig's speed).
 - The Rajput set now wears a turban instead of a helmet. Helmets still hide or show with the toggle, and the turban appears when the helmet is hidden.
 - Selftest fix: the login-streak test now computes "yesterday" from the local date, not UTC.
+
+## Addendum: Character details (2026-11-08)
+
+Verified by the selftest (PASS) and software-rendered close-ups. **Not tested on a device.**
+
+- **Jewellery and carried gear** (ClothLook builders, placed from the skeleton's rest pose like the helmets):
+  - gold or silver kada bangles lined up with the forearm
+  - a rudraksha or gold bead mala with a pendant on the chest
+  - a leather belt pouch with a brass button
+  - a leather quiver with a brass rim and red and white fletched arrows across the back (once you own a bow)
+  - a talwar scabbard angled back from the left hip (once you own the sword)
+  - a dagger sheath on the right hip (once you own the dagger)
+- Each outfit lists its own jewellery: the Explorer has a kada and a pouch, the Maharaja two kadas and a gold mala, the Rajput a kada and a rudraksha mala, and so on.
+- Getting a new weapon re-dresses the player so the gear appears.
+- **Villagers and enemies (High graphics only):** the same fabric, leather and metal garment shader with their existing role colours. About a third wear a gold kada and a fifth a silver one. Medium and Low keep the old plain dye, to protect phone speed.
