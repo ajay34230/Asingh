@@ -54,3 +54,14 @@ static func get_rules() -> Dictionary:
 
 static func set_rules(rules: Dictionary) -> void:
 	save_value("game", "rules", rules)
+
+
+## Coins earned in games, kept between sessions (section "progress").
+static func get_coins() -> int:
+	return int(load_value("progress", "coins", 0))
+
+
+static func add_coins(amount: int) -> int:
+	var total := get_coins() + amount
+	save_value("progress", "coins", total)
+	return total

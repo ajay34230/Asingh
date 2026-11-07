@@ -150,7 +150,9 @@ func _ready() -> void:
 		effects.fireworks(3.0)
 		effects.confetti(4.0)
 		effects.burst(Vector3(0, 1.0, 0), EffectsManager.GOLD, 60, 3.0, 1.0)
-	if _has_arg("--preview-shot="):
+	if _has_arg("--result-shot="):
+		_run_result_shot(_arg_value(args, "--result-shot"))
+	elif _has_arg("--preview-shot="):
 		_run_preview_shot(_arg_value(args, "--preview-shot"))
 	elif "--capture-test" in args or "--capture-kick" in args:
 		_run_capture_test()
@@ -171,7 +173,7 @@ func _is_test_launch(args: PackedStringArray) -> bool:
 	for arg in args:
 		if arg.begins_with("--screenshot=") or arg.begins_with("--seed="):
 			return true
-	return "--click-test" in args or _has_arg("--preview-shot=") or "--capture-test" in args or "--capture-kick" in args or "--fx-shot" in args or "--dice-face" in args
+	return "--click-test" in args or _has_arg("--preview-shot=") or _has_arg("--result-shot=") or "--capture-test" in args or "--capture-kick" in args or "--fx-shot" in args or "--dice-face" in args
 
 
 ## Main menu, settings and pause overlays. The menu sits above the 3D scene.
@@ -222,6 +224,7 @@ func _start_from_menu(config: Dictionary) -> void:
 	menu.visible = false
 	hud.visible = true
 	hud.hide_result()
+	game.dice.visible = true
 	director.stop_attract(1.4)
 	audio.start_music("game")
 	_announce_later("start", 1.0, true)
@@ -445,12 +448,54 @@ func _log_message(text: String) -> void:
 		print("[game] " + text)
 
 
+const COIN_REWARD := [100, 50, 25, 10]
+
+
 func _on_game_finished(ranking: Array) -> void:
-	hud.show_result(ranking)
+	var reward := 0
+	for entry in ranking:
+		if entry["human"]:
+			reward = maxi(reward, COIN_REWARD[mini(int(entry["place"]) - 1, 3)])
+	var total := GameSettings.add_coins(reward) if reward > 0 and not _demo else GameSettings.get_coins()
+	_celebrate(ranking)
+	## Let the 3D celebration play before the results panel slides in.
+	if not _demo:
+		await get_tree().create_timer(2.2).timeout
+	hud.show_result(ranking, reward, total)
 	if _demo and not _demo_done:
 		_demo_done = true
 		print("DEMO RESULT: " + str(ranking))
 		get_tree().quit(0)
+
+
+## Winner's tokens gather in the centre and dance: camera closes in, hops and spins.
+func _celebrate(ranking: Array) -> void:
+	if _demo or ranking.is_empty():
+		return
+	var color: String = ranking[0]["color"]
+	if not game.tokens.has(color):
+		return
+	director.focus(Vector3(0, 0.3, 0), 1.2, 0.45)
+	game.dice.visible = false   # clear the centre for the dance
+	for i in range(BoardPath.TOKENS_PER_PLAYER):
+		var token: TransformerToken = game.tokens[color][i]
+		token.transform_out(0.2)
+		_dance(token, i * 0.15)
+
+
+func _dance(token: TransformerToken, delay: float) -> void:
+	await get_tree().create_timer(delay).timeout
+	for n in range(6):
+		if not is_instance_valid(token):
+			return
+		var t := token.create_tween().set_parallel(true)
+		t.tween_property(token.body_node, "position:y", 0.3, 0.18).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
+		t.tween_property(token, "rotation:y", token.rotation.y + PI, 0.36)
+		for side in ["L", "R"]:
+			var arm: Dictionary = token.arm_pivots[side]
+			t.tween_property(arm["shoulder"], "rotation", Vector3(-2.8, 0, 0.5 if side == "L" else -0.5), 0.18)
+		t.chain().tween_property(token.body_node, "position:y", 0.0, 0.18).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_IN)
+		await t.finished
 
 
 ## Tilted perspective camera. The camera distance is chosen so the whole board spans
@@ -838,6 +883,24 @@ func _run_preview_shot(path: String) -> void:
 	game.awaiting_pick = true
 	game._highlight(true)
 	await get_tree().create_timer(1.5).timeout
+	get_viewport().get_texture().get_image().save_png(path)
+	print("saved " + path)
+	get_tree().quit()
+
+
+## Ends a staged game (you first) and saves a screenshot of the celebration and results.
+func _run_result_shot(path: String) -> void:
+	for i in range(10):
+		await get_tree().process_frame
+	game.new_game(["blue", "yellow", "green", "red"] as Array[String], ["blue"] as Array[String], GameSettings.get_rules(), 1)
+	game.engine.seats[0]["tokens"] = [57, 57, 57, 57]
+	game.engine.seats[2]["tokens"] = [57, 57, 40, 12]
+	_place_tokens_from_engine()
+	var ranking := [{"place": 1, "color": "blue", "human": true}, {"place": 2, "color": "green", "human": false},
+		{"place": 3, "color": "yellow", "human": false}, {"place": 4, "color": "red", "human": false}]
+	game.event.emit("game_over", {"ranking": ranking})
+	_on_game_finished(ranking)
+	await get_tree().create_timer(float(_arg_value(OS.get_cmdline_user_args(), "--shot-delay")) if _has_arg("--shot-delay") else 5.0).timeout
 	get_viewport().get_texture().get_image().save_png(path)
 	print("saved " + path)
 	get_tree().quit()

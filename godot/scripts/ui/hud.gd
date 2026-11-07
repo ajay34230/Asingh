@@ -109,7 +109,9 @@ func _button(parent: Control, text: String, size: Vector2, pos: Vector2) -> Butt
 
 func _panel(parent: Control) -> Dictionary:
 	var p := PanelContainer.new()
-	p.set_anchors_preset(Control.PRESET_CENTER)
+	p.set_anchors_and_offsets_preset(Control.PRESET_CENTER)
+	p.grow_horizontal = Control.GROW_DIRECTION_BOTH   # stays centred as content grows
+	p.grow_vertical = Control.GROW_DIRECTION_BOTH
 	p.visible = false
 	parent.add_child(p)
 	var box := VBoxContainer.new()
@@ -138,23 +140,82 @@ func _build_pause(root: Control) -> void:
 		menu_pressed.emit())
 
 
+var _result_title: Label
+var _result_sub: Label
+var _podium: VBoxContainer
+var _coin_label: Label
+var _coin_total: Label
+
+const MEDALS := [Color("#ffd24a"), Color("#d8dde6"), Color("#cd7f45"), Color("#7a5a48")]
+const PLACE_NAMES := ["1st", "2nd", "3rd", "4th"]
+
+
 func _build_result(root: Control) -> void:
 	var parts := _panel(root)
 	_result = parts["panel"]
+	_result.custom_minimum_size = Vector2(560, 0)
 	var box: VBoxContainer = parts["box"]
-	var title := Label.new()
-	title.text = "Game over"
-	title.add_theme_font_size_override("font_size", 28)
-	box.add_child(title)
-	_result_list = Label.new()
-	_result_list.add_theme_font_size_override("font_size", 20)
-	box.add_child(_result_list)
+	box.add_theme_constant_override("separation", 12)
+	_result_title = Label.new()
+	_result_title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	var deco := FontVariation.new()
+	deco.base_font = load("res://assets/fonts/CinzelDecorative-Bold.ttf")
+	_result_title.add_theme_font_override("font", deco)
+	_result_title.add_theme_font_size_override("font_size", 56)
+	_result_title.add_theme_constant_override("outline_size", 14)
+	box.add_child(_result_title)
+	_result_sub = Label.new()
+	_result_sub.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_result_sub.add_theme_font_size_override("font_size", 22)
+	box.add_child(_result_sub)
+	_podium = VBoxContainer.new()
+	_podium.add_theme_constant_override("separation", 8)
+	box.add_child(_podium)
+	## Coin reward that counts up, and the running total.
+	var coins := HBoxContainer.new()
+	coins.alignment = BoxContainer.ALIGNMENT_CENTER
+	coins.add_theme_constant_override("separation", 12)
+	box.add_child(coins)
+	coins.add_child(_coin_icon(30))
+	_coin_label = Label.new()
+	_coin_label.add_theme_font_size_override("font_size", 40)
+	_coin_label.add_theme_color_override("font_color", RoyalTheme.GOLD_LIGHT)
+	coins.add_child(_coin_label)
+	_coin_total = Label.new()
+	_coin_total.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_coin_total.add_theme_font_size_override("font_size", 20)
+	_coin_total.add_theme_color_override("font_color", Color("#e8c98a"))
+	box.add_child(_coin_total)
 	_menu_button(box, "Rematch", func() -> void:
 		_result.visible = false
 		rematch_pressed.emit())
 	_menu_button(box, "Main menu", func() -> void:
 		_result.visible = false
 		menu_pressed.emit())
+
+
+## A gold coin drawn as a disc with a rim and an embossed star.
+func _coin_icon(radius: float) -> Control:
+	var c := CoinIcon.new()
+	c.radius = radius
+	c.custom_minimum_size = Vector2(radius * 2.0, radius * 2.0)
+	return c
+
+
+class CoinIcon extends Control:
+	var radius := 24.0
+	func _draw() -> void:
+		var o := size * 0.5
+		draw_circle(o + Vector2(0, 3), radius, Color(0, 0, 0, 0.4))
+		draw_circle(o, radius, Color("#b8801f"))
+		draw_circle(o, radius * 0.86, Color("#f2c24e"))
+		draw_arc(o, radius * 0.72, 0, TAU, 32, Color("#b8801f"), 2.0, true)
+		var star := PackedVector2Array()
+		for i in range(10):
+			var r := radius * (0.48 if i % 2 == 0 else 0.2)
+			var a := TAU * i / 10.0 - PI * 0.5
+			star.append(o + Vector2(cos(a), sin(a)) * r)
+		draw_colored_polygon(star, Color("#fff0b0"))
 
 
 func _menu_button(box: VBoxContainer, text: String, callback: Callable) -> void:
@@ -205,14 +266,72 @@ func _process(_delta: float) -> void:
 		_fps.text = "%d fps" % Engine.get_frames_per_second()
 
 
-func show_result(ranking: Array) -> void:
-	var lines: Array[String] = []
+## Results: a title, one podium row per player with a medal, then the coin reward
+## counting up. `reward` is what the human earned; `total` the new balance.
+func show_result(ranking: Array, reward := 0, total := 0) -> void:
+	var human_place := 0
+	var humans := 0
 	for entry in ranking:
-		var who: String = "You" if entry["human"] else String(entry["color"]).capitalize()
-		lines.append("%d. %s" % [entry["place"], who])
-	_result_list.text = "\n".join(lines)
+		if entry["human"]:
+			humans += 1
+			if human_place == 0:
+				human_place = entry["place"]
+	if humans == 1 and human_place == 1:
+		_result_title.text = "Victory!"
+		_result_sub.text = "The maharaja's crown is yours"
+	elif humans == 1:
+		_result_title.text = "%s place" % PLACE_NAMES[human_place - 1]
+		_result_sub.text = "A fine game. Play again?"
+	else:
+		_result_title.text = "Game over"
+		_result_sub.text = "%s wins the crown" % String(ranking[0]["color"]).capitalize()
+	_result_title.add_theme_color_override("font_color", RoyalTheme.GOLD_LIGHT)
+	for child in _podium.get_children():
+		child.queue_free()
+	for i in range(ranking.size()):
+		var entry: Dictionary = ranking[i]
+		var row := PanelContainer.new()
+		var style := StyleBoxFlat.new()
+		style.bg_color = Color(COLOR_HEX.get(entry["color"], "#888888")).darkened(0.55)
+		style.border_color = MEDALS[mini(i, 3)]
+		style.set_border_width_all(2)
+		style.border_width_left = 8
+		style.set_corner_radius_all(10)
+		style.content_margin_left = 16
+		style.content_margin_right = 16
+		style.content_margin_top = 6
+		style.content_margin_bottom = 6
+		row.add_theme_stylebox_override("panel", style)
+		var h := HBoxContainer.new()
+		h.add_theme_constant_override("separation", 14)
+		row.add_child(h)
+		var medal := Label.new()
+		medal.text = PLACE_NAMES[i]
+		medal.custom_minimum_size = Vector2(64, 0)
+		medal.add_theme_color_override("font_color", MEDALS[mini(i, 3)])
+		medal.add_theme_font_size_override("font_size", 26 if i == 0 else 22)
+		h.add_child(medal)
+		var who := Label.new()
+		who.text = ("You" if entry["human"] and humans == 1 else String(entry["color"]).capitalize()) + ("" if entry["human"] else "  (AI)")
+		who.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		who.add_theme_color_override("font_color", Color(COLOR_HEX.get(entry["color"], "#ffffff")).lightened(0.35))
+		who.add_theme_font_size_override("font_size", 26 if i == 0 else 22)
+		h.add_child(who)
+		_podium.add_child(row)
+		row.modulate.a = 0.0
+		var t := row.create_tween()
+		t.tween_interval(0.35 + i * 0.18)
+		t.tween_property(row, "modulate:a", 1.0, 0.25)
 	_result.visible = true
+	_message.visible = false
 	UiFx.pop_in(_result)
+	## Coins count up after the podium has appeared.
+	_coin_label.text = "+0"
+	_coin_total.text = ""
+	var count := create_tween()
+	count.tween_interval(0.5 + ranking.size() * 0.18)
+	count.tween_method(func(v: float) -> void: _coin_label.text = "+%d" % int(v), 0.0, float(reward), 1.2).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
+	count.tween_callback(func() -> void: _coin_total.text = "Treasury: %d coins" % total)
 
 
 func hide_result() -> void:
