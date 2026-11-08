@@ -86,6 +86,7 @@ func _ready() -> void:
 	_build_rewards()
 	_build_profile()
 	_build_journey()
+	_build_modes()
 	show_page("main")
 
 
@@ -353,11 +354,7 @@ func _build_main() -> void:
 	_button(box, "Royal Journey", func() -> void: _refresh_journey(); show_page("journey"))
 	_button(box, "Play vs AI", func() -> void: _open_setup("ai"))
 	_button(box, "Pass and play", func() -> void: _open_setup("pass"))
-	_button(box, "Quick play", func() -> void: _quick_play())
-	_button(box, "Team battle 2v2", func() -> void:
-		var rules := GameSettings.get_rules()
-		rules["teams"] = true
-		start_game.emit({"mode": "team", "players": 4, "difficulty": GameSettings.get_option("difficulty"), "rules": rules}))
+	_button(box, "More modes", func() -> void: show_page("modes"))
 	_button(box, "Royal Bazaar", func() -> void: _refresh_themes(); show_page("themes"))
 	_button(box, "Rewards", func() -> void: _refresh_rewards(); show_page("rewards"))
 	_button(box, "Profile", func() -> void: _refresh_profile(); show_page("profile"))
@@ -555,6 +552,35 @@ func _refresh_rewards() -> void:
 		row.add_theme_font_size_override("font_size", 19)
 		row.add_theme_color_override("font_color", Color("#ffe39a") if done else Color(0.85, 0.75, 0.65, 0.75))
 		_rewards_box.add_child(row)
+
+
+## Extra modes, each with a one-line description.
+func _build_modes() -> void:
+	var box := _page_root("modes")
+	_title(box, "More modes")
+	var modes := [
+		["Quick play", "2 players, ends at the first token home", {"quick_end": true}, 2, "ai"],
+		["Team battle 2v2", "You and a partner against two rivals", {"teams": true}, 4, "team"],
+		["Snakes & Ludo", "Ladders lift you, snakes drop you back", {"snakes": true}, 4, "ai"],
+		["Power-up Ludo", "Collect shields and extra rolls on the track", {"powerups": true}, 4, "ai"],
+		["Blitz", "8 seconds a turn: think fast!", {"blitz": true}, 4, "ai"],
+	]
+	for m in modes:
+		var spec: Array = m
+		_button(box, spec[0], func() -> void:
+			var rules := GameSettings.get_rules()
+			for k in ["quick_end", "teams", "snakes", "powerups", "blitz"]:
+				rules[k] = false
+			for k in spec[2]:
+				rules[k] = spec[2][k]
+			start_game.emit({"mode": spec[4], "players": spec[3], "difficulty": GameSettings.get_option("difficulty"), "rules": rules}))
+		var d := Label.new()
+		d.text = spec[1]
+		d.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		d.add_theme_font_size_override("font_size", 16)
+		d.add_theme_color_override("font_color", Color("#e8cfa0"))
+		box.add_child(d)
+	_button(box, "Back", func() -> void: _back())
 
 
 var _journey_box: VBoxContainer

@@ -26,6 +26,9 @@ var _rng := RandomNumberGenerator.new()
 ## capture_bonus: capturing grants another roll.
 ## home_bonus: moving a token into the centre grants another roll.
 ## quick_end: the game ends as soon as the first player finishes.
+## snakes: ladders and snakes on the track (JUMPS).
+## powerups: orbs on the track grant a shield or an extra roll.
+## blitz: 8-second turns (the controller reads this; the rules are unchanged).
 ## teams: 2v2 with four seats; seats 0+2 and 1+3 are partners (opposite corners).
 ##   Partners never capture each other, and a team wins when both partners finish.
 const DEFAULT_RULES := {
@@ -35,7 +38,18 @@ const DEFAULT_RULES := {
 	"home_bonus": true,
 	"quick_end": false,
 	"teams": false,
+	"snakes": false,
+	"powerups": false,
+	"blitz": false,
 }
+
+## Snakes & Ludo: ring index -> progress change. Ladders climb 5, snakes slide back 6.
+## None sit on safe squares or on a colour's entry square.
+const JUMPS := {3: 5, 16: 5, 29: 5, 42: 5, 7: -6, 20: -6, 33: -6, 46: -6}
+## Power-ups: "shield" protects the token from capture for its owner's next 3 turns;
+## "star" grants an extra roll.
+const POWERUP_TYPES := ["shield", "star"]
+var powerups: Dictionary = {}   ## ring index -> type
 var rules: Dictionary = DEFAULT_RULES.duplicate()
 
 
@@ -56,6 +70,7 @@ func setup(seat_specs: Array, rng_seed: int = 0, rule_overrides: Dictionary = {}
 			"color": color,
 			"human": bool(spec.get("human", false)),
 			"tokens": [0, 0, 0, 0],
+			"shields": [0, 0, 0, 0],
 			"rank": -1,
 		})
 	current = 0
@@ -66,6 +81,26 @@ func setup(seat_specs: Array, rng_seed: int = 0, rule_overrides: Dictionary = {}
 	_rng.seed = rng_seed
 	if rng_seed == 0:
 		_rng.randomize()
+	powerups.clear()
+	if rules["powerups"]:
+		for i in range(3):
+			_spawn_powerup()
+
+
+func _spawn_powerup() -> void:
+	var blocked := {}
+	for idx in BoardPath.safe_ring_indices():
+		blocked[idx] = true
+	for idx in JUMPS:
+		blocked[idx] = true
+	for color in BoardPath.COLORS:
+		blocked[BoardPath.PLAYERS[color]["entry"]] = true
+	var free: Array[int] = []
+	for r in range(BoardPath.RING_LENGTH):
+		if not blocked.has(r) and not powerups.has(r):
+			free.append(r)
+	if not free.is_empty():
+		powerups[free[_rng.randi() % free.size()]] = POWERUP_TYPES[_rng.randi() % POWERUP_TYPES.size()]
 
 
 func team_of(index: int) -> int:
@@ -118,6 +153,15 @@ func preview_move(token: int) -> Dictionary:
 	var seat := current_seat()
 	var from: int = seat["tokens"][token]
 	var to := 1 if from == 0 else from + dice
+	var slide_from := -1
+	if rules["snakes"] and to <= BoardPath.COMMON_STEPS:
+		var landing := BoardPath.ring_index_for_progress(seat["color"], to)
+		if JUMPS.has(landing):
+			slide_from = to
+			to = clampi(to + int(JUMPS[landing]), 1, BoardPath.COMMON_STEPS)
+	var powerup := ""
+	if rules["powerups"] and to <= BoardPath.COMMON_STEPS:
+		powerup = String(powerups.get(BoardPath.ring_index_for_progress(seat["color"], to), ""))
 	var captures: Array[Dictionary] = []
 	if to <= BoardPath.COMMON_STEPS:
 		var ring := BoardPath.ring_index_for_progress(seat["color"], to)
@@ -128,12 +172,13 @@ func preview_move(token: int) -> Dictionary:
 				var other := seats[other_index]
 				for other_token in range(4):
 					var q: int = other["tokens"][other_token]
-					if q >= 1 and q <= BoardPath.COMMON_STEPS \
+					if q >= 1 and q <= BoardPath.COMMON_STEPS and int(other["shields"][other_token]) <= 0 \
 							and BoardPath.ring_index_for_progress(other["color"], q) == ring:
 						captures.append({"seat": other_index, "token": other_token})
 	return {
 		"seat": current, "token": token, "from": from, "to": to,
 		"captures": captures, "finishes": to == BoardPath.FINISH_PROGRESS,
+		"slide_from": slide_from, "powerup": powerup,
 	}
 
 
@@ -146,6 +191,12 @@ func apply_move(token: int) -> Dictionary:
 	seat["tokens"][token] = preview["to"]
 	for capture in preview["captures"]:
 		seats[capture["seat"]]["tokens"][capture["token"]] = 0
+		seats[capture["seat"]]["shields"][capture["token"]] = 0
+	if preview["powerup"] != "":
+		powerups.erase(BoardPath.ring_index_for_progress(seat["color"], preview["to"]))
+		if preview["powerup"] == "shield":
+			seat["shields"][token] = 3
+		_spawn_powerup()
 
 	var finished_seat := false
 	if preview["finishes"] and _all_finished(seat):
@@ -156,6 +207,8 @@ func apply_move(token: int) -> Dictionary:
 	if rules["capture_bonus"] and not preview["captures"].is_empty():
 		earned_bonus = true
 	if rules["home_bonus"] and preview["finishes"]:
+		earned_bonus = true
+	if preview["powerup"] == "star":
 		earned_bonus = true
 	var extra_turn := earned_bonus and not finished_seat and phase != PHASE_OVER
 	_advance_turn(extra_turn)
@@ -240,4 +293,8 @@ func _advance_turn(same_seat: bool) -> void:
 		if not _is_finished(seats[candidate]):
 			current = candidate
 			break
+	## A new turn for this seat: its shields wear down by one.
+	var sh: Array = seats[current]["shields"]
+	for i in range(sh.size()):
+		sh[i] = maxi(0, int(sh[i]) - 1)
 	phase = PHASE_ROLL

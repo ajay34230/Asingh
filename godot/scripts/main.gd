@@ -88,6 +88,10 @@ func _ready() -> void:
 	preview.name = "MovePreview"
 	add_child(preview)
 	game.preview = preview
+	var specials := SpecialSquares.new()
+	specials.name = "SpecialSquares"
+	add_child(specials)
+	game.specials = specials
 	var safe := SafeSquares.new()
 	safe.name = "SafeSquares"
 	safe.game = game
@@ -388,6 +392,8 @@ func _apply_settings() -> void:
 func _start_new_game_test() -> void:
 	game.fast_mode = _demo
 	_start_new_game_with(["blue"], ["blue", "yellow", "green", "red"])
+	if game.specials:
+		game.specials.sync_powerups(game.engine.powerups)
 
 
 func _start_new_game_with(humans: Array, seats: Array) -> void:
@@ -397,7 +403,11 @@ func _start_new_game_with(humans: Array, seats: Array) -> void:
 	var typed_seats: Array[String] = []
 	for s in seats:
 		typed_seats.append(s)
-	game.new_game(typed_seats, typed_humans)
+	var rules := {}
+	if _has_arg("--rules="):
+		for r in _arg_value(OS.get_cmdline_user_args(), "--rules").split(","):
+			rules[r] = true
+	game.new_game(typed_seats, typed_humans, rules)
 
 
 ## Royal decorations, placed beside the board (outside the playfield, so they never
@@ -513,6 +523,19 @@ func _on_game_event(event_name: String, data: Dictionary) -> void:
 			effects.burst(pos + Vector3(0, 0.15, 0), EffectsManager.TEAM.get(data.get("color", "red"), EffectsManager.GOLD), 24, 1.6, 0.7)
 			effects.shockwave(pos)
 			audio.vibrate(25)
+		"ladder":
+			audio.play("confirm", 0.0, -3.0)
+			effects.burst(pos + up, Color("#7cff7a"), 24, 2.0, 0.8, -1.0)
+			hud.flash_banner(tr("LADDER!"), Color("#9dff8a"), 0.5)
+		"snake":
+			audio.play("swish", 0.0, -2.0)
+			audio.play("error", 0.0, -8.0)
+			effects.burst(pos + up, Color("#3fae4a"), 24, 1.6, 0.8)
+			hud.flash_banner(tr("SNAKE!"), Color("#ff7a7a"), 0.5)
+		"powerup":
+			audio.play("shield" if data.get("type") == "shield" else "coins", 0.02)
+			effects.burst(pos + up, Color("#4fc3ff") if data.get("type") == "shield" else EffectsManager.GOLD, 40, 2.4, 0.9)
+			hud.flash_banner(tr("SHIELD!") if data.get("type") == "shield" else tr("EXTRA ROLL!"), Color("#9fd8ff") if data.get("type") == "shield" else Color("#ffd24a"), 0.6)
 		"leave_yard":
 			tutorial.tip("six")
 			audio.vibrate(20)

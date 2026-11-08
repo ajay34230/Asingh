@@ -25,6 +25,7 @@ func _init() -> void:
 	_test_each_colour_owns_its_arm()
 	_test_ai_difficulties_finish()
 	_test_team_mode()
+	_test_snakes_and_powerups()
 
 	print("%d checks, %d failures" % [_checks, _failures.size()])
 	for message in _failures:
@@ -369,3 +370,55 @@ func _test_team_mode() -> void:
 				e.apply_move(AiController.choose_move(e, o["moves"], 2))
 			guard += 1
 		check(e.phase == RulesEngine.PHASE_OVER, "team game %d finishes" % s)
+
+
+func _test_snakes_and_powerups() -> void:
+	# A ladder at ring 3 lifts the token 5 squares.
+	var e := RulesEngine.new()
+	e.setup([{"color": "blue", "human": true}, {"color": "green", "human": false}], 3, {"snakes": true})
+	var start := BoardPath.start_of("blue")
+	var ladder_progress := ((3 - start + 52) % 52) + 1
+	e.seats[0]["tokens"] = [ladder_progress - 2, 0, 0, 0]
+	e.roll_with_value(2)
+	var r := e.apply_move(0)
+	check(r["slide_from"] == ladder_progress and r["to"] == ladder_progress + 5, "ladder climbs 5")
+	# A snake at ring 7 drops the token 6 squares.
+	e = RulesEngine.new()
+	e.setup([{"color": "blue", "human": true}, {"color": "green", "human": false}], 3, {"snakes": true})
+	var snake_progress := ((7 - start + 52) % 52) + 1
+	e.seats[0]["tokens"] = [snake_progress - 3, 0, 0, 0]
+	e.roll_with_value(3)
+	r = e.apply_move(0)
+	check(r["to"] == snake_progress - 6, "snake slides back 6")
+	# A shield blocks capture; a star gives another roll.
+	e = RulesEngine.new()
+	e.setup([{"color": "blue", "human": true}, {"color": "green", "human": false}], 3, {"powerups": true})
+	check(e.powerups.size() == 3, "three power-ups on the board")
+	e.seats[0]["tokens"] = [10, 0, 0, 0]
+	var target := BoardPath.ring_index_for_progress("blue", 13)
+	e.seats[1]["tokens"] = [((target - BoardPath.start_of("green") + 52) % 52) + 1, 0, 0, 0]
+	e.seats[1]["shields"] = [2, 0, 0, 0]
+	e.powerups.clear()
+	e.roll_with_value(3)
+	r = e.apply_move(0)
+	check(r["captured"].is_empty(), "a shielded token cannot be captured")
+	e = RulesEngine.new()
+	e.setup([{"color": "blue", "human": true}, {"color": "green", "human": false}], 3, {"powerups": true})
+	e.powerups.clear()
+	e.powerups[BoardPath.ring_index_for_progress("blue", 12)] = "star"
+	e.seats[0]["tokens"] = [10, 0, 0, 0]
+	e.roll_with_value(2)
+	r = e.apply_move(0)
+	check(r["powerup"] == "star" and r["extra_turn"] and e.powerups.size() == 1, "star gives an extra roll and a new orb appears")
+	# Full games with every new rule finish.
+	for sd in range(1, 16):
+		e = RulesEngine.new()
+		e.setup([{"color": "blue", "human": false}, {"color": "yellow", "human": false}, {"color": "green", "human": false}, {"color": "red", "human": false}],
+			sd, {"snakes": true, "powerups": true})
+		var guard := 0
+		while e.phase != RulesEngine.PHASE_OVER and guard < 10000:
+			var o := e.roll()
+			if not o["passed"] and not o["forfeited"]:
+				e.apply_move(AiController.choose_move(e, o["moves"], 3))
+			guard += 1
+		check(e.phase == RulesEngine.PHASE_OVER, "snakes + power-ups game %d finishes" % sd)

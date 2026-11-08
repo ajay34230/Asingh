@@ -49,6 +49,8 @@ var difficulty := 1            ## AiController.Difficulty
 var fight: FightChoreography
 var life: TokenLife
 var replay: FightReplay
+var specials: SpecialSquares
+var blitz := false   ## set by the main scene for snakes / power-up games
 var forced_roll := -1   ## test/showcase only: the next roll's value
 var _moving_index := 0
 var preview: MovePreview        ## set by the main scene; shows where legal moves land
@@ -70,6 +72,14 @@ func new_game(seat_colors: Array[String] = ["blue", "yellow", "green", "red"], h
 	engine.setup(seats, _seed, rules)
 	tally = {"captures": 0, "lost": 0, "home": 0, "sixes": 0}
 	_spawn_tokens(seat_colors)
+	if specials:
+		for c in specials.get_children():
+			c.queue_free()
+		if engine.rules["snakes"]:
+			specials.build_jumps()
+		specials._orbs.clear()
+		specials.sync_powerups(engine.powerups)
+	blitz = engine.rules["blitz"]
 	busy = false
 	awaiting_pick = false
 	message.emit("New game")
@@ -189,7 +199,7 @@ func _start_turn() -> void:
 		message.emit(tr("%s is rolling") % AiController.PERSONAS.get(current_color(), {"name": current_color().capitalize()})["name"])
 		dice.set_rollable(false)
 		if not fast_mode:
-			await get_tree().create_timer(AI_DELAY).timeout
+			await get_tree().create_timer(AI_DELAY * (0.35 if blitz else 1.0)).timeout
 		_roll_now()
 
 func _on_roll_requested() -> void:
@@ -248,9 +258,9 @@ func _throw_offset(color: String) -> Vector3:
 
 
 func _start_timer() -> void:
-	if fast_mode or turn_seconds <= 0.0:
+	if fast_mode or (turn_seconds <= 0.0 and not blitz):
 		return
-	timer_left = turn_seconds
+	timer_left = 8.0 if blitz else turn_seconds
 	timer_active = true
 
 
@@ -263,7 +273,7 @@ func _process(delta: float) -> void:
 	if not timer_active:
 		return
 	timer_left -= delta
-	turn_timer.emit(maxf(timer_left, 0.0), turn_seconds)
+	turn_timer.emit(maxf(timer_left, 0.0), 8.0 if blitz else turn_seconds)
 	if timer_left > 0.0:
 		return
 	timer_active = false
@@ -313,7 +323,8 @@ func _animate_move(move: Dictionary) -> void:
 	## Walk square by square: the limb cycle runs alongside each hop. With a capture, the
 	## attacker stops just short of the victim's square and squares up to fight.
 	var fighting: bool = not move["captured"].is_empty() and not fast_mode
-	var last := to - 1 if fighting else to
+	var walk_to: int = to if int(move.get("slide_from", -1)) < 0 else int(move["slide_from"])
+	var last := walk_to - 1 if fighting and walk_to == to else walk_to
 	var first := from + 1 if from > 0 else 1
 	if from == 0 and not fast_mode:
 		## Leaving the courtyard: a leap in an arc onto the start square.
@@ -328,6 +339,8 @@ func _animate_move(move: Dictionary) -> void:
 		if not fast_mode:
 			token.play_walk(_hop() * 0.9)
 		await token.move_to_world(step_point, _hop())
+	if int(move.get("slide_from", -1)) >= 0:
+		await _slide(token, color, index, int(move["slide_from"]), to, fighting)
 	var landing := _track_world(color, to, index)
 	if fighting:
 		var approach := landing + (token.global_position - landing).normalized() * 0.74
@@ -383,7 +396,11 @@ func _animate_move(move: Dictionary) -> void:
 		token.global_position = centre
 	if director and not fast_mode:
 		director.release(0.5)
-	## Two of a colour on one square: high-five.
+	if String(move.get("powerup", "")) != "":
+		event.emit("powerup", {"position": token.global_position, "type": move["powerup"], "token": token})
+	if specials:
+		specials.sync_powerups(engine.powerups)
+		## Two of a colour on one square: high-five.
 	if not move["finishes"] and to <= BoardPath.COMMON_STEPS and not fast_mode and life:
 		var seat: Dictionary = engine.seats[move["seat"]]
 		for i in range(BoardPath.TOKENS_PER_PLAYER):
@@ -423,6 +440,40 @@ func _six_slow_motion() -> void:
 	Engine.time_scale = 0.35
 	await get_tree().create_timer(0.45, true, false, true).timeout
 	Engine.time_scale = 1.0
+
+
+## Snakes & Ludo: a ladder climb (a high leap) or a snake slide (a wobbling slither back).
+func _slide(token: TransformerToken, color: String, index: int, from_p: int, to_p: int, stop_short: bool) -> void:
+	var climbing := to_p > from_p
+	event.emit("ladder" if climbing else "snake", {"position": token.global_position, "color": color})
+	if fast_mode:
+		token.global_position = _track_world(color, to_p, index)
+		return
+	await get_tree().create_timer(0.15).timeout
+	var steps: Array[Vector3] = []
+	var p := from_p
+	while p != to_p:
+		p += 1 if climbing else -1
+		steps.append(_track_world(color, p, index))
+	if stop_short and not steps.is_empty():
+		steps.pop_back()
+	var start := token.global_position
+	var arc := func(f: float) -> void:
+		var pos := start
+		if not steps.is_empty():
+			var k := f * steps.size()
+			var i := mini(int(k), steps.size() - 1)
+			var a := start if i == 0 else steps[i - 1]
+			pos = a.lerp(steps[i], k - i)
+		if climbing:
+			pos.y += sin(f * PI) * 1.4
+		else:
+			token.body_node.rotation.z = sin(f * PI * 8.0) * 0.4
+		token.global_position = pos
+	var t := token.create_tween()
+	t.tween_method(arc, 0.0, 1.0, (0.7 if climbing else 0.9) * anim_scale).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
+	await t.finished
+	token.body_node.rotation.z = 0.0
 
 
 ## Jump in an arc from the courtyard to `target`, with a crouch before and a squash after.

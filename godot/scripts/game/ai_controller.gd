@@ -36,6 +36,13 @@ static func choose_move(engine: RulesEngine, moves: Array[int], difficulty: int 
 		if difficulty == Difficulty.EXPERT:
 			score -= _danger(engine, seat, preview) * 12.0 * safety
 		score += float(preview["captures"].size()) * 100.0 * attack
+		## Smarter: an advanced victim is worth more (it loses more ground).
+		for cap in preview["captures"]:
+			score += float(engine.seats[cap["seat"]]["tokens"][cap["token"]]) * 0.9 * attack
+		if preview["powerup"] != "":
+			score += 25.0
+		if int(preview["slide_from"]) >= 0:
+			score += (float(preview["to"]) - float(preview["slide_from"])) * 4.0
 		if preview["finishes"]:
 			score += 90.0 * race
 		if preview["from"] == 0:
