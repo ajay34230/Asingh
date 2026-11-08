@@ -36,10 +36,16 @@ func setup(dice_node: DiceController, seed_value: int = 0) -> void:
 	fight.name = "Fight"
 	add_child(fight)
 	fight.cue.connect(_on_fight_cue)
+	life = TokenLife.new()
+	life.name = "TokenLife"
+	life.game = self
+	add_child(life)
 	dice.roll_requested.connect(_on_roll_requested)
 
 var difficulty := 1            ## AiController.Difficulty
 var fight: FightChoreography
+var life: TokenLife
+var _moving_index := 0
 var preview: MovePreview        ## set by the main scene; shows where legal moves land
 var director: CameraDirector    ## set by the main scene; frames the action
 var anim_scale := 1.0
@@ -244,6 +250,7 @@ func _execute(token_index: int) -> void:
 func _animate_move(move: Dictionary) -> void:
 	var color: String = engine.seats[move["seat"]]["color"]
 	var index: int = move["token"]
+	_moving_index = index
 	var token: TransformerToken = tokens[color][index]
 	var from: int = move["from"]
 	var to: int = move["to"]
@@ -254,7 +261,14 @@ func _animate_move(move: Dictionary) -> void:
 	## attacker stops just short of the victim's square and squares up to fight.
 	var fighting: bool = not move["captured"].is_empty() and not fast_mode
 	var last := to - 1 if fighting else to
-	for progress in range(from + 1 if from > 0 else 1, last + 1):
+	var first := from + 1 if from > 0 else 1
+	if from == 0 and not fast_mode:
+		## Leaving the courtyard: a leap in an arc onto the start square.
+		var start_point := _track_world(color, 1, index)
+		await _leap(token, start_point)
+		event.emit("leave_yard", {"position": start_point, "color": color})
+		first = 2
+	for progress in range(first, last + 1):
 		var step_point := _track_world(color, progress, index)
 		token.ground_y = step_point.y
 		event.emit("hop", {"position": token.global_position})
@@ -310,6 +324,14 @@ func _animate_move(move: Dictionary) -> void:
 		token.global_position = centre
 	if director and not fast_mode:
 		director.release(0.5)
+	## Two of a colour on one square: high-five.
+	if not move["finishes"] and to <= BoardPath.COMMON_STEPS and not fast_mode and life:
+		var seat: Dictionary = engine.seats[move["seat"]]
+		for i in range(BoardPath.TOKENS_PER_PLAYER):
+			if i != index and int(seat["tokens"][i]) == to:
+				life.high_five(token, tokens[color][i])
+				event.emit("high_five", {"position": token.global_position})
+				break
 	if move["seat_finished"]:
 		message.emit("%s finished!" % color.capitalize())
 
@@ -321,6 +343,29 @@ func _capture_sequence(attacker: TransformerToken, victim: TransformerToken, bas
 	await fight.perform(attacker, victim, base, use_punch)
 
 
+## Jump in an arc from the courtyard to `target`, with a crouch before and a squash after.
+func _leap(token: TransformerToken, target: Vector3) -> void:
+	var start := token.global_position
+	var crouch := token.create_tween()
+	crouch.tween_property(token.body_node, "scale", Vector3(1.12, 0.82, 1.12), 0.1 * anim_scale)
+	await crouch.finished
+	token.ground_y = target.y
+	var flat := Vector3(target.x - start.x, 0, target.z - start.z)
+	if flat.length_squared() > 0.0001:
+		token.rotation.y = atan2(flat.x, flat.z)
+	var arc := func(p: float) -> void:
+		token.global_position = start.lerp(target, p) + Vector3.UP * sin(p * PI) * 0.9
+		token.body_node.scale = Vector3.ONE.lerp(Vector3(0.9, 1.15, 0.9), sin(p * PI))
+	var t := token.create_tween()
+	t.tween_method(arc, 0.0, 1.0, 0.45 * anim_scale).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
+	await t.finished
+	token.global_position = target
+	var land := token.create_tween()
+	land.tween_property(token.body_node, "scale", Vector3(1.15, 0.8, 1.15), 0.06)
+	land.tween_property(token.body_node, "scale", Vector3.ONE, 0.2).set_trans(Tween.TRANS_ELASTIC).set_ease(Tween.EASE_OUT)
+	await land.finished
+
+
 ## Fight cues become game events (sound, effects, voices) with the colours filled in.
 func _on_fight_cue(cue_name: String, data: Dictionary) -> void:
 	var out := data.duplicate()
@@ -328,6 +373,9 @@ func _on_fight_cue(cue_name: String, data: Dictionary) -> void:
 	if victim:
 		out["color"] = victim.get_meta("color", "")
 		out["victim_token"] = victim
+	if cue_name == "impact" and victim and life:
+		var attacker_color := current_color()
+		life.react_to_capture(attacker_color, victim.get_meta("color", ""), [victim, tokens[attacker_color][_moving_index]])
 	event.emit(cue_name, out)
 
 

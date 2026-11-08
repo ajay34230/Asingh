@@ -397,7 +397,15 @@ func _on_game_event(event_name: String, data: Dictionary) -> void:
 			effects.burst(pos + Vector3(0, 0.15, 0), EffectsManager.TEAM.get(data.get("color", "red"), EffectsManager.GOLD), 24, 1.6, 0.7)
 			effects.shockwave(pos)
 			audio.vibrate(25)
+		"leave_yard":
+			effects.burst(pos + Vector3(0, 0.1, 0), Color("#ff6f91"), 26, 1.8, 0.9, 2.0)
+			effects.burst(pos + Vector3(0, 0.1, 0), Color("#ffb347"), 16, 1.5, 0.9, 2.0)
+			audio.play("token_land", 0.05)
+		"high_five":
+			effects.burst(pos + Vector3(0, 0.9, 0), EffectsManager.GOLD, 16, 1.4, 0.5)
+			audio.play("punch", 0.2, -12.0)
 		"finish":
+			_dome_fireworks()
 			audio.play("token_finish", 0.0, -3.0)
 			audio.play("coins", 0.03)
 			_token_says(data.get("token"), "cheer", data.get("color", ""))
@@ -480,6 +488,19 @@ func _on_game_finished(ranking: Array) -> void:
 		_demo_done = true
 		print("DEMO RESULT: " + str(ranking))
 		get_tree().quit(0)
+
+
+## A token home: each chhatri dome launches a firework.
+func _dome_fireworks() -> void:
+	if game.fast_mode:
+		return
+	for color in BoardPath.COLORS:
+		var home: Vector2i = BoardPath.PLAYERS[color]["home"]
+		var c := BoardPath.to_world(home.x + 3, home.y + 3)
+		var at := Vector3(c.x, 2.4, c.z)
+		effects.burst(at, EffectsManager.TEAM[color], 30, 3.0, 1.0, 2.5)
+		effects.burst(at, EffectsManager.GOLD, 18, 2.2, 0.8, 2.5)
+		await get_tree().create_timer(0.12).timeout
 
 
 ## Winner's tokens gather in the centre and dance: camera closes in, hops and spins.
