@@ -202,6 +202,7 @@ func _build_result(root: Control) -> void:
 	_result_title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	var deco := FontVariation.new()
 	deco.base_font = load("res://assets/fonts/CinzelDecorative-Bold.ttf")
+	(deco.base_font as FontFile).fallbacks = RoyalTheme.indic_fallbacks()
 	_result_title.add_theme_font_override("font", deco)
 	_result_title.add_theme_font_size_override("font_size", 56)
 	_result_title.add_theme_constant_override("outline_size", 14)
@@ -393,7 +394,7 @@ func show_result(ranking: Array, reward := 0, total := 0, achievements: Array = 
 	count.tween_callback(func() -> void: _fly_coins(mini(12, maxi(3, reward / 10))))
 	count.tween_method(func(v: float) -> void: _coin_label.text = "+%d" % int(v), 0.0, float(reward), 1.2).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
 	count.tween_callback(func() -> void:
-		var lines: Array[String] = ["Treasury: %d coins" % total]
+		var lines: Array[String] = [tr("Treasury: %d coins") % total]
 		for id in achievements:
 			var a: Array = Progress.ACHIEVEMENTS[id]
 			lines.append("Achievement unlocked: %s  (+%d)" % [a[0], a[2]])

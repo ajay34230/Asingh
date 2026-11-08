@@ -277,6 +277,7 @@ func _build_main() -> void:
 	_logo = logo
 	var deco := FontVariation.new()
 	deco.base_font = load("res://assets/fonts/CinzelDecorative-Bold.ttf")
+	(deco.base_font as FontFile).fallbacks = RoyalTheme.indic_fallbacks()
 	var shader := Shader.new()
 	shader.code = LOGO_SHADER
 	for line in [["ROYAL", 70], ["INDIA LUDO", 96]]:
@@ -376,8 +377,10 @@ func _build_settings() -> void:
 	_haptics = _check(box, "Vibration", true)
 	_voice = _check(box, "Voice commentary (Hindi)", true)
 	_timer = _check(box, "Turn timer (20 s)", true)
-	_language = _option(box, "Language", ["English", "Hindi (coming soon)"])
-	_language.set_item_disabled(1, true)
+	var names: Array = []
+	for l in I18n.LANGUAGES:
+		names.append(l[1])
+	_language = _option(box, "Language", names)
 	for c in [_graphics, _anim, _language]:
 		(c as OptionButton).item_selected.connect(func(_i: int) -> void: _save_settings())
 	for c in [_camera, _fps, _mute, _haptics, _voice, _timer]:
@@ -455,7 +458,7 @@ func _shop_pressed(id: String) -> void:
 func _refresh_themes() -> void:
 	if _shop_coins == null:
 		return
-	_shop_coins.text = "Treasury: %d coins" % Progress.coins()
+	_shop_coins.text = tr("Treasury: %d coins") % Progress.coins()
 	for id in _shop_rows:
 		var item: Array = Progress.SHOP[id]
 		var equipped := false
@@ -463,7 +466,7 @@ func _refresh_themes() -> void:
 			equipped = BoardThemes.current_id() == id.trim_prefix("theme_")
 		else:
 			equipped = Progress.equipped(item[0]) == id
-		var state := "Equipped" if equipped else ("Owned: tap to use" if Progress.owns(id) else "%d coins" % item[2])
+		var state := tr("Equipped") if equipped else (tr("Owned: tap to use") if Progress.owns(id) else tr("%d coins") % item[2])
 		(_shop_rows[id] as Button).text = "   %s      -      %s" % [item[1], state]
 
 
@@ -519,7 +522,7 @@ func _refresh_rewards() -> void:
 
 func _update_coin_badge() -> void:
 	if _coin_badge:
-		_coin_badge.text = "%d coins" % Progress.coins()
+		_coin_badge.text = tr("%d coins") % Progress.coins()
 
 
 func _build_howto() -> void:
@@ -576,7 +579,10 @@ func _load_settings_into_controls() -> void:
 	_haptics.button_pressed = _audio.haptics if _audio else true
 	_voice.button_pressed = GameSettings.get_option("voice")
 	_timer.button_pressed = GameSettings.get_option("turn_timer")
-	_language.select(0)
+	var code := String(GameSettings.get_option("language"))
+	for i in range(I18n.LANGUAGES.size()):
+		if I18n.LANGUAGES[i][0] == code:
+			_language.select(i)
 
 
 func _save_settings() -> void:
@@ -585,6 +591,10 @@ func _save_settings() -> void:
 	GameSettings.set_option("anim_speed", _anim.selected)
 	GameSettings.set_option("show_fps", _fps.button_pressed)
 	GameSettings.set_option("voice", _voice.button_pressed)
+	var lang: String = I18n.LANGUAGES[maxi(_language.selected, 0)][0]
+	if lang != String(GameSettings.get_option("language")):
+		GameSettings.set_option("language", lang)
+		I18n.apply(lang)
 	GameSettings.set_option("turn_timer", _timer.button_pressed)
 	if _audio:
 		_audio.set_music_volume_db(_music.value)

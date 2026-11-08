@@ -68,8 +68,8 @@ func _ready() -> void:
 		# Trees in tall urns at the far corners of each wing (two different pachira trees).
 		_urn(Vector3(s * 10.1, top, -6.6), 0.55)
 		_plant("pachira_aquatica_01", "_d", Vector3(s * 10.1, top + 0.6, -6.6), 1.8, s * 40.0)
-		_urn(Vector3(s * 18.4, top, -5.9), 0.55)
-		_plant("pachira_aquatica_01", "_c", Vector3(s * 18.4, top + 0.6, -5.9), 2.5, s * 120.0)
+		_urn(Vector3(s * 17.6, top, -5.9), 0.55)
+		_plant("pachira_aquatica_01", "_c", Vector3(s * 17.6, top + 0.6, -5.9), 2.5, s * 120.0)
 		# Potted palm beside the board, flowering anthurium on a plinth by the decoration.
 		_plant("potted_plant_02", "", Vector3(s * 10.0, top, 0.0), 1.55, s * 15.0)
 		_plinth(Vector3(s * 15.6, top, 0.0))

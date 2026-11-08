@@ -7,7 +7,7 @@ extends RefCounted
 const PATH := "user://settings.cfg"
 
 const DEFAULTS := {
-	"graphics": "high",         ## low | medium | high
+	"graphics": "medium",       ## low | medium | high (medium suits most phones)
 	"camera_tilt": true,        ## true: tilted 3D view; false: straight top-down
 	"anim_speed": 1,            ## 0 slow, 1 normal, 2 fast
 	"show_fps": false,

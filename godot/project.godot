@@ -3,6 +3,8 @@
 config_version=5
 
 [application]
+
+config/icon="res://assets/icon/icon_512.png"
 config/name="Royal India Ludo"
 config/description="Royal India 3D Ludo"
 config/features=PackedStringArray("4.3")

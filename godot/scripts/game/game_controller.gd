@@ -178,11 +178,11 @@ func _start_turn() -> void:
 	if director and not fast_mode:
 		_glance(current_color())
 	if is_human_turn():
-		message.emit("Your turn: tap the dice")
+		message.emit(tr("Your turn: tap the dice"))
 		dice.set_rollable(true)
 		_start_timer()
 	else:
-		message.emit("%s is rolling" % AiController.PERSONAS.get(current_color(), {"name": current_color().capitalize()})["name"])
+		message.emit(tr("%s is rolling") % AiController.PERSONAS.get(current_color(), {"name": current_color().capitalize()})["name"])
 		dice.set_rollable(false)
 		if not fast_mode:
 			await get_tree().create_timer(AI_DELAY).timeout
@@ -227,7 +227,7 @@ func _roll_now() -> void:
 			awaiting_pick = true
 			_highlight(true)
 			_start_timer()
-			message.emit("Tap a glowing %s token" % current_color())
+			message.emit(tr("Tap a glowing token"))
 			busy = false
 	else:
 		var choice := AiController.choose_move(engine, _legal, difficulty)

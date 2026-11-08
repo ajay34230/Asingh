@@ -45,6 +45,7 @@ func _ready() -> void:
 	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	var deco := FontVariation.new()
 	deco.base_font = load("res://assets/fonts/CinzelDecorative-Bold.ttf")
+	(deco.base_font as FontFile).fallbacks = RoyalTheme.indic_fallbacks()
 	title.add_theme_font_override("font", deco)
 	title.add_theme_font_size_override("font_size", 64)
 	title.add_theme_color_override("font_color", RoyalTheme.GOLD_LIGHT)

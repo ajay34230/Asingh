@@ -7,7 +7,6 @@
 ##   --seed=N            deterministic dice sequence
 extends Node3D
 
-const DICE_PATH := "res://assets/models/02_Dice/Royal_India_Royal_Jewel_Dice.glb"
 const SCREEN_MARGIN := 0.04
 ## Tilted perspective so tokens read as 3D figures, not flat discs.
 const CAMERA_FOV := 32.0
@@ -53,6 +52,7 @@ func _ready() -> void:
 		elif arg.begins_with("--menu-screenshot="):
 			menu_shot = arg.trim_prefix("--menu-screenshot=")
 
+	I18n.setup()
 	## Loading screen first, so it is on screen while the palace is built.
 	loading = LoadingScreen.new()
 	add_child(loading)
@@ -311,6 +311,19 @@ func _apply_settings() -> void:
 	if env:
 		env.glow_enabled = medium
 	get_viewport().scaling_3d_scale = 0.75 if quality == "low" else 1.0
+	## Budget phones: Low drops the garden, drifting petals and reflections, and uses
+	## simpler distant meshes; Medium keeps everything but the reflection probe.
+	get_viewport().mesh_lod_threshold = 4.0 if quality == "low" else (2.0 if medium and not high else 1.0)
+	for child in get_children():
+		if child.name == "Garden":
+			(child as Node3D).visible = quality != "low"
+		elif child.name == "Ambience":
+			for fx in child.get_children():
+				if fx is GPUParticles3D:
+					(fx as GPUParticles3D).emitting = quality != "low"
+					(fx as GPUParticles3D).visible = quality != "low"
+		elif child is ReflectionProbe:
+			(child as ReflectionProbe).visible = high
 	get_viewport().msaa_3d = Viewport.MSAA_4X if high else Viewport.MSAA_DISABLED
 	_camera_tilt = GameSettings.get_option("camera_tilt")
 	game.anim_scale = [1.6, 1.0, 0.6][int(GameSettings.get_option("anim_speed"))]
@@ -341,10 +354,10 @@ func _start_new_game_with(humans: Array, seats: Array) -> void:
 const DECORATIONS := [
 	{"path": "res://assets/models/05_Animals_and_Statues/Royal_India_Elephant.glb", "pos": Vector3(-12.7, RoyalBoard.WING_TOP, 0.0), "yaw": 90, "type": "elephant", "scale": 0.75},
 	{"path": "res://assets/models/06_Decorations/Royal_India_Lotus_Fountain.glb", "pos": Vector3(12.7, RoyalBoard.WING_TOP, 0.0), "yaw": 0, "type": "fountain", "scale": 0.9},
-	{"path": "res://assets/models/05_Animals_and_Statues/Royal_India_Peacock_HighPoly_Textured.glb", "pos": Vector3(-18.4, RoyalBoard.WING_TOP, 0.6), "yaw": 60, "type": "peacock", "scale": 0.7},
-	{"path": "res://assets/models/06_Decorations/Royal_India_Deepam_Lamp_Set.glb", "pos": Vector3(-18.4, RoyalBoard.WING_TOP, 7.2), "yaw": 0, "type": "lamp", "scale": 0.7},
-	{"path": "res://assets/models/05_Animals_and_Statues/Royal_India_Peacock_Statue.glb", "pos": Vector3(18.4, RoyalBoard.WING_TOP, 0.6), "yaw": -60, "type": "statue", "scale": 1.0},
-	{"path": "res://assets/models/05_Animals_and_Statues/Royal_India_Elephant_Statue.glb", "pos": Vector3(18.4, RoyalBoard.WING_TOP, 7.2), "yaw": -90, "type": "statue", "scale": 1.1},
+	{"path": "res://assets/models/05_Animals_and_Statues/Royal_India_Peacock_HighPoly_Textured.glb", "pos": Vector3(-17.3, RoyalBoard.WING_TOP, 0.6), "yaw": 60, "type": "peacock", "scale": 0.7},
+	{"path": "res://assets/models/06_Decorations/Royal_India_Deepam_Lamp_Set.glb", "pos": Vector3(-17.3, RoyalBoard.WING_TOP, 7.2), "yaw": 0, "type": "lamp", "scale": 0.7},
+	{"path": "res://assets/models/05_Animals_and_Statues/Royal_India_Peacock_Statue.glb", "pos": Vector3(17.3, RoyalBoard.WING_TOP, 0.6), "yaw": -60, "type": "statue", "scale": 1.0},
+	{"path": "res://assets/models/05_Animals_and_Statues/Royal_India_Elephant_Statue.glb", "pos": Vector3(17.3, RoyalBoard.WING_TOP, 7.2), "yaw": -90, "type": "statue", "scale": 1.1},
 ]
 
 func _place_decorations() -> void:
@@ -1133,6 +1146,11 @@ func _click(screen_pos: Vector2) -> void:
 
 
 func _screenshot_and_quit(path: String) -> void:
+	if "--no-ui" in OS.get_cmdline_user_args():
+		hud.visible = false
+		for c in get_children():
+			if c is CanvasLayer and c != hud:
+				(c as CanvasLayer).visible = false
 	## Optional test camera: --cam=x,y,z,tx,ty,tz (position, then look-at target).
 	if _has_arg("--cam="):
 		var v := _arg_value(OS.get_cmdline_user_args(), "--cam").split(",")

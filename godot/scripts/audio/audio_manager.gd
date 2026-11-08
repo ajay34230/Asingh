@@ -29,8 +29,8 @@ const REPLACED := ["dice_land", "token_step", "token_land", "token_select", "ui_
 
 ## Sitar and tanpura alaap for menus; sitar gat with tabla during play.
 const MUSIC_FILES := {
-	"menu": "res://assets/audio/music_menu.wav",
-	"game": "res://assets/audio/music_loop.wav",
+	"menu": "res://assets/audio/music_menu.ogg",
+	"game": "res://assets/audio/music_loop.ogg",
 }
 
 var music_volume_db := -10.0
@@ -72,9 +72,8 @@ func _ready() -> void:
 		add_child(p)
 		_pool.append(p)
 	for key in MUSIC_FILES:
-		var stream := load(MUSIC_FILES[key]) as AudioStreamWAV
-		stream.loop_mode = AudioStreamWAV.LOOP_FORWARD
-		stream.loop_end = int(stream.get_length() * stream.mix_rate)
+		var stream := load(MUSIC_FILES[key]) as AudioStreamOggVorbis
+		stream.loop = true
 		_tracks[key] = stream
 	_music = AudioStreamPlayer.new()
 	_music.stream = _tracks["menu"]

@@ -16,7 +16,10 @@ static func build() -> Theme:
 	var t := Theme.new()
 	## Cinzel: a classical inscriptional display face (SIL OFL), weight 600 for weight.
 	var font := FontVariation.new()
-	font.base_font = load("res://assets/fonts/Cinzel.ttf")
+	var cinzel: FontFile = load("res://assets/fonts/Cinzel.ttf")
+	## Indian scripts fall back to Noto Sans (SIL OFL) for each script.
+	cinzel.fallbacks = indic_fallbacks()
+	font.base_font = cinzel
 	font.variation_opentype = {"wght": 650}
 	t.default_font = font
 	t.default_font_size = 24
@@ -81,6 +84,13 @@ static func build() -> Theme:
 	t.set_stylebox("hover", "PopupMenu", _box(Color("#7a0f1e"), GOLD, 0, 6))
 	_cached = t
 	return t
+
+
+static func indic_fallbacks() -> Array[Font]:
+	var out: Array[Font] = []
+	for f in ["NotoSansDevanagari", "NotoSansBengali", "NotoSansTamil", "NotoSansTelugu"]:
+		out.append(load("res://assets/fonts/%s.ttf" % f))
+	return out
 
 
 static func _button_box(top: Color, bottom: Color, border: Color) -> StyleBoxFlat:
