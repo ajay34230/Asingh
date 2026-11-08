@@ -21,6 +21,26 @@ var _result_list: Label
 var _pause_button: Button
 var _banner: Label
 var _caption: Label
+var _impact: ColorRect
+var _skip_hint: Label
+
+const IMPACT_SHADER := """
+shader_type canvas_item;
+// Anime-style impact frame: a white flash fading into radial speed lines.
+uniform float flash = 0.0;
+uniform float lines = 0.0;
+uniform vec2 centre = vec2(0.5, 0.5);
+void fragment() {
+	vec2 p = UV - centre;
+	p.x *= 1.8;
+	float a = atan(p.y, p.x);
+	float r = length(p);
+	float streak = step(0.82, fract(sin(floor(a * 40.0) * 91.7) * 43758.5));
+	float l = streak * smoothstep(0.18, 0.6, r) * lines;
+	float w = max(flash, l * 0.75);
+	COLOR = vec4(vec3(1.0, 0.97, 0.9), w);
+}
+"""
 var _caption_tween: Tween
 var _banner_tween: Tween
 
@@ -82,6 +102,28 @@ func _ready() -> void:
 	_caption.visible = false
 	_caption.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	root.add_child(_caption)
+
+	_impact = ColorRect.new()
+	_impact.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	_impact.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	var sh := Shader.new()
+	sh.code = IMPACT_SHADER
+	var im := ShaderMaterial.new()
+	im.shader = sh
+	_impact.material = im
+	_impact.visible = false
+	root.add_child(_impact)
+	_skip_hint = Label.new()
+	_skip_hint.text = "Tap to skip"
+	_skip_hint.add_theme_font_size_override("font_size", 20)
+	_skip_hint.add_theme_color_override("font_color", Color(1, 0.95, 0.85, 0.75))
+	_skip_hint.set_anchors_and_offsets_preset(Control.PRESET_BOTTOM_RIGHT)
+	_skip_hint.grow_horizontal = Control.GROW_DIRECTION_BEGIN
+	_skip_hint.grow_vertical = Control.GROW_DIRECTION_BEGIN
+	_skip_hint.offset_right = -24
+	_skip_hint.offset_bottom = -20
+	_skip_hint.visible = false
+	root.add_child(_skip_hint)
 
 	_build_pause(root)
 	_build_result(root)
@@ -404,3 +446,20 @@ func _fly_coins(count: int) -> void:
 		t.tween_callback(coin.queue_free)
 		if i % 3 == 0:
 			t.tween_callback(func() -> void: button_sound.emit())
+
+
+## Impact frame at a finisher: a white flash, then speed lines that fade out.
+func impact_frame(screen_pos: Vector2) -> void:
+	var mat := _impact.material as ShaderMaterial
+	var vp := get_viewport().get_visible_rect().size
+	mat.set_shader_parameter("centre", Vector2(screen_pos.x / vp.x, screen_pos.y / vp.y))
+	_impact.visible = true
+	var t := create_tween()
+	t.set_speed_scale(1.0 / maxf(Engine.time_scale, 0.05))
+	t.tween_method(func(v: float) -> void: mat.set_shader_parameter("flash", v), 0.85, 0.0, 0.1)
+	t.parallel().tween_method(func(v: float) -> void: mat.set_shader_parameter("lines", v), 1.0, 0.0, 0.45)
+	t.tween_callback(func() -> void: _impact.visible = false)
+
+
+func set_skip_hint(on: bool) -> void:
+	_skip_hint.visible = on

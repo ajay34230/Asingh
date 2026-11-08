@@ -75,6 +75,36 @@ func track(a: Node3D, b: Node3D) -> void:
 	_track_b = b
 
 
+## Fight camera shots, relative to the two fighters. `kind`: "side" (the default wide
+## profile), "low" (hero angle from near the floor, looking up at the attacker),
+## "over" (over the attacker's shoulder), "high" (crane above). `cut` jumps instantly.
+func shot(kind: String, attacker: Node3D, victim: Node3D, cut := true) -> void:
+	if not _use_close_position:
+		return
+	var a := attacker.global_position
+	var b := victim.global_position
+	var line := Vector3(b.x - a.x, 0, b.z - a.z).normalized()
+	if line.length_squared() < 0.01:
+		line = Vector3.RIGHT
+	var side := Vector3(-line.z, 0, line.x)
+	var toward := Vector3(base_position.x, 0, base_position.z).normalized()
+	if side.dot(toward) < 0.0:
+		side = -side
+	match kind:
+		"low":
+			_fight_offset = side * 1.9 - line * 0.9 + Vector3.UP * 0.25
+		"over":
+			_fight_offset = -line * 2.2 + side * 0.7 + Vector3.UP * 1.1
+		"high":
+			_fight_offset = side * 1.2 + Vector3.UP * 3.6
+		_:
+			_fight_offset = (side * 0.88 + Vector3.UP * 0.47) * 3.6
+	if cut:
+		var mid := a.lerp(b, 0.5) + Vector3(0, 0.3, 0)
+		_close_position = mid + _fight_offset
+		_focus_point = mid
+
+
 func stop_tracking() -> void:
 	_track_a = null
 	_track_b = null

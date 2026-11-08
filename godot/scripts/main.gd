@@ -389,6 +389,8 @@ func _on_game_event(event_name: String, data: Dictionary) -> void:
 			_shake(0.03, 0.12)
 			audio.vibrate(12)
 		"impact":
+			if data.get("big", false) or not data.has("big"):
+				hud.impact_frame(camera.unproject_position(pos))
 			audio.play(data.get("kind", "punch"), 0.05)
 			audio.play("impact", 0.06, -4.0)  ## low boom under the recorded hit
 			effects.hit_spark(pos, true)
@@ -397,6 +399,15 @@ func _on_game_event(event_name: String, data: Dictionary) -> void:
 			hud.flash_banner(["KNOCKOUT!", "BOOM!", "SMASH!"].pick_random(), Color("#ffd24a"))
 			_token_says(data.get("victim_token"), "hurt", data.get("color", ""))
 			_announce_later("capture", 1.4)
+		"block":
+			audio.play("thud", 0.1, -6.0)
+			effects.burst(pos, Color("#bfe3ff"), 18, 2.2, 0.4)
+			_shake(0.02, 0.1)
+		"whiff":
+			audio.play("swish", 0.05, -3.0)
+		"faceoff":
+			if not game.fast_mode:
+				hud.set_skip_hint(true)
 		"crash":
 			audio.play("thud", 0.05, -2.0)
 			effects.dust(pos)
@@ -405,6 +416,7 @@ func _on_game_event(event_name: String, data: Dictionary) -> void:
 		"throw":
 			audio.play("swish", 0.08)
 		"thrown_home":
+			hud.set_skip_hint(false)
 			audio.play("thud", 0.05)
 			effects.burst(pos + Vector3(0, 0.15, 0), EffectsManager.TEAM.get(data.get("color", "red"), EffectsManager.GOLD), 24, 1.6, 0.7)
 			effects.shockwave(pos)
@@ -886,6 +898,11 @@ func _unhandled_input(event: InputEvent) -> void:
 		screen = event.position
 	else:
 		return
+	## A tap during a fight skips the rest of it.
+	if game.fight and game.fight._active:
+		game.fight.skip()
+		hud.set_skip_hint(false)
+		return
 	## Tap on the dice (screen-space radius, so it also works on touch screens).
 	if game.dice.rollable:
 		var dice_screen := camera.unproject_position(game.dice.global_position)
@@ -944,6 +961,10 @@ func _run_capture_test() -> void:
 	e.seats[1]["tokens"] = [((target - BoardPath.start_of("green") + 52) % 52) + 1, 0, 0, 0]
 	_place_tokens_from_engine()  ## put the 3D tokens where the rules now say they are
 	await get_tree().create_timer(0.8).timeout
+	if _has_arg("--finisher="):
+		game.fight.forced_finisher = _arg_value(OS.get_cmdline_user_args(), "--finisher")
+	if _has_arg("--exchange="):
+		game.fight.forced_exchange = _arg_value(OS.get_cmdline_user_args(), "--exchange")
 	e.roll_with_value(3)
 	await game._execute(mover)
 	var sent_home: bool = e.seats[1]["tokens"][0] == 0

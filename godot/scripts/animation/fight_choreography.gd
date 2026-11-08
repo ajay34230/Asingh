@@ -20,47 +20,91 @@ var anim_scale := 1.0
 var _stars: Node3D
 
 
+const FINISHERS := ["uppercut", "spin_kick", "flying_kick", "slam"]
+const EXCHANGES := ["counter", "dodge", "none"]
+
+var _skip := false
+var forced_finisher := ""   ## tests and recordings only
+var forced_exchange := ""
+
+
+## Tap during a fight: the rest plays at high speed.
+func skip() -> void:
+	if _active:
+		_skip = true
+
+
 func perform(attacker: TransformerToken, victim: TransformerToken, home: Vector3, use_punch: bool) -> void:
 	_active = true
+	_skip = false
 	var ground_a := attacker.ground_y
 	var ground_v := victim.ground_y
+	var finisher: String = FINISHERS.pick_random()
+	if not use_punch and finisher == "uppercut":
+		finisher = "spin_kick"
+	var exchange: String = EXCHANGES.pick_random()
+	if forced_finisher != "":
+		finisher = forced_finisher
+	if forced_exchange != "":
+		exchange = forced_exchange
 
-	# 1. Face-off -----------------------------------------------------------------
+	# 1. Face-off: both raise their guard; the camera is low and wide.
 	_face(attacker, victim.global_position)
 	_face(victim, attacker.global_position)
 	attacker.transform_out(0.15)
 	victim.transform_out(0.15)
+	_shot("low", attacker, victim)
 	await _pose(attacker, _guard(), 0.18)
 	_pose(victim, _guard(), 0.18)
 	cue.emit("faceoff", {"attacker": attacker, "victim": victim})
-	await _bounce(attacker, 0.32)                     # a quick fighter's bounce in place
+	await _bounce(attacker, 0.32)
 
-	# 2. Combo: left jab, right jab -----------------------------------------------
+	# 2. Exchange: the defender strikes first and the attacker blocks or dodges.
+	_shot("side", attacker, victim)
+	if exchange == "counter":
+		await _counter_block(victim, attacker)
+	elif exchange == "dodge":
+		await _counter_dodge(victim, attacker)
+
+	# 3. Combo: two jabs that land.
+	_shot("over", attacker, victim)
 	for side in ["L", "R"]:
 		await _jab(attacker, victim, side)
-		await _wait(0.06)
+		await _wait(0.05)
 
-	# 3. Finisher ------------------------------------------------------------------
-	if use_punch:
-		await _uppercut(attacker, victim)
-	else:
-		await _spin_kick(attacker, victim)
-	await _launch(victim, attacker, ground_v)
+	# 4. Finisher, from the hero angle, in slow motion.
+	_shot("low", attacker, victim)
+	cue.emit("finisher", {"name": finisher, "attacker": attacker})
+	match finisher:
+		"uppercut":
+			await _uppercut(attacker, victim)
+		"spin_kick":
+			await _spin_kick(attacker, victim)
+		"flying_kick":
+			await _flying_kick(attacker, victim)
+		"slam":
+			await _slam(attacker, victim, ground_v)
+	_shot("side", attacker, victim, false)
+	if finisher != "slam":
+		await _launch(victim, attacker, ground_v)
 	_pose(attacker, _guard(), 0.15)
 
-	# 4. Dazed ---------------------------------------------------------------------
-	await _dazed(victim, 0.7)
-
-	# 5. Grab, lift, spin, throw -----------------------------------------------------
+	# 5. Dazed, 6. throw home (crane shot), 7. victory.
+	await _dazed(victim, 0.6)
+	_shot("high", attacker, victim, false)
 	await _grab_spin_throw(attacker, victim, home)
-
-	# 6. Victory ---------------------------------------------------------------------
 	await _victory(attacker, ground_a)
 	attacker.ground_y = ground_a
 	_active = false
+	_skip = false
 	_freeze_until = 0
 	_slow_until = 0
 	Engine.time_scale = 1.0
+
+
+func _shot(kind: String, a: Node3D, b: Node3D, cut := true) -> void:
+	if director and not _skip:
+		director.shot(kind, a, b, cut)
 
 
 # --- poses ----------------------------------------------------------------------
@@ -114,7 +158,9 @@ func _process(_delta: float) -> void:
 	if not _active:
 		return
 	var now := Time.get_ticks_msec()
-	if now < _freeze_until:
+	if _skip:
+		Engine.time_scale = 5.0
+	elif now < _freeze_until:
 		Engine.time_scale = 0.03
 	elif now < _slow_until:
 		Engine.time_scale = _slow_scale
@@ -124,6 +170,8 @@ func _process(_delta: float) -> void:
 
 ## Freezes the whole game for a moment on contact (the classic "hit-stop").
 func _hit_stop(real_seconds: float) -> void:
+	if _skip:
+		return
 	_freeze_until = Time.get_ticks_msec() + int(real_seconds * 1000.0)
 	Engine.time_scale = 0.03
 	await get_tree().create_timer(real_seconds, true, false, true).timeout
@@ -376,6 +424,124 @@ func _grab_spin_throw(attacker: TransformerToken, victim: TransformerToken, home
 	victim.body_node.rotation = Vector3.ZERO
 	await victim.play_thrown_to_home(home)
 	cue.emit("thrown_home", {"position": home, "victim": victim})
+
+
+## The defender throws a punch; the attacker crosses its arms and blocks it.
+func _counter_block(defender: TransformerToken, attacker: TransformerToken) -> void:
+	var fwd := _forward(defender)
+	var start := defender.global_position
+	cue.emit("swing", {"position": start})
+	var block := {"arm_L": [Vector3(-1.9, 0, 0.6), Vector3(-1.4, 0, 0)], "arm_R": [Vector3(-1.9, 0, -0.6), Vector3(-1.4, 0, 0)]}
+	_pose(attacker, block, 0.08, Tween.TRANS_QUAD)
+	var t := defender.create_tween().set_parallel(true)
+	t.tween_property(defender.arm_pivots["R"]["shoulder"], "rotation", Vector3(-1.55, 0, 0), 0.09 * anim_scale).set_trans(Tween.TRANS_EXPO).set_ease(Tween.EASE_OUT)
+	t.tween_property(defender.arm_pivots["R"]["elbow"], "rotation", Vector3.ZERO, 0.09 * anim_scale)
+	t.tween_property(defender, "global_position", start + fwd * _reach(defender, attacker, 0.55), 0.09 * anim_scale)
+	await t.finished
+	cue.emit("block", {"position": _fist(defender, "R")})
+	_recoil(attacker, fwd, 0.08, -0.15)
+	await _hit_stop(0.05)
+	var back := defender.create_tween().set_parallel(true)
+	back.tween_property(defender, "global_position", start, 0.16 * anim_scale)
+	await back.finished
+	_pose(defender, _guard(), 0.1)
+	await _pose(attacker, _guard(), 0.1)
+
+
+## The defender lunges; the attacker sways aside and the punch whiffs.
+func _counter_dodge(defender: TransformerToken, attacker: TransformerToken) -> void:
+	var fwd := _forward(defender)
+	var side := Vector3(-fwd.z, 0, fwd.x)
+	var start := defender.global_position
+	var a_start := attacker.global_position
+	cue.emit("swing", {"position": start})
+	var t := defender.create_tween().set_parallel(true)
+	t.tween_property(defender.arm_pivots["L"]["shoulder"], "rotation", Vector3(-1.55, 0, 0), 0.12 * anim_scale).set_trans(Tween.TRANS_EXPO).set_ease(Tween.EASE_OUT)
+	t.tween_property(defender, "global_position", start + fwd * _reach(defender, attacker, 0.4), 0.12 * anim_scale)
+	t.tween_property(attacker, "global_position", a_start + side * 0.28, 0.1 * anim_scale).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
+	t.tween_property(attacker.body_node, "rotation:z", 0.35, 0.1 * anim_scale)
+	await t.finished
+	cue.emit("whiff", {"position": attacker.global_position})
+	_slow_motion(0.4, 0.25)
+	await _wait(0.12)
+	var back := defender.create_tween().set_parallel(true)
+	back.tween_property(defender, "global_position", start, 0.18 * anim_scale)
+	back.tween_property(attacker, "global_position", a_start, 0.18 * anim_scale)
+	back.tween_property(attacker.body_node, "rotation:z", 0.0, 0.18 * anim_scale)
+	await back.finished
+	_pose(defender, _guard(), 0.1)
+
+
+## Running jump, knee tucked, foot driven down into the target at the top of the arc.
+func _flying_kick(attacker: TransformerToken, victim: TransformerToken) -> void:
+	var fwd := _forward(attacker)
+	var start := attacker.global_position
+	cue.emit("charge", {"position": start, "attacker": attacker})
+	var crouch := attacker.create_tween()
+	crouch.tween_property(attacker.body_node, "scale", Vector3(1.1, 0.82, 1.1), 0.12 * anim_scale)
+	await crouch.finished
+	_slow_motion(0.35, 0.7)
+	cue.emit("swing", {"position": start, "heavy": true})
+	var target := start + fwd * _reach(attacker, victim, 0.45)
+	var tuck := {"leg_R": [Vector3(-1.5, 0, 0), Vector3(0.05, 0, 0)], "leg_L": [Vector3(-0.9, 0, 0), Vector3(1.6, 0, 0)],
+		"arm_L": [Vector3(-0.6, 0, 0.9), Vector3(-0.4, 0, 0)], "arm_R": [Vector3(0.4, 0, -0.9), Vector3(-0.4, 0, 0)]}
+	_pose(attacker, tuck, 0.1, Tween.TRANS_EXPO)
+	var arc := func(p: float) -> void:
+		attacker.global_position = start.lerp(target, p) + Vector3.UP * sin(p * PI * 0.8) * 0.75
+		attacker.body_node.scale = Vector3.ONE
+		attacker.body_node.rotation.x = -0.35 * sin(p * PI)
+	var t := attacker.create_tween()
+	t.tween_method(arc, 0.0, 1.0, 0.3 * anim_scale).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_OUT)
+	await t.finished
+	var foot := (attacker.leg_pivots["R"]["ankle"] as Node3D).global_position
+	cue.emit("impact", {"position": foot, "victim": victim, "kind": "kick", "big": true})
+	if director:
+		director.punch_in(8.0, 0.9)
+		director.shake(0.18, 0.4)
+	await _hit_stop(0.13)
+	var land := attacker.create_tween().set_parallel(true)
+	land.tween_property(attacker, "global_position", Vector3(target.x, start.y, target.z), 0.2 * anim_scale).set_trans(Tween.TRANS_BOUNCE).set_ease(Tween.EASE_OUT)
+	land.tween_property(attacker.body_node, "rotation:x", 0.0, 0.2 * anim_scale)
+	await land.finished
+
+
+## Grab, hoist overhead and slam the opponent into the floor; the board shakes.
+func _slam(attacker: TransformerToken, victim: TransformerToken, ground: float) -> void:
+	var fwd := _forward(attacker)
+	cue.emit("charge", {"position": attacker.global_position, "attacker": attacker})
+	var step := attacker.create_tween()
+	step.tween_property(attacker, "global_position", victim.global_position - fwd * 0.42, 0.12 * anim_scale)
+	_pose(attacker, {"arm_L": [Vector3(-1.45, 0, -0.15), Vector3(-0.3, 0, 0)], "arm_R": [Vector3(-1.45, 0, 0.15), Vector3(-0.3, 0, 0)]}, 0.12)
+	await step.finished
+	cue.emit("grab", {"position": victim.global_position})
+	_pose(attacker, {"arm_L": [Vector3(-2.9, 0, -0.2), Vector3(-0.2, 0, 0)], "arm_R": [Vector3(-2.9, 0, 0.2), Vector3(-0.2, 0, 0)]}, 0.22)
+	var v_start := victim.global_position
+	var top := attacker.global_position + Vector3.UP * 1.0
+	var lift := func(p: float) -> void:
+		victim.global_position = v_start.lerp(top, p)
+		victim.body_node.rotation.x = -p * PI
+	var t := victim.create_tween()
+	t.tween_method(lift, 0.0, 1.0, 0.28 * anim_scale).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+	await t.finished
+	_slow_motion(0.35, 0.5)
+	cue.emit("swing", {"position": top, "heavy": true})
+	var down := v_start + fwd * 0.15
+	down.y = ground
+	_pose(attacker, {"arm_L": [Vector3(-1.2, 0, -0.2), Vector3(0, 0, 0)], "arm_R": [Vector3(-1.2, 0, 0.2), Vector3(0, 0, 0)]}, 0.12, Tween.TRANS_EXPO)
+	var drop := victim.create_tween()
+	drop.tween_property(victim, "global_position", down, 0.14 * anim_scale).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_IN)
+	await drop.finished
+	cue.emit("impact", {"position": down + Vector3(0, 0.2, 0), "victim": victim, "kind": "punch", "big": true})
+	cue.emit("crash", {"position": down})
+	if director:
+		director.punch_in(8.0, 0.9)
+		director.shake(0.25, 0.5)
+	await _hit_stop(0.14)
+	var squash := victim.create_tween()
+	squash.tween_property(victim.body_node, "scale", Vector3(1.25, 0.6, 1.25), 0.06 * anim_scale)
+	squash.tween_property(victim.body_node, "scale", Vector3.ONE, 0.25 * anim_scale).set_trans(Tween.TRANS_ELASTIC).set_ease(Tween.EASE_OUT)
+	squash.parallel().tween_property(victim.body_node, "rotation:x", 0.0, 0.25 * anim_scale)
+	await squash.finished
 
 
 func _victory(attacker: TransformerToken, ground: float) -> void:
