@@ -275,6 +275,7 @@ func _build_menu() -> void:
 		_reopen_page = "themes"
 		_intro_seen = true
 		loading.cover(func() -> void: get_tree().reload_current_scene()))
+	menu.design_changed.connect(func() -> void: game.refresh_designs())
 	hud.menu_pressed.connect(_quit_to_menu)
 	hud.rematch_pressed.connect(func() -> void: _start_new_game())
 	hud.settings_pressed.connect(func() -> void:
@@ -397,6 +398,41 @@ func _run_ui_test() -> void:
 			for k in range(3):
 				await get_tree().process_frame
 			report.call("%s: X returns to the title page" % page, menu._page == "main")
+	## Renting a design by watching a (test) video, then customising it.
+	menu.visible = true
+	menu.show_page("themes")
+	RewardedAds.force_test = true
+	var saved_rentals := Progress.rentals()
+	var saved_vp: Dictionary = GameSettings.load_value("progress", "video_progress", {})
+	var saved_vd: Dictionary = GameSettings.load_value("progress", "videos_day", {})
+	var saved_equip := Progress.equipped("design")
+	var r0 := Progress.rentals()
+	r0.erase("design_raja")
+	GameSettings.save_value("progress", "rentals", r0)
+	var had_raja := Progress.owns("design_raja")
+	if not had_raja:
+		menu._preview_design("design_raja")
+		report.call("video button offered for a locked design", menu._preview_video.visible and not menu._style_box.visible)
+		menu._preview_watch()
+		await get_tree().create_timer(RewardedAds.TEST_SECONDS + 0.5).timeout
+		var overlay := menu.find_children("*", "CanvasLayer", false, false)
+		var btn: Button = null
+		for l in overlay:
+			for b in l.find_children("*", "Button", true, false):
+				btn = b
+		report.call("test video shows a collect button", btn != null and btn.text == tr("Collect reward"))
+		if btn:
+			btn.pressed.emit()
+		await get_tree().process_frame
+		report.call("watching rents the design and equips it", Progress.can_use("design_raja") and Progress.equipped("design") == "design_raja" and menu._style_box.visible)
+		var metal_btn: Button = menu._metal_row.get_node("onyx")
+		metal_btn.pressed.emit()
+		report.call("metal choice is saved", Progress.design_style("design_raja")["metal"] == "onyx" and metal_btn.disabled)
+	GameSettings.save_value("progress", "rentals", saved_rentals)
+	GameSettings.save_value("progress", "video_progress", saved_vp)
+	GameSettings.save_value("progress", "videos_day", saved_vd)
+	Progress.equip(saved_equip)
+	RewardedAds.force_test = false
 	## Game, pause, main menu, resume.
 	menu.visible = false
 	hud.visible = true
@@ -704,8 +740,9 @@ func _on_game_event(event_name: String, data: Dictionary) -> void:
 		"hop":
 			var walker: Node3D = data.get("token")
 			if walker and walker.find_child("DesignGearAura", false, false) and not game.fast_mode:
-				var col: Color = (walker.get_node("DesignGearAura") as MeshInstance3D).material_override.albedo_color
-				if col.r > 0.9 and col.g > 0.6:   # legendary gold
+				var ring := walker.get_node("DesignGearAura") as MeshInstance3D
+				var col: Color = ring.material_override.albedo_color
+				if ring.get_meta("trail", false):   # legendary designs leave sparks
 					effects.burst(walker.global_position + Vector3(0, 0.3, 0), Color(col, 1.0), 10, 0.8, 0.6, -0.3)
 			audio.play("token_step", 0.1, -2.0)
 		"land":

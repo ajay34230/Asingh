@@ -185,11 +185,21 @@ func _apply_token_skin(token: TransformerToken, skin: String) -> void:
 const AI_DESIGNS := {"yellow": "design_lotus", "green": "design_warrior", "red": "design_maharaja", "blue": "design_raja"}
 
 
+## Re-dresses the tokens already on the board (after a design or style change).
+func refresh_designs() -> void:
+	if net and net.active:
+		return   # friends already see the design chosen when the game began
+	for color in tokens:
+		var design := design_for(color)
+		for token in tokens[color]:
+			TokenDesigns.apply(token, design, RoyalBoard.PALETTE[color])
+
+
 func design_for(color: String) -> String:
 	if net and net.active:
 		return String(net.designs.get(color, AI_DESIGNS.get(color, "")))
 	if humans_skin(color) or (human_colors.has(color) and human_colors.size() > 1):
-		return Progress.equipped("design") if humans_skin(color) else ""
+		return Progress.equipped_design_spec() if humans_skin(color) else ""
 	return AI_DESIGNS.get(color, "")
 
 

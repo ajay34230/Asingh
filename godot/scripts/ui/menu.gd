@@ -9,6 +9,7 @@ signal settings_changed
 signal quit_requested
 signal closed
 signal board_theme_changed
+signal design_changed            ## token design or its style changed: re-dress the tokens
 signal campaign_start(index: int)
 signal resume_requested
 
@@ -467,7 +468,16 @@ var _shop_coins: Label
 var _preview_token: TransformerToken
 var _preview_pivot: Node3D
 var _preview_label: Label
-var _preview_action: Button
+var _preview_action: Button          ## equip ("Use this design" / "Equipped")
+var _preview_buy: Button
+var _preview_video: Button
+var _preview_ticket: Button
+var _preview_trial: Button
+var _preview_status: Label
+var _style_box: VBoxContainer
+var _metal_row: HBoxContainer
+var _aura_row: HBoxContainer
+var _status_tick := 0.0
 var _preview_id := "design_classic"
 var _rewards_box: VBoxContainer
 var _coin_badge: Label
@@ -544,7 +554,7 @@ func _shop_pressed(id: String) -> void:
 func _refresh_themes() -> void:
 	if _shop_coins == null:
 		return
-	_shop_coins.text = tr("Treasury: %d coins") % Progress.coins()
+	_shop_coins.text = tr("Treasury: %d coins") % Progress.coins() + "   ·   " + tr("Royal Tickets: %d") % Progress.tickets()
 	for id in _shop_rows:
 		var item: Array = Progress.SHOP[id]
 		var equipped := false
@@ -557,6 +567,8 @@ func _refresh_themes() -> void:
 			(_shop_rows[id] as Button).add_theme_color_override("font_color", (r[1] as Color).lightened(0.2))
 			item = [item[0], "%s  [%s]" % [tr(item[1]), tr(r[0])], item[2]]
 		var state := tr("Equipped") if equipped else (tr("Owned: tap to use") if Progress.owns(id) else tr("%d coins") % item[2])
+		if not Progress.owns(id) and Progress.time_left(id) > 0:
+			state = (tr("Equipped") + ", " if equipped else "") + tr("Rented: %s left") % Progress.format_time(Progress.time_left(id))
 		(_shop_rows[id] as Button).text = "   %s      -      %s" % [tr(item[1]), state]
 
 
@@ -1095,47 +1107,182 @@ func _build_design_preview(parent: VBoxContainer) -> void:
 	_preview_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	_preview_label.add_theme_font_size_override("font_size", 24)
 	col.add_child(_preview_label)
-	_preview_action = Button.new()
-	_preview_action.custom_minimum_size = Vector2(0, 52)
-	_preview_action.pressed.connect(_preview_buy_or_use)
-	col.add_child(_preview_action)
-	UiFx.button(_preview_action)
+	_preview_status = Label.new()
+	_preview_status.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	_preview_status.add_theme_font_size_override("font_size", 18)
+	_preview_status.add_theme_color_override("font_color", Color("#f3d9a8"))
+	col.add_child(_preview_status)
+	_preview_action = _small_button(col, _preview_use)
+	_preview_buy = _small_button(col, _preview_purchase)
+	_preview_video = _small_button(col, _preview_watch)
+	_preview_ticket = _small_button(col, _preview_use_ticket)
+	_preview_trial = _small_button(col, _preview_try)
+	## Customise: metal finish for every design, aura colour for Epic and Legendary.
+	_style_box = VBoxContainer.new()
+	_style_box.add_theme_constant_override("separation", 6)
+	parent.add_child(_style_box)
+	var sh := Label.new()
+	sh.text = tr("Customise your design")
+	sh.add_theme_font_size_override("font_size", 22)
+	sh.add_theme_color_override("font_color", RoyalTheme.GOLD_LIGHT)
+	_style_box.add_child(sh)
+	_metal_row = _style_row(_style_box, "Metal", TokenDesigns.METALS, "metal")
+	_aura_row = _style_row(_style_box, "Aura", TokenDesigns.AURAS, "aura")
 	_preview_design(Progress.equipped("design"))
+
+
+func _small_button(parent: Control, cb: Callable) -> Button:
+	var b := Button.new()
+	b.custom_minimum_size = Vector2(0, 50)
+	b.add_theme_font_size_override("font_size", 20)
+	b.pressed.connect(cb)
+	parent.add_child(b)
+	UiFx.button(b)
+	return b
+
+
+## One row of style choices; each button shows its colour.
+func _style_row(parent: Control, label: String, options: Dictionary, key: String) -> HBoxContainer:
+	var row := HBoxContainer.new()
+	row.add_theme_constant_override("separation", 6)
+	parent.add_child(row)
+	var l := Label.new()
+	l.text = tr(label)
+	l.custom_minimum_size = Vector2(90, 0)
+	l.add_theme_font_size_override("font_size", 18)
+	row.add_child(l)
+	for opt in options:
+		var b := Button.new()
+		b.name = opt
+		b.text = tr(options[opt][0])
+		b.custom_minimum_size = Vector2(0, 44)
+		b.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		b.clip_text = true
+		b.add_theme_font_size_override("font_size", 16)
+		var c: Color = options[opt][1]
+		if c.a > 0.0:
+			b.add_theme_color_override("font_color", c.lightened(0.2))
+		b.pressed.connect(func() -> void:
+			Progress.set_design_style(_preview_id, key, opt)
+			if _audio:
+				_audio.play("token_select")
+			_preview_design(_preview_id)
+			if Progress.equipped("design") == _preview_id:
+				design_changed.emit())   # the tokens on the board change too
+		row.add_child(b)
+		UiFx.button(b)
+	return row
 
 
 func _preview_design(id: String) -> void:
 	_preview_id = id
-	TokenDesigns.apply(_preview_token, id, RoyalBoard.PALETTE["blue"])
+	var style := Progress.design_style(id)
+	TokenDesigns.apply(_preview_token, "%s|%s|%s" % [id, style["metal"], style["aura"]], RoyalBoard.PALETTE["blue"])
 	var d: Array = TokenDesigns.DESIGNS[id]
 	var r: Array = TokenDesigns.RARITY[d[1]]
 	_preview_label.text = "%s\n%s" % [tr(d[0]), tr(r[0])]
 	_preview_label.add_theme_color_override("font_color", (r[1] as Color).lightened(0.25))
-	if Progress.equipped("design") == id:
-		_preview_action.text = tr("Equipped")
-		_preview_action.disabled = true
-	elif Progress.owns(id):
-		_preview_action.text = tr("Use this design")
-		_preview_action.disabled = false
+	var owned := Progress.owns(id)
+	var usable := Progress.can_use(id)
+	var left := Progress.time_left(id)
+	## Equip
+	_preview_action.visible = usable
+	_preview_action.disabled = Progress.equipped("design") == id
+	_preview_action.text = tr("Equipped") if _preview_action.disabled else tr("Use this design")
+	## Buy for good (also offered while renting)
+	_preview_buy.visible = not owned
+	_preview_buy.text = (tr("Keep it forever: %d coins") if usable else tr("Buy for %d coins")) % d[2]
+	## Watch videos to rent it
+	var need := Progress.videos_needed(id)
+	var got := Progress.video_progress(id)
+	_preview_video.visible = not owned and RewardedAds.available()
+	_preview_video.disabled = Progress.videos_left_today() <= 0
+	_preview_video.text = tr("Watch video (%d/%d): %dh rental") % [got, need, Progress.rent_hours(id)] if not _preview_video.disabled else tr("No more videos today")
+	## Royal Ticket
+	_preview_ticket.visible = not owned
+	_preview_ticket.disabled = Progress.tickets() <= 0
+	_preview_ticket.text = tr("Royal Ticket: %dh rental (you have %d)") % [Progress.TICKET_HOURS, Progress.tickets()]
+	## Free trial, once per design
+	_preview_trial.visible = not usable and not Progress.trial_used(id)
+	_preview_trial.text = tr("Free %d-minute trial") % Progress.TRIAL_MINUTES
+	## Status
+	if owned:
+		_preview_status.text = tr("Yours to keep") if id != "design_classic" else ""
+	elif left > 0:
+		_preview_status.text = tr("Rented: %s left") % Progress.format_time(left)
 	else:
-		_preview_action.text = tr("Buy for %d coins") % d[2]
-		_preview_action.disabled = false
+		_preview_status.text = tr("Unlock it for good, or rent it for a while")
+	## Customise (only once you can use it, and not for the plain classic)
+	_style_box.visible = usable and id != "design_classic"
+	_aura_row.visible = d[1] == "epic" or d[1] == "legendary"
+	for row in [_metal_row, _aura_row]:
+		var key := "metal" if row == _metal_row else "aura"
+		for b in row.get_children():
+			if b is Button:
+				b.disabled = b.name == style[key]   # the chosen one shows as pressed in
 
 
-func _preview_buy_or_use() -> void:
-	if not Progress.owns(_preview_id):
-		var r := Progress.buy(_preview_id)
-		if r == "coins":
-			_shop_coins.text = tr("Not enough coins: win games and claim daily rewards")
-			if _audio:
-				_audio.play("error", 0.0, -4.0)
+func _preview_use() -> void:
+	Progress.equip(_preview_id)
+	if _audio:
+		_audio.play("token_select")
+	_after_design_change()
+
+
+func _preview_purchase() -> void:
+	var r := Progress.buy(_preview_id)
+	if r == "coins":
+		_shop_coins.text = tr("Not enough coins: win games and claim daily rewards")
+		if _audio:
+			_audio.play("error", 0.0, -4.0)
+		return
+	if _audio:
+		_audio.play("coins", 0.03)
+	Progress.equip(_preview_id)
+	_after_design_change()
+
+
+func _preview_watch() -> void:
+	var id := _preview_id
+	RewardedAds.show(self, func(rewarded: bool) -> void:
+		if not rewarded:
 			return
+		if Progress.watched_video(id):
+			Progress.equip(id)
+			if _audio:
+				_audio.play("coins", 0.03)
+		_preview_design(id)
+		_after_design_change())
+
+
+func _preview_use_ticket() -> void:
+	if Progress.use_ticket(_preview_id):
+		Progress.equip(_preview_id)
 		if _audio:
 			_audio.play("coins", 0.03)
-	Progress.equip(_preview_id)
+		_after_design_change()
+
+
+func _preview_try() -> void:
+	if Progress.start_trial(_preview_id):
+		Progress.equip(_preview_id)
+		if _audio:
+			_audio.play("token_select")
+		_after_design_change()
+
+
+func _after_design_change() -> void:
 	_refresh_themes()
 	_preview_design(_preview_id)
+	design_changed.emit()
 
 
 func _process(delta: float) -> void:
 	if _preview_pivot and is_instance_valid(_preview_pivot) and visible and _page == "themes":
 		_preview_pivot.rotation.y += delta * 0.9
+		## Keep the rental countdown ticking.
+		_status_tick -= delta
+		if _status_tick <= 0.0:
+			_status_tick = 1.0
+			_preview_design(_preview_id)
+			_refresh_themes()

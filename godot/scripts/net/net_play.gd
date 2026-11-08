@@ -22,7 +22,7 @@ var game: GameController
 var active := false            ## a network game is running
 var is_host := false
 var owners := {}               ## colour -> peer id (1 = host); AI colours are absent
-var designs := {}              ## colour -> token design id each player chose
+var designs := {}              ## colour -> design spec each player chose ("id|metal|aura")
 var _players: Array = []       ## lobby, host first
 var _queue: Array = []         ## pending actions: ["roll", value] / ["pick", colour, index]
 var _beacon: PacketPeerUDP
@@ -35,7 +35,7 @@ var my_name := "Player"
 func _ready() -> void:
 	multiplayer.peer_connected.connect(_on_peer_connected)
 	multiplayer.peer_disconnected.connect(_on_peer_disconnected)
-	multiplayer.connected_to_server.connect(func() -> void: _register.rpc_id(1, my_name, Progress.equipped("design")))
+	multiplayer.connected_to_server.connect(func() -> void: _register.rpc_id(1, my_name, Progress.equipped_design_spec()))
 	multiplayer.connection_failed.connect(func() -> void: disconnected.emit("Could not connect"))
 	multiplayer.server_disconnected.connect(func() -> void:
 		active = false
@@ -53,7 +53,7 @@ func host(player_name: String) -> Error:
 		return err
 	multiplayer.multiplayer_peer = peer
 	is_host = true
-	_players = [{"id": 1, "name": my_name, "design": Progress.equipped("design")}]
+	_players = [{"id": 1, "name": my_name, "design": Progress.equipped_design_spec()}]
 	lobby_changed.emit(_players)
 	_beacon = PacketPeerUDP.new()
 	_beacon.set_broadcast_enabled(true)
@@ -112,7 +112,7 @@ func _register(player_name: String, design := "design_classic") -> void:
 	if not is_host:
 		return
 	var id := multiplayer.get_remote_sender_id()
-	var d := design if TokenDesigns.DESIGNS.has(design) else "design_classic"
+	var d := "|".join(TokenDesigns.parse(String(design)))   # only known designs and styles
 	_players.append({"id": id, "name": String(player_name).substr(0, 16), "design": d})
 	_sync_lobby.rpc(_players)
 	lobby_changed.emit(_players)

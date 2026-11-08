@@ -25,6 +25,21 @@ const DESIGNS := {
 	"design_surya": ["Surya, the Sun King", "legendary", 2500],
 }
 
+## Customising: the metal of crowns and trims, and the colour of the aura.
+const METALS := {
+	"gold": ["Gold", Color("#e8b54f"), 0.25],
+	"silver": ["Silver", Color("#d4dae0"), 0.22],
+	"rose": ["Rose gold", Color("#e8a088"), 0.25],
+	"onyx": ["Black onyx", Color("#2c2834"), 0.15],
+}
+const AURAS := {
+	"rarity": ["Rarity colour", Color.TRANSPARENT],
+	"ruby": ["Ruby", Color("#ff3050")],
+	"emerald": ["Emerald", Color("#30e080")],
+	"sapphire": ["Sapphire", Color("#3d8bff")],
+	"pearl": ["Pearl", Color("#fff2dc")],
+}
+
 const HEAD_Y := 0.86   ## top of the token's head in its own units
 
 
@@ -32,17 +47,38 @@ static func rarity_of(id: String) -> String:
 	return String(DESIGNS.get(id, DESIGNS["design_classic"])[1])
 
 
-## Dresses one token. Safe to call again: old gear is removed first.
-static func apply(token: TransformerToken, id: String, team: Color) -> void:
+## "design_raja|silver|ruby" -> ["design_raja", "silver", "ruby"]; anything unknown
+## falls back to the defaults, so a spec from another phone is always safe.
+static func parse(spec: String) -> Array:
+	var p := spec.split("|")
+	var id := p[0] if DESIGNS.has(p[0]) else "design_classic"
+	var metal := p[1] if p.size() > 1 and METALS.has(p[1]) else "gold"
+	var aura := p[2] if p.size() > 2 and AURAS.has(p[2]) else "rarity"
+	return [id, metal, aura]
+
+
+static func aura_color(id: String, aura: String) -> Color:
+	if aura != "rarity" and AURAS.has(aura):
+		return AURAS[aura][1]
+	return RARITY[rarity_of(id)][1]
+
+
+## Dresses one token from a spec ("design_raja" or "design_raja|silver|ruby").
+## Safe to call again: old gear is removed first.
+static func apply(token: TransformerToken, spec: String, team: Color) -> void:
 	for n in token.find_children("DesignGear*", "", true, false):
+		n.get_parent().remove_child(n)
 		n.queue_free()
-	if id == "design_classic" or not DESIGNS.has(id):
+	var parsed := parse(spec)
+	var id: String = parsed[0]
+	if id == "design_classic":
 		return
 	var head := Node3D.new()
 	head.name = "DesignGearHead"
 	head.position = Vector3(0, HEAD_Y, 0)
 	token.body_node.add_child(head)
-	var gold := RoyalBoard.metal(Color("#e8b54f"), 0.25)
+	var m: Array = METALS[parsed[1]]
+	var gold := RoyalBoard.metal(m[1], m[2])
 	match id:
 		"design_raja":
 			_turban(head, Color("#ff9a1f"), gold)
@@ -62,7 +98,8 @@ static func apply(token: TransformerToken, id: String, team: Color) -> void:
 			_surya(head, gold)
 	var r := rarity_of(id)
 	if r == "epic" or r == "legendary":
-		_aura(token, RARITY[r][1])
+		var ring := _aura(token, aura_color(id, parsed[2]))
+		ring.set_meta("trail", r == "legendary")
 
 
 # --- gear ------------------------------------------------------------------------------
@@ -281,7 +318,7 @@ static func _surya(head: Node3D, gold: Material) -> void:
 
 
 ## A soft glowing ring on the ground under the token, in the rarity colour.
-static func _aura(token: TransformerToken, color: Color) -> void:
+static func _aura(token: TransformerToken, color: Color) -> MeshInstance3D:
 	var t := TorusMesh.new()
 	t.inner_radius = 0.3
 	t.outer_radius = 0.38
@@ -298,3 +335,4 @@ static func _aura(token: TransformerToken, color: Color) -> void:
 	m.position = Vector3(0, 0.02, 0)
 	m.scale = Vector3(1, 0.3, 1)
 	token.add_child(m)
+	return m

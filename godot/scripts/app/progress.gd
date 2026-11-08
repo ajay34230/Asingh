@@ -165,6 +165,8 @@ static func claim_daily() -> int:
 	add_coins(int(st[2]))
 	if streak >= 7:
 		unlock("daily_7")
+	if streak % 7 == 3 or streak % 7 == 0:   # days 3 and 7 also give a Royal Ticket
+		add_tickets(1)
 	return int(st[2])
 
 
@@ -205,12 +207,148 @@ static func buy(id: String) -> String:
 
 static func equipped(kind: String) -> String:
 	var default := {"dice": "dice_ivory", "tokens": "tokens_classic", "victory": "victory_fireworks", "trail": "trail_none", "design": "design_classic"}
-	return String(_load("equip_" + kind, default.get(kind, "")))
+	var id := String(_load("equip_" + kind, default.get(kind, "")))
+	if SHOP.has(id) and not can_use(id):   # a rental ran out: back to the default
+		return String(default.get(kind, ""))
+	return id
 
 
 static func equip(id: String) -> void:
-	if owns(id):
+	if can_use(id):
 		_store("equip_" + String(SHOP[id][0]), id)
+
+
+# --- renting designs: watch videos, spend a Royal Ticket, or try one free -------------
+
+## How many videos rent a design, and for how long, by rarity.
+const VIDEOS_NEEDED := {"rare": 1, "epic": 2, "legendary": 3}
+const RENT_HOURS := {"rare": 24, "epic": 24, "legendary": 12}
+const TICKET_HOURS := 24
+const TRIAL_MINUTES := 15
+const VIDEOS_PER_DAY := 8
+
+
+static func now() -> int:
+	return int(Time.get_unix_time_from_system())
+
+
+static func rentals() -> Dictionary:
+	var r: Variant = _load("rentals", {})
+	return r if r is Dictionary else {}
+
+
+## Seconds of rental left on an item (0 when not rented).
+static func time_left(id: String) -> int:
+	return maxi(0, int(rentals().get(id, 0)) - now())
+
+
+## Owned for good, or rented and the time has not run out.
+static func can_use(id: String) -> bool:
+	return owns(id) or time_left(id) > 0
+
+
+## Adds rental time; renting again while rented extends it.
+static func rent(id: String, seconds: int) -> void:
+	var r := rentals()
+	r[id] = maxi(now(), int(r.get(id, 0))) + seconds
+	for k in r.keys():   # forget long-expired rentals
+		if int(r[k]) < now() - 86400 * 30:
+			r.erase(k)
+	_store("rentals", r)
+
+
+static func videos_needed(id: String) -> int:
+	return int(VIDEOS_NEEDED.get(TokenDesigns.rarity_of(id), 1))
+
+
+static func rent_hours(id: String) -> int:
+	return int(RENT_HOURS.get(TokenDesigns.rarity_of(id), 24))
+
+
+static func video_progress(id: String) -> int:
+	return int((_load("video_progress", {}) as Dictionary).get(id, 0))
+
+
+static func videos_left_today() -> int:
+	var d: Dictionary = _load("videos_day", {})
+	return VIDEOS_PER_DAY - (int(d.get("count", 0)) if int(d.get("day", -1)) == _today() else 0)
+
+
+## A video was watched to the end for this design. Returns true when that rented it.
+static func watched_video(id: String) -> bool:
+	_store("videos_day", {"day": _today(), "count": VIDEOS_PER_DAY - videos_left_today() + 1})
+	var vp: Dictionary = _load("video_progress", {})
+	var n := int(vp.get(id, 0)) + 1
+	var done := n >= videos_needed(id)
+	vp[id] = 0 if done else n
+	_store("video_progress", vp)
+	if done:
+		rent(id, rent_hours(id) * 3600)
+	return done
+
+
+static func tickets() -> int:
+	return int(_load("tickets", 1))   # everyone starts with one to try
+
+
+static func add_tickets(n: int) -> void:
+	_store("tickets", tickets() + n)
+
+
+static func use_ticket(id: String) -> bool:
+	if tickets() <= 0:
+		return false
+	_store("tickets", tickets() - 1)
+	rent(id, TICKET_HOURS * 3600)
+	return true
+
+
+static func trial_used(id: String) -> bool:
+	return (_load("trials", []) as Array).has(id)
+
+
+## One free short trial per design.
+static func start_trial(id: String) -> bool:
+	if trial_used(id) or can_use(id):
+		return false
+	var t: Array = _load("trials", [])
+	t.append(id)
+	_store("trials", t)
+	rent(id, TRIAL_MINUTES * 60)
+	return true
+
+
+## "5h 12m", "14m", "40s".
+static func format_time(seconds: int) -> String:
+	if seconds >= 3600:
+		return "%dh %02dm" % [seconds / 3600, (seconds % 3600) / 60]
+	if seconds >= 60:
+		return "%dm" % (seconds / 60)
+	return "%ds" % seconds
+
+
+# --- design styles: metal finish and aura colour -------------------------------------
+
+static func design_style(id: String) -> Dictionary:
+	var all: Dictionary = _load("design_styles", {})
+	var s: Dictionary = all.get(id, {})
+	return {"metal": String(s.get("metal", "gold")), "aura": String(s.get("aura", "rarity"))}
+
+
+static func set_design_style(id: String, key: String, value: String) -> void:
+	var all: Dictionary = _load("design_styles", {})
+	var s := design_style(id)
+	s[key] = value
+	all[id] = s
+	_store("design_styles", all)
+
+
+## The equipped design with its style, as one string ("design_raja|silver|ruby") that
+## also travels to friends in Wi-Fi games.
+static func equipped_design_spec() -> String:
+	var id := equipped("design")
+	var s := design_style(id)
+	return "%s|%s|%s" % [id, s["metal"], s["aura"]]
 
 
 # --- profile: name, XP, level, title -------------------------------------------------
@@ -276,6 +414,8 @@ static func add_game_xp(game: Dictionary) -> Array:
 		coins += 100 * l
 	if coins > 0:
 		add_coins(coins)
+	if after > before:
+		add_tickets(after - before)   # every new level brings a Royal Ticket
 	return [gained, after - before, coins]
 
 

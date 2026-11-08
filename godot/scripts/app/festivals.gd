@@ -96,6 +96,7 @@ static func record(game: Dictionary) -> Array:
 			done.append(id)
 			completed.append(id)
 			Progress.add_coins(int(c[3]))
+			Progress.add_tickets(1)
 	p["done"] = done
 	GameSettings.save_value("progress", "week", p)
 	return completed
