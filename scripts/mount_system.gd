@@ -18,6 +18,9 @@ var _dist_saved := 6.0
 var _air := 0.0                  # height of the animal above the ground during a leap
 var _vy := 0.0
 var last_block := ""             # what stopped the animal last (diagnostics)
+var called: Animal = null        # your horse, galloping over after a whistle
+var _call_t := 0.0
+var _h_was := false
 
 
 func _init(m: Node3D, p: Player, t: TerrainBuilder) -> void:
@@ -51,8 +54,13 @@ func _attach(a: Animal) -> void:
 func mount_animal(a: Animal) -> void:
 	if mount != null or player.locked or player.dead:
 		return
+	if called == a:
+		called = null
 	mount = a
 	a.driven = true
+	var st = main.get("story")
+	if st != null:
+		st.set_flag("my_ride", a.species)            # the last animal you rode answers your whistle
 	_heading = a.rotation.y
 	_speed = 0.0
 	_air = 0.0
@@ -95,7 +103,91 @@ const JUMP_SPEED := 7.0
 const GRAVITY := 17.0
 
 
+## Whistle for your ride (the kind of animal you last rode). The nearest one gallops over; if none is close
+## it comes in from behind you, out of sight. Returns the line to show the player.
+func whistle() -> String:
+	var st = main.get("story")
+	var kind := String(st.get_flag("my_ride", "")) if st != null else ""
+	if mount != null or player.dead:
+		return ""
+	if kind == "":
+		return "Ride a horse first, then whistle and it will come to you."
+	var best: Animal = null
+	var bd := INF
+	for c in main.life:
+		var an := c as Animal
+		if an == null or an.dead or an.species != kind or (an.driven and an != called) or not is_instance_valid(an):
+			continue
+		var d := an.global_position.distance_to(player.global_position)
+		if d < bd:
+			bd = d
+			best = an
+	Sfx.ui_at("whistle", -4.0)
+	if best == null:
+		return "No %s can hear you here." % kind.replace("_", " ")
+	if bd < 4.0:
+		return "Your %s is right here." % kind.replace("_", " ")
+	if bd > 45.0:
+		# out of sight behind you, then it runs in
+		var back := Vector3(sin(player._yaw), 0.0, cos(player._yaw))
+		var p := player.global_position + back * 28.0
+		p.y = terrain.sample_height(p.x, p.z)
+		best.global_position = p
+	called = best
+	_call_t = 0.0
+	best.driven = true
+	if best._anim != null:
+		best._anim.play(best._gallop if best._has_gallop else best._walk, 0.2)
+	return "You whistle. Your %s is coming!" % kind.replace("_", " ")
+
+
+func _tick_called(delta: float) -> void:
+	var a := called
+	if not is_instance_valid(a) or a.dead or mount == a:
+		called = null
+		return
+	_call_t += delta
+	var to := player.global_position - a.global_position
+	to.y = 0.0
+	if to.length() < 3.2 or _call_t > 14.0:
+		if _call_t > 14.0 and to.length() > 3.2:
+			# stuck behind something: it finds its own way round and simply arrives
+			var side := Vector3(cos(player._yaw), 0.0, -sin(player._yaw))
+			var p := player.global_position + side * 2.5
+			p.y = terrain.sample_height(p.x, p.z)
+			a.global_position = p
+		a.driven = false
+		a.home = a.global_position
+		a.play_walk(false)
+		Sfx.at("horse_whinny" if a.species.begins_with("horse") else String(Animal.CALLS.get(a.species, ["cow_moo"])[0]), a.global_position + Vector3(0, 1.2, 0), -2.0)
+		called = null
+		return
+	var sp: Array = RIDEABLE.get(a.species, [3.0, 10.0])
+	var speed := float(sp[1]) if to.length() > 8.0 else float(sp[0])
+	var dir := to.normalized()
+	a.rotation.y = lerp_angle(a.rotation.y, atan2(-dir.x, -dir.z), 1.0 - exp(-6.0 * delta))
+	var np := a.global_position + dir * speed * delta
+	np.y = terrain.sample_height(np.x, np.z)
+	a.global_position = np
+	if a._anim != null:
+		var want := a._gallop if speed > float(sp[0]) and a._has_gallop else a._walk
+		if a._anim.current_animation != want:
+			a._anim.play(want, 0.2)
+	_step_t -= delta
+	if _step_t <= 0.0:
+		_step_t = clampf(2.4 / maxf(speed, 1.0), 0.18, 0.7)
+		Sfx.at("hoof_%d" % randi_range(0, 1), a.global_position, -2.0, randf_range(0.9, 1.1))
+
+
 func _physics_process(delta: float) -> void:
+	var h_down := Input.is_physical_key_pressed(KEY_H)
+	if h_down and not _h_was and mount == null:
+		var msg := whistle()
+		if msg != "":
+			player.say(msg)
+	_h_was = h_down
+	if called != null:
+		_tick_called(delta)
 	if mount == null:
 		return
 	if not is_instance_valid(mount) or player.dead:
@@ -160,8 +252,12 @@ func _physics_process(delta: float) -> void:
 			_speed = 0.0
 			last_block = str((hit["collider"] as Node).get_path())
 	var np := a.global_position + step
-	np.x = clampf(np.x, -195.0, 195.0)
-	np.z = clampf(np.z, -195.0, 195.0)
+	# the valley and the Southern Road country are open; at the edge of the world the animal just stops
+	var inside := (absf(np.x) <= 195.0 and absf(np.z) <= 195.0) or FrontierBuilder.contains(np.x, np.z)
+	if not inside:
+		np.x = a.global_position.x
+		np.z = a.global_position.z
+		_speed = 0.0
 	var gy := terrain.sample_height(np.x, np.z)
 	np.y = gy + _air
 	a.global_position = np
@@ -193,6 +289,7 @@ func _physics_process(delta: float) -> void:
 	player.global_position = a.global_position + Basis(Vector3(1, 0, 0), a.rotation.x) * Vector3(0, a.back_y - 0.55, 0.0)
 	player.velocity = Vector3.ZERO
 	player._model.rotation.y = _heading
+	player.saddle_aim(_heading)                             # horseback archery turns the rider in the saddle
 	player._rig.ride_k = clampf(_speed / float(sp[1]), 0.0, 1.0)
 	player._rig.ride_turn = lerpf(player._rig.ride_turn, turn * clampf(_speed / float(sp[0]), 0.0, 1.0), 1.0 - exp(-6.0 * delta))
 	player._rig.ride_air = move_toward(player._rig.ride_air, 1.0 if _air > 0.05 else 0.0, 6.0 * delta)

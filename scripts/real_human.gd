@@ -621,6 +621,9 @@ func animate(delta: float, speed: float, grounded: bool) -> void:
 	if move != "":
 		if not (hold_draw and move == "bow_shot" and move_t >= 0.6):
 			move_t += delta * move_rate
+		if react == "ride":
+			react_t += delta
+			_react_pose()                 # in the saddle: the legs keep riding, the move only drives the upper body
 		_move_pose()
 		if move_t >= _move_hit_at and not _move_sent:
 			_move_sent = true
@@ -653,6 +656,7 @@ func animate(delta: float, speed: float, grounded: bool) -> void:
 
 
 # --- archery: a live bowstring and the arrow on the string --------------------------------------
+var aim_twist := 0.0              # extra torso turn toward the target (archery from the saddle)
 var hold_draw := false            # manual aim: the bow stays at full draw until the player lets go
 var move_rate := 1.0              # playback speed of the current move (Quick Draw speeds up the bow)
 var _string: Array[MeshInstance3D] = []
@@ -962,13 +966,18 @@ func _kf_pose(name_: String, t: float) -> bool:
 	var span := maxf(float(fb[0]) - float(fa[0]), 0.0001)
 	var u := clampf((t - float(fa[0])) / span, 0.0, 1.0)
 	u = u * u * (3.0 - 2.0 * u)
+	var seated := react == "ride"
 	for k in GUARD:
+		if seated and (k == "dy" or k == "hips" or k.begins_with("hip_") or k.begins_with("kn_")):
+			continue
 		var va: Variant = (fa[1] as Dictionary).get(k, GUARD[k])
 		var vb: Variant = (fb[1] as Dictionary).get(k, GUARD[k])
 		if k == "dy":
 			_hips_dy = lerpf(float(va), float(vb), u)
 		elif k == "spine" or k == "hips" or k == "chest" or k == "head":
 			_pose[k] = (va as Vector3).lerp(vb as Vector3, u)
+			if k == "spine" and name_ == "bow_shot":
+				_pose[k] = (_pose[k] as Vector3) + Vector3(0, aim_twist * smoothstep(0.2, 0.42, t) * (1.0 - smoothstep(0.84, 1.0, t)), 0)
 		else:
 			_pz(k, (va as Vector3).lerp(vb as Vector3, u))
 	return true

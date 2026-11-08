@@ -136,6 +136,8 @@ func _ready() -> void:
 			_run_capture_fight.call_deferred(a.trim_prefix("--capture-fight="))
 		elif a.begins_with("--capture-lab="):
 			_run_capture_lab.call_deferred(a.trim_prefix("--capture-lab="))
+		elif a.begins_with("--capture-horse="):
+			_run_capture_horse.call_deferred(a.trim_prefix("--capture-horse="))
 		elif a.begins_with("--capture-boss="):
 			_run_capture_boss.call_deferred(a.trim_prefix("--capture-boss="))
 		elif a.begins_with("--capture-bow="):
@@ -911,6 +913,8 @@ func _build_story() -> void:
 	mounts = MountSystem.new(self, player, terrain)
 	mounts.build()
 	touch.on_exit = Callable(mounts, "dismount")
+	touch.on_whistle = Callable(mounts, "whistle")
+	touch.has_ride = func() -> bool: return String(story.get_flag("my_ride", "")) != ""
 	combat_hud = CombatHUD.new()
 	combat_hud.player = player
 	add_child(combat_hud)
@@ -1638,6 +1642,7 @@ func _run_selftest() -> void:
 	if is_instance_valid(bt2) and not bt2.dead:
 		bt2.queue_free()
 	await _selftest_boss(fails)
+	await _selftest_horse(fails)
 	items.unequip("weapon")
 	for k in 5:
 		story.flags.erase("cache_%d" % k)
@@ -3216,6 +3221,76 @@ func _run_capture_ride(arg: String) -> void:
 	get_tree().quit()
 
 
+## Horseback archery, whistling for your horse, and riding out onto the Southern Road.
+func _selftest_horse(fails: Array) -> void:
+	var horse: Animal = null
+	for c in life:
+		if c is Animal and (c as Animal).species == "horse" and not (c as Animal).driven:
+			horse = c
+			break
+	if horse == null:
+		fails.append("horse: no horse in the valley")
+		return
+	_teleport(horse.global_position.x + 3.0, horse.global_position.z)
+	for i in 5:
+		await get_tree().physics_frame
+	mounts.mount_animal(horse)
+	if not player.mounted or String(story.get_flag("my_ride", "")) != "horse":
+		fails.append("horse: mounting did not remember your ride")
+	items.give("bow")
+	items.equip("bow")
+	var tgt := combat.spawn_enemy(horse.global_position + Vector3(-8.0, 0, -4.0), false, 0.0, "horsetarget")
+	tgt.set_physics_process(false)
+	var thp: float = tgt.hp
+	player._attack_cd = 0.0
+	var fired := player.fire_arrow()
+	var seated := true
+	var twist := 0.0
+	for i in 70:
+		await get_tree().physics_frame
+		if player._rig.move == "bow_shot" and player._rig.move_t > 0.5 and player._rig.move_t < 0.62:
+			seated = seated and player._rig._hips_dy < -0.3
+			twist = player._rig.aim_twist
+	await get_tree().create_timer(0.6).timeout
+	var note := "fired %s, seated %s, twist %.2f, target hp %.0f -> %.0f" % [fired, seated, twist, thp, tgt.hp]
+	if not fired or not seated or tgt.hp >= thp:
+		fails.append("horse: archery from the saddle failed (" + note + ")")
+	if is_instance_valid(tgt):
+		tgt.queue_free()
+	items.unequip("weapon")
+	player.set_weapon("fists")
+	# whistle from far away
+	mounts.dismount()
+	_teleport(horse.global_position.x + 70.0, horse.global_position.z + 10.0)
+	for i in 5:
+		await get_tree().physics_frame
+	var line: String = mounts.whistle()
+	var came := false
+	for i in 900:
+		await get_tree().physics_frame
+		if mounts.called == null:
+			came = true
+			break
+	var hd := horse.global_position.distance_to(player.global_position)
+	note += ", whistle '%s', came %s at %.1f m" % [line, came, hd]
+	if not came or hd > 4.5:
+		fails.append("horse: whistle did not bring the horse (" + note + ")")
+	# out on the Southern Road the horse is not pulled back to the valley edge
+	mounts.mount_animal(horse)
+	horse.global_position = Vector3(18.0, terrain.sample_height(18.0, 360.0), 360.0)
+	mounts._heading = PI          # facing +z, down the road
+	player.move_input = Vector2(0, 1)
+	player.set_look(PI, -0.2)
+	for i in 40:
+		await get_tree().physics_frame
+	player.move_input = Vector2.ZERO
+	note += ", road z %.0f" % horse.global_position.z
+	if horse.global_position.z < 340.0:
+		fails.append("horse: riding on the Southern Road snapped back (" + note + ")")
+	mounts.dismount()
+	print("[selftest] horse: " + note)
+
+
 ## Boss fight: phases, summoned minions, stomp shockwave, weak spot, charge, the boss bar and the kill.
 func _selftest_boss(fails: Array) -> void:
 	var mm := get_tree().get_first_node_in_group("monster_missions")
@@ -3307,6 +3382,43 @@ func _selftest_boss(fails: Array) -> void:
 			m.queue_free()
 	player.max_hp = 100.0
 	player.hp = 100.0
+
+
+func _run_capture_horse(dir: String) -> void:
+	DirAccess.make_dir_recursive_absolute(dir)
+	atmosphere.time_of_day = 0.42
+	atmosphere.apply_time()
+	var horse: Animal = null
+	for c in life:
+		if c is Animal and (c as Animal).species == "horse":
+			horse = c
+			break
+	_teleport(horse.global_position.x + 3.0, horse.global_position.z)
+	for i in 10:
+		await get_tree().physics_frame
+	mounts.mount_animal(horse)
+	items.give("bow")
+	items.equip("bow")
+	player.set_weapon("bow")
+	mounts._heading = 0.0
+	var tgt := combat.spawn_enemy(horse.global_position + Vector3(-9.0, 0, -6.0), false, 0.0, "t")
+	tgt.set_physics_process(false)
+	tgt.hp = 9999.0
+	player.set_look(-1.9, -0.15)
+	player.set_distance(5.0)
+	for i in 20:
+		await get_tree().physics_frame
+	player._attack_cd = 0.0
+	player.fire_arrow()
+	var shots := [[24, "a_raise"], [36, "b_draw"], [44, "c_release"]]
+	var f := 0
+	for sh in shots:
+		while f < int(sh[0]):
+			await get_tree().physics_frame
+			f += 1
+		await RenderingServer.frame_post_draw
+		get_viewport().get_texture().get_image().save_png("%s/%s.png" % [dir, String(sh[1])])
+	get_tree().quit()
 
 
 func _run_capture_boss(dir: String) -> void:

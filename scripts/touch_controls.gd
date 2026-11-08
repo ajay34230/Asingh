@@ -30,6 +30,8 @@ var _crouch_id := -1
 var _block_id := -1
 var _roll_id := -1
 var on_exit := Callable()      # GET OFF while riding
+var on_whistle := Callable()   # HORSE: whistle for your ride (returns the line to show)
+var has_ride := Callable()     # true once you have ridden an animal
 var left_handed := false       # mirror the layout: stick on the right, look and buttons on the left
 var btn_scale := 1.0           # button size and spacing, 0.8 .. 1.4
 var show_fps := true
@@ -109,6 +111,14 @@ func _weapon_button_centre() -> Vector2:
 	return _corner(515.0, 110.0)
 
 
+func _horse_button_centre() -> Vector2:
+	return _corner(515.0, 235.0)
+
+
+func _horse_visible() -> bool:
+	return player != null and not player.mounted and has_ride.is_valid() and bool(has_ride.call())
+
+
 func _crouch_button_centre() -> Vector2:
 	return _corner(380.0, 95.0)
 
@@ -166,6 +176,12 @@ func _on_press(idx: int, pos: Vector2) -> void:
 		var w := player.cycle_weapon()
 		_toast = "Weapon: " + Loc.t(w.capitalize())
 		_toast_time = 1.6
+		return
+	if _horse_visible() and on_whistle.is_valid() and pos.distance_to(_horse_button_centre()) < 46.0 * btn_scale:
+		var line := String(on_whistle.call())
+		if line != "":
+			_toast = Loc.t(line)
+			_toast_time = 2.4
 		return
 	if player != null and not player.mounted and pos.distance_to(_crouch_button_centre()) < 56.0 * btn_scale:
 		_crouch_id = idx
@@ -290,7 +306,7 @@ func _draw() -> void:
 		draw_arc(Vector2(_vp.x - 150.0 if left_handed else 150.0, _vp.y - 150.0), STICK_RADIUS, 0.0, TAU, 40, Color(1, 1, 1, 0.18), 2.0)
 	_draw_button(font, _run_button_centre(), 50.0 * btn_scale, "RUN", _run_on)
 	_draw_button(font, _jump_button_centre(), 45.0 * btn_scale, "JUMP", _jump_id != -1)
-	var bow := player != null and player.gear_ranged and not player.mounted
+	var bow := player != null and player.gear_ranged
 	_draw_button(font, _attack_button_centre(), 48.0 * btn_scale, Loc.t("DRAW") if bow else "HIT", _attack_id != -1)
 	if bow:
 		_draw_bow_hud(font)
@@ -299,6 +315,8 @@ func _draw() -> void:
 		_draw_button(font, _block_button_centre(), 44.0 * btn_scale, "BLOCK", _block_id != -1)
 		_draw_button(font, _roll_button_centre(), 44.0 * btn_scale, "ROLL", _roll_id != -1)
 		_draw_button(font, _weapon_button_centre(), 40.0 * btn_scale, player.weapon.to_upper() if player != null else "FISTS", false)
+		if _horse_visible():
+			_draw_button(font, _horse_button_centre(), 38.0 * btn_scale, Loc.t("HORSE"), mounts_called())
 
 
 ## Bow: crosshair while aiming (tightens as the draw fills), the focus meter round the bow button and the
@@ -326,6 +344,10 @@ func _draw_bow_hud(font: Font) -> void:
 		var t := Loc.t("FOCUS")
 		var w := font.get_string_size(t, HORIZONTAL_ALIGNMENT_LEFT, -1, 20).x
 		draw_string(font, ctr + Vector2(-w * 0.5, 64.0), t, HORIZONTAL_ALIGNMENT_LEFT, -1, 20, Color(0.55, 0.9, 1.0, 0.9))
+
+
+func mounts_called() -> bool:
+	return on_whistle.is_valid() and on_whistle.get_object() != null and on_whistle.get_object().get("called") != null
 
 
 func _draw_button(font: Font, c: Vector2, r: float, label: String, active: bool) -> void:

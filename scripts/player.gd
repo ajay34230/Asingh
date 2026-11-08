@@ -359,8 +359,11 @@ const AIM_TAP := 0.22
 const FOCUS_SCALE := 0.4
 
 
+var _shot_yaw := 0.0               # yaw from the archer to the target of the current shot
+
+
 func fire_arrow() -> bool:
-	if dead or locked or _attack_cd > 0.0:
+	if dead or (locked and not mounted) or _attack_cd > 0.0:
 		return false
 	var foe := _nearest_enemy(26.0)
 	var from := global_position + Vector3(0, 1.4, 0)
@@ -374,7 +377,9 @@ func fire_arrow() -> bool:
 		var cam := get_viewport().get_camera_3d()
 		var fwd := -cam.global_transform.basis.z if cam != null else Vector3(-sin(_model.rotation.y), 0, -cos(_model.rotation.y))
 		target = from + fwd * 35.0
-	_model.rotation.y = atan2(-(target.x - from.x), -(target.z - from.z))
+	_shot_yaw = atan2(-(target.x - from.x), -(target.z - from.z))
+	if not mounted:
+		_model.rotation.y = _shot_yaw
 	var rate := 1.0 / maxf(bow_cd_mult, 0.4)        # Quick Draw makes the whole draw faster
 	_rig.play_move("bow_shot")
 	_rig.move_rate = rate
@@ -406,7 +411,7 @@ func _release_arrow() -> void:
 
 ## Bow button pressed: start drawing. Without a bow (or in the saddle) it is a normal attack.
 func begin_aim() -> void:
-	if not gear_ranged or mounted:
+	if not gear_ranged:
 		attack()
 		return
 	if aiming or not fire_arrow():
@@ -427,7 +432,9 @@ func release_aim() -> void:
 		return
 	if _aim_t >= AIM_TAP:
 		_aim_from_crosshair()
-		_model.rotation.y = _yaw
+		_shot_yaw = atan2(-(_arrow_target.x - global_position.x), -(_arrow_target.z - global_position.z))
+		if not mounted:
+			_model.rotation.y = _yaw
 		_arrow_charged = _rig.move_t >= 0.58
 		var it := get_tree().get_first_node_in_group("items")
 		if _arrow_charged and it != null and int(it.call("count", "fire_arrow")) > 0:
@@ -489,14 +496,16 @@ func _set_focus(on: bool) -> void:
 ## at full draw time slows while there is focus left.
 func _tick_aim(delta: float) -> void:
 	var real := delta / maxf(Engine.time_scale, 0.05)
-	if aiming and (dead or locked or mounted or _rig.move != "bow_shot"):
+	if aiming and (dead or (locked and not mounted) or _rig.move != "bow_shot"):
 		aiming = false
 		_rig.hold_draw = false
 		_set_focus(false)
 	aim_blend = move_toward(aim_blend, 1.0 if aiming else 0.0, real * 5.0)
 	if aiming:
 		_aim_t += real
-		_model.rotation.y = lerp_angle(_model.rotation.y, _yaw, 1.0 - exp(-18.0 * real))
+		_shot_yaw = _yaw
+		if not mounted:
+			_model.rotation.y = lerp_angle(_model.rotation.y, _yaw, 1.0 - exp(-18.0 * real))
 		var full := _rig.move_t >= 0.58
 		if full and aim_focus > 0.0:
 			_set_focus(true)
@@ -514,7 +523,7 @@ func _tick_aim(delta: float) -> void:
 func attack() -> void:
 	if attack_override.is_valid() and bool(attack_override.call()):
 		return
-	if gear_ranged and not locked and not dead and fire_arrow():
+	if gear_ranged and (not locked or mounted) and not dead and fire_arrow():
 		return
 	if mounted:
 		_mounted_swing()
@@ -648,6 +657,19 @@ func _weapon_swing() -> void:
 
 
 ## Swing the hammer from the saddle (the HIT button while riding).
+## Horseback archery: the rider turns in the saddle (up to about 30 degrees off the horse's heading) and twists
+## the torso for the rest, so the bow arm points at the target while the legs stay on the horse.
+const SADDLE_ARM := 0.8            # in the saddle the hips do not turn, so the bow arm sits this far left of the body
+func saddle_aim(heading: float) -> void:
+	if _rig.move != "bow_shot":
+		_rig.aim_twist = 0.0
+		return
+	var want := _shot_yaw - SADDLE_ARM
+	var my := heading + clampf(wrapf(want - heading, -PI, PI), -0.55, 0.55)
+	_model.rotation.y = my
+	_rig.aim_twist = clampf(wrapf(want - my, -PI, PI), -1.3, 1.3)
+
+
 func _mounted_swing() -> void:
 	if dead or _attack_cd > 0.0:
 		return

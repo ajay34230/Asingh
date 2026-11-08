@@ -447,3 +447,19 @@ Verified by the selftest (PASS: "boss: stomp true, player hp 884 -> 865, dazed t
 - **Boss bar:** the name, health with phase marks at 1/3 and 2/3, and a one-line tip for the current danger.
 - **New achievements:** "Giant Slayer" and "Heart Seeker" (hit the weak spot three times in one fight). Hindi text was added.
 - **Fix:** arrow aiming at flying monsters added their hover height twice, about 1.3 m too high for ghosts. Aim points now use the body's real height.
+
+## Addendum: Horse riding upgrades (2026-11-08)
+
+Verified by the selftest (PASS: "horse: fired true, seated true, twist -0.23, target hp 60 -> 42, whistle ..., came true at 3.2 m, road z 362") and software-rendered captures (`--capture-horse`). **Not tested on a device.**
+
+- **Horseback archery now works.** Before, riding locked the player and the bow refused to fire, even though the bow's description promised it.
+  - Tap DRAW to auto-aim or hold it to aim from the saddle. The horse keeps moving.
+  - The rider's legs stay in the riding pose while the shot drives only the upper body.
+  - The rider turns in the saddle up to about 30° off the horse's heading, and the torso twists up to 75° more toward the target.
+- **Whistle for your ride:**
+  - The animal you last rode (horse, camel, donkey or bull) is remembered.
+  - A **HORSE** button, or H on a keyboard, whistles. The nearest animal of that kind gallops over with hoof sounds and whinnies when it arrives.
+  - If none is within 45 m, it comes in from behind you, out of sight.
+  - If it gets stuck for 14 s, it simply arrives beside you.
+  - New sound: `whistle` (self-made, CC0, credited in ASSETS.md).
+- **Ride the whole map:** riding was fenced to the old ±195 m valley. You can now ride out along the Southern Road to Kesar Sarai and Dhoopgarh. At the true edge of the world the animal stops instead of snapping back.
