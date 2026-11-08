@@ -1128,5 +1128,16 @@
  "Sunset": "सूर्यास्त",
  "Night": "रात",
  "Drag to move the camera, pinch to zoom": "कैमरा घुमाने को खींचो, ज़ूम के लिए चुटकी",
- "Photo saved: ": "फ़ोटो सहेजी: "
+ "Photo saved: ": "फ़ोटो सहेजी: ",
+ "Winter": "शिशिर (सर्दी)",
+ "Spring": "वसंत",
+ "Summer": "ग्रीष्म (गर्मी)",
+ "Monsoon": "वर्षा (मानसून)",
+ "Autumn": "शरद",
+ "Winter in the valley: cold, misty mornings.": "घाटी में सर्दी: ठंडी, कोहरे भरी सुबहें।",
+ "Spring: flowers on the hills, mild days.": "वसंत: पहाड़ियों पर फूल, सुहाने दिन।",
+ "Summer: hot days, and dust storms blow in from the south.": "गर्मी: तपते दिन, और दक्षिण से आँधियाँ आती हैं।",
+ "The monsoon has come: rain most days, the land turns green.": "मानसून आ गया: लगभग रोज़ बारिश, धरती हरी हो जाती है।",
+ "Autumn: clear skies and festival season.": "शरद: साफ़ आसमान और त्योहारों का मौसम।",
+ "Dust storm!": "आँधी!"
 }

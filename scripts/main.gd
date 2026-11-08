@@ -138,6 +138,8 @@ func _ready() -> void:
 			_run_capture_fight.call_deferred(a.trim_prefix("--capture-fight="))
 		elif a.begins_with("--capture-lab="):
 			_run_capture_lab.call_deferred(a.trim_prefix("--capture-lab="))
+		elif a.begins_with("--capture-weather="):
+			_run_capture_weather.call_deferred(a.trim_prefix("--capture-weather="))
 		elif a.begins_with("--capture-photo="):
 			_run_capture_photo.call_deferred(a.trim_prefix("--capture-photo="))
 		elif a.begins_with("--capture-event="):
@@ -837,6 +839,7 @@ func _spawn_player() -> void:
 	_look_at_point(Vector3(0.0, 22.0, -168.0), -0.07)
 	atmosphere.make_dust(player)
 	atmosphere.make_rain(player)
+	atmosphere.make_duststorm(player)
 	atmosphere.make_clouds(player)
 	Npc.atmo = atmosphere
 
@@ -1041,6 +1044,16 @@ func _build_story() -> void:
 	live_events.festival = festival
 	add_child(live_events)
 	live_events.build()
+	# the season follows the phone's calendar (SEASON overrides it for testing)
+	var sn := OS.get_environment("SEASON")
+	atmosphere.season = sn if Atmosphere.SEASONS.has(sn) else Atmosphere.season_for_month(int(Time.get_date_dict_from_system()["month"]))
+	var skey := "season_seen_%s_%d" % [atmosphere.season, int(Time.get_date_dict_from_system()["year"])]
+	if not bool(story.get_flag(skey, false)) and not "--selftest" in OS.get_cmdline_user_args():
+		story.set_flag(skey, true)
+		var lines := {"shishir": "Winter in the valley: cold, misty mornings.", "vasant": "Spring: flowers on the hills, mild days.",
+			"grishma": "Summer: hot days, and dust storms blow in from the south.", "varsha": "The monsoon has come: rain most days, the land turns green.",
+			"sharad": "Autumn: clear skies and festival season."}
+		(func() -> void: hud.banner(Loc.t(String(lines[atmosphere.season])), "")).call_deferred()
 	farm = Farm.new()
 	farm.main = self
 	farm.terrain = terrain
@@ -1691,6 +1704,7 @@ func _run_selftest() -> void:
 	await _selftest_events(fails)
 	_selftest_hindi(fails)
 	await _selftest_photo(fails)
+	await _selftest_seasons(fails)
 	items.unequip("weapon")
 	for k in 5:
 		story.flags.erase("cache_%d" % k)
@@ -3269,6 +3283,71 @@ func _run_capture_ride(arg: String) -> void:
 	get_tree().quit()
 
 
+## Seasons and dust storms: month table, how often each season brings rain or dust, a storm building up.
+func _selftest_seasons(fails: PackedStringArray) -> void:
+	var months := {1: "shishir", 3: "vasant", 5: "grishma", 8: "varsha", 11: "sharad", 12: "shishir"}
+	for mo in months:
+		if Atmosphere.season_for_month(mo) != String(months[mo]):
+			fails.append("weather: month %d should be %s" % [mo, months[mo]])
+	var a := atmosphere
+	var keep := [a.season, a.rain, a.rain_target, a.dust, a.dust_target, a._weather_t, a._story_t, a.story_weather]
+	a._story_t = 0.0
+	a.story_weather = ""
+	var notes: Array = []
+	for sn in ["varsha", "grishma", "shishir"]:
+		a.season = sn
+		var rains := 0
+		var dusts := 0
+		for i in 300:
+			a.rain_target = 0.0
+			a.dust_target = 0.0
+			a._weather_t = 0.0
+			a._update_weather(0.0)
+			if a.rain_target > 0.5:
+				rains += 1
+			elif a.dust_target > 0.5:
+				dusts += 1
+		notes.append("%s rain %d%% dust %d%%" % [sn, rains / 3, dusts / 3])
+		if sn == "varsha" and rains < 210:
+			fails.append("weather: the monsoon should mostly bring rain (%d/300)" % rains)
+		if sn == "grishma" and dusts < 100:
+			fails.append("weather: summer should often bring dust storms (%d/300)" % dusts)
+		if sn == "shishir" and rains > 90:
+			fails.append("weather: winter should be mostly dry (%d/300)" % rains)
+	# a dust storm rolls in
+	a.season = "grishma"
+	a.rain = 0.0
+	a.rain_target = 0.0
+	var fog0 := a.environment.fog_density
+	a.set_weather("dust", 60.0)
+	for i in 25:
+		a._update_weather(0.5)
+	a.apply_time()
+	notes.append("dust %.2f fog %.4f -> %.4f particles %s" % [a.dust, fog0, a.environment.fog_density, a._dust_p.emitting])
+	if a.dust < 0.9 or a.environment.fog_density <= fog0 * 2.0 or not a._dust_p.emitting:
+		fails.append("weather: dust storm did not build (" + notes[-1] + ")")
+	a.season = "varsha"
+	a.set_weather("clear", 1.0)
+	for i in 25:
+		a._update_weather(0.5)
+	a.apply_time()
+	var land: Color = a.terrain_mat.albedo_color if a.terrain_mat != null else Color.WHITE
+	notes.append("monsoon land %s" % str(land))
+	if a.terrain_mat != null and not (land.g > land.r):
+		fails.append("weather: monsoon land should be greener")
+	a.season = keep[0]
+	a.rain = keep[1]
+	a.rain_target = keep[2]
+	a.dust = keep[3]
+	a.dust_target = keep[4]
+	a._weather_t = keep[5]
+	a._story_t = keep[6]
+	a.story_weather = keep[7]
+	a._update_weather(0.0)
+	a.apply_time()
+	print("[selftest] weather: " + ", ".join(notes))
+
+
 ## Photo studio: poses hold, filters and light switch, a photo is saved, and everything is put back.
 func _selftest_photo(fails: PackedStringArray) -> void:
 	var tod0 := atmosphere.time_of_day
@@ -3797,6 +3876,27 @@ func _selftest_boss(fails: PackedStringArray) -> void:
 			m.queue_free()
 	player.max_hp = 100.0
 	player.hp = 100.0
+
+
+func _run_capture_weather(dir: String) -> void:
+	DirAccess.make_dir_recursive_absolute(dir)
+	touch.visible = false
+	_teleport(-60.0, 20.0)
+	player.set_look(2.4, -0.05)
+	player.set_distance(5.0)
+	atmosphere.time_of_day = 0.45
+	for sh in [["sharad", "clear"], ["grishma", "dust"], ["varsha", "rain"], ["shishir", "fog"]]:
+		atmosphere.season = String(sh[0])
+		atmosphere.set_weather(String(sh[1]), 999.0)
+		atmosphere.rain = atmosphere.rain_target
+		atmosphere.dust = atmosphere.dust_target
+		atmosphere.mist = atmosphere.mist_target
+		for i in 120:
+			await get_tree().physics_frame
+		atmosphere.apply_time()
+		await RenderingServer.frame_post_draw
+		get_viewport().get_texture().get_image().save_png("%s/%s_%s.png" % [dir, String(sh[0]), String(sh[1])])
+	get_tree().quit()
 
 
 func _run_capture_photo(dir: String) -> void:

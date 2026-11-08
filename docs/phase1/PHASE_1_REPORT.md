@@ -567,3 +567,27 @@ Verified by the selftest (PASS: every pose holds, the filter and light switch, a
 - **Light:** as it was, sunrise, noon, sunset or night. The real time of day returns on exit.
 - **Fix:** festival banners asked for a missing sound (`cheer.wav`). They now use `cheer_crowd`.
 - Hindi text added.
+
+## Addendum: Seasons and dust storms (2026-11-08)
+
+Verified by the selftest (PASS: "weather: varsha rain 85% dust 0%, grishma rain 9% dust 42%, shishir rain 15% dust 4%, dust 1.00 fog 0.0009 -> 0.0149 particles true, monsoon land (0.84, 1.0, 0.8)") and software-rendered captures (`--capture-weather`). **Not tested on a device.** The software renderer used for captures does not draw GPU particles, so the rain streaks and dust puffs are untested visually; only their lighting and fog show in the captures.
+
+- **Indian seasons from the phone's month:**
+  - Shishir (winter): Dec–Feb
+  - Vasant (spring): March
+  - Grishma (summer): Apr–Jun
+  - Varsha (monsoon): Jul–Sep
+  - Sharad (autumn): Oct–Nov
+- **What each season changes:**
+  - **Weather odds:** the monsoon rains about 85% of the time, summer brings dust storms about 42% of the time, and winter is mostly dry.
+  - **Length of clear spells.**
+  - **Morning mist:** thick in winter, none in summer.
+  - **Land tint:** greener in the monsoon, sun-bleached in summer, cool in winter.
+  - **Sunlight tint.**
+- A one-line banner announces the season once per season per year. `SEASON=<id>` forces a season for testing.
+- **Dust storms (andhi):** a new weather kind (`set_weather("dust")`, also random).
+  - An orange-brown wall of fog closes in (fog density up to about 25× clear air), and the sky turns dusty.
+  - The sun dims to a weak orange disc, and the wind rises (louder wind loop, swaying plants).
+  - Large dust puffs race across the view (scaled down on Medium and Low quality).
+  - Dust storms are twice as likely out on the Southern Road dunes.
+- Hindi text added for the season names and banners.

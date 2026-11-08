@@ -19,6 +19,33 @@ var overcast := 0.0              # 0 clear .. 1 heavy grey cloud (no rain)
 var overcast_target := 0.0
 var mist := 0.0                  # 0 clear air .. 1 thick fog
 var mist_target := 0.0
+var dust := 0.0                  # 0 clear .. 1 a full dust storm (andhi)
+var dust_target := 0.0
+var _dust_p: GPUParticles3D
+## Indian seasons by the phone's month. Each sets how often it rains or blows dust, morning mist, the colour of
+## the land and the sunlight: [rain chance, dust chance, clear-spell length x, mist, land tint, sun tint].
+const SEASONS := {
+	"shishir": {"name": "Winter", "rain": 0.15, "dust": 0.05, "clear": 1.3, "mist": 0.85, "land": Color(0.95, 0.97, 1.0), "sun": Color(0.92, 0.96, 1.0)},
+	"vasant": {"name": "Spring", "rain": 0.25, "dust": 0.1, "clear": 1.1, "mist": 0.5, "land": Color(0.94, 1.0, 0.88), "sun": Color(1.0, 1.0, 0.96)},
+	"grishma": {"name": "Summer", "rain": 0.1, "dust": 0.5, "clear": 1.0, "mist": 0.0, "land": Color(1.0, 0.94, 0.84), "sun": Color(1.0, 0.95, 0.85)},
+	"varsha": {"name": "Monsoon", "rain": 0.85, "dust": 0.0, "clear": 0.5, "mist": 0.6, "land": Color(0.84, 1.0, 0.8), "sun": Color(0.96, 0.98, 1.0)},
+	"sharad": {"name": "Autumn", "rain": 0.25, "dust": 0.1, "clear": 1.2, "mist": 0.5, "land": Color(1.0, 1.0, 1.0), "sun": Color(1.0, 1.0, 1.0)},
+}
+var season := "sharad"
+
+
+## The season for a month (1..12).
+static func season_for_month(m: int) -> String:
+	match m:
+		1, 2, 12:
+			return "shishir"
+		3:
+			return "vasant"
+		4, 5, 6:
+			return "grishma"
+		7, 8, 9:
+			return "varsha"
+	return "sharad"
 var _rain_pm: ParticleProcessMaterial
 var _story_t := 0.0              # >0: the story is holding the weather (see set_weather)
 var story_weather := ""
@@ -322,7 +349,7 @@ func update(delta: float) -> void:
 		_clouds.global_position = Vector3(_follow.global_position.x, 320.0, _follow.global_position.z)
 	_wind_t += delta
 	_dt = delta
-	var target := 0.35 + 0.25 * sin(_wind_t * 0.11) * sin(_wind_t * 0.037 + 1.0) + 0.45 * rain
+	var target := 0.35 + 0.25 * sin(_wind_t * 0.11) * sin(_wind_t * 0.037 + 1.0) + 0.45 * rain + 0.6 * dust
 	wind = lerpf(wind, clampf(target, 0.05, 1.0), 1.0 - exp(-0.5 * delta))
 	RenderingServer.global_shader_parameter_set("wind_strength", wind)
 	if running:
@@ -330,6 +357,48 @@ func update(delta: float) -> void:
 		_update_weather(delta)
 	if running or rain > 0.01:
 		apply_time()
+
+
+## Dust storm: big soft orange-brown puffs racing across the view (the andhi), around the player.
+func make_duststorm(follow: Node3D) -> void:
+	_follow = follow
+	var pm := ParticleProcessMaterial.new()
+	pm.emission_shape = ParticleProcessMaterial.EMISSION_SHAPE_BOX
+	pm.emission_box_extents = Vector3(6.0, 5.0, 40.0)
+	pm.direction = Vector3(1.0, 0.05, 0.15)
+	pm.spread = 8.0
+	pm.initial_velocity_min = 9.0
+	pm.initial_velocity_max = 15.0
+	pm.gravity = Vector3.ZERO
+	pm.scale_min = 2.5
+	pm.scale_max = 5.5
+	var ramp := Gradient.new()
+	ramp.colors = PackedColorArray([Color(0.75, 0.55, 0.35, 0.0), Color(0.75, 0.55, 0.35, 0.42), Color(0.72, 0.52, 0.33, 0.0)])
+	ramp.offsets = PackedFloat32Array([0.0, 0.35, 1.0])
+	var rt := GradientTexture1D.new()
+	rt.gradient = ramp
+	pm.color_ramp = rt
+	var q := QuadMesh.new()
+	q.size = Vector2(1.0, 1.0)
+	var m := StandardMaterial3D.new()
+	m.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	m.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	m.billboard_mode = BaseMaterial3D.BILLBOARD_ENABLED
+	m.vertex_color_use_as_albedo = true
+	m.disable_receive_shadows = true
+	SoftDot.apply(m)
+	q.material = m
+	_dust_p = GPUParticles3D.new()
+	_dust_p.name = "DustStorm"
+	_dust_p.amount = 140
+	_dust_p.lifetime = 3.2
+	_dust_p.local_coords = false
+	_dust_p.emitting = false
+	_dust_p.visibility_aabb = AABB(Vector3(-20, -10, -50), Vector3(80, 30, 100))
+	_dust_p.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	_dust_p.process_material = pm
+	_dust_p.draw_pass_1 = q
+	_world.add_child(_dust_p)
 
 
 ## Rain: a particle curtain that follows the player, plus thunder and lightning while it pours.
@@ -439,6 +508,7 @@ func set_weather(kind: String, secs: float = 240.0) -> void:
 	_story_t = secs
 	overcast_target = 0.0
 	mist_target = 0.0
+	dust_target = 0.0
 	match kind:
 		"overcast":
 			rain_target = 0.0
@@ -453,6 +523,9 @@ func set_weather(kind: String, secs: float = 240.0) -> void:
 			rain_target = 0.6
 		"drizzle":
 			rain_target = 0.3
+		"dust":
+			rain_target = 0.0
+			dust_target = 1.0
 		_:
 			rain_target = 0.0
 			if was_wet:
@@ -468,21 +541,41 @@ func _update_weather(delta: float) -> void:
 	else:
 		_weather_t -= delta
 	if _story_t <= 0.0 and _weather_t <= 0.0:
-		if rain_target < 0.5:
-			rain_target = randf_range(0.6, 1.0)
-			_weather_t = randf_range(50.0, 90.0)
+		var sw: Dictionary = SEASONS.get(season, SEASONS["sharad"])
+		if rain_target < 0.5 and dust_target < 0.5:
+			# the season decides what blows in next; the open dunes of the south raise dust twice as often
+			var dusty := float(sw["dust"]) * (2.0 if _follow != null and FrontierBuilder.contains(_follow.global_position.x, _follow.global_position.z) else 1.0)
+			var r := randf()
+			if r < float(sw["rain"]):
+				rain_target = randf_range(0.6, 1.0)
+				_weather_t = randf_range(50.0, 90.0) * (1.5 if season == "varsha" else 1.0)
+			elif r < float(sw["rain"]) + dusty:
+				dust_target = 1.0
+				_weather_t = randf_range(40.0, 75.0)
+			else:
+				_weather_t = randf_range(90.0, 180.0) * float(sw["clear"])
 		else:
+			if rain_target >= 0.5:
+				_show_rainbow()
 			rain_target = 0.0
-			_weather_t = randf_range(150.0, 300.0)
-			_show_rainbow()
+			dust_target = 0.0
+			_weather_t = randf_range(150.0, 300.0) * float(sw["clear"])
 	if _story_t <= 0.0 and story_weather == "":
-		# X2: a soft morning mist that burns off as the sun climbs
-		mist_target = 0.5 if (time_of_day > 0.2 and time_of_day < 0.33 and rain_target < 0.5) else 0.0
+		# X2: a soft morning mist that burns off as the sun climbs (thick on winter mornings, none in summer)
+		var mk := float((SEASONS.get(season, SEASONS["sharad"]) as Dictionary)["mist"])
+		mist_target = mk if (time_of_day > 0.2 and time_of_day < 0.33 and rain_target < 0.5 and dust_target < 0.5) else 0.0
 	var was := rain
 	var was_g := overcast + mist
 	rain = move_toward(rain, rain_target, delta / 12.0)
 	overcast = move_toward(overcast, overcast_target, delta / 14.0)
 	mist = move_toward(mist, mist_target, delta / 16.0)
+	var was_d := dust
+	dust = move_toward(dust, dust_target, delta / 10.0)
+	if _dust_p != null:
+		_dust_p.emitting = dust > 0.04
+		_dust_p.amount_ratio = clampf(dust, 0.05, 1.0) * [1.0, 0.6, 0.35][quality]
+		if _follow != null:
+			_dust_p.global_position = _follow.global_position + Vector3(-14.0, 1.5, 0.0)
 	if _rain_pm != null and rain > 0.03:
 		_rain_pm.direction = Vector3(0.1 + wind * 0.45, -1.0, 0.05)
 	if _rain_p != null:
@@ -498,7 +591,7 @@ func _update_weather(delta: float) -> void:
 			_flash = 1.0
 			thunder.emit()
 	_flash = maxf(0.0, _flash - delta * 3.0)
-	if was != rain or was_g != overcast + mist or _flash > 0.0:
+	if was != rain or was_g != overcast + mist or _flash > 0.0 or was_d != dust:
 		apply_time()
 
 
@@ -569,7 +662,9 @@ func apply_time() -> void:
 	environment.tonemap_exposure = lerpf(0.85, 1.3, night)
 	# weather: overcast, desaturated, foggier, with a lightning flash
 	var gloom := maxf(rain, overcast * 0.8)
-	if gloom > 0.0 or mist > 0.0 or _flash > 0.0:
+	var sw2: Dictionary = SEASONS.get(season, SEASONS["sharad"])
+	sun.light_color *= sw2["sun"]
+	if gloom > 0.0 or mist > 0.0 or _flash > 0.0 or dust > 0.0:
 		sun.light_energy *= 1.0 - 0.6 * gloom
 		sky_mat.sky_top_color = sky_mat.sky_top_color.lerp(Color(0.32, 0.35, 0.4) * (1.0 - night * 0.8), gloom * 0.8)
 		sky_mat.sky_horizon_color = sky_mat.sky_horizon_color.lerp(Color(0.45, 0.47, 0.5) * (1.0 - night * 0.8), maxf(gloom, mist) * 0.8)
@@ -577,6 +672,17 @@ func apply_time() -> void:
 		environment.fog_light_color = environment.fog_light_color.lerp(Color(0.72, 0.74, 0.76) * (1.0 - night * 0.8), mist)
 		environment.ambient_light_energy *= 1.0 - 0.25 * gloom
 		environment.adjustment_saturation = lerpf(1.1, 0.8, maxf(gloom, mist * 0.7))
+		if dust > 0.0:
+			# andhi: an orange-brown wall of dust, the sun a dim disc, the far hills gone
+			var dc := Color(0.78, 0.55, 0.32) * (1.0 - night * 0.8)
+			sun.light_energy *= 1.0 - 0.55 * dust
+			sun.light_color = sun.light_color.lerp(Color(1.0, 0.7, 0.42), dust * 0.7)
+			sky_mat.sky_top_color = sky_mat.sky_top_color.lerp(dc * 0.85, dust * 0.85)
+			sky_mat.sky_horizon_color = sky_mat.sky_horizon_color.lerp(dc, dust * 0.9)
+			environment.fog_density += dust * 0.024
+			environment.fog_light_color = environment.fog_light_color.lerp(dc, dust)
+			environment.ambient_light_color = environment.ambient_light_color.lerp(Color(0.8, 0.62, 0.42), dust * 0.6)
+			environment.adjustment_saturation = lerpf(environment.adjustment_saturation, 0.85, dust * 0.5)
 		if _flash > 0.0:
 			environment.ambient_light_energy += 2.5 * _flash
 			sky_mat.sky_top_color = sky_mat.sky_top_color.lerp(Color(0.9, 0.92, 1.0), _flash * 0.6)
@@ -599,7 +705,8 @@ func apply_time() -> void:
 	RenderingServer.global_shader_parameter_set("water_sky", Vector3(sky_c.r, sky_c.g, sky_c.b))
 	if terrain_mat != null:      # wet ground: darker and glossier while it rains
 		terrain_mat.roughness = lerpf(1.0, 0.5, rain)
-		terrain_mat.albedo_color = Color.WHITE.lerp(Color(0.68, 0.66, 0.64), rain)
+		var land: Color = (SEASONS.get(season, SEASONS["sharad"]) as Dictionary)["land"]
+		terrain_mat.albedo_color = land.lerp(Color(0.68, 0.66, 0.64), rain)
 
 
 ## A thin column of smoke rising and drifting from `pos` (chimneys, campfires).
