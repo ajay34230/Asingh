@@ -700,23 +700,24 @@ func _build_environment() -> void:
 	if not theme.get("night", false):
 		var hdri := PanoramaSkyMaterial.new()
 		hdri.panorama = load("res://assets/textures/sky/evening_courtyard_1k.hdr")
-		hdri.energy_multiplier = 0.7
+		hdri.energy_multiplier = 0.55
 		sky.sky_material = hdri
 	sky.radiance_size = Sky.RADIANCE_SIZE_256
 	env.sky = sky
 	env.background_mode = Environment.BG_SKY
 	env.ambient_light_source = Environment.AMBIENT_SOURCE_SKY
-	env.ambient_light_energy = float(theme["ambient"]) * 0.75
+	env.ambient_light_energy = float(theme["ambient"]) * 0.5
+	env.ambient_light_sky_contribution = 0.7   ## less pale sky light in the shadows
 	env.reflected_light_source = Environment.REFLECTION_SOURCE_SKY
 	env.tonemap_mode = Environment.TONE_MAPPER_ACES
-	env.tonemap_exposure = 0.95
+	env.tonemap_exposure = 0.85
 	env.tonemap_white = 6.0
 	## Glow (bloom) is supported by the Mobile renderer, with its lower HDR range.
 	env.glow_enabled = true
-	env.glow_intensity = 0.45
+	env.glow_intensity = 0.3
 	env.glow_bloom = 0.06
-	env.glow_hdr_threshold = 1.2
-	env.glow_blend_mode = Environment.GLOW_BLEND_MODE_SOFTLIGHT
+	env.glow_hdr_threshold = 1.6   ## only gems and lamps glow, not the whole board
+	env.glow_blend_mode = Environment.GLOW_BLEND_MODE_ADDITIVE
 	## Depth fog fades the far table into darkness on low camera angles (title screen).
 	env.fog_enabled = true
 	env.fog_mode = Environment.FOG_MODE_DEPTH
@@ -727,12 +728,12 @@ func _build_environment() -> void:
 	env.fog_sky_affect = 1.0
 	env.adjustment_enabled = true
 	env.adjustment_saturation = 1.08
-	env.adjustment_contrast = 1.04
+	env.adjustment_contrast = 1.08
 	var world := WorldEnvironment.new()
 	world.environment = env
 	add_child(world)
 	var sun := DirectionalLight3D.new()
-	sun.light_energy = theme["sun_energy"]
+	sun.light_energy = float(theme["sun_energy"]) * 0.85
 	sun.light_color = theme["sun"]
 	sun.rotation_degrees = Vector3(-58, -32, 0)
 	sun.shadow_enabled = true

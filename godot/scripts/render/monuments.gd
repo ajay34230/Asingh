@@ -32,7 +32,7 @@ func _init(marble_mat: Material, gold_mat: Material, gem_mat: Material) -> void:
 ## Makrana-style marble for buildings: warm white, visible veins, a soft satin polish
 ## (less glossy than the board tiles, so domes read as stone, not plastic).
 static func monument_marble(_base: Material) -> StandardMaterial3D:
-	return RoyalBoard.pbr("marble_white", Color("#f3ece0"), 0.5, 0.75, 0.3)
+	return RoyalBoard.pbr("marble_white", Color("#ddd2c0"), 0.5, 0.75, 0.3)
 
 
 ## Rajasthani red sandstone: a scanned travertine dyed the colour of Jaipur's forts.

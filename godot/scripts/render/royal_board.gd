@@ -31,7 +31,7 @@ const PALETTE := {
 ## tinted emerald. Tints multiply the scanned colour.
 const TEAM_STONES := {
 	"red": ["onyx_red", Color("#ff5a4a")],
-	"yellow": ["onyx_honey", Color("#ffc23a")],
+	"yellow": ["onyx_honey", Color("#fff2a0")],
 	"blue": ["travertine_blue", Color("#3f74ee")],
 	"green": ["onyx_white", Color("#22a65a")],
 }
@@ -60,7 +60,8 @@ var _time := 0.0
 func _ready() -> void:
 	theme = BoardThemes.current()
 	## Photo-scanned stone, wood and fabric (CC0, see docs/CREDITS.md).
-	_ivory = pbr("marble_white", theme["ivory"], 0.32, 0.55, 0.5)
+	## Warm cream marble, not pure white: white tiles under a strong sun glare.
+	_ivory = pbr("marble_white", (theme["ivory"] as Color) * Color(0.86, 0.8, 0.7), 0.32, 0.65, 0.5)
 	_gold = metal(theme["gold"], 0.24)
 	_gold_dark = metal((theme["gold"] as Color).darkened(0.28), 0.38)
 	_lacquer = pbr("cherry_wood", (theme["lacquer"] as Color).lightened(0.1), 0.25, 0.6, 0.9)
@@ -184,9 +185,11 @@ static func pbr(set_name: String, tint: Color, scale: float, roughness_scale := 
 	mat.roughness_texture = _tex("res://assets/textures/%s/rough.jpg" % set_name)
 	mat.roughness = roughness_scale
 	if polish > 0.0:
+		## A thin, slightly soft coat: real polished stone shows its colour, with the
+		## sky reflected only at grazing angles, not a white sheen over everything.
 		mat.clearcoat_enabled = true
-		mat.clearcoat = polish
-		mat.clearcoat_roughness = 0.08
+		mat.clearcoat = polish * 0.35
+		mat.clearcoat_roughness = 0.2
 	mat.uv1_triplanar = true
 	mat.uv1_world_triplanar = true
 	mat.uv1_scale = Vector3.ONE * scale
@@ -416,7 +419,7 @@ func _build_slabs() -> void:
 	## One wide lacquered table board: the wings and the raised main board.
 	var depth := outer_size().y
 	## Woven quatrefoil jacquard silk (scanned), dyed in the theme's colour.
-	var wing := pbr("jacquard", (theme["wing_base"] as Color).lightened(0.05), 0.32, 1.15, 0.0)
+	var wing := pbr("jacquard", (theme["wing_base"] as Color).lightened(0.18), 0.32, 1.15, 0.0)
 	wing.normal_scale = 1.0
 	wing.metallic_specular = 0.25
 	_bevel(Vector3(0, SLAB_BOTTOM, 0), Vector3(WING_HALF_X * 2.0, WING_TOP - SLAB_BOTTOM, depth + 0.4), 0.12, wing)
