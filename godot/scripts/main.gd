@@ -130,6 +130,10 @@ func _ready() -> void:
 	add_child(bubbles)
 	game.turn_changed.connect(_on_turn_voice)
 	game.turn_timer.connect(board.set_turn_timer)
+	game.replay.camera = camera
+	game.replay.cue.connect(_on_replay_cue)
+	hud.replay_pressed.connect(_play_replay)
+	hud.photo_pressed.connect(_save_photo)
 	tutorial = Tutorial.new()
 	hud.add_child(tutorial)
 	game.turn_changed.connect(func(_c: String, human: bool) -> void:
@@ -452,6 +456,8 @@ func _on_game_event(event_name: String, data: Dictionary) -> void:
 			audio.play("swish", 0.0, -2.0)
 		"throw":
 			audio.play("swish", 0.08)
+		"replay_ready":
+			hud.offer_replay()
 		"thrown_home":
 			hud.set_skip_hint(false)
 			audio.play("thud", 0.05)
@@ -617,6 +623,60 @@ func _dome_fireworks() -> void:
 		effects.burst(at, EffectsManager.TEAM[color], 30, 3.0, 1.0, 2.5)
 		effects.burst(at, EffectsManager.GOLD, 18, 2.2, 0.8, 2.5)
 		await get_tree().create_timer(0.12).timeout
+
+
+## Replay: the game waits (timer paused, input blocked) while the fight plays again.
+func _play_replay() -> void:
+	if game.replay.playing or not game.replay.has_replay():
+		return
+	hud.hide_replay()
+	var was_busy := game.busy
+	game.busy = true
+	var timer_was := game.timer_active
+	game.timer_active = false
+	hud.flash_banner(tr("REPLAY"), Color("#9fd8ff"), 0.6)
+	await game.replay.play(0.5)
+	game.busy = was_busy
+	game.timer_active = timer_was
+	hud.offer_replay(4.0)
+
+
+func _on_replay_cue(cue_name: String, data: Dictionary) -> void:
+	var pos: Vector3 = data.get("position", Vector3.ZERO)
+	match cue_name:
+		"impact":
+			hud.impact_frame(camera.unproject_position(pos))
+			audio.play(data.get("kind", "punch"), 0.05)
+			effects.hit_spark(pos, true)
+		"jab":
+			audio.play("punch", 0.08, -5.0)
+			effects.hit_spark(pos, false)
+		"block":
+			audio.play("thud", 0.1, -6.0)
+		"crash":
+			audio.play("thud", 0.05, -2.0)
+			effects.dust(pos)
+		"swing", "whiff":
+			audio.play("swish", 0.1, -4.0)
+
+
+## Saves the current frame as a photo (Pictures/RoyalIndiaLudo on the phone, or the
+## game's own folder when the gallery is not writable).
+func _save_photo() -> void:
+	hud.hide_replay()
+	await RenderingServer.frame_post_draw
+	var img := get_viewport().get_texture().get_image()
+	var stamp := Time.get_datetime_string_from_system().replace(":", "-")
+	var dirs := [OS.get_system_dir(OS.SYSTEM_DIR_PICTURES).path_join("RoyalIndiaLudo"), OS.get_user_data_dir().path_join("photos")]
+	for d in dirs:
+		if d == "" or DirAccess.make_dir_recursive_absolute(d) != OK and not DirAccess.dir_exists_absolute(d):
+			continue
+		var path: String = d.path_join("fight_%s.png" % stamp)
+		if img.save_png(path) == OK:
+			hud.set_message(tr("Photo saved"))
+			audio.play("confirm", 0.0, -4.0)
+			return
+	hud.set_message(tr("Could not save the photo"))
 
 
 ## Winner's tokens gather in the centre and dance: camera closes in, hops and spins.
@@ -1023,6 +1083,15 @@ func _run_capture_test() -> void:
 	e.roll_with_value(3)
 	await game._execute(mover)
 	var sent_home: bool = e.seats[1]["tokens"][0] == 0
+	if "--replay" in OS.get_cmdline_user_args():
+		var a_before: Vector3 = game.tokens["blue"][mover].global_position
+		var v_before: Vector3 = game.tokens["green"][0].global_position
+		var frames := game.replay._frames.size()
+		await _play_replay()
+		var restored: bool = game.tokens["blue"][mover].global_position.distance_to(a_before) < 0.01 \
+			and game.tokens["green"][0].global_position.distance_to(v_before) < 0.01
+		print("replay test: frames=%d restored=%s" % [frames, str(restored)])
+		sent_home = sent_home and restored and frames > 10
 	print("capture test: green token sent home=%s" % str(sent_home))
 	print("CAPTURE TEST " + ("PASS" if sent_home else "FAIL"))
 	await get_tree().create_timer(1.0).timeout  ## let the landing settle on screen (and in recordings)

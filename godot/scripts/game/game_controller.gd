@@ -36,6 +36,9 @@ func setup(dice_node: DiceController, seed_value: int = 0) -> void:
 	fight.name = "Fight"
 	add_child(fight)
 	fight.cue.connect(_on_fight_cue)
+	replay = FightReplay.new()
+	replay.name = "Replay"
+	add_child(replay)
 	life = TokenLife.new()
 	life.name = "TokenLife"
 	life.game = self
@@ -45,6 +48,7 @@ func setup(dice_node: DiceController, seed_value: int = 0) -> void:
 var difficulty := 1            ## AiController.Difficulty
 var fight: FightChoreography
 var life: TokenLife
+var replay: FightReplay
 var forced_roll := -1   ## test/showcase only: the next roll's value
 var _moving_index := 0
 var preview: MovePreview        ## set by the main scene; shows where legal moves land
@@ -395,7 +399,12 @@ func _animate_move(move: Dictionary) -> void:
 func _capture_sequence(attacker: TransformerToken, victim: TransformerToken, base: Vector3, use_punch: bool, _color: String, _to: int, _index: int) -> void:
 	fight.director = director
 	fight.anim_scale = anim_scale
+	replay._game_clock = 0.0
+	replay.start(attacker, victim)
 	await fight.perform(attacker, victim, base, use_punch)
+	replay.stop()
+	if not fast_mode:
+		event.emit("replay_ready", {})
 
 
 ## Turn start: the camera leans a little towards that player's courtyard, then back.
@@ -441,6 +450,10 @@ func _leap(token: TransformerToken, target: Vector3) -> void:
 
 ## Fight cues become game events (sound, effects, voices) with the colours filled in.
 func _on_fight_cue(cue_name: String, data: Dictionary) -> void:
+	if cue_name in ["impact", "jab", "block", "crash", "swing", "whiff"]:
+		var d := data.duplicate()
+		d.erase("victim")
+		replay.note_cue(cue_name, d)
 	var out := data.duplicate()
 	var victim: Node3D = data.get("victim")
 	if victim:

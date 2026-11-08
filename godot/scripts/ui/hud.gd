@@ -8,6 +8,8 @@ signal menu_pressed
 signal settings_pressed
 signal help_pressed
 signal button_sound      ## any HUD button was pressed (the main scene plays the click)
+signal replay_pressed
+signal photo_pressed
 
 const COLOR_HEX := {"red": "#e0444c", "green": "#43b861", "yellow": "#f7cd55", "blue": "#4f8ce6"}
 
@@ -23,6 +25,8 @@ var _banner: Label
 var _caption: Label
 var _impact: ColorRect
 var _skip_hint: Label
+var _replay_box: HBoxContainer
+var _replay_tween: Tween
 
 const IMPACT_SHADER := """
 shader_type canvas_item;
@@ -124,6 +128,23 @@ func _ready() -> void:
 	_skip_hint.offset_bottom = -20
 	_skip_hint.visible = false
 	root.add_child(_skip_hint)
+
+	## After a fight: Replay and Save photo buttons appear for a few seconds.
+	_replay_box = HBoxContainer.new()
+	_replay_box.add_theme_constant_override("separation", 12)
+	_replay_box.set_anchors_and_offsets_preset(Control.PRESET_CENTER_RIGHT)
+	_replay_box.grow_horizontal = Control.GROW_DIRECTION_BEGIN
+	_replay_box.offset_right = -20
+	_replay_box.visible = false
+	root.add_child(_replay_box)
+	for spec in [["Replay", func() -> void: replay_pressed.emit()], ["Save photo", func() -> void: photo_pressed.emit()]]:
+		var b := Button.new()
+		b.text = spec[0]
+		b.custom_minimum_size = Vector2(150, 52)
+		b.pressed.connect(func() -> void: button_sound.emit())
+		b.pressed.connect(spec[1])
+		_replay_box.add_child(b)
+		UiFx.button(b)
 
 	_build_pause(root)
 	_build_result(root)
@@ -480,3 +501,18 @@ func impact_frame(screen_pos: Vector2) -> void:
 
 func set_skip_hint(on: bool) -> void:
 	_skip_hint.visible = on
+
+
+## Shows the Replay / Save photo buttons for `seconds`.
+func offer_replay(seconds := 6.0) -> void:
+	_replay_box.visible = true
+	UiFx.pop_in(_replay_box)
+	if _replay_tween and _replay_tween.is_valid():
+		_replay_tween.kill()
+	_replay_tween = create_tween()
+	_replay_tween.tween_interval(seconds)
+	_replay_tween.tween_callback(func() -> void: _replay_box.visible = false)
+
+
+func hide_replay() -> void:
+	_replay_box.visible = false
