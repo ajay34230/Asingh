@@ -619,7 +619,7 @@ func animate(delta: float, speed: float, grounded: bool) -> void:
 			else:
 				_locomotion(delta)
 	if move != "":
-		if not (hold_draw and move == "bow_shot" and move_t >= 0.6):
+		if not (hold_draw and move == "bow_shot" and move_t >= 0.6) and not (move_hold >= 0.0 and move_t >= move_hold):
 			move_t += delta * move_rate
 		if react == "ride":
 			react_t += delta
@@ -650,6 +650,14 @@ func animate(delta: float, speed: float, grounded: bool) -> void:
 	_body_overlays(delta)
 	_hit_overlay(delta)
 	_overlay(delta)
+	if not photo_pose.is_empty():
+		for k in photo_pose:
+			if k == "dy":
+				_hips_dy = float(photo_pose[k])
+			elif k == "spine" or k == "hips" or k == "chest" or k == "head":
+				_pose[k] = photo_pose[k]
+			else:
+				_pz(k, photo_pose[k])
 	_apply()
 	if weapon == "bow":
 		_archery()
@@ -657,6 +665,8 @@ func animate(delta: float, speed: float, grounded: bool) -> void:
 
 # --- archery: a live bowstring and the arrow on the string --------------------------------------
 var aim_twist := 0.0              # extra torso turn toward the target (archery from the saddle)
+var move_hold := -1.0             # photo mode: freeze the current move at this time (a kick at full extension)
+var photo_pose := {}              # photo mode: a held pose (keys as in the move keyframes)
 var hold_draw := false            # manual aim: the bow stays at full draw until the player lets go
 var move_rate := 1.0              # playback speed of the current move (Quick Draw speeds up the bow)
 var _string: Array[MeshInstance3D] = []
@@ -829,6 +839,7 @@ func play_move(n: String) -> float:
 	_move_hit_at = MOVES[n][1]
 	_move_sent = false
 	move_rate = 1.0
+	move_hold = -1.0
 	return lead
 
 

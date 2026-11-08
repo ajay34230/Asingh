@@ -553,3 +553,17 @@ Verified by the selftest (PASS: "hindi: 185 table texts checked, 0 untranslated"
 - **`Loc.tf(format, args)`:** lines built from parts ("Go to %s") are now translated as a whole pattern, so Hindi word order is right ("गाँव का कब्रिस्तान जाओ"). Banners translate line by line.
 - **Prompts and toasts** (USE prompts, messages) are translated when drawn, so they follow the current language.
 - **Instant switching:** changing the language in Settings now re-translates the HUD at once (`Main.relocalize()`), so the quest panel, Map/Journal and the health line switch without a restart.
+
+## Addendum: Photo studio (2026-11-08)
+
+Verified by the selftest (PASS: every pose holds, the filter and light switch, and exit restores the player and the time of day) and software-rendered captures (`--capture-photo`; the photo also saved there). **Not tested on a device.** Where photos land on Android is untested: the game tries the phone's Pictures folder, then Downloads, then its own folder, and shows the folder it used. Android's storage rules may block the first two.
+
+- **Hides everything:** every on-screen layer is hidden, not just the controls (coins, minimap, area titles and the Map button stayed visible before). Only the photo bar remains.
+- **Camera:** drag anywhere to swing the camera round the hero, and pinch (or use the mouse wheel) to zoom. **SELFIE** turns the camera to face the hero.
+- **Poses:** Stand, Fighter (guard), Archer (bow held at full draw), Kick (frozen at full extension), Punch, Pray and Victory (arm raised).
+  - Built on the existing moves, with a new `move_hold` that freezes a move at a given time and a `photo_pose` that holds a custom pose.
+  - The Archer pose borrows the bow for the shot and puts your own weapon back afterwards.
+- **Filters:** None, Warm, Cool, Sepia, Black & white and Vivid. Each is a screen shader with a gentle vignette, and it appears in the saved photo.
+- **Light:** as it was, sunrise, noon, sunset or night. The real time of day returns on exit.
+- **Fix:** festival banners asked for a missing sound (`cheer.wav`). They now use `cheer_crowd`.
+- Hindi text added.

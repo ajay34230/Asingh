@@ -138,6 +138,8 @@ func _ready() -> void:
 			_run_capture_fight.call_deferred(a.trim_prefix("--capture-fight="))
 		elif a.begins_with("--capture-lab="):
 			_run_capture_lab.call_deferred(a.trim_prefix("--capture-lab="))
+		elif a.begins_with("--capture-photo="):
+			_run_capture_photo.call_deferred(a.trim_prefix("--capture-photo="))
 		elif a.begins_with("--capture-event="):
 			_run_capture_event.call_deferred(a.trim_prefix("--capture-event="))
 		elif a.begins_with("--capture-dog="):
@@ -1101,6 +1103,8 @@ func _build_story() -> void:
 			print("[LostKingdom] batched ", bn, ": ", br["merged"], " meshes -> ", br["batches"])
 	photo_mode = PhotoMode.new()
 	photo_mode.hide_nodes = [touch, hud, combat_hud, menu._btn]
+	photo_mode.player = player
+	photo_mode.atmo = atmosphere
 	add_child(photo_mode)
 	if testing:
 		return
@@ -1686,6 +1690,7 @@ func _run_selftest() -> void:
 	await _selftest_crafting(fails)
 	await _selftest_events(fails)
 	_selftest_hindi(fails)
+	await _selftest_photo(fails)
 	items.unequip("weapon")
 	for k in 5:
 		story.flags.erase("cache_%d" % k)
@@ -3264,6 +3269,48 @@ func _run_capture_ride(arg: String) -> void:
 	get_tree().quit()
 
 
+## Photo studio: poses hold, filters and light switch, a photo is saved, and everything is put back.
+func _selftest_photo(fails: PackedStringArray) -> void:
+	var tod0 := atmosphere.time_of_day
+	var w0 := player.weapon
+	photo_mode.enter()
+	var notes: Array = []
+	for i in PhotoMode.POSES.size():
+		photo_mode.set_pose(i)
+		for k in 40:
+			await get_tree().physics_frame
+		var r := player._rig
+		var ok := true
+		match PhotoMode.POSES[i]:
+			"Archer":
+				ok = r.move == "bow_shot" and r.move_t >= 0.58 and r.weapon == "bow"
+			"Kick", "Punch":
+				ok = r.move != "" and r.move_hold >= 0.0 and r.move_t >= r.move_hold - 0.01
+			"Pray":
+				ok = r.action == "pray"
+			"Victory", "Fighter":
+				ok = not r.photo_pose.is_empty()
+		if not ok:
+			fails.append("photo: pose %s did not hold" % PhotoMode.POSES[i])
+	photo_mode.next_filter()
+	photo_mode.next_time()
+	var lit := atmosphere.time_of_day
+	if DisplayServer.get_name() != "headless":          # no frames are drawn headless: saving is checked in the captures
+		var path: String = await photo_mode.capture()
+		notes.append("saved %s" % (path != "" and FileAccess.file_exists(path)))
+		if path == "":
+			fails.append("photo: capture did not save")
+		elif path.begins_with("/"):
+			DirAccess.remove_absolute(path)
+	photo_mode.exit()
+	for k in 5:
+		await get_tree().physics_frame
+	if player.locked or not player._rig.photo_pose.is_empty() or player._rig.move_hold >= 0.0 or player.weapon != w0 or absf(atmosphere.time_of_day - tod0) > 0.02:
+		fails.append("photo: exit did not restore the player and the light")
+	notes.append("light %.2f -> back %.2f" % [lit, atmosphere.time_of_day])
+	print("[selftest] photo: " + ", ".join(notes))
+
+
 ## Hindi: sample lines through the translator, and every name and description in the newer data tables.
 func _selftest_hindi(fails: PackedStringArray) -> void:
 	var was := Loc.lang
@@ -3750,6 +3797,30 @@ func _selftest_boss(fails: PackedStringArray) -> void:
 			m.queue_free()
 	player.max_hp = 100.0
 	player.hp = 100.0
+
+
+func _run_capture_photo(dir: String) -> void:
+	DirAccess.make_dir_recursive_absolute(dir)
+	atmosphere.time_of_day = 0.45
+	atmosphere.apply_time()
+	_teleport(-60.0, 20.0)
+	for i in 20:
+		await get_tree().physics_frame
+	photo_mode.enter()
+	photo_mode.selfie()
+	var shots := [["Victory", 0], ["Archer", 1], ["Kick", 0], ["Pray", 3], ["Fighter", 4], ["Punch", 5]]
+	for sh in shots:
+		photo_mode.set_pose(PhotoMode.POSES.find(sh[0]))
+		photo_mode.filter = int(sh[1])
+		photo_mode._apply_filter()
+		photo_mode._relabel()
+		for i in 45:
+			await get_tree().physics_frame
+		await RenderingServer.frame_post_draw
+		get_viewport().get_texture().get_image().save_png("%s/%s.png" % [dir, String(sh[0])])
+	var saved_to: String = await photo_mode.capture()
+	print("[capture] photo saved to %s exists %s" % [saved_to, FileAccess.file_exists(saved_to)])
+	get_tree().quit()
 
 
 func _run_capture_event(dir: String) -> void:

@@ -96,7 +96,7 @@ func _process(delta: float) -> void:
 	refresh()
 	if kind != "" and evening() and _announced != day:
 		_announced = day
-		hud.banner(Loc.t("Festival of Lights tonight in the bazaar!") if kind == "lights" else Loc.t("Festival of Colours tonight in the bazaar!"), "cheer")
+		hud.banner(Loc.t("Festival of Lights tonight in the bazaar!") if kind == "lights" else Loc.t("Festival of Colours tonight in the bazaar!"), "cheer_crowd")
 	if kind == "colours" and evening():
 		_burst_t -= delta
 		if _burst_t <= 0.0:
