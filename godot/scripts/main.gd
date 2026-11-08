@@ -151,7 +151,12 @@ func _ready() -> void:
 	else:
 		hud.visible = false
 		menu.show_page("main")
+		## First launch of the day: offer the daily reward.
+		if Progress.daily_status()[0] and _reopen_page == "":
+			_reopen_page = "rewards"
 		if _reopen_page != "":
+			if _reopen_page == "rewards":
+				menu._refresh_rewards()
 			menu._refresh_themes()
 			menu.show_page(_reopen_page)
 			_reopen_page = ""
@@ -215,6 +220,7 @@ func _build_menu() -> void:
 	## A new theme rebuilds the scene; come back to the themes page afterwards.
 	menu.board_theme_changed.connect(func() -> void:
 		_reopen_page = "themes"
+		_intro_seen = true
 		loading.cover(func() -> void: get_tree().reload_current_scene()))
 	hud.menu_pressed.connect(_quit_to_menu)
 	hud.rematch_pressed.connect(func() -> void: _start_new_game())
@@ -503,11 +509,20 @@ func _on_game_finished(ranking: Array) -> void:
 		if entry["human"]:
 			reward = maxi(reward, COIN_REWARD[mini(int(entry["place"]) - 1, 3)])
 	var total := GameSettings.add_coins(reward) if reward > 0 and not _demo else GameSettings.get_coins()
+	var unlocked: Array = []
+	var humans := ranking.filter(func(r: Dictionary) -> bool: return r["human"])
+	if humans.size() == 1 and not _demo:
+		var t: Dictionary = game.tally.duplicate()
+		t["won"] = int(humans[0]["place"]) == 1
+		t["place"] = humans[0]["place"]
+		t["difficulty"] = game.difficulty
+		unlocked = Progress.record_game(t)
+		total = Progress.coins()
 	_celebrate(ranking)
 	## Let the 3D celebration play before the results panel slides in.
 	if not _demo:
 		await get_tree().create_timer(2.2).timeout
-	hud.show_result(ranking, reward, total)
+	hud.show_result(ranking, reward, total, unlocked)
 	if _demo and not _demo_done:
 		_demo_done = true
 		print("DEMO RESULT: " + str(ranking))
@@ -744,7 +759,7 @@ func _build_dice() -> DiceController:
 	dice.position = DICE_POSITION
 	## Custom royal dice (the supplied dice model renders black on the phone renderer
 	## after some rolls).
-	var model := RoyalDice.build()
+	var model := RoyalDice.build(Progress.equipped("dice"))
 	dice.add_child(model)
 	var shape := CollisionShape3D.new()
 	var sphere := SphereShape3D.new()

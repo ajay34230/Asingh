@@ -9,10 +9,20 @@ const HALF := 0.6          ## half the edge length
 const ROUND := 0.11        ## corner and edge rounding radius
 
 
-static func build() -> Node3D:
+## Skins: ivory marble (default), jade, ebony, lapis. Same build, different stone.
+const SKINS := {
+	"dice_ivory": ["marble_white", Color("#f1e6d0")],
+	"dice_jade": ["onyx_white", Color("#3fae74")],
+	"dice_ebony": ["granite_dark", Color("#c8b8a8")],
+	"dice_lapis": ["travertine_blue", Color("#3a62d8")],
+}
+
+
+static func build(skin := "dice_ivory") -> Node3D:
 	var root := Node3D.new()
 	root.name = "DiceModel"
-	var ivory := RoyalBoard.pbr("marble_white", Color("#f1e6d0"), 1.4, 0.45, 0.7)
+	var stone: Array = SKINS.get(skin, SKINS["dice_ivory"])
+	var ivory := RoyalBoard.pbr(stone[0], stone[1], 1.4, 0.45, 0.7)
 	## Satin gold with a faint warm glow, so it stays golden even where it reflects the
 	## dark table (polished gold close up otherwise turns almost black).
 	var gold := RoyalBoard.metal(Color("#f0c060"), 0.34)

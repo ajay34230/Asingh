@@ -317,7 +317,7 @@ func _process(_delta: float) -> void:
 
 ## Results: a title, one podium row per player with a medal, then the coin reward
 ## counting up. `reward` is what the human earned; `total` the new balance.
-func show_result(ranking: Array, reward := 0, total := 0) -> void:
+func show_result(ranking: Array, reward := 0, total := 0, achievements: Array = []) -> void:
 	var human_place := 0
 	var humans := 0
 	for entry in ranking:
@@ -381,7 +381,12 @@ func show_result(ranking: Array, reward := 0, total := 0) -> void:
 	count.tween_interval(0.5 + ranking.size() * 0.18)
 	count.tween_callback(func() -> void: _fly_coins(mini(12, maxi(3, reward / 10))))
 	count.tween_method(func(v: float) -> void: _coin_label.text = "+%d" % int(v), 0.0, float(reward), 1.2).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
-	count.tween_callback(func() -> void: _coin_total.text = "Treasury: %d coins" % total)
+	count.tween_callback(func() -> void:
+		var lines: Array[String] = ["Treasury: %d coins" % total]
+		for id in achievements:
+			var a: Array = Progress.ACHIEVEMENTS[id]
+			lines.append("Achievement unlocked: %s  (+%d)" % [a[0], a[2]])
+		_coin_total.text = "\n".join(lines))
 
 
 func hide_result() -> void:

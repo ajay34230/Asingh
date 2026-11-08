@@ -64,6 +64,7 @@ func new_game(seat_colors: Array[String] = ["blue", "yellow", "green", "red"], h
 	for color in seat_colors:
 		seats.append({"color": color, "human": humans.has(color)})
 	engine.setup(seats, _seed, rules)
+	tally = {"captures": 0, "lost": 0, "home": 0, "sixes": 0}
 	_spawn_tokens(seat_colors)
 	busy = false
 	awaiting_pick = false
@@ -82,6 +83,8 @@ func _spawn_tokens(seat_colors: Array[String]) -> void:
 			token.name = "%s_%d" % [color, i]
 			add_child(token)
 			token.configure(color)
+			if humans_skin(color):
+				_apply_token_skin(token, Progress.equipped("tokens"))
 			token.scale = Vector3.ONE * TOKEN_SCALE
 			token.add_child(_contact_shadow())
 			var vfx := RoyalTokenVFX.new()
@@ -123,6 +126,44 @@ func _contact_shadow() -> MeshInstance3D:
 	return m
 
 
+## Token skins dress only the (first) human player's tokens.
+func humans_skin(color: String) -> bool:
+	return not human_colors.is_empty() and human_colors[0] == color
+
+
+static var _skin_mats := {}
+
+
+func _apply_token_skin(token: TransformerToken, skin: String) -> void:
+	if skin == "tokens_classic" or skin == "":
+		return
+	if not _skin_mats.has(skin):
+		var m := StandardMaterial3D.new()
+		m.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+		m.metallic = 1.0
+		match skin:
+			"tokens_gold":
+				m.albedo_color = Color(1.0, 0.78, 0.3, 0.55)
+				m.roughness = 0.25
+			"tokens_silver":
+				m.albedo_color = Color(0.85, 0.88, 0.95, 0.5)
+				m.roughness = 0.2
+			"tokens_crystal":
+				m.albedo_color = Color(0.75, 0.9, 1.0, 0.35)
+				m.metallic = 0.2
+				m.roughness = 0.02
+				m.emission_enabled = true
+				m.emission = Color(0.4, 0.7, 1.0)
+				m.emission_energy_multiplier = 0.6
+		_skin_mats[skin] = m
+	for mesh in token.find_children("*", "MeshInstance3D", true, false):
+		(mesh as MeshInstance3D).material_overlay = _skin_mats[skin]
+
+
+## Per-game tally for the human player (rewards and achievements).
+var tally := {"captures": 0, "lost": 0, "home": 0, "sixes": 0}
+
+
 func current_color() -> String:
 	return engine.current_seat()["color"]
 
@@ -161,6 +202,8 @@ func _roll_now() -> void:
 	var thrower := current_color()   ## read first: a roll with no move passes the turn
 	var outcome := engine.roll_with_value(forced_roll) if forced_roll > 0 else engine.roll()   ## the engine decides; the dice only shows it
 	forced_roll = -1
+	if outcome["value"] == 6 and humans_skin(thrower):
+		tally["sixes"] += 1
 	event.emit("roll_start", {"position": dice.global_position, "value": outcome["value"]})
 	if outcome["value"] == 6 and not fast_mode:
 		_six_slow_motion()
@@ -302,6 +345,10 @@ func _animate_move(move: Dictionary) -> void:
 		if director and not fast_mode:
 			director.fight_view(token.global_position, victim_token.global_position, 0.45, 3.6, 28.0)
 			director.track(token, victim_token)
+		if humans_skin(color):
+			tally["captures"] += 1
+		if humans_skin(victim_color):
+			tally["lost"] += 1
 		event.emit("capture", {"position": victim_token.global_position, "color": victim_color, "attacker": color,
 			"attacker_token": token, "victim_token": victim_token})
 		victim_token.ground_y = base.y
@@ -324,6 +371,8 @@ func _animate_move(move: Dictionary) -> void:
 		var centre := _track_world(color, BoardPath.FINISH_PROGRESS, index)
 		token.ground_y = centre.y
 		await token.move_to_world(centre, _hop(1.5))
+		if humans_skin(color):
+			tally["home"] += 1
 		event.emit("finish", {"position": token.global_position, "color": color, "token": token})
 		if not fast_mode:
 			await token.play_home_bounce()

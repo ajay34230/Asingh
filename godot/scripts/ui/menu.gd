@@ -82,6 +82,7 @@ func _ready() -> void:
 	_build_settings()
 	_build_howto()
 	_build_themes()
+	_build_rewards()
 	show_page("main")
 
 
@@ -317,6 +318,13 @@ func _build_main() -> void:
 	sub.add_theme_color_override("font_color", Color("#f6dfb0"))
 	logo.add_child(sub)
 
+	_coin_badge = Label.new()
+	_coin_badge.add_theme_stylebox_override("normal", RoyalTheme.badge(RoyalTheme.GOLD))
+	_coin_badge.add_theme_color_override("font_color", RoyalTheme.GOLD_LIGHT)
+	_coin_badge.add_theme_font_size_override("font_size", 24)
+	_coin_badge.position = Vector2(24, 18)
+	root.add_child(_coin_badge)
+	_update_coin_badge()
 	var panel := PanelContainer.new()
 	panel.anchor_left = 0.6
 	panel.anchor_right = 0.96
@@ -332,7 +340,8 @@ func _build_main() -> void:
 	_button(box, "Play vs AI", func() -> void: _open_setup("ai"))
 	_button(box, "Pass and play", func() -> void: _open_setup("pass"))
 	_button(box, "Quick play", func() -> void: _quick_play())
-	_button(box, "Board themes", func() -> void: _refresh_themes(); show_page("themes"))
+	_button(box, "Royal Bazaar", func() -> void: _refresh_themes(); show_page("themes"))
+	_button(box, "Rewards", func() -> void: _refresh_rewards(); show_page("rewards"))
 	_button(box, "How to play", func() -> void: show_page("howto"))
 	_button(box, "Settings", func() -> void: _load_settings_into_controls(); show_page("settings"))
 	_button(box, "Quit", func() -> void: quit_requested.emit())
@@ -374,39 +383,139 @@ func _build_settings() -> void:
 	_button(box, "Back", func() -> void: _back())
 
 
-var _theme_buttons: Dictionary = {}
+var _shop_rows: Dictionary = {}
+var _shop_coins: Label
+var _rewards_box: VBoxContainer
+var _coin_badge: Label
 
 
+func _scroll_page(name: String, title: String) -> VBoxContainer:
+	var box := _page_root(name)
+	_title(box, title)
+	var scroll := ScrollContainer.new()
+	scroll.custom_minimum_size = Vector2(640, 430)
+	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	box.add_child(scroll)
+	var inner := VBoxContainer.new()
+	inner.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	inner.add_theme_constant_override("separation", 8)
+	scroll.add_child(inner)
+	return inner
+
+
+## Royal Bazaar: themes, dice and token skins. Owned items are equipped with a tap;
+## others are bought with coins.
 func _build_themes() -> void:
-	var box := _page_root("themes")
-	_title(box, "Board themes")
-	for id in BoardThemes.ORDER:
-		var t: Dictionary = BoardThemes.THEMES[id]
-		var b := _button(box, t["name"], func() -> void:
-			BoardThemes.set_current(id)
-			_refresh_themes()
-			board_theme_changed.emit())
-		b.custom_minimum_size = Vector2(420, 60)
-		## A swatch of the theme's lacquer and gold on the button.
-		var sw := ColorRect.new()
-		sw.color = t["lacquer"]
-		sw.custom_minimum_size = Vector2(34, 34)
-		sw.position = Vector2(14, 13)
-		b.add_child(sw)
-		var gold := ColorRect.new()
-		gold.color = t["gold"]
-		gold.size = Vector2(34, 8)
-		gold.position = Vector2(0, 26)
-		sw.add_child(gold)
-		_theme_buttons[id] = b
-	_button(box, "Back", func() -> void: _back())
+	var inner := _scroll_page("themes", "Royal Bazaar")
+	var page_box: VBoxContainer = inner.get_parent().get_parent()
+	_shop_coins = Label.new()
+	_shop_coins.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_shop_coins.add_theme_color_override("font_color", RoyalTheme.GOLD_LIGHT)
+	page_box.add_child(_shop_coins)
+	page_box.move_child(_shop_coins, 1)
+	for kind in [["theme", "Board themes"], ["dice", "Dice"], ["tokens", "Your tokens"]]:
+		var head := Label.new()
+		head.text = kind[1]
+		head.add_theme_font_size_override("font_size", 26)
+		head.add_theme_color_override("font_color", Color("#f3d9a8"))
+		inner.add_child(head)
+		for id in Progress.SHOP:
+			if Progress.SHOP[id][0] != kind[0]:
+				continue
+			var b := _button(inner, "", func() -> void: _shop_pressed(id))
+			b.custom_minimum_size = Vector2(600, 54)
+			b.alignment = HORIZONTAL_ALIGNMENT_LEFT
+			_shop_rows[id] = b
+	_button(page_box, "Back", func() -> void: _back())
+
+
+func _shop_pressed(id: String) -> void:
+	var kind: String = Progress.SHOP[id][0]
+	if not Progress.owns(id):
+		var r := Progress.buy(id)
+		if r == "coins":
+			_shop_coins.text = "Not enough coins: win games and claim daily rewards"
+			if _audio:
+				_audio.play("error", 0.0, -4.0)
+			return
+		if _audio:
+			_audio.play("coins", 0.03)
+	if kind == "theme":
+		BoardThemes.set_current(id.trim_prefix("theme_"))
+	else:
+		Progress.equip(id)
+	_refresh_themes()
+	board_theme_changed.emit()   # rebuild the scene with the new look
 
 
 func _refresh_themes() -> void:
-	var current := BoardThemes.current_id()
-	for id in _theme_buttons:
-		var t: Dictionary = BoardThemes.THEMES[id]
-		(_theme_buttons[id] as Button).text = ("[ chosen ]   " if id == current else "") + "%s  -  %s" % [t["name"], t["blurb"]]
+	if _shop_coins == null:
+		return
+	_shop_coins.text = "Treasury: %d coins" % Progress.coins()
+	for id in _shop_rows:
+		var item: Array = Progress.SHOP[id]
+		var equipped := false
+		if item[0] == "theme":
+			equipped = BoardThemes.current_id() == id.trim_prefix("theme_")
+		else:
+			equipped = Progress.equipped(item[0]) == id
+		var state := "Equipped" if equipped else ("Owned: tap to use" if Progress.owns(id) else "%d coins" % item[2])
+		(_shop_rows[id] as Button).text = "   %s      -      %s" % [item[1], state]
+
+
+## Rewards: daily reward, achievements and lifetime stats.
+func _build_rewards() -> void:
+	_rewards_box = _scroll_page("rewards", "Rewards")
+	var page_box: VBoxContainer = _rewards_box.get_parent().get_parent()
+	_button(page_box, "Back", func() -> void: _back())
+
+
+func _refresh_rewards() -> void:
+	for c in _rewards_box.get_children():
+		c.queue_free()
+	var daily := Progress.daily_status()
+	var claim := _button(_rewards_box, ("Claim daily reward: day %d, %d coins" % [int(daily[1]) + 1, daily[2]]) if daily[0] else "Daily reward claimed. Come back tomorrow!", func() -> void:
+		var got := Progress.claim_daily()
+		if got > 0 and _audio:
+			_audio.play("coins", 0.03)
+		_refresh_rewards()
+		_update_coin_badge())
+	claim.disabled = not daily[0]
+	var days := Label.new()
+	var parts: Array[String] = []
+	for i in range(7):
+		parts.append(("[%d]" if i == int(daily[1]) else "%d") % Progress.DAILY[i])
+	days.text = "7-day streak:  " + "  ".join(parts)
+	days.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	days.add_theme_font_size_override("font_size", 18)
+	_rewards_box.add_child(days)
+	var st := Progress.stats()
+	var stats := Label.new()
+	stats.text = "Games %d   Wins %d   Win rate %d%%   Best streak %d\nCaptures %d   Tokens lost %d   Tokens home %d   Sixes %d" % [
+		st["games"], st["wins"], (100 * st["wins"] / maxi(1, st["games"])), st["best_streak"], st["captures"], st["lost"], st["home"], st["sixes"]]
+	stats.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	stats.add_theme_font_size_override("font_size", 18)
+	stats.add_theme_color_override("font_color", Color("#f3e3c0"))
+	_rewards_box.add_child(stats)
+	var unlocked := Progress.unlocked()
+	var head := Label.new()
+	head.text = "Achievements  %d / %d" % [unlocked.size(), Progress.ACHIEVEMENTS.size()]
+	head.add_theme_font_size_override("font_size", 26)
+	head.add_theme_color_override("font_color", RoyalTheme.GOLD_LIGHT)
+	_rewards_box.add_child(head)
+	for id in Progress.ACHIEVEMENTS:
+		var a: Array = Progress.ACHIEVEMENTS[id]
+		var row := Label.new()
+		var done := unlocked.has(id)
+		row.text = ("[done]  " if done else "[    ]  ") + "%s: %s   (+%d)" % [a[0], a[1], a[2]]
+		row.add_theme_font_size_override("font_size", 19)
+		row.add_theme_color_override("font_color", Color("#ffe39a") if done else Color(0.85, 0.75, 0.65, 0.75))
+		_rewards_box.add_child(row)
+
+
+func _update_coin_badge() -> void:
+	if _coin_badge:
+		_coin_badge.text = "%d coins" % Progress.coins()
 
 
 func _build_howto() -> void:
