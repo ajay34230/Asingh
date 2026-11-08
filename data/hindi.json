@@ -789,5 +789,17 @@
  "Show villagers and animals": "गाँव वाले और जानवर दिखाओ",
  "Show ground": "ज़मीन दिखाओ",
  "Show ruins, boulders, shrubs": "खंडहर, चट्टानें, झाड़ियाँ दिखाओ",
- "Show farm": "खेत दिखाओ"
+ "Show farm": "खेत दिखाओ",
+ "DRAW": "खींचो",
+ "FIRE": "अग्नि",
+ "FOCUS": "एकाग्र",
+ "HEADSHOT": "सिर पर निशाना!",
+ "Fire arrow": "अग्नि-बाण",
+ "Lamp oil": "दीये का तेल",
+ "Used on fully drawn, aimed shots: burns the target. Ghosts fear fire.": "पूरा खींचकर निशाना लगाने पर चलता है: निशाने को जलाता है। भूत आग से डरते हैं।",
+ "Crafting material. Sold by the bazaar, dropped by raiders.": "बनाने का सामान। बाज़ार में मिलता है, लुटेरे भी गिराते हैं।",
+ "Eagle Eye": "बाज़ की नज़र",
+ "Defeat an enemy with an arrow to the head.": "सिर पर तीर मारकर दुश्मन को हराओ।",
+ "Still Mind": "शांत मन",
+ "Hit a foe while time is slowed by focus.": "एकाग्रता से धीमे समय में दुश्मन को मारो।"
 }

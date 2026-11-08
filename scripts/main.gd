@@ -1601,6 +1601,40 @@ func _run_selftest() -> void:
 		if an is Arrow:
 			stuck += 1
 	print("[selftest] archery: target hp %.0f -> %.0f, arrows in the world %d" % [bhp, bt.hp, stuck])
+	# manual aim: craft fire arrows, hold the draw (focus slows time), put the crosshair on the head, let go
+	items.give("oil", 1)
+	items.give("hide", 1)
+	if not items.craft("fire_arrow") or items.count("fire_arrow") != 5:
+		fails.append("fire arrows: crafting did not give 5")
+	var bt2 := combat.spawn_enemy(player.global_position + Vector3(2.0, 0, -12.0), false, 0.0, "test2")
+	bt2.set_physics_process(false)
+	var hp2: float = bt2.hp
+	var hsh0 := Arrow.headshots
+	player._attack_cd = 0.0
+	player.begin_aim()
+	if not player.aiming:
+		fails.append("manual aim: holding the bow button did not start a draw")
+	var slowed := false
+	for it in 6:
+		await get_tree().create_timer(0.2, true, false, true).timeout
+		var head: Vector3 = bt2.global_position + Vector3(0, Arrow.head_height(bt2), 0)
+		var dv: Vector3 = head - player.camera.global_position
+		player.set_look(atan2(-dv.x, -dv.z), atan2(dv.y, Vector2(dv.x, dv.z).length()))
+		slowed = slowed or Engine.time_scale < 0.5
+	var fa0 := items.count("fire_arrow")
+	player.release_aim()
+	if not slowed:
+		fails.append("manual aim: focus did not slow time at full draw")
+	if Engine.time_scale != 1.0:
+		fails.append("manual aim: time scale not restored on release")
+	await get_tree().create_timer(1.2).timeout
+	if items.count("fire_arrow") != fa0 - 1:
+		fails.append("manual aim: charged shot did not use a fire arrow")
+	if Arrow.headshots <= hsh0:
+		fails.append("manual aim: crosshair on the head did not score a headshot (hp %.0f -> %.0f)" % [hp2, bt2.hp])
+	print("[selftest] manual aim: focus %s, fire arrows %d -> %d, headshots %d, target hp %.0f -> %.0f" % [slowed, fa0, items.count("fire_arrow"), Arrow.headshots - hsh0, hp2, bt2.hp])
+	if is_instance_valid(bt2) and not bt2.dead:
+		bt2.queue_free()
 	items.unequip("weapon")
 	for k in 5:
 		story.flags.erase("cache_%d" % k)
@@ -3199,6 +3233,32 @@ func _run_capture_bow(dir: String) -> void:
 	for i in 20:
 		await get_tree().physics_frame
 	player._attack_cd = 0.0
+	if view == "aim":
+		# over-the-shoulder aim camera with the on-screen crosshair, then the arrow in flight
+		touch.visible = true
+		items.give("fire_arrow", 3)
+		player.begin_aim()
+		for k in 50:
+			var hd: Vector3 = foe.global_position + Vector3(0, Arrow.head_height(foe), 0)
+			var dv: Vector3 = hd - player.camera.global_position
+			player.set_look(atan2(-dv.x, -dv.z), atan2(dv.y, Vector2(dv.x, dv.z).length()))
+			await get_tree().physics_frame
+		await RenderingServer.frame_post_draw
+		get_viewport().get_texture().get_image().save_png("%s/aim_a_draw.png" % dir)
+		var arm: Vector3 = player._rig._bone_pos("wr_L") - player._rig._bone_pos("sh_L")
+		var tg: Vector3 = foe.global_position - player.global_position
+		print("[capture] bow arm off target by %.0f deg" % rad_to_deg(Vector2(arm.x, arm.z).angle_to(Vector2(tg.x, tg.z))))
+		player.release_aim()
+		for k in 9:
+			await get_tree().physics_frame
+		await RenderingServer.frame_post_draw
+		get_viewport().get_texture().get_image().save_png("%s/aim_b_flight.png" % dir)
+		for k in 20:
+			await get_tree().physics_frame
+		await RenderingServer.frame_post_draw
+		get_viewport().get_texture().get_image().save_png("%s/aim_c_hit.png" % dir)
+		get_tree().quit()
+		return
 	player.fire_arrow()
 	player.set_physics_process(true)
 	# a fixed camera to the archer's right (or front), looking across the shot

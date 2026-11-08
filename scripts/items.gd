@@ -8,6 +8,8 @@ const DEFS := {
 	"potion": {"name": "Healing potion", "type": "consumable", "heal": 70.0, "desc": "Heals 70."},
 	"hide": {"name": "Hide", "type": "material", "desc": "Crafting material."},
 	"iron": {"name": "Iron scrap", "type": "material", "desc": "Crafting material."},
+	"fire_arrow": {"name": "Fire arrow", "type": "ammo", "desc": "Used on fully drawn, aimed shots: burns the target. Ghosts fear fire."},
+	"oil": {"name": "Lamp oil", "type": "material", "desc": "Crafting material. Sold by the bazaar, dropped by raiders."},
 	"essence": {"name": "Monster essence", "type": "material", "desc": "Dropped by ghosts and monsters. The blacksmith uses it to upgrade weapons."},
 	"spear": {"name": "Spear", "type": "weapon", "dmg": 1.15, "reach": 0.7, "desc": "Longer reach."},
 	"axe": {"name": "Axe", "type": "weapon", "dmg": 1.4, "reach": 0.0, "desc": "Heavy hits."},
@@ -28,6 +30,7 @@ const RECIPES := {
 	"dagger": ["dagger", {"iron": 3}],
 	"leather": ["leather", {"hide": 4}],
 	"chain": ["chain", {"iron": 8, "hide": 2}],
+	"fire_arrow": ["fire_arrow", {"oil": 1, "hide": 1}, 5],
 }
 
 var story: Story
@@ -129,7 +132,7 @@ func craft(rid: String) -> bool:
 	var need: Dictionary = RECIPES[rid][1]
 	for k in need:
 		take(String(k), int(need[k]))
-	give(String(RECIPES[rid][0]))
+	give(String(RECIPES[rid][0]), int(RECIPES[rid][2]) if RECIPES[rid].size() > 2 else 1)
 	return true
 
 
@@ -153,6 +156,8 @@ func loot(role: String, rng: RandomNumberGenerator) -> void:
 		give("iron", 2 if role == "brute" else 1)
 	elif r < 0.60 and role != "ambusher":
 		give("hide")
+	elif r < 0.72:
+		give("oil")
 
 
 ## X17: give a herb to the nearest animal within 4 m. It calms it; three feedings earn an achievement.

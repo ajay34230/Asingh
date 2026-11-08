@@ -344,6 +344,19 @@ func ground_slam() -> int:
 var _arrow_foe: Enemy
 var _arrow_target := Vector3.ZERO
 var _arrow_dmg := 0.0
+var _arrow_off := Vector3(0, 1.1, 0)     # where on the foe the arrow is aimed (chest, or the head when aimed by hand)
+
+## Manual aim: hold the bow button to draw and aim with the crosshair, let go to shoot. A quick tap still
+## auto-aims. Holding at full draw slows time ("focus") until the focus meter runs out.
+var aiming := false
+var aim_blend := 0.0               # 0 normal camera .. 1 over-the-shoulder aim camera
+var aim_focus := 1.0               # 0..1, drains while slowed, refills when not aiming
+var _aim_t := 0.0                  # real seconds the button has been held
+var _focusing := false
+var _arrow_fire := false
+var _arrow_charged := false
+const AIM_TAP := 0.22
+const FOCUS_SCALE := 0.4
 
 
 func fire_arrow() -> bool:
@@ -354,7 +367,8 @@ func fire_arrow() -> bool:
 	var target: Vector3
 	if foe != null:
 		var hover := float(foe.get("hover")) if foe.get("hover") != null else 0.0
-		target = foe.global_position + Vector3(0, 1.1 + hover, 0)
+		_arrow_off = Vector3(0, Arrow.chest_height(foe) + hover, 0)
+		target = foe.global_position + _arrow_off
 	else:
 		# free shot along the camera's view
 		var cam := get_viewport().get_camera_3d()
@@ -369,6 +383,8 @@ func fire_arrow() -> bool:
 	arrows_fired += 1
 	_arrow_foe = foe
 	_arrow_target = target
+	_arrow_fire = false
+	_arrow_charged = false
 	_arrow_dmg = 20.0 * hammer_mult * gear_dmg * arrow_mult * wpn_up() * (2.0 if power.has("power") else 1.0)
 	Sfx.ui_at("swing", -14.0)
 	return true
@@ -380,12 +396,115 @@ func _release_arrow() -> void:
 	get_parent().add_child(ar)
 	var target := _arrow_target
 	if is_instance_valid(_arrow_foe) and not _arrow_foe.dead:
-		var hover := float(_arrow_foe.get("hover")) if _arrow_foe.get("hover") != null else 0.0
-		target = _arrow_foe.global_position + Vector3(0, 1.1 + hover, 0)     # it may have moved while we drew
-	ar.launch(_rig.nock_transform(), target, _arrow_foe, _arrow_dmg, self)
+		target = _arrow_foe.global_position + _arrow_off      # it may have moved while we drew
+	ar.fire = _arrow_fire
+	ar.launch(_rig.nock_transform(), target, _arrow_foe, _arrow_dmg * (1.35 if _arrow_charged else 1.0), self)
 	_combat_t = 0.0
 	Sfx.ui_at("swing", -2.0)
 	StoryFX.shake(self, 0.03, 0.12)
+
+
+## Bow button pressed: start drawing. Without a bow (or in the saddle) it is a normal attack.
+func begin_aim() -> void:
+	if not gear_ranged or mounted:
+		attack()
+		return
+	if aiming or not fire_arrow():
+		return
+	aiming = true
+	_aim_t = 0.0
+	_rig.hold_draw = true
+
+
+## Bow button released: a quick tap keeps the auto-aim shot; a held draw shoots where the crosshair points.
+func release_aim() -> void:
+	if not aiming:
+		return
+	aiming = false
+	_rig.hold_draw = false
+	_set_focus(false)
+	if dead or _rig.move != "bow_shot":
+		return
+	if _aim_t >= AIM_TAP:
+		_aim_from_crosshair()
+		_model.rotation.y = _yaw
+		_arrow_charged = _rig.move_t >= 0.58
+		var it := get_tree().get_first_node_in_group("items")
+		if _arrow_charged and it != null and int(it.call("count", "fire_arrow")) > 0:
+			it.call("take", "fire_arrow", 1)
+			_arrow_fire = true
+	_attack_cd = maxf(_attack_cd, 0.4 / maxf(_rig.move_rate, 0.1))
+
+
+## Ray from the centre of the screen: the arrow goes to whatever is under the crosshair. An enemy close to the
+## ray is locked as the target (aimed at the head if the crosshair is on the head).
+func _aim_from_crosshair() -> void:
+	var o := camera.global_position
+	var fwd := -camera.global_transform.basis.z
+	var far := o + fwd * 90.0
+	var q := PhysicsRayQueryParameters3D.create(o + fwd * (camera_distance() + 0.6), far)
+	q.exclude = [get_rid()]
+	var hit := get_world_3d().direct_space_state.intersect_ray(q)
+	var point: Vector3 = far if hit.is_empty() else hit.position
+	var best: Enemy = null
+	var best_along := INF
+	var best_off := Vector3.ZERO
+	for e in get_tree().get_nodes_in_group("enemies"):
+		var en := e as Enemy
+		if en == null or en.dead:
+			continue
+		var hover := float(en.get("hover")) if en.get("hover") != null else 0.0
+		for off in [Vector3(0, Arrow.head_height(en) + hover, 0), Vector3(0, Arrow.chest_height(en) + hover, 0)]:
+			var c: Vector3 = en.global_position + off
+			var along := (c - o).dot(fwd)
+			if along < 1.0 or along > 90.0 or along > (point - o).dot(fwd) + 1.0:
+				continue
+			var miss := (o + fwd * along).distance_to(c)
+			var is_head_pt: bool = off.y > Arrow.chest_height(en) + hover + 0.1
+			if miss < (0.4 if is_head_pt else clampf(Arrow.chest_height(en) * 0.8, 0.9, 1.5)) and along < best_along:
+				best = en
+				best_along = along
+				best_off = off
+				break
+	_arrow_foe = best
+	if best != null:
+		_arrow_off = best_off
+		_arrow_target = best.global_position + best_off
+	else:
+		_arrow_target = point
+
+
+func _set_focus(on: bool) -> void:
+	if on == _focusing:
+		return
+	_focusing = on
+	Engine.time_scale = FOCUS_SCALE if on else 1.0
+
+
+## Per frame while drawing: the camera moves over the right shoulder, the archer turns with the view, and once
+## at full draw time slows while there is focus left.
+func _tick_aim(delta: float) -> void:
+	var real := delta / maxf(Engine.time_scale, 0.05)
+	if aiming and (dead or locked or mounted or _rig.move != "bow_shot"):
+		aiming = false
+		_rig.hold_draw = false
+		_set_focus(false)
+	aim_blend = move_toward(aim_blend, 1.0 if aiming else 0.0, real * 5.0)
+	if aiming:
+		_aim_t += real
+		_model.rotation.y = lerp_angle(_model.rotation.y, _yaw, 1.0 - exp(-18.0 * real))
+		var full := _rig.move_t >= 0.58
+		if full and aim_focus > 0.0:
+			_set_focus(true)
+			aim_focus = maxf(0.0, aim_focus - real / 3.0)       # about 3 real seconds of slow time
+		else:
+			_set_focus(false)
+	else:
+		aim_focus = minf(1.0, aim_focus + real / 8.0)
+	var right := Vector3(cos(_yaw), 0.0, -sin(_yaw))
+	var side := 0.0 if first_person else 0.55 * aim_blend
+	_pivot.position.x = right.x * side
+	_pivot.position.z = right.z * side
 
 
 func attack() -> void:
@@ -1172,7 +1291,9 @@ func _physics_process(delta: float) -> void:
 	_e_was_down = e_down
 	var f_down := Input.is_physical_key_pressed(KEY_F)
 	if f_down and not _f_was:
-		attack()
+		begin_aim() if gear_ranged else attack()
+	elif _f_was and not f_down and aiming:
+		release_aim()
 	_f_was = f_down
 	var v_down := Input.is_physical_key_pressed(KEY_V)
 	if v_down and not _v_was:
@@ -1290,6 +1411,7 @@ func _physics_process(delta: float) -> void:
 	else:
 		_rig.turn_lean = 0.0
 	_pivot.position.y = lerpf(_pivot.position.y, 1.1 if crouching else 1.55, 1.0 - exp(-9.0 * delta))
+	_tick_aim(delta)
 	_rig.guard = _combat_t < 4.0 and not mounted and not dead and not locked
 	_rig.animate(delta, Vector2(velocity.x, velocity.z).length(), is_on_floor())
 	if global_position.y < -40.0:
@@ -1303,8 +1425,10 @@ func _physics_process(delta: float) -> void:
 	gq.exclude = [get_rid()]
 	var under := not get_world_3d().direct_space_state.intersect_ray(gq).is_empty()
 	_cam_squeeze = move_toward(_cam_squeeze, 1.0 if under else 0.0, delta * (8.0 if under else 1.5))
-	_arm.spring_length = lerpf(_arm.spring_length, _target_distance * (1.0 - 0.7 * _cam_squeeze), 1.0 - exp(-10.0 * delta))
+	var want_len := lerpf(_target_distance, minf(_target_distance, 1.7), aim_blend)
+	_arm.spring_length = lerpf(_arm.spring_length, want_len * (1.0 - 0.7 * _cam_squeeze), 1.0 - exp(-10.0 * delta))
 	var want_fov := base_fov + (RUN_FOV - BASE_FOV) if ((fast or run_blend > 0.5) and dir.length() > 0.1) else base_fov
+	want_fov -= 16.0 * aim_blend
 	camera.fov = lerpf(camera.fov, want_fov, 1.0 - exp(-6.0 * delta))
 
 	_focus_timer -= delta

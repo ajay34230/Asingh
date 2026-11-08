@@ -619,7 +619,8 @@ func animate(delta: float, speed: float, grounded: bool) -> void:
 			else:
 				_locomotion(delta)
 	if move != "":
-		move_t += delta * move_rate
+		if not (hold_draw and move == "bow_shot" and move_t >= 0.6):
+			move_t += delta * move_rate
 		_move_pose()
 		if move_t >= _move_hit_at and not _move_sent:
 			_move_sent = true
@@ -652,6 +653,7 @@ func animate(delta: float, speed: float, grounded: bool) -> void:
 
 
 # --- archery: a live bowstring and the arrow on the string --------------------------------------
+var hold_draw := false            # manual aim: the bow stays at full draw until the player lets go
 var move_rate := 1.0              # playback speed of the current move (Quick Draw speeds up the bow)
 var _string: Array[MeshInstance3D] = []
 var _nocked: Node3D
@@ -676,6 +678,39 @@ static func _place_between(mi: MeshInstance3D, a: Vector3, b: Vector3) -> void:
 	var z := x.cross(y)
 	mi.global_transform = Transform3D(Basis(x, y * l, z), (a + b) * 0.5)
 	mi.visible = true
+
+
+var _bow_local := Transform3D()
+var _bow_local_set: Node3D = null
+
+
+## While shooting, hold the bow upright (a slight cant) with its face along the bow arm, the way an archer
+## does, instead of flat in the fist. Blends in as the arrow is nocked and out after the follow-through.
+func _upright_bow(bow: Node3D) -> void:
+	if _bow_local_set != bow:
+		_bow_local_set = bow
+		_bow_local = bow.transform
+	bow.transform = _bow_local
+	if move != "bow_shot":
+		return
+	var w := smoothstep(0.18, 0.32, move_t) * (1.0 - smoothstep(0.86, 0.98, move_t))
+	if w <= 0.001:
+		return
+	var g := bow.global_transform
+	var sc := g.basis.get_scale()
+	var fwd := _bone_pos("wr_L") - _bone_pos("sh_L")
+	if fwd.length() < 0.05:
+		return
+	fwd = fwd.normalized()
+	var side := Vector3.UP.cross(fwd)
+	if side.length() < 0.1:
+		return
+	side = side.normalized()
+	var up := (Vector3.UP + side * 0.18).normalized()       # a small cant, top limb leaning out
+	up = (up - fwd * up.dot(fwd)).normalized()
+	var want := Basis(up.cross(fwd).normalized(), up, fwd)
+	var q := g.basis.orthonormalized().get_rotation_quaternion().slerp(want.get_rotation_quaternion(), w)
+	bow.global_transform = Transform3D(Basis(q).scaled(sc), g.origin)
 
 
 func _archery() -> void:
@@ -708,6 +743,7 @@ func _archery() -> void:
 		if am != null:
 			_nocked.add_child(am)
 		add_child(_nocked)
+	_upright_bow(bow)
 	var bx := bow.global_transform
 	var up := bx.basis.y.normalized()
 	var top := bx.origin + up * BOW_HALF
@@ -883,13 +919,13 @@ func _kf_moves() -> Dictionary:
 		# raise the bow arm straight at the target while turning side-on, pull the string back to the
 		# cheek (anchor), a breath of aim, release (the string hand springs back past the ear), follow through.
 		"bow_shot": [[0.0, {}],
-			[0.16, {"sh_R": Vector3(-2.5, 0.45, 0.35), "el_R": Vector3(2.0, 0, 0), "sh_L": Vector3(-0.55, 0.0, 0.12), "el_L": Vector3(0.35, 0, 0), "spine": Vector3(-0.02, 0.25, 0), "hips": Vector3(0, 0.2, 0), "head": Vector3(0.0, -0.2, 0)}],
-			[0.3, {"sh_R": Vector3(-1.25, 0.2, 0.05), "el_R": Vector3(1.55, 0, 0), "sh_L": Vector3(-1.05, 0.0, 0.05), "el_L": Vector3(0.45, 0, 0), "spine": Vector3(-0.02, 0.45, 0), "hips": Vector3(0, 0.3, 0), "head": Vector3(0.05, -0.4, 0)}],
-			[0.42, {"sh_L": Vector3(-1.55, 0.0, 0.05), "el_L": Vector3(0.08, 0, 0), "sh_R": Vector3(-1.45, 0.4, 0), "el_R": Vector3(1.35, 0, 0), "spine": Vector3(-0.03, 0.75, 0), "hips": Vector3(0, 0.45, 0), "head": Vector3(0.05, -0.7, 0), "dy": -0.04}],
-			[0.58, {"sh_L": Vector3(-1.57, 0.0, 0.05), "el_L": Vector3(0.04, 0, 0), "sh_R": Vector3(-1.38, 0.85, 0), "el_R": Vector3(2.55, 0, 0), "spine": Vector3(-0.04, 0.88, 0), "hips": Vector3(0, 0.5, 0), "head": Vector3(0.05, -0.82, 0), "dy": -0.05}],
-			[0.64, {"sh_L": Vector3(-1.57, 0.0, 0.05), "el_L": Vector3(0.04, 0, 0), "sh_R": Vector3(-1.38, 0.88, 0), "el_R": Vector3(2.6, 0, 0), "spine": Vector3(-0.04, 0.9, 0), "hips": Vector3(0, 0.5, 0), "head": Vector3(0.05, -0.82, 0), "dy": -0.05}],
-			[0.7, {"sh_L": Vector3(-1.5, 0.0, 0.08), "el_L": Vector3(0.06, 0, 0), "sh_R": Vector3(-1.05, 1.05, 0.5), "el_R": Vector3(1.05, 0, 0), "spine": Vector3(-0.02, 0.9, 0), "hips": Vector3(0, 0.5, 0), "head": Vector3(0.05, -0.82, 0), "dy": -0.05}],
-			[0.84, {"sh_L": Vector3(-1.4, 0.0, 0.1), "el_L": Vector3(0.1, 0, 0), "sh_R": Vector3(-1.0, 1.05, 0.55), "el_R": Vector3(1.0, 0, 0), "spine": Vector3(-0.02, 0.85, 0), "hips": Vector3(0, 0.5, 0), "head": Vector3(0.05, -0.8, 0), "dy": -0.04}],
+			[0.16, {"sh_R": Vector3(-2.5, 0.45, 0.35), "el_R": Vector3(2.0, 0, 0), "sh_L": Vector3(-0.55, 0.0, 0.12), "el_L": Vector3(0.35, 0, 0), "spine": Vector3(-0.02, 0.25, 0), "hips": Vector3(0, -0.2, 0), "head": Vector3(0.0, -0.2, 0)}],
+			[0.3, {"sh_R": Vector3(-1.25, 0.2, 0.05), "el_R": Vector3(1.55, 0, 0), "sh_L": Vector3(-1.05, 0.0, 0.05), "el_L": Vector3(0.45, 0, 0), "spine": Vector3(-0.02, 0.42, 0), "hips": Vector3(0, -0.4, 0), "head": Vector3(0.05, 0.0, 0)}],
+			[0.42, {"sh_L": Vector3(-1.55, 0.0, 0.05), "el_L": Vector3(0.08, 0, 0), "sh_R": Vector3(-1.45, 0.4, 0), "el_R": Vector3(1.35, 0, 0), "spine": Vector3(-0.03, 0.72, 0), "hips": Vector3(0, -0.7, 0), "head": Vector3(0.05, 0.02, 0), "dy": -0.04}],
+			[0.58, {"sh_L": Vector3(-1.57, 0.0, 0.05), "el_L": Vector3(0.04, 0, 0), "sh_R": Vector3(-1.38, 0.85, 0), "el_R": Vector3(2.55, 0, 0), "spine": Vector3(-0.04, 0.6, 0), "hips": Vector3(0, -0.8, 0), "head": Vector3(0.05, 0.05, 0), "dy": -0.05}],
+			[0.64, {"sh_L": Vector3(-1.57, 0.0, 0.05), "el_L": Vector3(0.04, 0, 0), "sh_R": Vector3(-1.38, 0.88, 0), "el_R": Vector3(2.6, 0, 0), "spine": Vector3(-0.04, 0.6, 0), "hips": Vector3(0, -0.8, 0), "head": Vector3(0.05, 0.05, 0), "dy": -0.05}],
+			[0.7, {"sh_L": Vector3(-1.5, 0.0, 0.08), "el_L": Vector3(0.06, 0, 0), "sh_R": Vector3(-1.05, 1.05, 0.5), "el_R": Vector3(1.05, 0, 0), "spine": Vector3(-0.02, 0.6, 0), "hips": Vector3(0, -0.8, 0), "head": Vector3(0.05, 0.05, 0), "dy": -0.05}],
+			[0.84, {"sh_L": Vector3(-1.4, 0.0, 0.1), "el_L": Vector3(0.1, 0, 0), "sh_R": Vector3(-1.0, 1.05, 0.55), "el_R": Vector3(1.0, 0, 0), "spine": Vector3(-0.02, 0.76, 0), "hips": Vector3(0, -0.75, 0), "head": Vector3(0.05, 0.05, 0), "dy": -0.04}],
 			[1.0, {}]],
 	}
 

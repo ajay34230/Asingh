@@ -26,6 +26,8 @@ const DEFS := {
 	"trader": ["Market Trader", "Earn 300 coins selling farm produce."],
 	"finder": ["Coin Collector", "Find 30 gold coins in the world."],
 	"champion": ["Crop Champion", "Win the crop contest."],
+	"headshot": ["Eagle Eye", "Defeat an enemy with an arrow to the head."],
+	"focus": ["Still Mind", "Hit a foe while time is slowed by focus."],
 }
 
 var story: Story

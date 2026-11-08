@@ -19,6 +19,8 @@ const KINDS := {
 var mkind := "ghost"
 var flier := false
 var hover := 0.0
+var head_h := 1.62                # arrows: head and chest heights above the feet (before hover)
+var chest_h := 1.1
 var spectral := false
 var reach := 2.0
 var _model: Node3D
@@ -49,6 +51,8 @@ func setup_monster(k: String, at: Vector3, label: String) -> Monster:
 	flier = hover > 0.0
 	spectral = bool(d["spectral"])
 	reach = float(d["reach"])
+	head_h = float(d["height"]) * 0.86
+	chest_h = float(d["height"]) * 0.56
 	is_boss = bool(d.get("boss", false))
 	aggro = 40.0
 	leash = 120.0

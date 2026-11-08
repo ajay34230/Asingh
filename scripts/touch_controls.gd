@@ -68,6 +68,7 @@ func _reset_touches() -> void:
 	_pos.clear()
 	if player != null:
 		player.move_input = Vector2.ZERO
+		player.release_aim()
 
 
 func _refresh_layout() -> void:
@@ -181,7 +182,7 @@ func _on_press(idx: int, pos: Vector2) -> void:
 		return
 	if pos.distance_to(_attack_button_centre()) < 60.0 * btn_scale:
 		_attack_id = idx
-		player.attack()
+		player.begin_aim() if player.gear_ranged else player.attack()
 		return
 	if pos.distance_to(_jump_button_centre()) < 55.0 * btn_scale:
 		_jump_id = idx
@@ -218,6 +219,7 @@ func _on_release(idx: int) -> void:
 		_jump_id = -1
 	elif idx == _attack_id:
 		_attack_id = -1
+		player.release_aim()
 	elif idx == _crouch_id:
 		_crouch_id = -1
 	elif idx == _block_id:
@@ -288,12 +290,42 @@ func _draw() -> void:
 		draw_arc(Vector2(_vp.x - 150.0 if left_handed else 150.0, _vp.y - 150.0), STICK_RADIUS, 0.0, TAU, 40, Color(1, 1, 1, 0.18), 2.0)
 	_draw_button(font, _run_button_centre(), 50.0 * btn_scale, "RUN", _run_on)
 	_draw_button(font, _jump_button_centre(), 45.0 * btn_scale, "JUMP", _jump_id != -1)
-	_draw_button(font, _attack_button_centre(), 48.0 * btn_scale, "HIT", _attack_id != -1)
+	var bow := player != null and player.gear_ranged and not player.mounted
+	_draw_button(font, _attack_button_centre(), 48.0 * btn_scale, Loc.t("DRAW") if bow else "HIT", _attack_id != -1)
+	if bow:
+		_draw_bow_hud(font)
 	if player == null or not player.mounted:
 		_draw_button(font, _crouch_button_centre(), 44.0 * btn_scale, "DUCK", player != null and player.crouching)
 		_draw_button(font, _block_button_centre(), 44.0 * btn_scale, "BLOCK", _block_id != -1)
 		_draw_button(font, _roll_button_centre(), 44.0 * btn_scale, "ROLL", _roll_id != -1)
 		_draw_button(font, _weapon_button_centre(), 40.0 * btn_scale, player.weapon.to_upper() if player != null else "FISTS", false)
+
+
+## Bow: crosshair while aiming (tightens as the draw fills), the focus meter round the bow button and the
+## number of fire arrows left.
+func _draw_bow_hud(font: Font) -> void:
+	var c := _attack_button_centre()
+	var r := 56.0 * btn_scale
+	draw_arc(c, r, -PI * 0.5, -PI * 0.5 + TAU * player.aim_focus, 40, Color(0.45, 0.85, 1.0, 0.8 * btn_alpha), 4.0)
+	var it := player.get_tree().get_first_node_in_group("items")
+	var fa := int(it.call("count", "fire_arrow")) if it != null else 0
+	if fa > 0:
+		draw_string(font, c + Vector2(-34.0, r + 26.0), "%s %d" % [Loc.t("FIRE"), fa], HORIZONTAL_ALIGNMENT_LEFT, -1, 18, Color(1.0, 0.6, 0.2, 0.95))
+	if player.aim_blend < 0.3:
+		return
+	var a := player.aim_blend
+	var ctr := _vp * 0.5
+	var draw_k := clampf(player._rig.move_t / 0.58, 0.0, 1.0) if player.aiming else 1.0
+	var gap := lerpf(30.0, 7.0, draw_k)
+	var col := Color(1.0, 0.95, 0.85, 0.9 * a) if draw_k < 1.0 else Color(1.0, 0.55, 0.2, 0.95 * a)
+	for d in [Vector2.RIGHT, Vector2.LEFT, Vector2.UP, Vector2.DOWN]:
+		draw_line(ctr + d * gap, ctr + d * (gap + 14.0), Color(0, 0, 0, 0.5 * a), 5.0)
+		draw_line(ctr + d * gap, ctr + d * (gap + 14.0), col, 2.5)
+	draw_circle(ctr, 2.5, col)
+	if player._focusing:
+		var t := Loc.t("FOCUS")
+		var w := font.get_string_size(t, HORIZONTAL_ALIGNMENT_LEFT, -1, 20).x
+		draw_string(font, ctr + Vector2(-w * 0.5, 64.0), t, HORIZONTAL_ALIGNMENT_LEFT, -1, 20, Color(0.55, 0.9, 1.0, 0.9))
 
 
 func _draw_button(font: Font, c: Vector2, r: float, label: String, active: bool) -> void:

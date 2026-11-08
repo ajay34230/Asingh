@@ -404,3 +404,25 @@ Verified by the selftest (PASS: "archery: target hp 60 -> 42, arrows in the worl
   - Stuck arrows wobble, then clear after 6 s.
 - **Aiming:** the shot locks onto the nearest foe within 26 m and leads a moving target at release. With no foe nearby, it fires 35 m straight ahead of the camera.
 - The player slows to 30% speed while drawing. The **Quick Draw** skill speeds up the animation itself.
+
+## Addendum: Manual bow aiming (2026-11-08)
+
+Verified by the selftest (PASS: "manual aim: focus true, fire arrows 5 -> 4, headshots 1") and software-rendered captures (`--capture-bow`, `VIEW=aim`). **Not tested on a device.**
+
+- **Hold to aim:** with a bow equipped, the attack button becomes **DRAW**.
+  - A quick tap still auto-aims at the nearest foe.
+  - Holding the button draws and moves the camera over the right shoulder, zoomed in. A crosshair appears and tightens as the draw fills, then turns orange at full draw.
+  - Dragging on the right side of the screen aims, and the archer turns with the view.
+  - Letting go shoots wherever the crosshair points. An enemy under the crosshair is locked, at the head if the crosshair is on the head.
+- **Focus:** at full draw, time slows to 40% for up to about 3 real seconds. A blue ring around the DRAW button shows the meter, which refills when you aren't aiming. Time always returns to normal on release, death, mounting or a cut-scene.
+- **Headshots:** an arrow crossing an enemy's centre line at head height deals 2.5× damage and shows HEADSHOT with a short hit-stop. A fully drawn aimed shot does a further 1.35×. Monsters get head and chest heights from their size.
+- **Fire arrows:**
+  - Crafted 5 at a time from lamp oil and a hide.
+  - Sold in the supplies shops. Lamp oil also drops from raiders.
+  - Used automatically on fully drawn aimed shots: 1.25× damage, then 3 burn damage every 0.5 s for 4 s, with a flaming tip and an orange trail.
+  - The number left is shown under the DRAW button.
+- **Archery pose fix:**
+  - The hips now turn side-on while the chest and bow arm stay on target. Measured in the capture, the bow arm is within 1° of the target line; before the fix it was about 80° off.
+  - The bow is held upright along the arm from the nock to the follow-through. It no longer lies flat in the fist.
+- **Arrow hits** are checked where the arrow crosses the enemy's centre line, so a hit no longer lands early on the body edge.
+- **New achievements:** "Eagle Eye" (a headshot kill) and "Still Mind" (a hit during focus). Hindi text was added for all new labels.
