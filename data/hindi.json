@@ -1157,5 +1157,16 @@
  "Nothing to back up yet.": "अभी बैकअप के लिए कुछ नहीं।",
  "No backup code on the clipboard and no backup file in Downloads.": "न क्लिपबोर्ड पर बैकअप कोड है, न डाउनलोड में बैकअप फ़ाइल।",
  "That backup is damaged or incomplete.": "वह बैकअप ख़राब या अधूरा है।",
- "Could not write the save.": "सेव लिखा नहीं जा सका।"
+ "Could not write the save.": "सेव लिखा नहीं जा सका।",
+ "SCOPE": "स्कोप",
+ "Bow aim": "धनुष का निशाना",
+ "Crosshair (aim yourself)": "क्रॉसहेयर (ख़ुद निशाना लगाओ)",
+ "Auto (nearest enemy)": "अपने आप (सबसे पास का दुश्मन)",
+ "Aim assist": "निशाने में मदद",
+ "Scope look speed": "स्कोप में देखने की रफ़्तार",
+ "Gyroscope aiming": "फ़ोन घुमाकर निशाना (जाइरो)",
+ "When aiming or scoped": "निशाना लगाते या स्कोप में",
+ "Always": "हमेशा",
+ "Gyroscope speed": "जाइरो रफ़्तार",
+ "Invert gyroscope": "जाइरो उलटा करो"
 }

@@ -357,6 +357,102 @@ var _focusing := false
 var _arrow_fire := false
 var _arrow_charged := false
 const AIM_TAP := 0.22
+## PUBG-style aiming: a crosshair is always up with the bow and every touch shot goes where it points.
+var crosshair_aim := true          # false: old auto-aim at the nearest enemy (setting "Bow aim")
+var ads := false                   # SCOPE: zoomed over-the-shoulder view, slower steadier look
+var scope_sens := 0.55             # look speed while scoped (setting)
+var aim_assist_on := true          # the crosshair slows down and drifts onto an enemy near it (setting)
+var gyro_mode := 0                 # 0 off, 1 while aiming or scoped, 2 always (setting)
+var gyro_sens := 1.0
+var gyro_invert := false
+var _assist: Node3D                # the enemy under or near the crosshair right now (crosshair turns red)
+var _assist_pt := Vector3.ZERO     # the point on it the arrow would go to (head, chest or a boss weak spot)
+var _assist_scan := 0.0
+var _looking_t := 9.0              # seconds since the last look drag (assist only pulls while you are aiming)
+var _shot_crosshair := false       # this shot was fired from the touch FIRE button: aim it at the crosshair on release
+var hit_marker := 0.0              # seconds left of the hit marker in the centre of the screen
+var hit_marker_head := false
+var hit_marker_kill := false
+
+
+## SCOPE button: in and out of the zoomed over-the-shoulder view (bow only).
+func toggle_scope() -> void:
+	ads = gear_ranged and not ads
+	Sfx.ui("tink", -14.0)
+
+
+## An arrow of ours struck: show the hit marker (red for a headshot or a kill).
+func on_arrow_hit(head: bool, kill: bool) -> void:
+	hit_marker = 0.32 if not kill else 0.5
+	hit_marker_head = head
+	hit_marker_kill = kill
+
+
+## Is the crosshair close to an enemy? Looks along the camera at heads, chests and open weak spots within 45 m,
+## inside a small cone (tighter when scoped), and keeps one that is in plain sight.
+func _scan_assist() -> void:
+	_assist = null
+	if not gear_ranged or not crosshair_aim or dead:
+		return
+	var o := camera.global_position
+	var fwd := -camera.global_transform.basis.z
+	var cone := 0.075 if (ads or aiming) else 0.12
+	var best := cone
+	for e in get_tree().get_nodes_in_group("enemies"):
+		var en := e as Enemy
+		if en == null or en.dead:
+			continue
+		if en.global_position.distance_to(global_position) > 45.0:
+			continue
+		var pts: Array = [en.global_position + Vector3(0, Arrow.chest_height(en), 0), en.global_position + Vector3(0, Arrow.head_height(en), 0)]
+		var bb = en.get("boss")
+		if bb != null and bb.gem_open():
+			pts.push_front(bb.gem_world())
+		for pt in pts:
+			var d: Vector3 = pt - o
+			if d.dot(fwd) <= 1.0:
+				continue
+			var ang := fwd.angle_to(d.normalized())
+			if ang < best:
+				var q := PhysicsRayQueryParameters3D.create(o + fwd * (camera_distance() + 0.6), pt)
+				q.exclude = ray_excludes()
+				q.collision_mask = 1
+				var hit := get_world_3d().direct_space_state.intersect_ray(q)
+				if hit.is_empty() or hit.collider == en or (hit.collider as Node).is_ancestor_of(en) or en.is_ancestor_of(hit.collider as Node):
+					best = ang
+					_assist = en
+					_assist_pt = pt
+
+
+## Aim assist: while you are aiming (dragging) near an enemy, the view drifts gently onto it and follows it a
+## little as it moves. Never snaps; a quick flick away breaks it.
+func _pull_assist(real: float) -> void:
+	if _assist == null or not aim_assist_on or _looking_t > 0.35:
+		return
+	var o := camera.global_position
+	var d := _assist_pt - o
+	var want_yaw := atan2(-d.x, -d.z)
+	var want_pitch := atan2(d.y, Vector2(d.x, d.z).length())
+	var rate := (0.22 if (ads or aiming) else 0.14) * real      # radians per second of pull
+	_yaw += clampf(wrapf(want_yaw - _yaw, -PI, PI), -rate, rate)
+	_pitch = clampf(_pitch + clampf(want_pitch - _pitch, -rate, rate), -1.2, 0.45)
+	_apply_look()
+
+
+## Gyroscope aiming: tilt the phone to aim (Godot turns the sensor to match the screen orientation).
+func _gyro_look(real: float) -> void:
+	if gyro_mode == 0 or not OS.has_feature("mobile"):
+		return
+	if gyro_mode == 1 and not (ads or aiming):
+		return
+	var g := Input.get_gyroscope()
+	if g.length() < 0.02:
+		return                                 # sensor noise while holding still
+	var inv := -1.0 if gyro_invert else 1.0
+	_yaw += g.y * real * gyro_sens * inv
+	_pitch = clampf(_pitch + g.x * real * gyro_sens * inv, -1.2, 0.45)
+	_apply_look()
+
 const FOCUS_SCALE := 0.4
 
 
@@ -412,6 +508,9 @@ func fire_arrow() -> bool:
 
 ## Called on the release frame of the bow_shot move.
 func _release_arrow() -> void:
+	if _shot_crosshair:
+		_aim_from_crosshair()                   # the shot goes where the crosshair is at the moment of release
+		_shot_crosshair = false
 	var ar := Arrow.new()
 	get_parent().add_child(ar)
 	var target := _arrow_target
@@ -437,6 +536,12 @@ func begin_aim() -> void:
 	aiming = true
 	_aim_t = 0.0
 	_rig.hold_draw = true
+	_shot_crosshair = crosshair_aim
+	if crosshair_aim:
+		_aim_from_crosshair()                   # PUBG style: the crosshair, not the nearest enemy
+		_shot_yaw = _yaw
+		if not mounted:
+			_model.rotation.y = _yaw
 
 
 ## Bow button released: a quick tap keeps the auto-aim shot; a held draw shoots where the crosshair points.
@@ -448,7 +553,7 @@ func release_aim() -> void:
 	_set_focus(false)
 	if dead or _rig.move != "bow_shot":
 		return
-	if _aim_t >= AIM_TAP:
+	if _aim_t >= AIM_TAP or _shot_crosshair:
 		_aim_from_crosshair()
 		_shot_yaw = atan2(-(_arrow_target.x - global_position.x), -(_arrow_target.z - global_position.z))
 		if not mounted:
@@ -468,6 +573,12 @@ func release_aim() -> void:
 ## Ray from the centre of the screen: the arrow goes to whatever is under the crosshair. An enemy close to the
 ## ray is locked as the target (aimed at the head if the crosshair is on the head).
 func _aim_from_crosshair() -> void:
+	if _assist != null and is_instance_valid(_assist) and not (_assist as Enemy).dead:
+		# aim assist already has an enemy right by the crosshair
+		_arrow_foe = _assist as Enemy
+		_arrow_off = _assist_pt - _assist.global_position
+		_arrow_target = _assist_pt
+		return
 	var o := camera.global_position
 	var fwd := -camera.global_transform.basis.z
 	var far := o + fwd * 90.0
@@ -532,7 +643,23 @@ func _tick_aim(delta: float) -> void:
 		aiming = false
 		_rig.hold_draw = false
 		_set_focus(false)
-	aim_blend = move_toward(aim_blend, 1.0 if aiming else 0.0, real * 5.0)
+	if ads and not gear_ranged:
+		ads = false
+	hit_marker = maxf(0.0, hit_marker - real)
+	_looking_t += real
+	_assist_scan -= real
+	if _assist_scan <= 0.0:
+		_assist_scan = 0.08
+		_scan_assist()
+	elif _assist != null and (not is_instance_valid(_assist) or (_assist as Enemy).dead):
+		_assist = null
+	elif _assist != null:
+		pass                                     # rescanned every 0.08 s, so it follows a moving ghost
+	_pull_assist(real)
+	_gyro_look(real)
+	if crosshair_aim and _rig.move == "bow_shot" and not mounted and not aiming:
+		_model.rotation.y = lerp_angle(_model.rotation.y, _yaw, 1.0 - exp(-14.0 * real))     # shoot where you look
+	aim_blend = move_toward(aim_blend, 1.0 if (aiming or ads) else 0.0, real * 5.0)
 	if aiming:
 		_aim_t += real
 		_shot_yaw = _yaw
@@ -1015,6 +1142,11 @@ func look_yaw() -> float:
 
 func add_look(delta_px: Vector2) -> void:
 	var k := LOOK_SENSITIVITY * look_sens
+	if ads or aiming:
+		k *= scope_sens
+	if _assist != null and aim_assist_on:
+		k *= 0.6                                 # aim assist: the crosshair slows down over an enemy
+	_looking_t = 0.0
 	_yaw -= delta_px.x * k
 	_pitch = clampf(_pitch - delta_px.y * k * look_sens_y * (-1.0 if invert_y else 1.0), -1.2, 0.45)
 	_apply_look()
@@ -1508,7 +1640,7 @@ func _physics_process(delta: float) -> void:
 	var want_len := lerpf(_target_distance, minf(_target_distance, 1.7), aim_blend)
 	_arm.spring_length = lerpf(_arm.spring_length, want_len * (1.0 - 0.7 * _cam_squeeze), 1.0 - exp(-10.0 * delta))
 	var want_fov := base_fov + (RUN_FOV - BASE_FOV) if ((fast or run_blend > 0.5) and dir.length() > 0.1) else base_fov
-	want_fov -= 16.0 * aim_blend
+	want_fov -= (16.0 + (10.0 if ads else 0.0)) * aim_blend
 	camera.fov = lerpf(camera.fov, want_fov, 1.0 - exp(-6.0 * delta))
 
 	_focus_timer -= delta

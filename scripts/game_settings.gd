@@ -36,6 +36,12 @@ const SPEC: Array = [
 	["Controls", "btnalpha", "Button opacity", "slider", 1.0, [0.3, 1.6, 0.05]],
 	["Controls", "autosprint", "Auto-sprint at full stick", "toggle", true, null],
 	["Controls", "haptics", "Vibration when hurt", "toggle", true, null],
+	["Controls", "aim_mode", "Bow aim", "choice", 0, ["Crosshair (aim yourself)", "Auto (nearest enemy)"]],
+	["Controls", "aim_assist", "Aim assist", "toggle", true, null],
+	["Controls", "scope_sens", "Scope look speed", "slider", 0.55, [0.2, 1.2, 0.05]],
+	["Controls", "gyro", "Gyroscope aiming", "choice", 0, ["Off", "When aiming or scoped", "Always"]],
+	["Controls", "gyro_sens", "Gyroscope speed", "slider", 1.0, [0.3, 3.0, 0.1]],
+	["Controls", "gyro_invert", "Invert gyroscope", "toggle", false, null],
 	["Language", "lang", "Language / भाषा", "choice", 0, ["English", "हिन्दी"]],
 	["Gameplay", "outfit", "Outfit colour", "choice", 0, ["Default", "Crimson", "Indigo", "Forest", "Saffron", "Teal", "Violet"]],
 	["Gameplay", "difficulty", "Difficulty", "choice", 1, ["Easy", "Normal", "Hard"]],
@@ -247,6 +253,24 @@ static func apply(key: String) -> void:
 		"haptics":
 			if player != null:
 				player.haptics = bool(v[key])
+		"aim_mode":
+			if player != null:
+				player.crosshair_aim = int(v[key]) == 0
+		"aim_assist":
+			if player != null:
+				player.aim_assist_on = bool(v[key])
+		"scope_sens":
+			if player != null:
+				player.scope_sens = float(v[key])
+		"gyro":
+			if player != null:
+				player.gyro_mode = int(v[key])
+		"gyro_sens":
+			if player != null:
+				player.gyro_sens = float(v[key])
+		"gyro_invert":
+			if player != null:
+				player.gyro_invert = bool(v[key])
 		"fov":
 			if player != null:
 				player.base_fov = float(v[key])

@@ -173,6 +173,8 @@ func _physics_process(delta: float) -> void:
 				global_position = prev + seg * tg
 				en.set("last_hit_at", gp)
 				en.take_hit("spirit" if spirit else "arrow", dmg * (1.25 if fire else 1.0), vel.normalized())
+				if shooter != null and shooter.has_method("on_arrow_hit"):
+					shooter.call("on_arrow_hit", true, en.dead)
 				Sfx.at("tink", global_position, -2.0, 1.6)
 				_stick(en)
 				return
@@ -204,6 +206,8 @@ func _physics_process(delta: float) -> void:
 				var ach := get_tree().get_first_node_in_group("achievements")
 				if ach != null and ach.has_method("unlock") and en.dead:
 					ach.call("unlock", "headshot")
+			if shooter != null and shooter.has_method("on_arrow_hit"):
+				shooter.call("on_arrow_hit", is_head, en.dead)
 			if Engine.time_scale < 0.5:
 				var ach2 := get_tree().get_first_node_in_group("achievements")
 				if ach2 != null and ach2.has_method("unlock"):

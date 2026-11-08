@@ -19,6 +19,7 @@ var _look_id := -1
 var _run_id := -1
 var _jump_id := -1
 var _attack_id := -1
+var _lfire_id := -1            # the second FIRE button on the left (move, aim and shoot at once, PUBG style)
 var _use_id := -1
 var _pinch_id := -1
 var _pos := {}                 # touch index -> last position (right-side fingers)
@@ -66,6 +67,7 @@ func _reset_touches() -> void:
 	_run_id = -1
 	_jump_id = -1
 	_attack_id = -1
+	_lfire_id = -1
 	_crouch_id = -1
 	_pos.clear()
 	if player != null:
@@ -93,6 +95,20 @@ func _use_button_centre() -> Vector2:
 
 func _attack_button_centre() -> Vector2:
 	return _corner(245.0, 285.0)
+
+
+func _scope_button_centre() -> Vector2:
+	return _corner(515.0, 360.0)            # left of the main buttons, clear of the minimap
+
+
+## The left FIRE button sits above the joystick area, on the other side from the main buttons.
+func _lfire_button_centre() -> Vector2:
+	var x := 545.0 * btn_scale              # just right of the quest panel, where PUBG puts its left fire button
+	return Vector2(_vp.x - x if left_handed else x, _vp.y - 250.0 * btn_scale)
+
+
+func _bow_mode() -> bool:
+	return player != null and player.gear_ranged
 
 
 func _jump_button_centre() -> Vector2:
@@ -204,6 +220,13 @@ func _on_press(idx: int, pos: Vector2) -> void:
 		_jump_id = idx
 		player.jump_requested = true
 		return
+	if _bow_mode() and pos.distance_to(_scope_button_centre()) < 46.0 * btn_scale:
+		player.toggle_scope()
+		return
+	if _bow_mode() and _lfire_id == -1 and _attack_id == -1 and pos.distance_to(_lfire_button_centre()) < 52.0 * btn_scale:
+		_lfire_id = idx
+		player.begin_aim()
+		return
 	if _on_move_side(pos) and _stick_id == -1:
 		_stick_id = idx
 		_stick_origin = pos
@@ -236,6 +259,9 @@ func _on_release(idx: int) -> void:
 	elif idx == _attack_id:
 		_attack_id = -1
 		player.release_aim()
+	elif idx == _lfire_id:
+		_lfire_id = -1
+		player.release_aim()
 	elif idx == _crouch_id:
 		_crouch_id = -1
 	elif idx == _block_id:
@@ -258,6 +284,8 @@ func _on_drag(idx: int, pos: Vector2, rel: Vector2) -> void:
 		else:
 			d = d.normalized() * pow((m - 0.12) / 0.88, 1.3)
 		player.move_input = Vector2(d.x, -d.y)
+	elif (idx == _attack_id or idx == _lfire_id) and _bow_mode():
+		player.add_look(rel)                    # hold FIRE and slide the same finger to aim, like PUBG
 	elif idx == _look_id or idx == _pinch_id:
 		if _look_id != -1 and _pinch_id != -1 and _pos.has(_look_id) and _pos.has(_pinch_id):
 			# Two fingers: pinch to zoom, no camera rotation.
@@ -308,8 +336,10 @@ func _draw() -> void:
 	_draw_button(font, _run_button_centre(), 50.0 * btn_scale, "RUN", _run_on)
 	_draw_button(font, _jump_button_centre(), 45.0 * btn_scale, "JUMP", _jump_id != -1)
 	var bow := player != null and player.gear_ranged
-	_draw_button(font, _attack_button_centre(), 48.0 * btn_scale, Loc.t("DRAW") if bow else "HIT", _attack_id != -1)
+	_draw_button(font, _attack_button_centre(), 48.0 * btn_scale, Loc.t("FIRE") if bow else "HIT", _attack_id != -1)
 	if bow:
+		_draw_button(font, _scope_button_centre(), 38.0 * btn_scale, "SCOPE", player.ads)
+		_draw_button(font, _lfire_button_centre(), 44.0 * btn_scale, "FIRE", _lfire_id != -1)
 		_draw_bow_hud(font)
 	if player == null or not player.mounted:
 		_draw_button(font, _crouch_button_centre(), 44.0 * btn_scale, "DUCK", player != null and player.crouching)
@@ -333,17 +363,28 @@ func _draw_bow_hud(font: Font) -> void:
 		draw_string(font, c + Vector2(-34.0, r + 26.0), "%s %d" % [Loc.t("FIRE"), fa], HORIZONTAL_ALIGNMENT_LEFT, -1, 18, Color(1.0, 0.6, 0.2, 0.95))
 	if sa > 0:
 		draw_string(font, c + Vector2(-34.0, r + (46.0 if fa > 0 else 26.0)), "%s %d" % [Loc.t("SPIRIT"), sa], HORIZONTAL_ALIGNMENT_LEFT, -1, 18, Color(0.6, 0.88, 1.0, 0.95))
-	if player.aim_blend < 0.3:
+	if player.aim_blend < 0.3 and not player.crosshair_aim:
 		return
-	var a := player.aim_blend
+	var a := maxf(player.aim_blend, 0.75)
 	var ctr := _vp * 0.5
-	var draw_k := clampf(player._rig.move_t / 0.58, 0.0, 1.0) if player.aiming else 1.0
-	var gap := lerpf(30.0, 7.0, draw_k)
+	var drawing: bool = player.aiming or player._rig.move == "bow_shot"
+	var draw_k := clampf(player._rig.move_t / 0.58, 0.0, 1.0) if drawing else 0.0
+	var gap := lerpf(22.0 if player.ads else 30.0, 6.0, draw_k)
 	var col := Color(1.0, 0.95, 0.85, 0.9 * a) if draw_k < 1.0 else Color(1.0, 0.55, 0.2, 0.95 * a)
+	if player._assist != null:
+		col = Color(1.0, 0.25, 0.2, 0.95)         # on target
 	for d in [Vector2.RIGHT, Vector2.LEFT, Vector2.UP, Vector2.DOWN]:
-		draw_line(ctr + d * gap, ctr + d * (gap + 14.0), Color(0, 0, 0, 0.5 * a), 5.0)
-		draw_line(ctr + d * gap, ctr + d * (gap + 14.0), col, 2.5)
-	draw_circle(ctr, 2.5, col)
+		draw_line(ctr + d * gap, ctr + d * (gap + 16.0), Color(0, 0, 0, 0.55 * a), 6.0)
+		draw_line(ctr + d * gap, ctr + d * (gap + 16.0), col, 3.0)
+	draw_circle(ctr, 3.0, col)
+	if player.hit_marker > 0.0:
+		# hit marker: a white X, red for a headshot or a kill
+		var hm := Color(1.0, 0.2, 0.15, 1.0) if (player.hit_marker_head or player.hit_marker_kill) else Color(1, 1, 1, 0.95)
+		hm.a *= clampf(player.hit_marker / 0.2, 0.0, 1.0)
+		var s := 9.0 + (4.0 if player.hit_marker_kill else 0.0)
+		for dv in [Vector2(1, 1), Vector2(-1, 1), Vector2(1, -1), Vector2(-1, -1)]:
+			draw_line(ctr + dv * 6.0, ctr + dv * (6.0 + s), Color(0, 0, 0, hm.a * 0.6), 5.0)
+			draw_line(ctr + dv * 6.0, ctr + dv * (6.0 + s), hm, 2.5)
 	if player._focusing:
 		var t := Loc.t("FOCUS")
 		var w := font.get_string_size(t, HORIZONTAL_ALIGNMENT_LEFT, -1, 20).x

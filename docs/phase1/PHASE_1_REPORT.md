@@ -652,3 +652,21 @@ The user confirmed that the game closes by itself in the first ghost mission. Ve
   - The first hit of each run logs "first hit this run: vibrate" just before vibrating. If a future report ends on that line, the vibration is confirmed as the cause.
   - VIBRATE is a normal (install-time) permission, so no prompt is shown and nothing changes for Play Store data safety.
 - **Removed:** the ghost pre-loading added in the previous commit. If the ghost models themselves turned out to be the problem, it would have moved the crash to every launch.
+
+## Addendum: PUBG-style bow aiming (2026-11-09)
+
+Requested: "make aiming like that of PUBG so that we can aim ghost". Verified by the selftest (PASS: "pubg aim: tap: aimed 60 -> 42, decoy 60 -> 60, assist 5.7 -> 3.4 deg, red true, scope fov 70 -> 46, look 0.248 vs 0.450"; the earlier archery, manual-aim and horse sweeps still pass) and software-rendered captures (`--capture-pubg`). **Not tested on a device.** Gyroscope aiming in particular is untested: the axis mapping follows Godot's screen-rotated sensor values, and there is an invert toggle in case it is backwards on a phone.
+
+- **Crosshair:** always shown in the screen centre while the bow is out. It tightens as the string is drawn, turns orange at full draw, and turns **red** when it is on an enemy.
+- **Every touch shot goes to the crosshair** (setting "Bow aim: Crosshair"). The old aim at the nearest enemy is still available as "Auto". The aim is taken again at the moment of release, so the archer can track a moving ghost while drawing.
+- **FIRE:** tap to shoot, or hold to draw. Holding and sliding the same finger aims, like PUBG's draggable fire button; letting go shoots. Holding past full draw still gives focus slow-motion and charged fire or spirit arrows.
+- **Left FIRE button:** a second FIRE button right of the quest panel, so you can move, aim and shoot at once.
+- **SCOPE button:** toggles a zoomed over-the-shoulder view (field of view about 24° narrower). The look slows to the "Scope look speed" setting, 0.55× by default.
+- **Aim assist** (setting, on by default):
+  - A small cone around the crosshair (7° from the hip, 4° scoped) looks for heads, chests and open boss weak spots within 45 m that are in plain sight.
+  - Over a target, the look slows to 0.6×.
+  - While you are dragging, the view drifts onto it at up to 8° per second from the hip (13° scoped) and follows it as it moves. It never snaps.
+  - A shot fired with a target in the cone goes to that point.
+- **Hit markers:** a white X in the centre for a hit, red for a headshot, a weak spot or a kill.
+- **Gyroscope aiming** (setting: Off, When aiming or scoped, or Always), with speed and invert settings. Tilting the phone turns the view.
+- Hindi text added for the new labels and settings.

@@ -140,6 +140,8 @@ func _ready() -> void:
 			_run_capture_lab.call_deferred(a.trim_prefix("--capture-lab="))
 		elif a == "--probe-ghost":
 			_run_probe_ghost.call_deferred()
+		elif a.begins_with("--capture-pubg="):
+			_run_capture_pubg.call_deferred(a.trim_prefix("--capture-pubg="))
 		elif a.begins_with("--capture-weather="):
 			_run_capture_weather.call_deferred(a.trim_prefix("--capture-weather="))
 		elif a.begins_with("--capture-photo="):
@@ -1701,6 +1703,7 @@ func _run_selftest() -> void:
 		bt2.queue_free()
 	await _selftest_boss(fails)
 	await _selftest_horse(fails)
+	await _selftest_pubg_aim(fails)
 	await _selftest_dog(fails)
 	await _selftest_crafting(fails)
 	await _selftest_events(fails)
@@ -3653,6 +3656,105 @@ func _selftest_dog(fails: PackedStringArray) -> void:
 	print("[selftest] dog: " + note)
 
 
+## The flattest open ground in the valley with nothing built or growing within 12 m (for aiming tests).
+func _flat_spot() -> Vector2:
+	var flat := Vector2(150.0, 60.0)
+	var best_bump := INF
+	for gx in range(-160, 170, 20):
+		for gz in range(-160, 170, 20):
+			var h0g := terrain.sample_height(gx, gz)
+			var bump := 0.0
+			for k in 12:
+				var aa := TAU * k / 12.0
+				for rr in [5.0, 11.0]:
+					bump = maxf(bump, absf(terrain.sample_height(gx + cos(aa) * rr, gz + sin(aa) * rr) - h0g))
+			if bump >= best_bump:
+				continue
+			var blocked := false               # nothing built or growing within 12 m at bow height, all round
+			for k in 16:
+				var aa := TAU * k / 16.0
+				for hh in [0.4, 1.2, 2.4]:
+					var q0 := PhysicsRayQueryParameters3D.create(Vector3(gx, h0g + hh, gz), Vector3(gx + cos(aa) * 12.0, h0g + hh, gz + sin(aa) * 12.0))
+					if not get_world_3d().direct_space_state.intersect_ray(q0).is_empty():
+						blocked = true
+			if blocked:
+				continue
+			if bump < best_bump:
+				best_bump = bump
+				flat = Vector2(gx, gz)
+	return flat
+
+
+## PUBG-style aiming: the touch shot goes to the crosshair (not the nearest enemy), aim assist drifts onto an
+## enemy near the crosshair, the scope zooms and slows the look.
+func _selftest_pubg_aim(fails: PackedStringArray) -> void:
+	items.give("bow")
+	items.equip("bow")
+	var fs := _flat_spot()
+	_teleport(fs.x, fs.y)
+	for i in 10:
+		await get_tree().physics_frame
+	player.crosshair_aim = true
+	var near := combat.spawn_enemy(player.global_position + Vector3(4.0, 0, -2.0), false, 0.0, "decoy")
+	var far := combat.spawn_enemy(player.global_position + Vector3(-6.0, 0, -11.0), false, 0.0, "aimed")
+	near.set_physics_process(false)
+	far.set_physics_process(false)
+	var hn: float = near.hp
+	var hf: float = far.hp
+	for it in 4:
+		var ch: Vector3 = far.global_position + Vector3(0, Arrow.chest_height(far), 0)
+		var dv: Vector3 = ch - player.camera.global_position
+		player.set_look(atan2(-dv.x, -dv.z), atan2(dv.y, Vector2(dv.x, dv.z).length()))
+		await get_tree().physics_frame
+	player._attack_cd = 0.0
+	player.begin_aim()
+	await get_tree().physics_frame
+	player.release_aim()                       # a quick tap
+	await get_tree().create_timer(1.6).timeout
+	var note := "tap: aimed %.0f -> %.0f, decoy %.0f -> %.0f" % [hf, far.hp, hn, near.hp]
+	if far.hp >= hf or near.hp < hn:
+		fails.append("pubg aim: the tap did not go to the crosshair target (" + note + ")")
+	# aim assist: 3 degrees off the decoy, while dragging the view drifts onto it
+	var ch2: Vector3 = near.global_position + Vector3(0, Arrow.chest_height(near), 0)
+	for it2 in 4:
+		var dv2: Vector3 = ch2 - player.camera.global_position
+		player.set_look(atan2(-dv2.x, -dv2.z) + 0.025, atan2(dv2.y, Vector2(dv2.x, dv2.z).length()))
+		await get_tree().physics_frame
+	var off0 := (-player.camera.global_transform.basis.z).angle_to((ch2 - player.camera.global_position).normalized())
+	for i in 40:
+		player._looking_t = 0.0
+		await get_tree().physics_frame
+	var off1 := (-player.camera.global_transform.basis.z).angle_to((ch2 - player.camera.global_position).normalized())
+	note += ", assist %.1f -> %.1f deg, red %s" % [rad_to_deg(off0), rad_to_deg(off1), player._assist != null]
+	if player._assist == null or off1 >= off0 * 0.8:
+		fails.append("pubg aim: aim assist did not pull onto a nearby enemy (" + note + ")")
+	# scope: zoomed in, slower look
+	var fov0 := player.camera.fov
+	player.toggle_scope()
+	for i in 30:
+		await get_tree().physics_frame
+	var fov1 := player.camera.fov
+	player._assist = null
+	player.aim_assist_on = false
+	var y0 := player._yaw
+	player.add_look(Vector2(100, 0))
+	var turned := absf(player._yaw - y0)
+	player.toggle_scope()
+	var y1 := player._yaw
+	player.add_look(Vector2(100, 0))
+	var turned_hip := absf(player._yaw - y1)
+	player.aim_assist_on = true
+	note += ", scope fov %.0f -> %.0f, look %.3f vs %.3f" % [fov0, fov1, turned, turned_hip]
+	if fov1 > fov0 - 8.0 or turned >= turned_hip * 0.8:
+		fails.append("pubg aim: the scope did not zoom and slow the look (" + note + ")")
+	for e in [near, far]:
+		if is_instance_valid(e):
+			e.queue_free()
+	items.unequip("weapon")
+	player.set_weapon("fists")
+	print("[selftest] pubg aim: " + note)
+
+
 ## Horseback archery, whistling for your horse, and riding out onto the Southern Road.
 func _selftest_horse(fails: PackedStringArray) -> void:
 	var horse: Animal = null
@@ -3690,31 +3792,8 @@ func _selftest_horse(fails: PackedStringArray) -> void:
 	if is_instance_valid(tgt):
 		tgt.queue_free()
 	# aim sweep: targets all round the horse; the bow arm must point at each one and every arrow must land
-	# the flattest open ground nearby, so hills do not catch the test arrows
-	var flat := Vector2(150.0, 60.0)
-	var best_bump := INF
-	for gx in range(-160, 170, 20):
-		for gz in range(-160, 170, 20):
-			var h0g := terrain.sample_height(gx, gz)
-			var bump := 0.0
-			for k in 12:
-				var aa := TAU * k / 12.0
-				for rr in [5.0, 11.0]:
-					bump = maxf(bump, absf(terrain.sample_height(gx + cos(aa) * rr, gz + sin(aa) * rr) - h0g))
-			if bump >= best_bump:
-				continue
-			var blocked := false               # nothing built or growing within 12 m at bow height, all round
-			for k in 16:
-				var aa := TAU * k / 16.0
-				for hh in [0.4, 1.2, 2.4]:
-					var q0 := PhysicsRayQueryParameters3D.create(Vector3(gx, h0g + hh, gz), Vector3(gx + cos(aa) * 12.0, h0g + hh, gz + sin(aa) * 12.0))
-					if not get_world_3d().direct_space_state.intersect_ray(q0).is_empty():
-						blocked = true
-			if blocked:
-				continue
-			if bump < best_bump:
-				best_bump = bump
-				flat = Vector2(gx, gz)
+	var flat := _flat_spot()
+	var best_bump := 0.0
 	horse.global_position = Vector3(flat.x, terrain.sample_height(flat.x, flat.y), flat.y)
 	note += ", sweep ground bump %.1f m" % best_bump
 	for i in 10:
@@ -3934,6 +4013,35 @@ func _run_probe_ghost() -> void:
 			if sec >= 3 and frames % 20 == 0:
 				player.attack()
 		print("[probe] s%d changed %d nodes %d (+%d) frames %d alive %d" % [sec, counts["changed"] - c0, get_tree().get_node_count(), get_tree().get_node_count() - n0, frames, (mm.get("alive") as Array).size()])
+	get_tree().quit()
+
+
+func _run_capture_pubg(dir: String) -> void:
+	DirAccess.make_dir_recursive_absolute(dir)
+	atmosphere.time_of_day = 0.42
+	atmosphere.apply_time()
+	var fs := _flat_spot()
+	_teleport(fs.x, fs.y)
+	items.give("bow")
+	items.equip("bow")
+	var g := Monster.new()
+	g.player = player
+	add_child(g)
+	g.setup_monster("ghost", player.global_position + Vector3(0, 0, -12.0), "capghost")
+	g.set_physics_process(false)
+	for i in 30:
+		await get_tree().physics_frame
+	for k in 2:
+		for it in 4:
+			var ch: Vector3 = g.global_position + Vector3(0, Arrow.chest_height(g), 0)
+			var dv: Vector3 = ch - player.camera.global_position
+			player.set_look(atan2(-dv.x, -dv.z) + 0.015, atan2(dv.y, Vector2(dv.x, dv.z).length()))
+			await get_tree().physics_frame
+		for i in 30:
+			await get_tree().physics_frame
+		await RenderingServer.frame_post_draw
+		get_viewport().get_texture().get_image().save_png("%s/%s.png" % [dir, ["a_hip", "b_scope"][k]])
+		player.toggle_scope()
 	get_tree().quit()
 
 
