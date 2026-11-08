@@ -26,6 +26,7 @@ var _caption: Label
 var _impact: ColorRect
 var _skip_hint: Label
 var _replay_box: HBoxContainer
+var xp_info: Array = []   ## [xp gained, levels gained, coins] for the next result screen
 var _replay_tween: Tween
 
 const IMPACT_SHADER := """
@@ -416,6 +417,12 @@ func show_result(ranking: Array, reward := 0, total := 0, achievements: Array = 
 	count.tween_method(func(v: float) -> void: _coin_label.text = "+%d" % int(v), 0.0, float(reward), 1.2).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
 	count.tween_callback(func() -> void:
 		var lines: Array[String] = [tr("Treasury: %d coins") % total]
+		if not xp_info.is_empty():
+			var xp_line: String = tr("+%d XP") % xp_info[0]
+			if int(xp_info[1]) > 0:
+				xp_line += "   " + tr("Level up! Level %d (+%d coins)") % [Progress.level(), xp_info[2]]
+			lines.append(xp_line)
+			xp_info = []
 		for id in achievements:
 			var a: Array = Progress.ACHIEVEMENTS[id]
 			lines.append(tr("Achievement unlocked: %s  (+%d)") % [tr(a[0]), a[2]])

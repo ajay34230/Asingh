@@ -34,6 +34,18 @@ func _init() -> void:
 	var s := Progress.stats()
 	_check("stats add up", s["games"] == 2 and s["wins"] == 1 and s["captures"] == 3 and s["lost"] == 2 and s["streak"] == 0 and s["best_streak"] == 1)
 
+	_check("level 1 at 0 xp", Progress.level_for(0) == 1 and Progress.level_for(119) == 1 and Progress.level_for(120) == 2 and Progress.level_for(360) == 3)
+	var c0 := Progress.coins()
+	var r := Progress.add_game_xp({"won": true, "captures": 2, "home": 4})
+	_check("win xp = 50+100+20+60", r[0] == 230)
+	_check("level-up pays 100 x level", r[1] == 1 and Progress.coins() == c0 + 200)
+	Progress.set_title("first_win")
+	_check("title from unlocked achievement", Progress.title() == "first_win")
+	Progress.set_title("wins_10")
+	_check("locked title refused", Progress.title() == "first_win")
+	Progress.set_player_name("  Arjun  ")
+	_check("name trimmed", Progress.player_name() == "Arjun")
+
 	DirAccess.remove_absolute(ProjectSettings.globalize_path(path))
 	if not backup.is_empty():
 		var f := FileAccess.open(path, FileAccess.WRITE)

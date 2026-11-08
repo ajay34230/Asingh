@@ -200,9 +200,17 @@ func _ready() -> void:
 	elif menu_shot != "" and "--menu-play" in args:
 		_screenshot_and_quit(menu_shot)
 	elif menu_shot != "":
-		if "--menu-page=settings" in args:
-			menu.show_page("settings")
+		var page := _arg_value(args, "--menu-page") if _has_arg("--menu-page=") else ""
+		if page == "settings":
 			_load_settings_page()
+		elif page == "profile":
+			menu._refresh_profile()
+		elif page == "themes":
+			menu._refresh_themes()
+		elif page == "rewards":
+			menu._refresh_rewards()
+		if page != "":
+			menu.show_page(page)
 		_screenshot_and_quit(menu_shot)
 
 
@@ -563,6 +571,8 @@ func _on_game_finished(ranking: Array) -> void:
 		t["place"] = humans[0]["place"]
 		t["difficulty"] = game.difficulty
 		unlocked = Progress.record_game(t)
+		var lv := Progress.add_game_xp(t)
+		hud.xp_info = lv
 		total = Progress.coins()
 	_celebrate(ranking)
 	## Let the 3D celebration play before the results panel slides in.

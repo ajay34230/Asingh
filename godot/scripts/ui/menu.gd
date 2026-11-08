@@ -83,6 +83,7 @@ func _ready() -> void:
 	_build_howto()
 	_build_themes()
 	_build_rewards()
+	_build_profile()
 	show_page("main")
 
 
@@ -329,12 +330,12 @@ func _build_main() -> void:
 	var panel := PanelContainer.new()
 	panel.anchor_left = 0.6
 	panel.anchor_right = 0.96
-	panel.anchor_top = 0.08
-	panel.anchor_bottom = 0.92
+	panel.anchor_top = 0.03
+	panel.anchor_bottom = 0.97
 	root.add_child(panel)
 	var box := VBoxContainer.new()
 	box.alignment = BoxContainer.ALIGNMENT_CENTER
-	box.add_theme_constant_override("separation", 12)
+	box.add_theme_constant_override("separation", 6)
 	panel.add_child(box)
 	UiFx.ornaments(panel)
 	_panels["main"] = panel
@@ -347,9 +348,12 @@ func _build_main() -> void:
 		start_game.emit({"mode": "team", "players": 4, "difficulty": GameSettings.get_option("difficulty"), "rules": rules}))
 	_button(box, "Royal Bazaar", func() -> void: _refresh_themes(); show_page("themes"))
 	_button(box, "Rewards", func() -> void: _refresh_rewards(); show_page("rewards"))
+	_button(box, "Profile", func() -> void: _refresh_profile(); show_page("profile"))
 	_button(box, "How to play", func() -> void: show_page("howto"))
 	_button(box, "Settings", func() -> void: _load_settings_into_controls(); show_page("settings"))
 	_button(box, "Quit", func() -> void: quit_requested.emit())
+	for b in box.get_children():
+		(b as Button).custom_minimum_size = Vector2(0, 44)   # ten choices must fit a phone screen
 
 
 func _build_setup() -> void:
@@ -520,9 +524,121 @@ func _refresh_rewards() -> void:
 		_rewards_box.add_child(row)
 
 
+var _profile_box: VBoxContainer
+
+
+func _build_profile() -> void:
+	_profile_box = _scroll_page("profile", "Profile")
+	var page_box: VBoxContainer = _profile_box.get_parent().get_parent()
+	_button(page_box, "Back", func() -> void: _back())
+
+
+func _refresh_profile() -> void:
+	for c in _profile_box.get_children():
+		c.queue_free()
+	var frame: Array = Progress.frame()
+	## Header: medallion in the frame colour, name field, level and XP bar.
+	var head := HBoxContainer.new()
+	head.add_theme_constant_override("separation", 18)
+	_profile_box.add_child(head)
+	var medal := Medallion.new()
+	medal.custom_minimum_size = Vector2(96, 96)
+	medal.ring = frame[2]
+	medal.label = str(Progress.level())
+	head.add_child(medal)
+	var col := VBoxContainer.new()
+	col.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	head.add_child(col)
+	var name_edit := LineEdit.new()
+	name_edit.text = Progress.player_name()
+	name_edit.max_length = 16
+	name_edit.placeholder_text = tr("Your name")
+	name_edit.text_submitted.connect(func(t: String) -> void: Progress.set_player_name(t))
+	name_edit.focus_exited.connect(func() -> void: Progress.set_player_name(name_edit.text))
+	col.add_child(name_edit)
+	var lv := Label.new()
+	var t := Progress.title()
+	lv.text = tr("Level %d") % Progress.level() + "   ·   " + tr(frame[1]) + ("   ·   " + tr(Progress.ACHIEVEMENTS[t][0]) if t != "" else "")
+	lv.add_theme_color_override("font_color", frame[2])
+	col.add_child(lv)
+	var prog := Progress.level_progress()
+	var bar := ProgressBar.new()
+	bar.max_value = prog[1]
+	bar.value = prog[0]
+	bar.show_percentage = false
+	bar.custom_minimum_size = Vector2(0, 16)
+	col.add_child(bar)
+	var xl := Label.new()
+	xl.text = tr("%d / %d XP to the next level") % [prog[0], prog[1]]
+	xl.add_theme_font_size_override("font_size", 17)
+	col.add_child(xl)
+	## Title picker (from unlocked achievements).
+	var titles := ["(none)"]
+	var ids := [""]
+	for id in Progress.unlocked():
+		titles.append(Progress.ACHIEVEMENTS[id][0])
+		ids.append(id)
+	var pick := _option(_profile_box, "Title", titles)
+	pick.select(maxi(0, ids.find(Progress.title())))
+	pick.item_selected.connect(func(i: int) -> void:
+		Progress.set_title(ids[i])
+		_refresh_profile())
+	## Badge gallery: a medallion per achievement, gold when earned.
+	var gl := Label.new()
+	gl.text = tr("Badges")
+	gl.add_theme_font_size_override("font_size", 26)
+	gl.add_theme_color_override("font_color", RoyalTheme.GOLD_LIGHT)
+	_profile_box.add_child(gl)
+	var grid := GridContainer.new()
+	grid.columns = 6
+	grid.add_theme_constant_override("h_separation", 10)
+	grid.add_theme_constant_override("v_separation", 10)
+	_profile_box.add_child(grid)
+	var have := Progress.unlocked()
+	for id in Progress.ACHIEVEMENTS:
+		var cell := VBoxContainer.new()
+		cell.custom_minimum_size = Vector2(96, 0)
+		var m := Medallion.new()
+		m.custom_minimum_size = Vector2(70, 70)
+		m.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+		m.ring = Color("#ffd24a") if have.has(id) else Color(0.4, 0.33, 0.28)
+		m.label = String(Progress.ACHIEVEMENTS[id][0]).left(1)
+		m.dim = not have.has(id)
+		cell.add_child(m)
+		var nl := Label.new()
+		nl.text = tr(Progress.ACHIEVEMENTS[id][0])
+		nl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		nl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		nl.add_theme_font_size_override("font_size", 14)
+		cell.add_child(nl)
+		grid.add_child(cell)
+
+
+## A drawn gold medallion: rim, rays, inner disc and a letter or number.
+class Medallion extends Control:
+	var ring := Color("#ffd24a")
+	var label := ""
+	var dim := false
+
+	func _draw() -> void:
+		var c := size * 0.5
+		var r := minf(size.x, size.y) * 0.48
+		draw_circle(c + Vector2(0, 3), r, Color(0, 0, 0, 0.45))
+		for i in range(16):
+			var a := TAU * i / 16.0
+			draw_line(c + Vector2(cos(a), sin(a)) * r * 0.62, c + Vector2(cos(a), sin(a)) * r, ring.darkened(0.25), 3.0, true)
+		draw_circle(c, r * 0.78, ring)
+		draw_circle(c, r * 0.64, Color("#5a0d17") if not dim else Color(0.18, 0.12, 0.1))
+		draw_arc(c, r * 0.64, 0, TAU, 40, ring.lightened(0.3), 2.0, true)
+		var font := get_theme_default_font()
+		var fs := int(r * 0.7)
+		var w := font.get_string_size(label, HORIZONTAL_ALIGNMENT_LEFT, -1, fs).x
+		draw_string(font, c + Vector2(-w * 0.5, fs * 0.35), label, HORIZONTAL_ALIGNMENT_LEFT, -1, fs, ring.lightened(0.2) if not dim else Color(0.5, 0.45, 0.4))
+
+
 func _update_coin_badge() -> void:
 	if _coin_badge:
-		_coin_badge.text = tr("%d coins") % Progress.coins()
+		_coin_badge.text = "%s  ·  %s  ·  %s" % [Progress.player_name(), tr("Level %d") % Progress.level(), tr("%d coins") % Progress.coins()]
 
 
 func _build_howto() -> void:

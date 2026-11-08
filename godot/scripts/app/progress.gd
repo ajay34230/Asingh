@@ -195,3 +195,80 @@ static func equipped(kind: String) -> String:
 static func equip(id: String) -> void:
 	if owns(id):
 		_store("equip_" + String(SHOP[id][0]), id)
+
+
+# --- profile: name, XP, level, title -------------------------------------------------
+
+const FRAMES := [[1, "Bronze", Color("#cd7f45")], [5, "Silver", Color("#d8dde6")], [10, "Gold", Color("#ffd24a")], [20, "Royal", Color("#ff5ab0")]]
+
+
+static func player_name() -> String:
+	return String(_load("name", "Player"))
+
+
+static func set_player_name(n: String) -> void:
+	n = n.strip_edges().substr(0, 16)
+	_store("name", n if n != "" else "Player")
+
+
+static func xp() -> int:
+	return int(_load("xp", 0))
+
+
+## Level from total XP: each level needs 120 more XP than the last (120, 240, 360, ...).
+static func level_for(total: int) -> int:
+	var lvl := 1
+	var need := 120
+	var left := total
+	while left >= need:
+		left -= need
+		lvl += 1
+		need += 120
+	return lvl
+
+
+## [xp into this level, xp needed for the next]
+static func level_progress() -> Array:
+	var left := xp()
+	var need := 120
+	while left >= need:
+		left -= need
+		need += 120
+	return [left, need]
+
+
+static func level() -> int:
+	return level_for(xp())
+
+
+static func frame() -> Array:
+	var f: Array = FRAMES[0]
+	for row in FRAMES:
+		if level() >= int(row[0]):
+			f = row
+	return f
+
+
+## XP for a finished game; returns [gained, levels_gained, coins_from_levels].
+static func add_game_xp(game: Dictionary) -> Array:
+	var gained := 50 + (100 if game.get("won", false) else 0) + 10 * int(game.get("captures", 0)) + 15 * int(game.get("home", 0))
+	var before := level()
+	_store("xp", xp() + gained)
+	var after := level()
+	var coins := 0
+	for l in range(before + 1, after + 1):
+		coins += 100 * l
+	if coins > 0:
+		add_coins(coins)
+	return [gained, after - before, coins]
+
+
+## Titles come from unlocked achievements.
+static func title() -> String:
+	var t := String(_load("title", ""))
+	return t if unlocked().has(t) else ""
+
+
+static func set_title(id: String) -> void:
+	if id == "" or unlocked().has(id):
+		_store("title", id)
