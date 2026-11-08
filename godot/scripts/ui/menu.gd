@@ -10,6 +10,7 @@ signal quit_requested
 signal closed
 signal board_theme_changed
 signal campaign_start(index: int)
+signal resume_requested
 
 const HOW_TO_PLAY := """Royal India Ludo
 
@@ -68,6 +69,7 @@ var _relax: CheckButton
 var _mode := "ai"
 var _audio: AudioManager
 var _overlay := false
+var _resume_button: Button
 var _panels := {}
 
 
@@ -125,12 +127,9 @@ func show_page(name: String) -> void:
 	if _panels.has(name) and is_inside_tree():
 		var panel: Control = _panels[name]
 		await get_tree().process_frame   # sizes are ready one frame after showing
+		_fit_scroll(name)
 		UiFx.pop_in(panel)
-		var buttons: Array = []
-		for c in panel.get_child(0).get_children():
-			if c is Button:
-				buttons.append(c)
-		UiFx.cascade(buttons)
+		UiFx.cascade(panel.find_children("*", "Button", true, false).slice(0, 14))
 		if name == "main" and _logo:
 			_logo.modulate.a = 0.0
 			_logo.position.x -= 60.0
@@ -139,22 +138,73 @@ func show_page(name: String) -> void:
 			t.tween_property(_logo, "position:x", _logo.position.x + 60.0, 0.7).set_trans(Tween.TRANS_QUART).set_ease(Tween.EASE_OUT)
 
 
+## Every page: a panel with a close (X) button and a scrolling content area. Pages that
+## fit need no scrolling; longer ones scroll by swiping or by the gold scrollbar.
+var _scrolls := {}
+
+
 func _page_root(name: String) -> VBoxContainer:
 	var center := CenterContainer.new()
 	center.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	center.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	add_child(center)
 	var panel := PanelContainer.new()
-	panel.custom_minimum_size = Vector2(440, 0)
+	panel.custom_minimum_size = Vector2(480, 0)
 	center.add_child(panel)
+	var frame := VBoxContainer.new()
+	frame.add_theme_constant_override("separation", 8)
+	panel.add_child(frame)
+	var top := HBoxContainer.new()
+	var spacer := Control.new()
+	spacer.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	top.add_child(spacer)
+	var close := Button.new()
+	close.text = "X"
+	close.custom_minimum_size = Vector2(52, 52)
+	close.tooltip_text = "Close"
+	close.pressed.connect(func() -> void:
+		if _audio:
+			_audio.play("ui_click", 0.03)
+		_back())
+	top.add_child(close)
+	frame.add_child(top)
+	var scroll := ScrollContainer.new()
+	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	scroll.scroll_deadzone = 10
+	scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	frame.add_child(scroll)
 	var box := VBoxContainer.new()
+	box.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	box.add_theme_constant_override("separation", 10)
-	panel.add_child(box)
+	scroll.add_child(box)
 	UiFx.ornaments(panel)
 	_panels[name] = panel
 	_pages[name] = center
+	_scrolls[name] = scroll
 	center.visible = false
 	return box
+
+
+## Fits a page's scroll area to its content, up to most of the screen height.
+## The page frame (outside the scroll area) that holds a scroll page's content.
+static func _frame_of(inner: Control) -> VBoxContainer:
+	var n: Node = inner
+	while n and not (n is ScrollContainer):
+		n = n.get_parent()
+	return n.get_parent() as VBoxContainer
+
+
+func _fit_scroll(name: String) -> void:
+	if not _scrolls.has(name):
+		return
+	var scroll: ScrollContainer = _scrolls[name]
+	var content: Control = scroll.get_child(0)
+	var panel: Control = _panels[name]
+	## Room left for the list = screen height minus everything else on the panel.
+	var overhead := panel.get_combined_minimum_size().y - scroll.get_combined_minimum_size().y
+	var limit := get_viewport_rect().size.y * 0.95 - overhead
+	scroll.custom_minimum_size = Vector2(maxf(600.0, content.get_combined_minimum_size().x), clampf(content.get_combined_minimum_size().y, 120.0, maxf(limit, 120.0)))
+	scroll.scroll_vertical = 0
 
 
 func _title(box: VBoxContainer, text: String) -> void:
@@ -176,6 +226,7 @@ func _button(box: VBoxContainer, text: String, callback: Callable, enabled := tr
 		if _audio:
 			_audio.play("ui_click", 0.03))
 	b.pressed.connect(callback)
+	b.mouse_filter = Control.MOUSE_FILTER_PASS   # a swipe that starts on a button still scrolls
 	box.add_child(b)
 	UiFx.button(b)
 	return b
@@ -354,6 +405,8 @@ func _build_main() -> void:
 	panel.add_child(box)
 	UiFx.ornaments(panel)
 	_panels["main"] = panel
+	_resume_button = _button(box, "Resume game", func() -> void: resume_requested.emit())
+	_resume_button.visible = false
 	_button(box, "Royal Journey", func() -> void: _refresh_journey(); show_page("journey"))
 	_button(box, "Play vs AI", func() -> void: _open_setup("ai"))
 	_button(box, "Pass and play", func() -> void: _open_setup("pass"))
@@ -382,7 +435,7 @@ func _build_setup() -> void:
 
 func _build_settings() -> void:
 	var box := _scroll_page("settings", "Settings")
-	var page_box: VBoxContainer = box.get_parent().get_parent()
+	var page_box: VBoxContainer = _frame_of(box)
 	_graphics = _option(box, "Graphics", ["Low", "Medium", "High"])
 	_camera = _check(box, "Tilted 3D camera", true)
 	_anim = _option(box, "Animation speed", ["Slow", "Normal", "Fast"])
@@ -416,24 +469,29 @@ var _coin_badge: Label
 
 
 func _scroll_page(name: String, title: String) -> VBoxContainer:
+	## The title sits above the scrolling list; Back goes below it (callers use the frame).
 	var box := _page_root(name)
-	_title(box, title)
-	var scroll := ScrollContainer.new()
-	scroll.custom_minimum_size = Vector2(640, 430)
-	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
-	box.add_child(scroll)
-	var inner := VBoxContainer.new()
-	inner.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	inner.add_theme_constant_override("separation", 8)
-	scroll.add_child(inner)
-	return inner
+	var frame: VBoxContainer = box.get_parent().get_parent()
+	var head := Label.new()
+	head.text = title
+	head.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	head.add_theme_font_size_override("font_size", 40)
+	head.add_theme_color_override("font_color", RoyalTheme.GOLD_LIGHT)
+	head.add_theme_constant_override("outline_size", 10)
+	frame.add_child(head)
+	frame.move_child(head, 1)
+	var holder := VBoxContainer.new()   # keeps get_parent().get_parent() == frame for callers
+	holder.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	holder.add_theme_constant_override("separation", 8)
+	box.add_child(holder)
+	return holder
 
 
 ## Royal Bazaar: themes, dice and token skins. Owned items are equipped with a tap;
 ## others are bought with coins.
 func _build_themes() -> void:
 	var inner := _scroll_page("themes", "Royal Bazaar")
-	var page_box: VBoxContainer = inner.get_parent().get_parent()
+	var page_box: VBoxContainer = _frame_of(inner)
 	_shop_coins = Label.new()
 	_shop_coins.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	_shop_coins.add_theme_color_override("font_color", RoyalTheme.GOLD_LIGHT)
@@ -492,7 +550,7 @@ func _refresh_themes() -> void:
 ## Rewards: daily reward, achievements and lifetime stats.
 func _build_rewards() -> void:
 	_rewards_box = _scroll_page("rewards", "Rewards")
-	var page_box: VBoxContainer = _rewards_box.get_parent().get_parent()
+	var page_box: VBoxContainer = _frame_of(_rewards_box)
 	_button(page_box, "Back", func() -> void: _back())
 
 
@@ -586,7 +644,92 @@ func _build_modes() -> void:
 		d.add_theme_font_size_override("font_size", 16)
 		d.add_theme_color_override("font_color", Color("#e8cfa0"))
 		box.add_child(d)
+	_button(box, "Play with friends (Wi-Fi)", func() -> void: _open_lan())
 	_button(box, "Back", func() -> void: _back())
+
+
+var net: NetPlay
+var _lan_box: VBoxContainer
+var _lan_hosts: VBoxContainer
+var _lan_lobby: Label
+var _lan_start: Button
+var _lan_ip: LineEdit
+var _lan_status: Label
+
+
+func _build_lan() -> void:
+	_lan_box = _scroll_page("lan", "Play with friends")
+	var page_box: VBoxContainer = _frame_of(_lan_box)
+	_lan_status = Label.new()
+	_lan_status.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	_lan_status.custom_minimum_size = Vector2(600, 0)
+	_lan_box.add_child(_lan_status)
+	_button(_lan_box, "Host a game", func() -> void:
+		if net.host(Progress.player_name()) == OK:
+			_lan_status.text = tr("Hosting. Friends on the same Wi-Fi can join. Your address: %s") % NetPlay.local_address()
+		else:
+			_lan_status.text = tr("Could not host a game"))
+	var found := Label.new()
+	found.text = tr("Games nearby")
+	found.add_theme_color_override("font_color", RoyalTheme.GOLD_LIGHT)
+	_lan_box.add_child(found)
+	_lan_hosts = VBoxContainer.new()
+	_lan_box.add_child(_lan_hosts)
+	var row := HBoxContainer.new()
+	_lan_ip = LineEdit.new()
+	_lan_ip.placeholder_text = "192.168.1.20"
+	_lan_ip.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	row.add_child(_lan_ip)
+	var join := Button.new()
+	join.text = "Join"
+	join.pressed.connect(func() -> void: _join(_lan_ip.text.strip_edges()))
+	row.add_child(join)
+	_lan_box.add_child(row)
+	_lan_lobby = Label.new()
+	_lan_box.add_child(_lan_lobby)
+	_lan_start = _button(_lan_box, "Start the game", func() -> void:
+		var rules := GameSettings.get_rules()
+		for k in ["quick_end", "teams", "snakes", "powerups", "blitz"]:
+			rules[k] = false
+		net.start(GameSettings.get_option("difficulty"), rules, 4 if net._players.size() > 2 else 2))
+	_lan_start.visible = false
+	_button(page_box, "Back", func() -> void:
+		net.discover(false)
+		net.leave()
+		_back())
+	net.hosts_found.connect(_show_hosts)
+	net.lobby_changed.connect(func(players: Array) -> void:
+		var names: Array[String] = []
+		for pl in players:
+			names.append(String(pl["name"]))
+		_lan_lobby.text = tr("Players: %s") % ", ".join(names)
+		_lan_start.visible = net.is_host and players.size() >= 2)
+	net.disconnected.connect(func(reason: String) -> void: _lan_status.text = tr(reason))
+
+
+func _open_lan() -> void:
+	_lan_status.text = tr("Host a game, or join a friend's game on the same Wi-Fi.")
+	_lan_lobby.text = ""
+	_lan_start.visible = false
+	net.discover(true)
+	show_page("lan")
+
+
+func _join(address: String) -> void:
+	if address == "":
+		return
+	if net.join(address, Progress.player_name()) == OK:
+		_lan_status.text = tr("Joining %s... the host will start the game.") % address
+	else:
+		_lan_status.text = tr("Could not connect")
+
+
+func _show_hosts(hosts: Array) -> void:
+	for c in _lan_hosts.get_children():
+		c.queue_free()
+	for h in hosts:
+		var addr: String = h["ip"]
+		_button(_lan_hosts, "%s   (%d)" % [h["name"], h["players"]], func() -> void: _join(addr))
 
 
 var _journey_box: VBoxContainer
@@ -594,7 +737,7 @@ var _journey_box: VBoxContainer
 
 func _build_journey() -> void:
 	_journey_box = _scroll_page("journey", "Royal Journey")
-	var page_box: VBoxContainer = _journey_box.get_parent().get_parent()
+	var page_box: VBoxContainer = _frame_of(_journey_box)
 	_button(page_box, "Back", func() -> void: _back())
 
 
@@ -639,7 +782,7 @@ var _profile_box: VBoxContainer
 
 func _build_profile() -> void:
 	_profile_box = _scroll_page("profile", "Profile")
-	var page_box: VBoxContainer = _profile_box.get_parent().get_parent()
+	var page_box: VBoxContainer = _frame_of(_profile_box)
 	_button(page_box, "Back", func() -> void: _back())
 
 
@@ -873,3 +1016,17 @@ func _add_petals() -> void:
 		petals.emission_rect_extents = Vector2(vp.x * 0.6, 10)
 	place.call()
 	get_viewport().size_changed.connect(place)
+
+
+## Shows or hides "Resume game" on the title page (a game is waiting behind the menu).
+func set_resume_available(on: bool) -> void:
+	if _resume_button:
+		_resume_button.visible = on
+
+
+## Android back button: close the current page; on the title page, report false.
+func go_back() -> bool:
+	if _page != "main":
+		_back()
+		return true
+	return false

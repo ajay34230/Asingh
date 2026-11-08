@@ -82,6 +82,20 @@ static func build() -> Theme:
 	t.set_color("font_color", "PopupMenu", CREAM)
 	t.set_color("font_hover_color", "PopupMenu", GOLD_LIGHT)
 	t.set_stylebox("hover", "PopupMenu", _box(Color("#7a0f1e"), GOLD, 0, 6))
+	## Thick gold scrollbars, easy to grab with a thumb.
+	var track2 := _box(Color(0.1, 0.02, 0.03, 0.9), Color("#6a4a1c"), 1, 8)
+	track2.content_margin_left = 9
+	track2.content_margin_right = 9
+	var grab := _box(GOLD, GOLD_LIGHT, 1, 8)
+	grab.content_margin_left = 9
+	grab.content_margin_right = 9
+	var grab_hi := _box(GOLD_LIGHT, Color.WHITE, 1, 8)
+	grab_hi.content_margin_left = 9
+	grab_hi.content_margin_right = 9
+	t.set_stylebox("scroll", "VScrollBar", track2)
+	t.set_stylebox("grabber", "VScrollBar", grab)
+	t.set_stylebox("grabber_highlight", "VScrollBar", grab_hi)
+	t.set_stylebox("grabber_pressed", "VScrollBar", grab_hi)
 	_cached = t
 	return t
 

@@ -20,6 +20,7 @@ var board: RoyalBoard
 var loading: LoadingScreen
 var voice: VoiceManager
 var tutorial: Tutorial
+var net: NetPlay
 var bubbles: SpeechBubbles
 var _last_turn_human := false
 var _decor := {}   ## first decoration of each type, for reactions
@@ -88,6 +89,14 @@ func _ready() -> void:
 	preview.name = "MovePreview"
 	add_child(preview)
 	game.preview = preview
+	net = NetPlay.new()
+	net.name = "Net"
+	add_child(net)
+	net.game = game
+	game.net = net
+	net.game_started.connect(_start_net_game)
+	net.disconnected.connect(func(reason: String) -> void:
+		hud.set_message(tr(reason)))
 	var specials := SpecialSquares.new()
 	specials.name = "SpecialSquares"
 	add_child(specials)
@@ -149,6 +158,8 @@ func _ready() -> void:
 	if "--dice-face" in args:
 		game.dice.setup_face(int(_arg_value(args, "--dice-face")))
 	_build_menu()
+	menu.net = net
+	menu._build_lan()
 	if _demo:
 		Engine.time_scale = 40.0  ## demo only: run the whole game quickly
 		game.fast_mode = true
@@ -198,7 +209,11 @@ func _ready() -> void:
 		effects.fireworks(3.0)
 		effects.confetti(4.0)
 		effects.burst(Vector3(0, 1.0, 0), EffectsManager.GOLD, 60, 3.0, 1.0)
-	if "--showcase" in args:
+	if "--ui-test" in args:
+		_run_ui_test()
+	elif "--net-host-test" in args or "--net-join-test" in args:
+		_run_net_test("--net-host-test" in args)
+	elif "--showcase" in args:
 		_run_showcase()
 	elif _has_arg("--result-shot="):
 		_run_result_shot(_arg_value(args, "--result-shot"))
@@ -224,6 +239,8 @@ func _ready() -> void:
 			menu._refresh_rewards()
 		elif page == "journey":
 			menu._refresh_journey()
+		elif page == "lan":
+			menu._open_lan()
 		if page != "":
 			menu.show_page(page)
 		_screenshot_and_quit(menu_shot)
@@ -233,7 +250,7 @@ func _is_test_launch(args: PackedStringArray) -> bool:
 	for arg in args:
 		if arg.begins_with("--screenshot=") or arg.begins_with("--seed="):
 			return true
-	return "--click-test" in args or "--showcase" in args or _has_arg("--preview-shot=") or _has_arg("--result-shot=") or "--capture-test" in args or "--capture-kick" in args or "--fx-shot" in args or "--dice-face" in args
+	return "--click-test" in args or "--ui-test" in args or "--showcase" in args or "--net-host-test" in args or "--net-join-test" in args or _has_arg("--preview-shot=") or _has_arg("--result-shot=") or "--capture-test" in args or "--capture-kick" in args or "--fx-shot" in args or "--dice-face" in args
 
 
 ## Main menu, settings and pause overlays. The menu sits above the 3D scene.
@@ -251,6 +268,7 @@ func _build_menu() -> void:
 	menu.settings_changed.connect(_apply_settings)
 	menu.quit_requested.connect(func() -> void: get_tree().quit())
 	menu.closed.connect(_on_menu_closed)
+	menu.resume_requested.connect(_resume_game)
 	## A new theme rebuilds the scene; come back to the themes page afterwards.
 	menu.campaign_start.connect(_begin_chapter)
 	menu.board_theme_changed.connect(func() -> void:
@@ -270,6 +288,8 @@ func _build_menu() -> void:
 
 
 func _start_from_menu(config: Dictionary) -> void:
+	get_tree().paused = false
+	menu.set_resume_available(false)
 	var colors: Array[String] = []
 	var players: int = config["players"]
 	if players == 2:
@@ -314,6 +334,134 @@ func _start_new_game() -> void:
 	_start_from_menu(_last_config)
 
 
+## A Wi-Fi game began (on the host and on every friend's phone).
+func _start_net_game(config: Dictionary) -> void:
+	var humans: Array[String] = []
+	for c in config["owners"]:
+		humans.append(c)
+	game._seed = int(config["seed"])
+	menu.visible = false
+	hud.visible = true
+	hud.hide_result()
+	game.dice.visible = true
+	director.stop_attract(1.4)
+	audio.start_music("game")
+	var colors: Array[String] = []
+	colors.assign(config["colors"])
+	game.new_game(colors, humans, config["rules"], int(config["difficulty"]))
+	_last_config = {"mode": "net", "players": colors.size(), "difficulty": config["difficulty"], "rules": config["rules"]}
+	if "--net-host-test" in OS.get_cmdline_user_args() or "--net-join-test" in OS.get_cmdline_user_args():
+		_net_autoplay()
+
+
+## UI test: every menu page opens, fits or scrolls, and closes with X; pause, then main
+## menu, then Resume returns to the same game; the back button pauses and resumes.
+func _run_ui_test() -> void:
+	var failures := [0]
+	var report := func(name: String, cond: bool) -> void:
+		print(("ok   " if cond else "FAIL ") + name)
+		if not cond:
+			failures[0] += 1
+	for i in range(10):
+		await get_tree().process_frame
+	menu.visible = true
+	hud.visible = false
+	for page in ["settings", "themes", "rewards", "profile", "journey", "modes", "howto", "setup", "lan"]:
+		match page:
+			"themes": menu._refresh_themes()
+			"rewards": menu._refresh_rewards()
+			"profile": menu._refresh_profile()
+			"journey": menu._refresh_journey()
+			"settings": menu._load_settings_into_controls()
+			"setup": menu._open_setup("ai")
+			"lan": menu._open_lan()
+		menu.show_page(page)
+		for k in range(4):
+			await get_tree().process_frame
+		var scroll: ScrollContainer = menu._scrolls.get(page)
+		var panel: Control = menu._panels[page]
+		var vp := get_viewport().get_visible_rect().size
+		var fits: bool = panel.size.y <= vp.y + 1.0
+		var content_h: float = scroll.get_child(0).get_combined_minimum_size().y
+		var reachable: bool = content_h <= scroll.size.y + 1.0 or scroll.get_v_scroll_bar().max_value >= content_h - 1.0
+		report.call("%s: panel fits the screen (%d <= %d)" % [page, panel.size.y, vp.y], fits)
+		report.call("%s: all content reachable by scrolling" % page, reachable)
+		var close: Button = null
+		for b in panel.find_children("*", "Button", true, false):
+			if (b as Button).text == "X":
+				close = b
+				break
+		report.call("%s: has a close (X) button" % page, close != null)
+		if close:
+			close.pressed.emit()
+			for k in range(3):
+				await get_tree().process_frame
+			report.call("%s: X returns to the title page" % page, menu._page == "main")
+	## Game, pause, main menu, resume.
+	menu.visible = false
+	hud.visible = true
+	game.fast_mode = true
+	game.new_game(["blue", "green"] as Array[String], ["blue"] as Array[String])
+	game.engine.seats[0]["tokens"] = [5, 0, 0, 0]
+	for k in range(5):
+		await get_tree().process_frame
+	hud.open_pause()
+	report.call("pause opens and pauses", get_tree().paused and hud._pause_panel.visible)
+	_quit_to_menu()
+	for k in range(3):
+		await get_tree().process_frame
+	report.call("main menu keeps the game waiting", menu.visible and get_tree().paused and menu._resume_button.visible)
+	menu._resume_button.pressed.emit()
+	for k in range(3):
+		await get_tree().process_frame
+	report.call("resume returns to the same game", not menu.visible and hud.visible and not get_tree().paused and game.engine.seats[0]["tokens"][0] == 5)
+	_notification(NOTIFICATION_WM_GO_BACK_REQUEST)
+	report.call("back button pauses the game", get_tree().paused and hud._pause_panel.visible)
+	_notification(NOTIFICATION_WM_GO_BACK_REQUEST)
+	report.call("back button again resumes", not get_tree().paused and not hud._pause_panel.visible)
+	print("UI TEST " + ("PASS" if failures[0] == 0 else "FAIL"))
+	get_tree().quit(0 if failures[0] == 0 else 1)
+
+
+## Test harness: two instances on one machine play a full game over the network; each
+## prints the final board, which must match.
+func _run_net_test(hosting: bool) -> void:
+	game.fast_mode = true
+	if hosting:
+		net.host("Host")
+		while net._players.size() < 2:
+			await get_tree().process_frame
+		var seats := int(_arg_value(OS.get_cmdline_user_args(), "--seats")) if _has_arg("--seats=") else 2
+		var rules := {}
+		if _has_arg("--rules="):
+			for r in _arg_value(OS.get_cmdline_user_args(), "--rules").split(","):
+				rules[r] = true
+		net.start(1, rules, seats)
+	else:
+		await get_tree().create_timer(1.0).timeout
+		net.join("127.0.0.1", "Guest")
+
+
+func _net_autoplay() -> void:
+	game.fast_mode = true
+	var frames := 0
+	while game.engine.phase != RulesEngine.PHASE_OVER and frames < 200000:
+		var c := game.current_color()
+		if net.is_local(c) and not game.busy:
+			if game.engine.phase == RulesEngine.PHASE_ROLL and game.dice.rollable:
+				game._on_roll_requested()
+			elif game.awaiting_pick:
+				game.tap_token(c, game._legal[0])
+		await get_tree().process_frame
+		frames += 1
+	var state := []
+	for seat in game.engine.seats:
+		state.append([seat["color"], seat["tokens"]])
+	print("NET RESULT %s ranks=%s" % [str(state), str(game.engine.rankings)])
+	await get_tree().create_timer(1.0).timeout
+	get_tree().quit()
+
+
 ## Royal Journey: switch to the chapter's palace (a scene reload), then play it.
 func _begin_chapter(index: int) -> void:
 	var ch: Dictionary = Campaign.CHAPTERS[index]
@@ -335,12 +483,51 @@ func _start_chapter(index: int) -> void:
 	_start_from_menu(Campaign.config(index))
 
 
+## Main menu from a game: the game waits (paused) behind the title screen, and "Resume
+## game" brings it back. After a Royal Journey chapter the scene reloads to restore
+## the player's own board theme.
 func _quit_to_menu() -> void:
-	get_tree().paused = false
 	if _theme_before != "":
+		get_tree().paused = false
 		BoardThemes.set_current(_theme_before)
 		_theme_before = ""
-	loading.cover(func() -> void: get_tree().reload_current_scene())
+		loading.cover(func() -> void: get_tree().reload_current_scene())
+		return
+	var over := game.engine == null or game.engine.seats.is_empty() or game.engine.phase == RulesEngine.PHASE_OVER
+	get_tree().paused = not over
+	hud.close_pause_silent()
+	hud.visible = false
+	hud.hide_result()
+	menu.set_overlay(false)
+	menu.set_resume_available(not over)
+	menu.visible = true
+	menu._update_coin_badge()
+	menu.show_page("main")
+	director.start_attract(false)
+	audio.start_music("menu")
+
+
+func _resume_game() -> void:
+	menu.visible = false
+	menu.set_resume_available(false)
+	hud.visible = true
+	director.stop_attract(1.0)
+	audio.start_music("game")
+	get_tree().paused = false
+
+
+## Android back button: close a page, pause/resume a game, or leave from the title.
+func _notification(what: int) -> void:
+	if what != NOTIFICATION_WM_GO_BACK_REQUEST:
+		return
+	if menu and menu.visible:
+		if not menu.go_back():
+			if menu._resume_button and menu._resume_button.visible:
+				_resume_game()
+			else:
+				get_tree().quit()
+	elif hud and hud.visible:
+		hud.go_back()
 
 
 func _on_menu_closed() -> void:
@@ -875,6 +1062,7 @@ func _build_camera() -> void:
 	camera = Camera3D.new()
 	camera.name = "BoardCamera"
 	director = CameraDirector.new()
+	director.process_mode = Node.PROCESS_MODE_ALWAYS   # the title-screen orbit runs while a game waits paused
 	director.name = "CameraDirector"
 	add_child(director)
 	director.setup(camera)

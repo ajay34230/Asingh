@@ -51,7 +51,8 @@ var life: TokenLife
 var replay: FightReplay
 var specials: SpecialSquares
 var blitz := false
-var relaxed := false   ## accessibility: slower AI turns   ## set by the main scene for snakes / power-up games
+var relaxed := false
+var net: NetPlay   ## set by the main scene   ## accessibility: slower AI turns   ## set by the main scene for snakes / power-up games
 var forced_roll := -1   ## test/showcase only: the next roll's value
 var _moving_index := 0
 var preview: MovePreview        ## set by the main scene; shows where legal moves land
@@ -249,6 +250,20 @@ func _start_turn() -> void:
 	turn_changed.emit(current_color(), is_human_turn())
 	if director and not fast_mode:
 		_glance(current_color())
+	if net and net.active:
+		## Network game: only this phone's own seat takes input; the host plays the AI.
+		dice.set_rollable(net.is_local(current_color()))
+		if net.is_local(current_color()):
+			message.emit(tr("Your turn: tap the dice"))
+		elif net.is_ai(current_color()):
+			message.emit(tr("%s is rolling") % AiController.PERSONAS[current_color()]["name"])
+			if net.is_host:
+				if not fast_mode:
+					await get_tree().create_timer(AI_DELAY).timeout
+				net.ai_roll()
+		else:
+			message.emit(tr("Waiting for %s") % current_color().capitalize())
+		return
 	if is_human_turn():
 		message.emit(tr("Your turn: tap the dice"))
 		dice.set_rollable(true)
@@ -262,6 +277,11 @@ func _start_turn() -> void:
 
 func _on_roll_requested() -> void:
 	if busy or not is_human_turn() or engine.phase != RulesEngine.PHASE_ROLL:
+		return
+	if net and net.active:
+		if net.is_local(current_color()):
+			dice.set_rollable(false)
+			net.request_roll()
 		return
 	_roll_now()
 
@@ -292,6 +312,22 @@ func _roll_now() -> void:
 		_start_turn()
 		return
 	_legal = outcome["moves"]
+	if net and net.active:
+		## Single choices play themselves on every phone; other choices arrive as actions.
+		if _legal.size() == 1 and not net.is_ai(current_color()):
+			await _execute(_legal[0])
+			return
+		if net.is_local(current_color()):
+			awaiting_pick = true
+			_highlight(true)
+			message.emit(tr("Tap a glowing token"))
+		elif net.is_ai(current_color()) and net.is_host:
+			var pick := AiController.choose_move(engine, _legal, difficulty)
+			if not fast_mode:
+				await get_tree().create_timer(AI_DELAY * 0.6).timeout
+			net.ai_pick(pick)
+		busy = false
+		return
 	if is_human_turn():
 		if _legal.size() == 1:
 			await _execute(_legal[0])
@@ -316,6 +352,8 @@ func _throw_offset(color: String) -> Vector3:
 
 
 func _start_timer() -> void:
+	if net and net.active:
+		return
 	if fast_mode or (turn_seconds <= 0.0 and not blitz):
 		return
 	timer_left = 8.0 if blitz else turn_seconds
@@ -359,6 +397,16 @@ func tap_token(color: String, index: int) -> void:
 	_stop_timer()
 	_highlight(false)
 	event.emit("click", {})
+	if net and net.active:
+		net.request_pick(color, index)
+		return
+	_execute(index)
+
+
+## Network games: a move confirmed by the host.
+func net_execute(index: int) -> void:
+	awaiting_pick = false
+	_highlight(false)
 	_execute(index)
 
 func _execute(token_index: int) -> void:

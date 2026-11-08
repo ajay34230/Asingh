@@ -181,6 +181,22 @@ func _panel(parent: Control) -> Dictionary:
 	var box := VBoxContainer.new()
 	box.add_theme_constant_override("separation", 8)
 	p.add_child(box)
+	## Close (X) in the top-right corner of the panel.
+	var top := HBoxContainer.new()
+	var spacer := Control.new()
+	spacer.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	top.add_child(spacer)
+	var close := Button.new()
+	close.text = "X"
+	close.custom_minimum_size = Vector2(52, 52)
+	close.pressed.connect(func() -> void:
+		button_sound.emit()
+		if p == _pause_panel:
+			close_pause()
+		else:
+			p.visible = false)
+	top.add_child(close)
+	box.add_child(top)
 	UiFx.ornaments(p)
 	return {"panel": p, "box": box}
 
@@ -299,6 +315,10 @@ func open_pause() -> void:
 	_pause_panel.visible = true
 	get_tree().paused = true
 	UiFx.pop_in(_pause_panel)
+
+
+func close_pause_silent() -> void:
+	_pause_panel.visible = false
 
 
 func close_pause() -> void:
@@ -531,3 +551,15 @@ func offer_replay(seconds := 6.0) -> void:
 
 func hide_replay() -> void:
 	_replay_box.visible = false
+
+
+## Android back button during play: close the result panel, toggle pause.
+func go_back() -> bool:
+	if _result.visible:
+		_result.visible = false
+		return true
+	if _pause_panel.visible:
+		close_pause()
+	else:
+		open_pause()
+	return true
