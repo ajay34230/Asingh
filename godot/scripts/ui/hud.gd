@@ -424,6 +424,10 @@ func show_result(ranking: Array, reward := 0, total := 0, achievements: Array = 
 			lines.append(xp_line)
 			xp_info = []
 		for id in achievements:
+			if String(id).begins_with("challenge:"):
+				var c: Array = Festivals.CHALLENGES[String(id).trim_prefix("challenge:")]
+				lines.append(tr("Weekly challenge complete: %s  (+%d)") % [tr(c[0]), c[3]])
+				continue
 			var a: Array = Progress.ACHIEVEMENTS[id]
 			lines.append(tr("Achievement unlocked: %s  (+%d)") % [tr(a[0]), a[2]])
 		_coin_total.text = "\n".join(lines))

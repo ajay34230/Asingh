@@ -27,6 +27,8 @@ var _time := 0.0
 var _night := false
 var _next_firework := 4.0
 var effects: EffectsManager
+var _festival := ""
+var _next_puff := 1.0
 
 
 func _ready() -> void:
@@ -42,8 +44,13 @@ func _ready() -> void:
 		_glint(top + Vector3(0, -0.12, 0))
 	_fountain(Vector3(12.7, RoyalBoard.WING_TOP + 1.05, 0.0))
 	_petals()
-	if _night:
+	_festival = Festivals.current()
+	if _night or _festival == "diwali":
 		_lanterns()
+	if _festival == "christmas":
+		_snow()
+	if _festival == "pongal":
+		_kites()
 
 
 func _process(delta: float) -> void:
@@ -56,7 +63,17 @@ func _process(delta: float) -> void:
 		g.scale = Vector3.ONE * (0.05 + flash * 0.5)
 		g.rotation.z = _time * 1.5
 		g.visible = flash > 0.0
-	if _night and effects:
+	## Festival bursts: Holi colour powder, Independence Day tricolour.
+	if effects and (_festival == "holi" or _festival == "independence"):
+		_next_puff -= delta
+		if _next_puff <= 0.0:
+			_next_puff = randf_range(0.8, 1.6)
+			var palette: Array = [Color("#ff2e88"), Color("#ffd400"), Color("#27c4ff"), Color("#7cff4a"), Color("#a35bff")] if _festival == "holi" \
+				else [Color("#ff9933"), Color.WHITE, Color("#138808")]
+			var at := Vector3(randf_range(-16, 16), randf_range(0.5, 2.0), randf_range(-7, 7))
+			for c in palette:
+				effects.burst(at, c, 70, 3.2, 2.2, -0.6 if _festival == "holi" else 2.0)
+	if (_night or _festival == "diwali") and effects:
 		_next_firework -= delta
 		if _next_firework <= 0.0:
 			_next_firework = randf_range(3.0, 7.0)
@@ -251,3 +268,61 @@ func _lanterns() -> void:
 	lantern.material = lm
 	p.draw_pass_1 = lantern
 	add_child(p)
+
+
+
+## Christmas: soft snow drifting over the board.
+func _snow() -> void:
+	var p := GPUParticles3D.new()
+	p.amount = 300
+	p.lifetime = 10.0
+	p.preprocess = 10.0
+	p.position = Vector3(0, 9.0, 0)
+	p.visibility_aabb = AABB(Vector3(-30, -12, -15), Vector3(60, 24, 30))
+	var mat := ParticleProcessMaterial.new()
+	mat.emission_shape = ParticleProcessMaterial.EMISSION_SHAPE_BOX
+	mat.emission_box_extents = Vector3(24, 0.5, 10)
+	mat.direction = Vector3.DOWN
+	mat.initial_velocity_min = 0.4
+	mat.initial_velocity_max = 0.8
+	mat.gravity = Vector3(0, -0.3, 0)
+	mat.turbulence_enabled = true
+	mat.turbulence_noise_strength = 0.5
+	p.process_material = mat
+	var flake := SphereMesh.new()
+	flake.radius = 0.035
+	flake.height = 0.07
+	flake.radial_segments = 6
+	flake.rings = 3
+	var fm := StandardMaterial3D.new()
+	fm.albedo_color = Color(1, 1, 1)
+	fm.emission_enabled = true
+	fm.emission = Color(0.8, 0.85, 1.0)
+	fm.emission_energy_multiplier = 0.6
+	flake.material = fm
+	p.draw_pass_1 = flake
+	add_child(p)
+
+
+## Sankranti: colourful diamond kites swaying high above the palace.
+func _kites() -> void:
+	var colors := [Color("#ff3b3b"), Color("#ffd400"), Color("#27c4ff"), Color("#7cff4a"), Color("#ff7f27")]
+	for i in range(6):
+		var kite := MeshInstance3D.new()
+		var st := SurfaceTool.new()
+		st.begin(Mesh.PRIMITIVE_TRIANGLES)
+		for v in [Vector3(0, 0.6, 0), Vector3(0.4, 0, 0), Vector3(0, -0.7, 0), Vector3(0, 0.6, 0), Vector3(0, -0.7, 0), Vector3(-0.4, 0, 0)]:
+			st.set_normal(Vector3.BACK)
+			st.add_vertex(v)
+		kite.mesh = st.commit()
+		var m := StandardMaterial3D.new()
+		m.albedo_color = colors[i % colors.size()]
+		m.cull_mode = BaseMaterial3D.CULL_DISABLED
+		m.backlight_enabled = true
+		m.backlight = m.albedo_color * 0.6
+		kite.material_override = m
+		kite.position = Vector3(-15 + i * 6.0, 7.5 + (i % 2) * 1.2, -6.0 + (i % 3) * 1.5)
+		add_child(kite)
+		var t := kite.create_tween().set_loops()
+		t.tween_property(kite, "rotation:z", 0.35, 1.6 + i * 0.2).set_trans(Tween.TRANS_SINE)
+		t.tween_property(kite, "rotation:z", -0.35, 1.6 + i * 0.2).set_trans(Tween.TRANS_SINE)

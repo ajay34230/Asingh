@@ -313,6 +313,15 @@ func _build_main() -> void:
 		r.rotation = 0.0 if part == "line" else PI / 4.0
 		rule.add_child(r)
 	logo.add_child(rule)
+	var fest := Festivals.current()
+	if fest != "":
+		var fl := Label.new()
+		fl.text = tr(Festivals.FESTIVALS[fest][1]) + "\n" + tr("Double coins this festival!")
+		fl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		fl.add_theme_font_size_override("font_size", 24)
+		fl.add_theme_color_override("font_color", Color("#ffd27a"))
+		logo.add_child(fl)
+		logo.move_child(fl, 0)
 	var sub := Label.new()
 	sub.text = "The Game of Maharajas"
 	sub.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
@@ -424,7 +433,7 @@ func _build_themes() -> void:
 	_shop_coins.add_theme_color_override("font_color", RoyalTheme.GOLD_LIGHT)
 	page_box.add_child(_shop_coins)
 	page_box.move_child(_shop_coins, 1)
-	for kind in [["theme", "Board themes"], ["dice", "Dice"], ["tokens", "Your tokens"]]:
+	for kind in [["theme", "Board themes"], ["dice", "Dice"], ["tokens", "Your tokens"], ["victory", "Victory effect"], ["trail", "Dice trail"]]:
 		var head := Label.new()
 		head.text = kind[1]
 		head.add_theme_font_size_override("font_size", 26)
@@ -500,6 +509,27 @@ func _refresh_rewards() -> void:
 	days.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	days.add_theme_font_size_override("font_size", 18)
 	_rewards_box.add_child(days)
+	var fest := Festivals.current()
+	if fest != "":
+		var fl := Label.new()
+		fl.text = tr(Festivals.FESTIVALS[fest][1]) + "  ·  " + tr("Double coins this festival!")
+		fl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		fl.add_theme_color_override("font_color", Color("#ffd27a"))
+		_rewards_box.add_child(fl)
+	var wh := Label.new()
+	wh.text = tr("This week's challenges")
+	wh.add_theme_font_size_override("font_size", 26)
+	wh.add_theme_color_override("font_color", RoyalTheme.GOLD_LIGHT)
+	_rewards_box.add_child(wh)
+	var wp := Festivals.week_progress()
+	for id in Festivals.this_week():
+		var c: Array = Festivals.CHALLENGES[id]
+		var done: bool = (wp.get("done", []) as Array).has(id)
+		var row := Label.new()
+		row.text = ("[done]  " if done else "[    ]  ") + "%s   %d/%d   (+%d)" % [tr(c[0]), mini(int(wp.get(c[2], 0)), int(c[1])), c[1], c[3]]
+		row.add_theme_font_size_override("font_size", 19)
+		row.add_theme_color_override("font_color", Color("#ffe39a") if done else Color("#f3e3c0"))
+		_rewards_box.add_child(row)
 	var st := Progress.stats()
 	var stats := Label.new()
 	stats.text = (tr("Games %d   Wins %d   Win rate %d%%   Best streak %d") % [st["games"], st["wins"], (100 * st["wins"] / maxi(1, st["games"])), st["best_streak"]]) \

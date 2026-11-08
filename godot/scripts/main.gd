@@ -53,6 +53,8 @@ func _ready() -> void:
 			menu_shot = arg.trim_prefix("--menu-screenshot=")
 
 	I18n.setup()
+	if _has_arg("--festival="):
+		Festivals.override = _arg_value(args, "--festival")
 	## Loading screen first, so it is on screen while the palace is built.
 	loading = LoadingScreen.new()
 	add_child(loading)
@@ -398,6 +400,8 @@ func _on_game_event(event_name: String, data: Dictionary) -> void:
 			effects.sparkle_trail(pos + up)
 			if int(data.get("value", 0)) == 6 and not game.fast_mode:
 				_dice_trail(1.3)
+			elif Progress.equipped("trail") != "trail_none" and not game.fast_mode and game.is_human_turn():
+				_dice_trail(1.1, Progress.equipped("trail"))
 			audio.vibrate(15)
 		"roll_land":
 			if game.is_human_turn():
@@ -562,6 +566,7 @@ func _on_game_finished(ranking: Array) -> void:
 			if int(entry.get("team", -1)) >= 0:
 				place = 1 if int(entry["team"]) == int(ranking[0]["team"]) else 3
 			reward = maxi(reward, COIN_REWARD[mini(place - 1, 3)])
+	reward *= Festivals.coin_multiplier()
 	var total := GameSettings.add_coins(reward) if reward > 0 and not _demo else GameSettings.get_coins()
 	var unlocked: Array = []
 	var humans := ranking.filter(func(r: Dictionary) -> bool: return r["human"])
@@ -570,7 +575,10 @@ func _on_game_finished(ranking: Array) -> void:
 		t["won"] = int(humans[0]["place"]) == 1 or (int(humans[0].get("team", -1)) >= 0 and int(humans[0]["team"]) == int(ranking[0]["team"]))
 		t["place"] = humans[0]["place"]
 		t["difficulty"] = game.difficulty
+		t["team"] = int(humans[0].get("team", -1)) >= 0
 		unlocked = Progress.record_game(t)
+		for cid in Festivals.record(t):
+			unlocked.append("challenge:" + cid)
 		var lv := Progress.add_game_xp(t)
 		hud.xp_info = lv
 		total = Progress.coins()
@@ -586,11 +594,13 @@ func _on_game_finished(ranking: Array) -> void:
 
 
 ## Golden sparks streaming behind the dice while it tumbles towards a six.
-func _dice_trail(seconds: float) -> void:
+func _dice_trail(seconds: float, style := "trail_gold") -> void:
 	var model: Node3D = game.dice.get_node("DiceModel")
 	var end := Time.get_ticks_msec() + int(seconds * 1000.0)
+	var colors := {"trail_gold": [EffectsManager.GOLD], "trail_petals": [Color("#ff5f86"), Color("#ffa040")], "trail_stars": [Color("#bfe3ff"), Color.WHITE]}
+	var list: Array = colors.get(style, colors["trail_gold"])
 	while Time.get_ticks_msec() < end and is_instance_valid(model):
-		effects.burst(model.global_position, EffectsManager.GOLD, 6, 0.6, 0.5, 0.5)
+		effects.burst(model.global_position, list.pick_random(), 6, 0.6, 0.5, 0.5 if style != "trail_petals" else -0.3)
 		await get_tree().create_timer(0.06, true, false, true).timeout
 
 
@@ -620,6 +630,23 @@ func _peacock_dance() -> void:
 		t.parallel().tween_property(p, "rotation:y", p.rotation.y + PI * 0.5 * (i + 1), 0.36)
 		t.tween_property(p, "position:y", y, 0.18).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_IN)
 	effects.burst(p.global_position + Vector3(0, 1.5, 0), Color("#29b6a6"), 40, 2.5, 1.2)
+
+
+## Victory effects from the shop.
+func _gold_rain(seconds: float) -> void:
+	var end := Time.get_ticks_msec() + int(seconds * 1000.0)
+	while Time.get_ticks_msec() < end:
+		effects.burst(Vector3(randf_range(-7, 7), 6.0, randf_range(-6, 6)), EffectsManager.GOLD, 14, 0.5, 2.0, 3.0)
+		await get_tree().create_timer(0.08).timeout
+
+
+func _lotus_bloom() -> void:
+	for ring in range(3):
+		for i in range(12):
+			var a := TAU * i / 12.0 + ring * 0.26
+			var at := Vector3(cos(a), 0.0, sin(a)) * (0.8 + ring * 0.9) + Vector3(0, 0.4, 0)
+			effects.burst(at, [Color("#ff7fb0"), Color("#ffd1e3"), EffectsManager.GOLD][ring], 10, 1.4, 1.2, -0.5)
+		await get_tree().create_timer(0.25).timeout
 
 
 ## A token home: each chhatri dome launches a firework.
@@ -699,6 +726,11 @@ func _celebrate(ranking: Array) -> void:
 	director.focus(Vector3(0, 0.3, 0), 1.2, 0.45)
 	_peacock_dance()
 	game.dice.visible = false   # clear the centre for the dance
+	match Progress.equipped("victory"):
+		"victory_goldrain":
+			_gold_rain(4.0)
+		"victory_lotus":
+			_lotus_bloom()
 	for i in range(BoardPath.TOKENS_PER_PLAYER):
 		var token: TransformerToken = game.tokens[color][i]
 		token.transform_out(0.2)

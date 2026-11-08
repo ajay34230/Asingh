@@ -37,6 +37,13 @@ const SHOP := {
 	"tokens_gold": ["tokens", "Gilded tokens", 500],
 	"tokens_silver": ["tokens", "Silver tokens", 400],
 	"tokens_crystal": ["tokens", "Crystal tokens", 800],
+	"victory_fireworks": ["victory", "Fireworks victory", 0],
+	"victory_goldrain": ["victory", "Gold rain victory", 400],
+	"victory_lotus": ["victory", "Lotus bloom victory", 500],
+	"trail_none": ["trail", "No dice trail", 0],
+	"trail_gold": ["trail", "Golden dice trail", 300],
+	"trail_petals": ["trail", "Rose petal dice trail", 350],
+	"trail_stars": ["trail", "Starlight dice trail", 450],
 }
 
 
@@ -188,7 +195,7 @@ static func buy(id: String) -> String:
 
 
 static func equipped(kind: String) -> String:
-	var default := {"dice": "dice_ivory", "tokens": "tokens_classic"}
+	var default := {"dice": "dice_ivory", "tokens": "tokens_classic", "victory": "victory_fireworks", "trail": "trail_none"}
 	return String(_load("equip_" + kind, default.get(kind, "")))
 
 
