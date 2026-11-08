@@ -44,6 +44,15 @@ const SHOP := {
 	"trail_gold": ["trail", "Golden dice trail", 300],
 	"trail_petals": ["trail", "Rose petal dice trail", 350],
 	"trail_stars": ["trail", "Starlight dice trail", 450],
+	"design_classic": ["design", "Classic", 0],
+	"design_raja": ["design", "Raja's Turban", 400],
+	"design_tiger": ["design", "Bengal Tiger", 500],
+	"design_peacock": ["design", "Peacock Crest", 600],
+	"design_lotus": ["design", "Lotus Queen", 800],
+	"design_maharaja": ["design", "Maharaja's Crown", 900],
+	"design_warrior": ["design", "Rajput Warrior", 1000],
+	"design_shadow": ["design", "Shadow Assassin", 2000],
+	"design_surya": ["design", "Surya, the Sun King", 2500],
 }
 
 
@@ -195,7 +204,7 @@ static func buy(id: String) -> String:
 
 
 static func equipped(kind: String) -> String:
-	var default := {"dice": "dice_ivory", "tokens": "tokens_classic", "victory": "victory_fireworks", "trail": "trail_none"}
+	var default := {"dice": "dice_ivory", "tokens": "tokens_classic", "victory": "victory_fireworks", "trail": "trail_none", "design": "design_classic"}
 	return String(_load("equip_" + kind, default.get(kind, "")))
 
 

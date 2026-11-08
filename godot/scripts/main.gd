@@ -702,6 +702,11 @@ func _on_game_event(event_name: String, data: Dictionary) -> void:
 			tutorial.tip("pick")
 			audio.play("token_select")
 		"hop":
+			var walker: Node3D = data.get("token")
+			if walker and walker.find_child("DesignGearAura", false, false) and not game.fast_mode:
+				var col: Color = (walker.get_node("DesignGearAura") as MeshInstance3D).material_override.albedo_color
+				if col.r > 0.9 and col.g > 0.6:   # legendary gold
+					effects.burst(walker.global_position + Vector3(0, 0.3, 0), Color(col, 1.0), 10, 0.8, 0.6, -0.3)
 			audio.play("token_step", 0.1, -2.0)
 		"land":
 			audio.play("token_land")
@@ -1573,6 +1578,18 @@ func _screenshot_and_quit(path: String) -> void:
 		if v.size() == 6:
 			director.set_process(false)
 			camera.look_at_from_position(Vector3(float(v[0]), float(v[1]), float(v[2])), Vector3(float(v[3]), float(v[4]), float(v[5])), Vector3.UP)
+	if "--design-gallery" in OS.get_cmdline_user_args():
+		## All designs in a row on the left wing, for checking them on screen.
+		var ids := TokenDesigns.DESIGNS.keys()
+		var colors := ["blue", "yellow", "green", "red"]
+		for i in range(ids.size()):
+			var t := TransformerToken.new()
+			add_child(t)
+			t.configure(colors[i % 4])
+			t.transform_out(0.01)
+			t.position = Vector3(-16.0 + (i % 5) * 1.25, RoyalBoard.WING_TOP, 2.6 + (i / 5) * 1.6)
+			t.scale = Vector3.ONE * 0.95
+			TokenDesigns.apply(t, ids[i], RoyalBoard.PALETTE[colors[i % 4]])
 	if "--statues" in OS.get_cmdline_user_args():
 		await get_tree().create_timer(1.0).timeout
 		_elephant_salute()

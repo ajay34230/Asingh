@@ -102,6 +102,9 @@ func _spawn_tokens(seat_colors: Array[String]) -> void:
 			token.configure(color)
 			if humans_skin(color):
 				_apply_token_skin(token, Progress.equipped("tokens"))
+			var design := design_for(color)
+			if design != "":
+				TokenDesigns.apply(token, design, RoyalBoard.PALETTE[color])
 			token.scale = Vector3.ONE * TOKEN_SCALE
 			token.add_child(_contact_shadow())
 			var vfx := RoyalTokenVFX.new()
@@ -175,6 +178,19 @@ func _apply_token_skin(token: TransformerToken, skin: String) -> void:
 		_skin_mats[skin] = m
 	for mesh in token.find_children("*", "MeshInstance3D", true, false):
 		(mesh as MeshInstance3D).material_overlay = _skin_mats[skin]
+
+
+## Which design a colour wears: yours on your tokens, each friend's own in Wi-Fi games
+## (net.designs), and a fitting one for each AI ruler so the table looks royal.
+const AI_DESIGNS := {"yellow": "design_lotus", "green": "design_warrior", "red": "design_maharaja", "blue": "design_raja"}
+
+
+func design_for(color: String) -> String:
+	if net and net.active:
+		return String(net.designs.get(color, AI_DESIGNS.get(color, "")))
+	if humans_skin(color) or (human_colors.has(color) and human_colors.size() > 1):
+		return Progress.equipped("design") if humans_skin(color) else ""
+	return AI_DESIGNS.get(color, "")
 
 
 ## Per-game tally for the human player (rewards and achievements).
@@ -441,7 +457,7 @@ func _animate_move(move: Dictionary) -> void:
 	for progress in range(first, last + 1):
 		var step_point := _track_world(color, progress, index)
 		token.ground_y = step_point.y
-		event.emit("hop", {"position": token.global_position})
+		event.emit("hop", {"position": token.global_position, "token": token})
 		if not fast_mode:
 			token.play_walk(_hop() * 0.9)
 		await token.move_to_world(step_point, _hop())

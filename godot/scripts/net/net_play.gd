@@ -22,6 +22,7 @@ var game: GameController
 var active := false            ## a network game is running
 var is_host := false
 var owners := {}               ## colour -> peer id (1 = host); AI colours are absent
+var designs := {}              ## colour -> token design id each player chose
 var _players: Array = []       ## lobby, host first
 var _queue: Array = []         ## pending actions: ["roll", value] / ["pick", colour, index]
 var _beacon: PacketPeerUDP
@@ -34,7 +35,7 @@ var my_name := "Player"
 func _ready() -> void:
 	multiplayer.peer_connected.connect(_on_peer_connected)
 	multiplayer.peer_disconnected.connect(_on_peer_disconnected)
-	multiplayer.connected_to_server.connect(func() -> void: _register.rpc_id(1, my_name))
+	multiplayer.connected_to_server.connect(func() -> void: _register.rpc_id(1, my_name, Progress.equipped("design")))
 	multiplayer.connection_failed.connect(func() -> void: disconnected.emit("Could not connect"))
 	multiplayer.server_disconnected.connect(func() -> void:
 		active = false
@@ -52,7 +53,7 @@ func host(player_name: String) -> Error:
 		return err
 	multiplayer.multiplayer_peer = peer
 	is_host = true
-	_players = [{"id": 1, "name": my_name}]
+	_players = [{"id": 1, "name": my_name, "design": Progress.equipped("design")}]
 	lobby_changed.emit(_players)
 	_beacon = PacketPeerUDP.new()
 	_beacon.set_broadcast_enabled(true)
@@ -107,11 +108,12 @@ static func local_address() -> String:
 
 
 @rpc("any_peer", "reliable")
-func _register(player_name: String) -> void:
+func _register(player_name: String, design := "design_classic") -> void:
 	if not is_host:
 		return
 	var id := multiplayer.get_remote_sender_id()
-	_players.append({"id": id, "name": String(player_name).substr(0, 16)})
+	var d := design if TokenDesigns.DESIGNS.has(design) else "design_classic"
+	_players.append({"id": id, "name": String(player_name).substr(0, 16), "design": d})
 	_sync_lobby.rpc(_players)
 	lobby_changed.emit(_players)
 
@@ -156,15 +158,18 @@ func start(difficulty: int, rules: Dictionary, seats := 4) -> void:
 	if seats == 2:
 		colors = ["blue", "green"]
 	var o := {}
+	var d := {}
 	for i in range(mini(_players.size(), colors.size())):
 		o[colors[i]] = int(_players[i]["id"])
-	var config := {"colors": colors, "owners": o, "seed": randi() % 1000000 + 1, "difficulty": difficulty, "rules": rules}
+		d[colors[i]] = String(_players[i].get("design", "design_classic"))
+	var config := {"colors": colors, "owners": o, "designs": d, "seed": randi() % 1000000 + 1, "difficulty": difficulty, "rules": rules}
 	_begin.rpc(config)
 
 
 @rpc("authority", "reliable", "call_local")
 func _begin(config: Dictionary) -> void:
 	owners = config["owners"]
+	designs = config.get("designs", {})
 	active = true
 	_queue.clear()
 	if _beacon:

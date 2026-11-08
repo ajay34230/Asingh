@@ -464,6 +464,11 @@ func _build_settings() -> void:
 
 var _shop_rows: Dictionary = {}
 var _shop_coins: Label
+var _preview_token: TransformerToken
+var _preview_pivot: Node3D
+var _preview_label: Label
+var _preview_action: Button
+var _preview_id := "design_classic"
 var _rewards_box: VBoxContainer
 var _coin_badge: Label
 
@@ -497,7 +502,8 @@ func _build_themes() -> void:
 	_shop_coins.add_theme_color_override("font_color", RoyalTheme.GOLD_LIGHT)
 	page_box.add_child(_shop_coins)
 	page_box.move_child(_shop_coins, 1)
-	for kind in [["theme", "Board themes"], ["dice", "Dice"], ["tokens", "Your tokens"], ["victory", "Victory effect"], ["trail", "Dice trail"]]:
+	_build_design_preview(inner)
+	for kind in [["design", "Token designs"], ["theme", "Board themes"], ["dice", "Dice"], ["tokens", "Your tokens"], ["victory", "Victory effect"], ["trail", "Dice trail"]]:
 		var head := Label.new()
 		head.text = kind[1]
 		head.add_theme_font_size_override("font_size", 26)
@@ -515,6 +521,9 @@ func _build_themes() -> void:
 
 func _shop_pressed(id: String) -> void:
 	var kind: String = Progress.SHOP[id][0]
+	if kind == "design":
+		_preview_design(id)
+		return
 	if not Progress.owns(id):
 		var r := Progress.buy(id)
 		if r == "coins":
@@ -543,6 +552,10 @@ func _refresh_themes() -> void:
 			equipped = BoardThemes.current_id() == id.trim_prefix("theme_")
 		else:
 			equipped = Progress.equipped(item[0]) == id
+		if item[0] == "design":
+			var r: Array = TokenDesigns.RARITY[TokenDesigns.rarity_of(id)]
+			(_shop_rows[id] as Button).add_theme_color_override("font_color", (r[1] as Color).lightened(0.2))
+			item = [item[0], "%s  [%s]" % [tr(item[1]), tr(r[0])], item[2]]
 		var state := tr("Equipped") if equipped else (tr("Owned: tap to use") if Progress.owns(id) else tr("%d coins") % item[2])
 		(_shop_rows[id] as Button).text = "   %s      -      %s" % [tr(item[1]), state]
 
@@ -1030,3 +1043,99 @@ func go_back() -> bool:
 		_back()
 		return true
 	return false
+
+
+## A turning 3D token in its own little world, wearing the selected design.
+func _build_design_preview(parent: VBoxContainer) -> void:
+	var row := HBoxContainer.new()
+	row.add_theme_constant_override("separation", 16)
+	parent.add_child(row)
+	var holder := SubViewportContainer.new()
+	holder.custom_minimum_size = Vector2(220, 220)
+	holder.stretch = true
+	row.add_child(holder)
+	var vp := SubViewport.new()
+	vp.own_world_3d = true
+	vp.transparent_bg = true
+	vp.msaa_3d = Viewport.MSAA_4X
+	holder.add_child(vp)
+	var env := WorldEnvironment.new()
+	var e := Environment.new()
+	e.background_mode = Environment.BG_CLEAR_COLOR
+	e.ambient_light_source = Environment.AMBIENT_SOURCE_COLOR
+	e.ambient_light_color = Color("#ffe8c8")
+	e.ambient_light_energy = 0.7
+	e.tonemap_mode = Environment.TONE_MAPPER_ACES
+	env.environment = e
+	vp.add_child(env)
+	var sun := DirectionalLight3D.new()
+	sun.rotation_degrees = Vector3(-40, -30, 0)
+	sun.light_energy = 1.6
+	vp.add_child(sun)
+	var rim := DirectionalLight3D.new()
+	rim.rotation_degrees = Vector3(-20, 150, 0)
+	rim.light_energy = 0.8
+	rim.light_color = Color("#ffc080")
+	vp.add_child(rim)
+	var cam := Camera3D.new()
+	cam.fov = 32
+	vp.add_child(cam)
+	cam.look_at_from_position(Vector3(0, 0.95, 2.9), Vector3(0, 0.6, 0), Vector3.UP)
+	_preview_pivot = Node3D.new()
+	vp.add_child(_preview_pivot)
+	_preview_token = TransformerToken.new()
+	_preview_pivot.add_child(_preview_token)
+	_preview_token.configure("blue")
+	_preview_token.transform_out(0.01)
+	var col := VBoxContainer.new()
+	col.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	col.alignment = BoxContainer.ALIGNMENT_CENTER
+	row.add_child(col)
+	_preview_label = Label.new()
+	_preview_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	_preview_label.add_theme_font_size_override("font_size", 24)
+	col.add_child(_preview_label)
+	_preview_action = Button.new()
+	_preview_action.custom_minimum_size = Vector2(0, 52)
+	_preview_action.pressed.connect(_preview_buy_or_use)
+	col.add_child(_preview_action)
+	UiFx.button(_preview_action)
+	_preview_design(Progress.equipped("design"))
+
+
+func _preview_design(id: String) -> void:
+	_preview_id = id
+	TokenDesigns.apply(_preview_token, id, RoyalBoard.PALETTE["blue"])
+	var d: Array = TokenDesigns.DESIGNS[id]
+	var r: Array = TokenDesigns.RARITY[d[1]]
+	_preview_label.text = "%s\n%s" % [tr(d[0]), tr(r[0])]
+	_preview_label.add_theme_color_override("font_color", (r[1] as Color).lightened(0.25))
+	if Progress.equipped("design") == id:
+		_preview_action.text = tr("Equipped")
+		_preview_action.disabled = true
+	elif Progress.owns(id):
+		_preview_action.text = tr("Use this design")
+		_preview_action.disabled = false
+	else:
+		_preview_action.text = tr("Buy for %d coins") % d[2]
+		_preview_action.disabled = false
+
+
+func _preview_buy_or_use() -> void:
+	if not Progress.owns(_preview_id):
+		var r := Progress.buy(_preview_id)
+		if r == "coins":
+			_shop_coins.text = tr("Not enough coins: win games and claim daily rewards")
+			if _audio:
+				_audio.play("error", 0.0, -4.0)
+			return
+		if _audio:
+			_audio.play("coins", 0.03)
+	Progress.equip(_preview_id)
+	_refresh_themes()
+	_preview_design(_preview_id)
+
+
+func _process(delta: float) -> void:
+	if _preview_pivot and is_instance_valid(_preview_pivot) and visible and _page == "themes":
+		_preview_pivot.rotation.y += delta * 0.9
