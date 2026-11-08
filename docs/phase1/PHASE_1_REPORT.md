@@ -608,5 +608,5 @@ Verified by the selftest (PASS: "transfer: code 1392 chars, file true", a damage
 - **Achievements:**
   - Each one now pays 25 coins, shown in its banner.
   - Three new ones: Horse Archer (an arrow hit from the saddle), Say Cheese (a photo in photo mode) and Into the Andhi (standing in a dust storm).
-  - With today's other additions, the game now has 33 achievements.
+  - With today's other additions, the game now has 29 achievements.
 - Hindi text added.
