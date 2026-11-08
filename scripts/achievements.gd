@@ -28,6 +28,8 @@ const DEFS := {
 	"champion": ["Crop Champion", "Win the crop contest."],
 	"headshot": ["Eagle Eye", "Defeat an enemy with an arrow to the head."],
 	"focus": ["Still Mind", "Hit a foe while time is slowed by focus."],
+	"slayer": ["Giant Slayer", "Defeat a boss monster."],
+	"weakspot": ["Heart Seeker", "Hit a boss's weak spot three times in one fight."],
 }
 
 var story: Story

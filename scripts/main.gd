@@ -136,6 +136,8 @@ func _ready() -> void:
 			_run_capture_fight.call_deferred(a.trim_prefix("--capture-fight="))
 		elif a.begins_with("--capture-lab="):
 			_run_capture_lab.call_deferred(a.trim_prefix("--capture-lab="))
+		elif a.begins_with("--capture-boss="):
+			_run_capture_boss.call_deferred(a.trim_prefix("--capture-boss="))
 		elif a.begins_with("--capture-bow="):
 			_run_capture_bow.call_deferred(a.trim_prefix("--capture-bow="))
 		elif a.begins_with("--capture-outfits="):
@@ -1635,6 +1637,7 @@ func _run_selftest() -> void:
 	print("[selftest] manual aim: focus %s, fire arrows %d -> %d, headshots %d, target hp %.0f -> %.0f" % [slowed, fa0, items.count("fire_arrow"), Arrow.headshots - hsh0, hp2, bt2.hp])
 	if is_instance_valid(bt2) and not bt2.dead:
 		bt2.queue_free()
+	await _selftest_boss(fails)
 	items.unequip("weapon")
 	for k in 5:
 		story.flags.erase("cache_%d" % k)
@@ -3210,6 +3213,147 @@ func _run_capture_ride(arg: String) -> void:
 			await RenderingServer.frame_post_draw
 			print("[capture] ", an.species, view[0], " -> ", get_viewport().get_texture().get_image().save_png("%s/%s_%s.png" % [dir, an.species, view[0]]))
 		mounts.dismount()
+	get_tree().quit()
+
+
+## Boss fight: phases, summoned minions, stomp shockwave, weak spot, charge, the boss bar and the kill.
+func _selftest_boss(fails: Array) -> void:
+	var mm := get_tree().get_first_node_in_group("monster_missions")
+	if mm == null:
+		fails.append("boss: no monster missions node")
+		return
+	_teleport(185.0, 150.0)
+	for i in 5:
+		await get_tree().physics_frame
+	player.hp = 900.0
+	player.max_hp = 900.0
+	var b: Monster = mm.summon("demon", player.global_position + Vector3(0, 0, -4.0))
+	for i in 100:
+		await get_tree().physics_frame
+	if b.boss == null:
+		fails.append("boss: demon has no boss brain")
+		return
+	var notes: Array = []
+	if b.boss._bar == null:
+		fails.append("boss: no boss bar when the player is near")
+	# stomp: the player stands inside the ring
+	b.boss._stomp_cd = 0.0
+	b.boss._end()
+	var hp0 := player.hp
+	var saw_stomp := false
+	for i in 150:
+		await get_tree().physics_frame
+		player.global_position = b.global_position + Vector3(0, 0.2, -3.0)
+		saw_stomp = saw_stomp or b.boss.state == "stomp"
+		if b.boss.state == "dazed":
+			break
+	notes.append("stomp %s, player hp %.0f -> %.0f, dazed %s" % [saw_stomp, hp0, player.hp, b.boss.state == "dazed"])
+	if not saw_stomp or player.hp >= hp0 or b.boss.state != "dazed":
+		fails.append("boss: stomp did not hit the player and daze the boss (" + notes[-1] + ")")
+	# phase 2: minions rise and the weak spot opens
+	var n0 := get_tree().get_nodes_in_group("monsters").size()
+	b.boss._end()
+	b.hp = b.max_hp * 0.6
+	b.take_hit("punch", 1.0, Vector3.ZERO)
+	var n1 := get_tree().get_nodes_in_group("monsters").size()
+	if b.boss.phase != 2 or not b.boss.gem_open() or n1 - n0 < 2:
+		fails.append("boss: phase 2 did not start with minions and a weak spot (phase %d, minions +%d)" % [b.boss.phase, n1 - n0])
+	for i in 110:
+		await get_tree().physics_frame
+	# an arrow into the weak spot
+	var hpw := b.hp
+	b.boss._end()
+	b.set_physics_process(false)
+	var gp: Vector3 = b.boss.gem_world()
+	var ar := Arrow.new()
+	add_child(ar)
+	ar.launch(Transform3D(Basis(), gp + (gp - b.global_position).normalized() * 0.0 + Vector3(0, 0.3, 0) - b.global_transform.basis.z * 7.0), gp, b, 10.0, player)
+	for i in 40:
+		await get_tree().physics_frame
+	notes.append("weak spot hits %d, hp %.0f -> %.0f" % [b.boss.weak_hits, hpw, b.hp])
+	if b.boss.weak_hits < 1 or hpw - b.hp < 25.0:
+		fails.append("boss: arrow into the weak spot did not do triple damage (" + notes[-1] + ")")
+	b.set_physics_process(true)
+	# charge from range
+	b.boss._end()
+	b.boss._stomp_cd = 99.0
+	b.boss._charge_cd = 0.0
+	var saw_charge := false
+	for i in 120:
+		await get_tree().physics_frame
+		if b.boss.state == "" and not saw_charge:
+			player.global_position = b.global_position + Vector3(0, 0.2, -12.0)
+		saw_charge = saw_charge or b.boss.state == "charge"
+		if saw_charge and b.boss.state != "charge":
+			break
+	notes.append("charge %s" % saw_charge)
+	if not saw_charge:
+		fails.append("boss: no charge in phase 2")
+	# phase 3, then the kill
+	b.boss._end()
+	b.hp = b.max_hp * 0.3
+	b.take_hit("punch", 1.0, Vector3.ZERO)
+	if b.boss.phase != 3 or not b.enraged:
+		fails.append("boss: phase 3 did not start")
+	b.boss._end()
+	b.hp = 1.0
+	b.take_hit("punch", 50.0, Vector3.ZERO)
+	await get_tree().physics_frame
+	if not b.dead or b.boss._bar != null:
+		fails.append("boss: did not die cleanly (bar left on screen)")
+	print("[selftest] boss: " + ", ".join(notes) + ", beaten %d" % BossBrain.bosses_beaten)
+	for m in get_tree().get_nodes_in_group("monsters"):
+		if is_instance_valid(m):
+			m.queue_free()
+	player.max_hp = 100.0
+	player.hp = 100.0
+
+
+func _run_capture_boss(dir: String) -> void:
+	DirAccess.make_dir_recursive_absolute(dir)
+	atmosphere.time_of_day = 0.42
+	atmosphere.apply_time()
+	_teleport(-60.0, 20.0)
+	for i in 20:
+		await get_tree().physics_frame
+	player.hp = 9999.0
+	player.max_hp = 9999.0
+	var mm := get_tree().get_first_node_in_group("monster_missions")
+	var b: Monster = mm.summon(OS.get_environment("KIND") if OS.get_environment("KIND") != "" else "demon", player.global_position + Vector3(0, 0, -9.0))
+	player.set_look(0.0, -0.25)
+	player.set_distance(7.0)
+	for i in 80:
+		await get_tree().physics_frame
+	b.boss._end()
+	b.boss._stomp_cd = 0.0
+	for i in 200:
+		await get_tree().physics_frame
+		player.global_position.z = b.global_position.z + 4.5
+		player.global_position.x = b.global_position.x
+		if b.boss.state == "stomp" and b.boss._t > 0.8:
+			break
+	await RenderingServer.frame_post_draw
+	get_viewport().get_texture().get_image().save_png("%s/a_stomp.png" % dir)
+	b.boss._end()
+	b.hp = b.max_hp * 0.6
+	b.take_hit("punch", 1.0, Vector3.ZERO)
+	for i in 30:
+		await get_tree().physics_frame
+	await RenderingServer.frame_post_draw
+	get_viewport().get_texture().get_image().save_png("%s/b_phase2.png" % dir)
+	for i in 80:
+		await get_tree().physics_frame
+	b.boss._end()
+	b.boss._stomp_cd = 99.0
+	b.boss._charge_cd = 0.0
+	for i in 200:
+		await get_tree().physics_frame
+		if b.boss.state == "":
+			player.global_position = b.global_position + Vector3(2.0, 0.3, 11.0)
+		if b.boss.state == "charge_aim" and b.boss._t > 0.6:
+			break
+	await RenderingServer.frame_post_draw
+	get_viewport().get_texture().get_image().save_png("%s/c_charge.png" % dir)
 	get_tree().quit()
 
 

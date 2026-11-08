@@ -340,6 +340,32 @@ func _spawn_wave(rise: bool) -> void:
 	story.changed.emit()                  # the tracker shows the new count
 
 
+## A boss calls for help: one minion rises from the ground beside it and joins the current wave.
+var _summons := 0
+
+
+func summon(kind: String, at: Vector3) -> Monster:
+	var mon := Monster.new()
+	mon.player = player
+	main.add_child(mon)
+	_summons += 1
+	var g := _ground(Vector2(at.x, at.z))
+	mon.setup_monster(kind, g, "%s_summon_%d" % [running if running != "" else "wild", _summons])
+	mon.global_position = g
+	if combat != null:
+		mon._spawn_pickup = func(pp: Vector3, kk: String) -> void: combat.spawn_pickup(pp, kk)
+	mon.died.connect(_on_kill)
+	var m3 := mon.get_node("Model") as Node3D
+	if m3 != null:
+		m3.position.y = -2.2
+		m3.create_tween().tween_property(m3, "position:y", 0.0, 1.4).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
+	if running != "":
+		alive.append(mon)
+		story.changed.emit()
+	HitFx.burst(main, g + Vector3(0, 0.3, 0), true, Color(0.5, 0.4, 0.35))
+	return mon
+
+
 func _on_kill(e: Enemy) -> void:
 	alive.erase(e)
 	_streak = _streak + 1 if _streak_t > 0.0 else 1

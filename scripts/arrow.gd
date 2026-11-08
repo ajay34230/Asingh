@@ -138,8 +138,20 @@ func _physics_process(delta: float) -> void:
 		var en := e as Enemy
 		if en == null or en.dead:
 			continue
-		var hover := float(en.get("hover")) if en.get("hover") != null else 0.0
+		var hover := 0.0           # flying bodies already float at their hover height
 		var seg := next - prev
+		# a boss's open weak spot sits in front of its chest: check it before the body
+		var bb = en.get("boss")
+		if bb != null and bb.gem_open():
+			var gp: Vector3 = bb.gem_world()
+			var tg := clampf((gp - prev).dot(seg) / maxf(seg.length_squared(), 0.0001), 0.0, 1.0)
+			if (prev + seg * tg).distance_to(gp) < 0.45:
+				global_position = prev + seg * tg
+				en.set("last_hit_at", gp)
+				en.take_hit("arrow", dmg * (1.25 if fire else 1.0), vel.normalized())
+				Sfx.at("tink", global_position, -2.0, 1.6)
+				_stick(en)
+				return
 		var head := en.global_position + Vector3(0, head_height(en) + hover, 0)
 		# where this step passes closest to the enemy's upright centre line, and how high the arrow is there
 		var base := en.global_position + Vector3(0, hover, 0)
@@ -157,7 +169,9 @@ func _physics_process(delta: float) -> void:
 		var is_head := absf(p.y - head.y) < 0.3 and horiz < 0.4
 		if true:
 			global_position = p - vel.normalized() * minf(horiz, 0.3)
-			var amount := dmg * (2.5 if is_head else 1.0) * (1.25 if fire else 1.0)
+			var amount := dmg * (2.5 if is_head and en.get("boss") == null else (1.5 if is_head else 1.0)) * (1.25 if fire else 1.0)
+			if "last_hit_at" in en:
+				en.set("last_hit_at", global_position)
 			en.take_hit("arrow", amount, vel.normalized())
 			if is_head:
 				headshots += 1

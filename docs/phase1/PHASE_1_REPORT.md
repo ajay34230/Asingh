@@ -426,3 +426,24 @@ Verified by the selftest (PASS: "manual aim: focus true, fire arrows 5 -> 4, hea
   - The bow is held upright along the arm from the nock to the follow-through. It no longer lies flat in the fist.
 - **Arrow hits** are checked where the arrow crosses the enemy's centre line, so a hit no longer lands early on the body edge.
 - **New achievements:** "Eagle Eye" (a headshot kill) and "Still Mind" (a hit during focus). Hindi text was added for all new labels.
+
+## Addendum: Boss fights (2026-11-08)
+
+Verified by the selftest (PASS: "boss: stomp true, player hp 884 -> 865, dazed true, weak spot hits 1, hp 191 -> 155, charge true") and software-rendered captures (`--capture-boss`). **Not tested on a device.**
+
+- The four mission bosses each get a name and a three-phase fight (`scripts/boss_brain.gd`):
+  - Himraaj (Yeti)
+  - Kukurmatta (Mushroom King)
+  - Raktasur (Demon)
+  - Agnivyal (Dragon)
+- **Phase 1:** heavy swings, plus a **stomp**. A red disc spreads on the ground for 1.1 s, then a shockwave hits anyone inside it who is on the ground. Jump, roll or step out.
+- **Phase 2 (below 2/3 health):**
+  - A roar (almost no damage gets through), and two minions rise from the ground. They join the mission wave, so the mission waits for them.
+  - A glowing **weak spot** opens on the chest.
+  - A **charge**: a red lane is marked for 0.9 s, then the boss rushes down it. If it misses, it crashes and is dazed.
+- **Phase 3 (below 1/3 health):** enraged (faster, attacks more often), three more minions, and volleys of three **fire orbs** that home in gently. A sidestep or roll beats them.
+- **Flying bosses:** the Dragon uses orbs instead of the stomp and charge.
+- **Dazed** (after a stomp or a missed charge): it takes 2× damage, and the weak spot glows brighter. Arrows into the weak spot do 3×, and the manual-aim crosshair locks onto it first.
+- **Boss bar:** the name, health with phase marks at 1/3 and 2/3, and a one-line tip for the current danger.
+- **New achievements:** "Giant Slayer" and "Heart Seeker" (hit the weak spot three times in one fight). Hindi text was added.
+- **Fix:** arrow aiming at flying monsters added their hover height twice, about 1.3 m too high for ghosts. Aim points now use the body's real height.

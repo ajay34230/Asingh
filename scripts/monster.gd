@@ -21,6 +21,8 @@ var flier := false
 var hover := 0.0
 var head_h := 1.62                # arrows: head and chest heights above the feet (before hover)
 var chest_h := 1.1
+var boss: BossBrain                 # phases, stomp, charge, orbs and the weak spot (boss monsters only)
+var last_hit_at: Variant = null     # where the last arrow struck (set by Arrow), for the weak spot
 var spectral := false
 var reach := 2.0
 var _model: Node3D
@@ -77,6 +79,9 @@ func setup_monster(k: String, at: Vector3, label: String) -> Monster:
 	_hp_bar.modulate = Color(0.6, 0.9, 1.0) if spectral else Color(1.0, 0.35, 0.3)
 	_hp_bar.position.y = float(d["height"]) + 0.4
 	add_child(_hp_bar)
+	if is_boss:
+		boss = BossBrain.new(self)
+		add_child(boss)
 	_bubble = Label3D.new()
 	_bubble.visible = false
 	add_child(_bubble)
@@ -194,13 +199,20 @@ func take_hit(hk: String, amount: float, from_dir: Vector3) -> void:
 	elif hk == "arrow":
 		m = 1.2
 	amount *= m
+	if boss != null:
+		amount *= boss.damage_mult(hk, last_hit_at)
+	last_hit_at = null
 	hp -= amount
 	FloatText.spawn(get_parent(), global_position + Vector3(0, _hp_bar.position.y - 0.2, 0), str(int(round(amount))), Color(0.6, 0.95, 1.0) if spectral else Color(1.0, 0.8, 0.3), 1.0 if amount < 20.0 else 1.4)
-	HitFx.burst(get_parent(), global_position + Vector3(0, 1.1 + hover, 0), true, Color(0.6, 0.85, 1.0) if spectral else Color(0.7, 0.2, 0.2))
+	HitFx.burst(get_parent(), global_position + Vector3(0, chest_h, 0), true, Color(0.6, 0.85, 1.0) if spectral else Color(0.7, 0.2, 0.2))
 	_refresh_bar()
 	if hp <= 0.0:
 		_die(hk, from_dir)
 		return
+	if boss != null:
+		boss.on_hit()
+		if boss.state != "":
+			return                          # a boss mid-move is not knocked out of it
 	var dir := Vector3(from_dir.x, 0.0, from_dir.z)
 	if dir.length() > 0.01:
 		velocity += dir.normalized() * (2.0 if is_boss else 5.0)
@@ -209,7 +221,7 @@ func take_hit(hk: String, amount: float, from_dir: Vector3) -> void:
 	_cur = ""
 	_play("HitReact", 0.05)
 	Sfx.at("hit_thud", global_position + Vector3(0, 1.2, 0), -4.0, 0.7 if is_boss else 1.2)
-	if is_boss and not enraged and hp < max_hp * 0.5:
+	if is_boss and boss == null and not enraged and hp < max_hp * 0.5:
 		enraged = true
 		speed *= 1.25
 		attack_cd *= 0.75
@@ -218,6 +230,8 @@ func take_hit(hk: String, amount: float, from_dir: Vector3) -> void:
 
 func _die(_hk: String, _dir: Vector3) -> void:
 	dead = true
+	if boss != null:
+		boss.on_death()
 	remove_from_group("enemies")
 	var ach := get_tree().get_first_node_in_group("achievements")
 	if ach != null:
@@ -230,7 +244,7 @@ func _die(_hk: String, _dir: Vector3) -> void:
 	_cur = ""
 	_play("Death", 0.05)
 	Sfx.at("scream", global_position + Vector3(0, 1.5, 0), -4.0, 1.4 if spectral else 0.7)
-	HitFx.burst(get_parent(), global_position + Vector3(0, 1.0 + hover, 0), true, Color(0.7, 0.9, 1.0) if spectral else Color(0.4, 0.3, 0.3))
+	HitFx.burst(get_parent(), global_position + Vector3(0, chest_h, 0), true, Color(0.7, 0.9, 1.0) if spectral else Color(0.4, 0.3, 0.3))
 	if player != null and global_position.distance_to(player.global_position) < 6.0 and get_tree().get_nodes_in_group("enemies").is_empty():
 		StoryFX.hitstop(0.45)
 	var tw := create_tween()
@@ -285,6 +299,18 @@ func _physics_process(delta: float) -> void:
 		move_and_slide()
 		return
 	var fwd := to.normalized() if dist > 0.01 else Vector3.FORWARD
+	if boss != null and boss.tick(delta, dist, fwd):
+		if flier:
+			velocity.y = clampf((player.global_position.y + hover - global_position.y) * 3.0, -5.0, 5.0)
+		elif not is_on_floor():
+			velocity.y -= GRAVITY * delta
+		move_and_slide()
+		return
+	if boss != null and boss.state == "charge":
+		if not is_on_floor():
+			velocity.y -= GRAVITY * delta
+		move_and_slide()
+		return
 	rotation.y = lerp_angle(rotation.y, atan2(-fwd.x, -fwd.z), 1.0 - exp(-8.0 * delta))
 	# attack: wind up, strike at the middle of the clip if the player is still within reach
 	if _atk_t >= 0.0:

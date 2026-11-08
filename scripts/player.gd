@@ -366,7 +366,7 @@ func fire_arrow() -> bool:
 	var from := global_position + Vector3(0, 1.4, 0)
 	var target: Vector3
 	if foe != null:
-		var hover := float(foe.get("hover")) if foe.get("hover") != null else 0.0
+		var hover := 0.0          # flying bodies already float at their hover height
 		_arrow_off = Vector3(0, Arrow.chest_height(foe) + hover, 0)
 		target = foe.global_position + _arrow_off
 	else:
@@ -453,14 +453,18 @@ func _aim_from_crosshair() -> void:
 		var en := e as Enemy
 		if en == null or en.dead:
 			continue
-		var hover := float(en.get("hover")) if en.get("hover") != null else 0.0
-		for off in [Vector3(0, Arrow.head_height(en) + hover, 0), Vector3(0, Arrow.chest_height(en) + hover, 0)]:
+		var hover := 0.0           # flying bodies already float at their hover height
+		var pts: Array = [Vector3(0, Arrow.head_height(en) + hover, 0), Vector3(0, Arrow.chest_height(en) + hover, 0)]
+		var bb = en.get("boss")
+		if bb != null and bb.gem_open():
+			pts.push_front((bb.gem_world() as Vector3) - en.global_position)       # the weak spot first
+		for off in pts:
 			var c: Vector3 = en.global_position + off
 			var along := (c - o).dot(fwd)
 			if along < 1.0 or along > 90.0 or along > (point - o).dot(fwd) + 1.0:
 				continue
 			var miss := (o + fwd * along).distance_to(c)
-			var is_head_pt: bool = off.y > Arrow.chest_height(en) + hover + 0.1
+			var is_head_pt: bool = off.y > Arrow.chest_height(en) + hover + 0.1 or off == pts[0] and bb != null and bb.gem_open()
 			if miss < (0.4 if is_head_pt else clampf(Arrow.chest_height(en) * 0.8, 0.9, 1.5)) and along < best_along:
 				best = en
 				best_along = along
