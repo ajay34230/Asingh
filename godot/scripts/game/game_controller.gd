@@ -45,6 +45,7 @@ func setup(dice_node: DiceController, seed_value: int = 0) -> void:
 var difficulty := 1            ## AiController.Difficulty
 var fight: FightChoreography
 var life: TokenLife
+var forced_roll := -1   ## test/showcase only: the next roll's value
 var _moving_index := 0
 var preview: MovePreview        ## set by the main scene; shows where legal moves land
 var director: CameraDirector    ## set by the main scene; frames the action
@@ -133,6 +134,8 @@ func _start_turn() -> void:
 		_finish_game()
 		return
 	turn_changed.emit(current_color(), is_human_turn())
+	if director and not fast_mode:
+		_glance(current_color())
 	if is_human_turn():
 		message.emit("Your turn: tap the dice")
 		dice.set_rollable(true)
@@ -155,9 +158,12 @@ func _roll_now() -> void:
 	_stop_timer()
 	busy = true
 	dice.set_rollable(false)
-	event.emit("roll_start", {"position": dice.global_position})
 	var thrower := current_color()   ## read first: a roll with no move passes the turn
-	var outcome := engine.roll()     ## the engine decides; the dice only shows it
+	var outcome := engine.roll_with_value(forced_roll) if forced_roll > 0 else engine.roll()   ## the engine decides; the dice only shows it
+	forced_roll = -1
+	event.emit("roll_start", {"position": dice.global_position, "value": outcome["value"]})
+	if outcome["value"] == 6 and not fast_mode:
+		_six_slow_motion()
 	await dice.roll_to(outcome["value"], Vector3.ZERO if fast_mode else _throw_offset(thrower))
 	event.emit("roll_land", {"position": dice.global_position, "value": outcome["value"]})
 	if outcome["forfeited"]:
@@ -341,6 +347,24 @@ func _capture_sequence(attacker: TransformerToken, victim: TransformerToken, bas
 	fight.director = director
 	fight.anim_scale = anim_scale
 	await fight.perform(attacker, victim, base, use_punch)
+
+
+## Turn start: the camera leans a little towards that player's courtyard, then back.
+func _glance(color: String) -> void:
+	var home: Vector2i = BoardPath.PLAYERS[color]["home"]
+	var c := BoardPath.to_world(home.x + 3, home.y + 3)
+	director.focus(Vector3(c.x, 0.3, c.z) * 0.35, 0.45, 0.88)
+	await get_tree().create_timer(0.75).timeout
+	if not busy or is_human_turn():
+		director.release(0.6)
+
+
+## A six: the last tumbles of the dice play in slow motion.
+func _six_slow_motion() -> void:
+	await get_tree().create_timer(dice.roll_duration * 1.25 * 0.62).timeout
+	Engine.time_scale = 0.35
+	await get_tree().create_timer(0.45, true, false, true).timeout
+	Engine.time_scale = 1.0
 
 
 ## Jump in an arc from the courtyard to `target`, with a crouch before and a squash after.

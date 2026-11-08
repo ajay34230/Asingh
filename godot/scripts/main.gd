@@ -22,6 +22,7 @@ var loading: LoadingScreen
 var voice: VoiceManager
 var bubbles: SpeechBubbles
 var _last_turn_human := false
+var _decor := {}   ## first decoration of each type, for reactions
 var game: GameController
 var audio: AudioManager
 var effects: EffectsManager
@@ -114,6 +115,10 @@ func _ready() -> void:
 	effects = EffectsManager.new()
 	effects.name = "Effects"
 	add_child(effects)
+	var ambience := Ambience.new()
+	ambience.name = "Ambience"
+	ambience.effects = effects
+	add_child(ambience)
 	voice = VoiceManager.new()
 	voice.name = "Voice"
 	voice.audio = audio
@@ -164,7 +169,9 @@ func _ready() -> void:
 		effects.fireworks(3.0)
 		effects.confetti(4.0)
 		effects.burst(Vector3(0, 1.0, 0), EffectsManager.GOLD, 60, 3.0, 1.0)
-	if _has_arg("--result-shot="):
+	if "--showcase" in args:
+		_run_showcase()
+	elif _has_arg("--result-shot="):
 		_run_result_shot(_arg_value(args, "--result-shot"))
 	elif _has_arg("--preview-shot="):
 		_run_preview_shot(_arg_value(args, "--preview-shot"))
@@ -187,7 +194,7 @@ func _is_test_launch(args: PackedStringArray) -> bool:
 	for arg in args:
 		if arg.begins_with("--screenshot=") or arg.begins_with("--seed="):
 			return true
-	return "--click-test" in args or _has_arg("--preview-shot=") or _has_arg("--result-shot=") or "--capture-test" in args or "--capture-kick" in args or "--fx-shot" in args or "--dice-face" in args
+	return "--click-test" in args or "--showcase" in args or _has_arg("--preview-shot=") or _has_arg("--result-shot=") or "--capture-test" in args or "--capture-kick" in args or "--fx-shot" in args or "--dice-face" in args
 
 
 ## Main menu, settings and pause overlays. The menu sits above the 3D scene.
@@ -334,6 +341,8 @@ func _place_decorations() -> void:
 		root.scale = Vector3.ONE * float(deco["scale"])
 		add_child(root)
 		root.add_child((load(deco["path"]) as PackedScene).instantiate())
+		if not _decor.has(deco["type"]):
+			_decor[deco["type"]] = root
 		var animator := RoyalEnvironmentAnimator.new()
 		animator.animation_type = deco["type"]
 		root.add_child(animator)
@@ -347,6 +356,8 @@ func _on_game_event(event_name: String, data: Dictionary) -> void:
 		"roll_start":
 			audio.play("dice_shake", 0.05)
 			effects.sparkle_trail(pos + up)
+			if int(data.get("value", 0)) == 6 and not game.fast_mode:
+				_dice_trail(1.3)
 			audio.vibrate(15)
 		"roll_land":
 			audio.play("dice_land")
@@ -354,6 +365,7 @@ func _on_game_event(event_name: String, data: Dictionary) -> void:
 			if int(data.get("value", 0)) == 6 and not game.fast_mode:
 				hud.flash_banner("SIX!", Color("#ffd24a"), 0.5)
 				_announce("six")
+				_elephant_salute()
 				audio.play("six", 0.0)
 				effects.burst(pos + up, EffectsManager.GOLD, 40, 2.8, 0.9)
 		"select":
@@ -490,6 +502,43 @@ func _on_game_finished(ranking: Array) -> void:
 		get_tree().quit(0)
 
 
+## Golden sparks streaming behind the dice while it tumbles towards a six.
+func _dice_trail(seconds: float) -> void:
+	var model: Node3D = game.dice.get_node("DiceModel")
+	var end := Time.get_ticks_msec() + int(seconds * 1000.0)
+	while Time.get_ticks_msec() < end and is_instance_valid(model):
+		effects.burst(model.global_position, EffectsManager.GOLD, 6, 0.6, 0.5, 0.5)
+		await get_tree().create_timer(0.06, true, false, true).timeout
+
+
+## On a six the elephant rears up and lifts its head, then settles.
+func _elephant_salute() -> void:
+	var e: Node3D = _decor.get("elephant")
+	if e == null:
+		return
+	var base_rot := e.rotation
+	var t := e.create_tween()
+	t.tween_property(e, "rotation:z", base_rot.z + 0.22, 0.35).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+	t.parallel().tween_property(e, "position:y", e.position.y + 0.15, 0.35)
+	t.tween_interval(0.25)
+	t.tween_property(e, "rotation:z", base_rot.z, 0.4).set_trans(Tween.TRANS_BOUNCE).set_ease(Tween.EASE_OUT)
+	t.parallel().tween_property(e, "position:y", e.position.y, 0.4).set_trans(Tween.TRANS_BOUNCE).set_ease(Tween.EASE_OUT)
+
+
+## On a win the peacock struts: a turn and a few proud hops.
+func _peacock_dance() -> void:
+	var p: Node3D = _decor.get("peacock")
+	if p == null:
+		return
+	var y := p.position.y
+	var t := p.create_tween()
+	for i in range(4):
+		t.tween_property(p, "position:y", y + 0.25, 0.18).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
+		t.parallel().tween_property(p, "rotation:y", p.rotation.y + PI * 0.5 * (i + 1), 0.36)
+		t.tween_property(p, "position:y", y, 0.18).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_IN)
+	effects.burst(p.global_position + Vector3(0, 1.5, 0), Color("#29b6a6"), 40, 2.5, 1.2)
+
+
 ## A token home: each chhatri dome launches a firework.
 func _dome_fireworks() -> void:
 	if game.fast_mode:
@@ -511,6 +560,7 @@ func _celebrate(ranking: Array) -> void:
 	if not game.tokens.has(color):
 		return
 	director.focus(Vector3(0, 0.3, 0), 1.2, 0.45)
+	_peacock_dance()
 	game.dice.visible = false   # clear the centre for the dance
 	for i in range(BoardPath.TOKENS_PER_PLAYER):
 		var token: TransformerToken = game.tokens[color][i]
@@ -921,6 +971,27 @@ func _run_preview_shot(path: String) -> void:
 	await get_tree().create_timer(1.5).timeout
 	get_viewport().get_texture().get_image().save_png(path)
 	print("saved " + path)
+	get_tree().quit()
+
+
+## Recording helper: a six (trail, slow motion), a token leaping out, idle life. Counts
+## frames, not wall time, so it works with the movie writer.
+func _run_showcase() -> void:
+	for i in range(45):
+		await get_tree().process_frame
+	game.forced_roll = int(_arg_value(OS.get_cmdline_user_args(), "--roll")) if _has_arg("--roll=") else 6
+	if "--no-fx" in OS.get_cmdline_user_args():
+		effects.visible = false
+	game._roll_now()
+	var n := 0
+	while not game.awaiting_pick and n < 400:
+		await get_tree().process_frame
+		n += 1
+	if game.awaiting_pick:
+		game.tap_token("blue", 0)
+	for i in range(150):
+		await get_tree().process_frame
+	print("SHOWCASE DONE")
 	get_tree().quit()
 
 

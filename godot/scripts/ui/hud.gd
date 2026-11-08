@@ -246,6 +246,13 @@ func set_turn(color: String, human: bool) -> void:
 	_turn.text = "Turn: %s (%s)" % [who, color.capitalize()]
 	_turn.add_theme_color_override("font_color", Color(COLOR_HEX.get(color, "#ffffff")).lightened(0.2))
 	_turn.add_theme_stylebox_override("normal", RoyalTheme.badge(Color(COLOR_HEX.get(color, "#ffffff"))))
+	## Slide the turn badge in from the left each turn.
+	var x := 16.0
+	_turn.position.x = -_turn.size.x
+	_turn.modulate.a = 0.0
+	var t := create_tween().set_parallel(true)
+	t.tween_property(_turn, "position:x", x, 0.35).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+	t.tween_property(_turn, "modulate:a", 1.0, 0.2)
 
 
 func set_roll(text: String) -> void:
@@ -330,6 +337,7 @@ func show_result(ranking: Array, reward := 0, total := 0) -> void:
 	_coin_total.text = ""
 	var count := create_tween()
 	count.tween_interval(0.5 + ranking.size() * 0.18)
+	count.tween_callback(func() -> void: _fly_coins(mini(12, maxi(3, reward / 10))))
 	count.tween_method(func(v: float) -> void: _coin_label.text = "+%d" % int(v), 0.0, float(reward), 1.2).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
 	count.tween_callback(func() -> void: _coin_total.text = "Treasury: %d coins" % total)
 
@@ -371,3 +379,28 @@ func show_caption(text: String, seconds := 1.8) -> void:
 	_caption_tween.tween_interval(seconds)
 	_caption_tween.tween_property(_caption, "modulate:a", 0.0, 0.4)
 	_caption_tween.tween_callback(func() -> void: _caption.visible = false)
+
+
+## Coins burst from the winner's row and fly into the coin counter.
+func _fly_coins(count: int) -> void:
+	if _podium.get_child_count() == 0:
+		return
+	var from_row: Control = _podium.get_child(0)
+	var start := from_row.global_position + from_row.size * 0.5
+	var target := _coin_label.global_position + Vector2(-30, _coin_label.size.y * 0.5)
+	for i in range(count):
+		var coin := _coin_icon(14)
+		coin.top_level = true
+		_result.add_child(coin)
+		coin.global_position = start - Vector2(14, 14)
+		var mid := start.lerp(target, 0.5) + Vector2(randf_range(-160, 160), randf_range(-120, -40))
+		var arc := func(p: float) -> void:
+			var a := start.lerp(mid, p)
+			var b := mid.lerp(target, p)
+			coin.global_position = a.lerp(b, p) - Vector2(14, 14)
+		var t := coin.create_tween()
+		t.tween_interval(i * 0.06)
+		t.tween_method(arc, 0.0, 1.0, 0.6).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN)
+		t.tween_callback(coin.queue_free)
+		if i % 3 == 0:
+			t.tween_callback(func() -> void: button_sound.emit())
