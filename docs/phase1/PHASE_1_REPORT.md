@@ -610,3 +610,13 @@ Verified by the selftest (PASS: "transfer: code 1392 chars, file true", a damage
   - Three new ones: Horse Archer (an arrow hit from the saddle), Say Cheese (a photo in photo mode) and Into the Andhi (standing in a dust storm).
   - With today's other additions, the game now has 29 achievements.
 - Hindi text added.
+
+## Addendum: Bow facing fix (2026-11-08)
+
+Reported by the user: "The direction of bow face while aiming is facing wrong direction." Verified by the selftest (PASS) and software-rendered captures, with measurements printed by `--capture-bow`. **Not tested on a device.**
+
+- **Cause:** measuring the Bow_Wooden mesh showed that its curve lies along the model's own X axis. The grip is at about x −0.05, the limbs bow out to −0.10, and the tips sit at +0.13. The upright-bow code assumed the curve was along Z, so while shooting the bow was turned 90° and seen edge-on.
+- **Fix:**
+  - While shooting, the bow's back (the grip side, −X) now faces the target, the tips and string (+X) face the archer, and the limbs stand upright.
+  - The string is tied at the measured tip positions (`BOW_TIP_TOP` and `BOW_TIP_BOT`) instead of a guessed offset. At rest it runs straight between them.
+- **Measured at full draw:** bow back toward target 1.00 (dot product), limbs toward up 0.98, bow arm 1° off the target line.

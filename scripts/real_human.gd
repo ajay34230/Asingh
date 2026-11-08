@@ -672,6 +672,8 @@ var move_rate := 1.0              # playback speed of the current move (Quick Dr
 var _string: Array[MeshInstance3D] = []
 var _nocked: Node3D
 const BOW_HALF := 0.6             # grip to tip along the bow, metres
+const BOW_TIP_TOP := Vector3(0.129, 0.6, 0.0)    # string nocks of Bow_Wooden in its holder's space (measured)
+const BOW_TIP_BOT := Vector3(0.127, -0.6, 0.0)
 
 
 func _bone_pos(key: String) -> Vector3:
@@ -722,7 +724,9 @@ func _upright_bow(bow: Node3D) -> void:
 	side = side.normalized()
 	var up := (Vector3.UP + side * 0.18).normalized()       # a small cant, top limb leaning out
 	up = (up - fwd * up.dot(fwd)).normalized()
-	var want := Basis(up.cross(fwd).normalized(), up, fwd)
+	# the bow model curves in its own X: the back (grip side) at -X faces the target, the tips and string at +X
+	# face the archer, Z is the flat side
+	var want := Basis(-fwd, up, up.cross(fwd).normalized())
 	var q := g.basis.orthonormalized().get_rotation_quaternion().slerp(want.get_rotation_quaternion(), w)
 	bow.global_transform = Transform3D(Basis(q).scaled(sc), g.origin)
 
@@ -760,11 +764,12 @@ func _archery() -> void:
 	_upright_bow(bow)
 	var bx := bow.global_transform
 	var up := bx.basis.y.normalized()
-	var top := bx.origin + up * BOW_HALF
-	var bot := bx.origin - up * BOW_HALF
+	# the string is tied at the real tips of the model (holder space: x 0.13 toward the archer, y +-0.6)
+	var top := bx * BOW_TIP_TOP
+	var bot := bx * BOW_TIP_BOT
 	var grip := bx.origin
-	# the string sits a hand's width behind the grip; while drawing it follows the string hand
-	var rest := grip - (bx.basis.z.normalized()) * 0.12
+	# at rest the string runs straight between the tips; while drawing it follows the string hand
+	var rest := (top + bot) * 0.5
 	var drawing := move == "bow_shot" and move_t > 0.3 and move_t < _move_hit_at
 	var nock := rest
 	if drawing:

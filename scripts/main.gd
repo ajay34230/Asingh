@@ -4139,6 +4139,11 @@ func _run_capture_bow(dir: String) -> void:
 		var arm: Vector3 = player._rig._bone_pos("wr_L") - player._rig._bone_pos("sh_L")
 		var tg: Vector3 = foe.global_position - player.global_position
 		print("[capture] bow arm off target by %.0f deg" % rad_to_deg(Vector2(arm.x, arm.z).angle_to(Vector2(tg.x, tg.z))))
+		var bw := player._rig._bow_att.get_child(0) as Node3D
+		var bxf := bw.global_transform
+		var back := (bxf.origin - (bxf * Vector3(0.128, 0.0, 0.0))).normalized()      # grip side, should face the target
+		var span := ((bxf * RealHuman.BOW_TIP_TOP) - (bxf * RealHuman.BOW_TIP_BOT)).normalized()
+		print("[capture] bow back . target %.2f, limbs . up %.2f" % [back.dot(tg.normalized()), span.dot(Vector3.UP)])
 		player.release_aim()
 		for k in 9:
 			await get_tree().physics_frame
