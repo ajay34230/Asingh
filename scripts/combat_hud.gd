@@ -104,12 +104,13 @@ func _on_hp(hp: float, mx: float) -> void:
 func _refresh_chips() -> void:
 	for c in _chips.get_children():
 		c.queue_free()
-	var names := {"speed": ["SPEED", Color(0.3, 0.7, 1.0)], "power": ["POWER x2", Color(1.0, 0.6, 0.15)], "shield": ["SHIELD", Color(1.0, 0.9, 0.35)]}
+	var names := {"speed": ["SPEED", Color(0.3, 0.7, 1.0)], "power": ["POWER x2", Color(1.0, 0.6, 0.15)], "shield": ["SHIELD", Color(1.0, 0.9, 0.35)],
+		"tonic": ["TONIC", Color(0.5, 1.0, 0.55)], "ward": ["GHOST WARD", Color(0.7, 0.85, 1.0)]}
 	for k in player.power:
 		var l := Label.new()
 		l.name = k
 		l.add_theme_font_size_override("font_size", 22)
-		l.add_theme_color_override("font_color", names[k][1])
+		l.add_theme_color_override("font_color", names[k][1] if names.has(k) else Color.WHITE)
 		l.add_theme_color_override("font_outline_color", Color(0, 0, 0))
 		l.add_theme_constant_override("outline_size", 6)
 		l.mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -122,5 +123,5 @@ func _process(delta: float) -> void:
 	_flash.color.a = _flash_a * 0.55 + (0.35 if player.hp < player.max_hp * 0.25 and not player.dead else 0.0) * (0.5 + 0.5 * sin(Time.get_ticks_msec() * 0.008))
 	for c in _chips.get_children():
 		if player.power.has(c.name):
-			var names := {"speed": "SPEED", "power": "POWER x2", "shield": "SHIELD"}
-			(c as Label).text = "%s %ds" % [names[c.name], int(ceil(player.power[c.name]))]
+			var names := {"speed": "SPEED", "power": "POWER x2", "shield": "SHIELD", "tonic": "TONIC", "ward": "GHOST WARD"}
+			(c as Label).text = "%s %ds" % [Loc.t(String(names.get(c.name, String(c.name).to_upper()))), int(ceil(player.power[c.name]))]

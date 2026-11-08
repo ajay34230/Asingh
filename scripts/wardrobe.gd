@@ -44,7 +44,7 @@ const DYES := [
 	["Charcoal", Color(0.14, 0.14, 0.16)], ["Gold", Color(0.95, 0.76, 0.25)],
 ]
 const DYE_PRICE := 25
-const SUPPLIES := [["potion", 40], ["herb", 12], ["iron", 30], ["essence", 70], ["fire_arrow", 18], ["oil", 15]]
+const SUPPLIES := [["potion", 40], ["herb", 12], ["iron", 30], ["essence", 70], ["fire_arrow", 18], ["oil", 15], ["feather", 8], ["tonic", 35]]
 const SHOP_NAMES := {"bazaar": "Bazaar Cloth Merchant", "sarai": "Tailor of Kesar Sarai", "dhoop": "Dhoopgarh Armourer", "": "Wardrobe"}
 
 var story: Story

@@ -243,7 +243,8 @@ func _fill_items() -> void:
 		var parts: Array[String] = []
 		for k in rec[1]:
 			parts.append("%d %s" % [int(rec[1][k]), Loc.t(String(Items.DEFS[k]["name"]))])
-		var b := _button("%s  (%s)" % [Loc.t(String(Items.DEFS[rec[0]]["name"])), ", ".join(parts)], func() -> void:
+		var made := ("x%d " % int(rec[2])) if rec.size() > 2 else ""
+		var b := _button("%s%s  (%s)" % [made, Loc.t(String(Items.DEFS[rec[0]]["name"])), ", ".join(parts)], func() -> void:
 			it.craft(rid)
 			_fill_items())
 		b.disabled = not it.can_craft(rid)

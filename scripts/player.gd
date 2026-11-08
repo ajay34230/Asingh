@@ -253,7 +253,7 @@ func _tick_stamina(delta: float, draining: bool) -> void:
 		if stamina <= 0.0:
 			_winded = true
 	elif _stam_delay <= 0.0:
-		stamina = minf(MAX_STAMINA, stamina + (30.0 if not blocking else 8.0) * regen_mult * delta)
+		stamina = minf(MAX_STAMINA, stamina + (30.0 if not blocking else 8.0) * regen_mult * (1.6 if power.has("tonic") else 1.0) * delta)
 	if _winded and stamina > 25.0:
 		_winded = false
 var gear_dmg := 1.0         # S1: equipped weapon damage multiplier
@@ -359,7 +359,20 @@ const AIM_TAP := 0.22
 const FOCUS_SCALE := 0.4
 
 
-var _shot_yaw := 0.0               # yaw from the archer to the target of the current shot
+var _shot_yaw := 0.0
+var ride: Node3D                    # the animal under you (its body must not block your own aim or arrows)
+
+
+## Physics bodies that aim rays and arrows must pass through: yourself and the animal you ride.
+func ray_excludes() -> Array[RID]:
+	var out: Array[RID] = [get_rid()]
+	if mounted and is_instance_valid(ride):
+		for c in ride.get_children():
+			if c is CollisionObject3D:
+				out.append((c as CollisionObject3D).get_rid())
+	return out
+var _hurt_by_spirit := false       # set by a ghost just before it hits (Ghost ward halves that damage)
+var _arrow_spirit := false               # yaw from the archer to the target of the current shot
 
 
 func fire_arrow() -> bool:
@@ -389,6 +402,7 @@ func fire_arrow() -> bool:
 	_arrow_foe = foe
 	_arrow_target = target
 	_arrow_fire = false
+	_arrow_spirit = false
 	_arrow_charged = false
 	_arrow_dmg = 20.0 * hammer_mult * gear_dmg * arrow_mult * wpn_up() * (2.0 if power.has("power") else 1.0)
 	Sfx.ui_at("swing", -14.0)
@@ -400,9 +414,12 @@ func _release_arrow() -> void:
 	var ar := Arrow.new()
 	get_parent().add_child(ar)
 	var target := _arrow_target
-	if is_instance_valid(_arrow_foe) and not _arrow_foe.dead:
+	if not is_instance_valid(_arrow_foe):
+		_arrow_foe = null                  # it vanished while we drew: the arrow still flies to the last aim point
+	if _arrow_foe != null and not _arrow_foe.dead:
 		target = _arrow_foe.global_position + _arrow_off      # it may have moved while we drew
 	ar.fire = _arrow_fire
+	ar.spirit = _arrow_spirit
 	ar.launch(_rig.nock_transform(), target, _arrow_foe, _arrow_dmg * (1.35 if _arrow_charged else 1.0), self)
 	_combat_t = 0.0
 	Sfx.ui_at("swing", -2.0)
@@ -437,7 +454,11 @@ func release_aim() -> void:
 			_model.rotation.y = _yaw
 		_arrow_charged = _rig.move_t >= 0.58
 		var it := get_tree().get_first_node_in_group("items")
-		if _arrow_charged and it != null and int(it.call("count", "fire_arrow")) > 0:
+		var spectral_foe: bool = is_instance_valid(_arrow_foe) and _arrow_foe.get("spectral") == true
+		if _arrow_charged and it != null and spectral_foe and int(it.call("count", "spirit_arrow")) > 0:
+			it.call("take", "spirit_arrow", 1)
+			_arrow_spirit = true
+		elif _arrow_charged and it != null and int(it.call("count", "fire_arrow")) > 0:
 			it.call("take", "fire_arrow", 1)
 			_arrow_fire = true
 	_attack_cd = maxf(_attack_cd, 0.4 / maxf(_rig.move_rate, 0.1))
@@ -450,7 +471,7 @@ func _aim_from_crosshair() -> void:
 	var fwd := -camera.global_transform.basis.z
 	var far := o + fwd * 90.0
 	var q := PhysicsRayQueryParameters3D.create(o + fwd * (camera_distance() + 0.6), far)
-	q.exclude = [get_rid()]
+	q.exclude = ray_excludes()
 	var hit := get_world_3d().direct_space_state.intersect_ray(q)
 	var point: Vector3 = far if hit.is_empty() else hit.position
 	var best: Enemy = null
@@ -664,10 +685,27 @@ func saddle_aim(heading: float) -> void:
 	if _rig.move != "bow_shot":
 		_rig.aim_twist = 0.0
 		return
-	var want := _shot_yaw - SADDLE_ARM
-	var my := heading + clampf(wrapf(want - heading, -PI, PI), -0.55, 0.55)
+	var aim_at := _arrow_target
+	if is_instance_valid(_arrow_foe) and not _arrow_foe.dead:
+		aim_at = _arrow_foe.global_position + _arrow_off
+	if aiming:
+		aim_at = camera.global_position - camera.global_transform.basis.z * 40.0
+	var sh := _rig._bone_pos("sh_L")
+	var tgt_yaw := atan2(-(aim_at.x - sh.x), -(aim_at.z - sh.z))
+	var want := tgt_yaw - SADDLE_ARM
+	var need := wrapf(want - heading, -PI, PI)
+	var lim := clampf(absf(need) - 1.3, 0.8, 1.6)        # turn further in the saddle only when the twist alone cannot reach
+	var my := heading + clampf(need, -lim, lim)
 	_model.rotation.y = my
-	_rig.aim_twist = clampf(wrapf(want - my, -PI, PI), -1.3, 1.3)
+	if _rig.move_t < 0.42:
+		_rig.aim_twist = clampf(wrapf(want - my, -PI, PI), -1.5, 1.5)
+		return
+	# once the bow is up, measure where the bow arm really points and close the gap each frame
+	var arm := _rig._bone_pos("wr_L") - sh
+	if Vector2(arm.x, arm.z).length() < 0.05:
+		return
+	var arm_yaw := atan2(-arm.x, -arm.z)
+	_rig.aim_twist = clampf(_rig.aim_twist + wrapf(tgt_yaw - arm_yaw, -PI, PI) * 0.45, -1.5, 1.5)
 
 
 func _mounted_swing() -> void:
@@ -845,6 +883,8 @@ func take_damage(amount: float, from: Vector3) -> void:
 		return
 	if power.has("shield"):
 		amount *= 0.2
+	if power.has("ward") and _hurt_by_spirit:
+		amount *= 0.5
 	amount *= GameSettings.damage_scale() * armor_mult * outfit_armor
 	if blocking and _block_t < 0.25:
 		# S2: a block raised just before the hit is a parry: no damage, the attacker is staggered

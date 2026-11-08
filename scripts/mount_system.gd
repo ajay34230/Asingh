@@ -58,6 +58,10 @@ func mount_animal(a: Animal) -> void:
 		called = null
 	mount = a
 	a.driven = true
+	player.ride = a
+	for c in a.get_children():
+		if c is CollisionObject3D:
+			player._arm.add_excluded_object((c as CollisionObject3D).get_rid())     # the camera does not bump the horse
 	var st = main.get("story")
 	if st != null:
 		st.set_flag("my_ride", a.species)            # the last animal you rode answers your whistle
@@ -79,6 +83,10 @@ func dismount() -> void:
 	if mount == null:
 		return
 	var a := mount
+	for c in a.get_children():
+		if c is CollisionObject3D:
+			player._arm.remove_excluded_object((c as CollisionObject3D).get_rid())
+	player.ride = null
 	var side := Vector3(cos(a.rotation.y), 0.0, -sin(a.rotation.y))
 	var p := a.global_position + side * 1.6
 	p.y = terrain.sample_height(p.x, p.z) + 0.4

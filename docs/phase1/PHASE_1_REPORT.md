@@ -479,3 +479,43 @@ Verified by the selftest (PASS: "dog: follows at 3.3 m, bites 2, foe hp 60 -> 48
 - **Fights with you:** when an enemy is within 12 m of you, he runs at the nearest one and bites every 1.1 s (6 damage). Bites stagger men; monsters only take the damage.
 - **Pet him** (USE when close): a wag and a bark, +10 health (once a minute). Five pets earns the "Best Friends" achievement.
 - Hindi text added.
+
+## Addendum: Horseback aiming fix (2026-11-08)
+
+Reported by the user: "It is not aiming by bow perfectly on the horse." Verified by the selftest (PASS: an aim sweep of 8 targets all round the horse on flat open ground, all hit; held crosshair aim from the saddle hit). **Not tested on a device.**
+
+- **Root cause:** the horse's own collision box blocked aiming.
+  - The crosshair ray could lock onto your own horse's neck when aiming forward or down.
+  - Arrows could stick into the horse.
+  - The camera arm bumped against it.
+  - All three now pass through the animal you are riding (`Player.ray_excludes()`).
+- **Bow arm on target:** the saddle twist is now a feedback loop. Each frame at full draw it measures where the bow arm really points and turns the torso to close the gap. The rider turns further in the saddle only when the twist alone cannot reach.
+- **Measured arm error at full draw:**
+  - Straight ahead: 6°
+  - Front-left and left: 1°
+  - Left-rear: 7°
+  - Front-right: 6°
+  - Right: 5°
+  - Right-rear: 12°
+  - Directly behind: 14°
+  - Before the fix it was 21–49° in several directions.
+- **Test harness fix:** the new boss, horse, dog and crafting tests took the failure list as a plain `Array`. The selftest passes a `PackedStringArray`, which was copied, so their failures were silently dropped. They now take `PackedStringArray`, and all of them pass for real.
+- A crash when a target vanished mid-draw (a freed enemy passed to the arrow) is fixed: the arrow flies to the last aim point.
+
+## Addendum: Crafting (2026-11-08)
+
+Verified by the selftest (PASS: "crafting: made [spirit_arrow, tonic, elixir, ward], ward 8.0 vs 16.0, ghost arrow 24 vs spirit 72"). **Not tested on a device.**
+
+- **New materials:**
+  - **Feathers:** raider archers drop 3, other raiders sometimes 2, and the shops sell them.
+  - **Old bones:** skeletons, 60% of the time.
+  - **Ghost dust:** ghosts 60% of the time, bosses 2.
+- **New recipes** (Items & crafting page, which now shows how many each makes):
+  - Fire arrows ×5 (lamp oil + feather).
+  - **Spirit arrows** ×5 (ghost dust + feather): a blue trail and triple an ordinary arrow's damage on spirits. Fully drawn aimed shots at ghosts use them first, and the count shows under DRAW.
+  - **Stamina tonic** (2 herbs + bone): refills stamina, which then comes back 60% faster for a minute.
+  - **Strength elixir** (essence + 2 herbs): double damage for 25 s.
+  - **Ghost ward** (2 ghost dust + herb): spirits do half damage for a minute.
+- **Acted out:** crafting plays a short handiwork animation, and drinking any potion, tonic or elixir plays the drinking animation.
+- Effects show as timed chips in the combat HUD (TONIC, GHOST WARD). The tonic is also sold in the supplies shops.
+- New achievement: "Master Crafter" (craft ten things). Hindi text added.

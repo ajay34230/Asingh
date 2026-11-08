@@ -9,6 +9,13 @@ const DEFS := {
 	"hide": {"name": "Hide", "type": "material", "desc": "Crafting material."},
 	"iron": {"name": "Iron scrap", "type": "material", "desc": "Crafting material."},
 	"fire_arrow": {"name": "Fire arrow", "type": "ammo", "desc": "Used on fully drawn, aimed shots: burns the target. Ghosts fear fire."},
+	"spirit_arrow": {"name": "Spirit arrow", "type": "ammo", "desc": "Glowing arrows dusted with ghost ash: triple damage to spirits. Used first on fully drawn, aimed shots at ghosts."},
+	"tonic": {"name": "Stamina tonic", "type": "consumable", "effect": "tonic", "desc": "Refills stamina; it comes back 60% faster for a minute."},
+	"elixir": {"name": "Strength elixir", "type": "consumable", "effect": "power", "desc": "Double damage for 25 seconds."},
+	"ward": {"name": "Ghost ward", "type": "consumable", "effect": "ward", "desc": "A charm of ash and tulsi: spirits do half damage to you for a minute."},
+	"feather": {"name": "Feathers", "type": "material", "desc": "Fletching for arrows. Raider archers carry them; the bazaar sells them."},
+	"bone": {"name": "Old bones", "type": "material", "desc": "Dropped by skeletons. Boiled into tonic."},
+	"ghost_dust": {"name": "Ghost dust", "type": "material", "desc": "What a ghost leaves behind. Used for spirit arrows and wards."},
 	"oil": {"name": "Lamp oil", "type": "material", "desc": "Crafting material. Sold by the bazaar, dropped by raiders."},
 	"essence": {"name": "Monster essence", "type": "material", "desc": "Dropped by ghosts and monsters. The blacksmith uses it to upgrade weapons."},
 	"spear": {"name": "Spear", "type": "weapon", "dmg": 1.15, "reach": 0.7, "desc": "Longer reach."},
@@ -30,11 +37,16 @@ const RECIPES := {
 	"dagger": ["dagger", {"iron": 3}],
 	"leather": ["leather", {"hide": 4}],
 	"chain": ["chain", {"iron": 8, "hide": 2}],
-	"fire_arrow": ["fire_arrow", {"oil": 1, "hide": 1}, 5],
+	"fire_arrow": ["fire_arrow", {"oil": 1, "feather": 1}, 5],
+	"spirit_arrow": ["spirit_arrow", {"ghost_dust": 1, "feather": 1}, 5],
+	"tonic": ["tonic", {"herb": 2, "bone": 1}],
+	"elixir": ["elixir", {"essence": 1, "herb": 2}],
+	"ward": ["ward", {"ghost_dust": 2, "herb": 1}],
 }
 
 var story: Story
 var player: Player
+var crafted := 0
 var hud: Node
 
 
@@ -108,11 +120,24 @@ func apply_gear() -> void:
 func use(id: String) -> bool:
 	if not DEFS.has(id) or DEFS[id]["type"] != "consumable" or player == null or player.dead:
 		return false
-	if player.hp >= player.max_hp:
+	var fx := String(DEFS[id].get("effect", ""))
+	if fx == "" and player.hp >= player.max_hp:
 		return false
 	if not take(id):
 		return false
-	player.heal(float(DEFS[id]["heal"]))
+	match fx:
+		"tonic":
+			player.stamina = Player.MAX_STAMINA
+			player.power["tonic"] = 60.0
+		"power":
+			player.power["power"] = 25.0
+		"ward":
+			player.power["ward"] = 60.0
+		_:
+			player.heal(float(DEFS[id]["heal"]))
+	player.powerup_changed.emit()
+	player.play_task("drink", 1.0)                 # the hero actually drinks it
+	Sfx.ui("powerup", -8.0)
 	return true
 
 
@@ -133,22 +158,39 @@ func craft(rid: String) -> bool:
 	for k in need:
 		take(String(k), int(need[k]))
 	give(String(RECIPES[rid][0]), int(RECIPES[rid][2]) if RECIPES[rid].size() > 2 else 1)
+	crafted += 1
+	story.set_flag("crafted", int(story.get_flag("crafted", 0)) + 1)
+	if player != null and not player.mounted and not player.dead:
+		player.play_task("cut", 1.2)                 # a moment of handiwork: binding, mixing, fletching
+	Sfx.ui("tink", -6.0)
+	var ach := get_tree().get_first_node_in_group("achievements") if is_inside_tree() else null
+	if ach != null and int(story.get_flag("crafted", 0)) >= 10:
+		ach.call("unlock", "crafter")
 	return true
 
 
 ## Random loot from a defeated enemy (called by Enemy): herbs often, iron and hides sometimes.
 func loot(role: String, rng: RandomNumberGenerator) -> void:
 	if role in Monster.KINDS:
-		# monsters: essence for weapon upgrades (bosses drop a handful), sometimes iron
-		var boss := bool(Monster.KINDS[role].get("boss", false))
+		# monsters: essence for weapon upgrades (bosses drop a handful), sometimes iron;
+		# ghosts leave ghost dust, skeletons leave bones
+		var md: Dictionary = Monster.KINDS[role]
+		var boss := bool(md.get("boss", false))
 		if boss:
 			give("essence", 4)
 			give("iron", 3)
+			give("ghost_dust", 2)
 		elif rng.randf() < 0.55:
 			give("essence")
 		elif rng.randf() < 0.3:
 			give("iron")
+		if bool(md.get("spectral", false)) and rng.randf() < 0.6:
+			give("ghost_dust")
+		if role == "skeleton" and rng.randf() < 0.6:
+			give("bone", 2)
 		return
+	if role == "archer":
+		give("feather", 3)
 	var r := rng.randf()
 	if r < 0.30:
 		give("herb")
@@ -158,6 +200,8 @@ func loot(role: String, rng: RandomNumberGenerator) -> void:
 		give("hide")
 	elif r < 0.72:
 		give("oil")
+	elif r < 0.82:
+		give("feather", 2)
 
 
 ## X17: give a herb to the nearest animal within 4 m. It calms it; three feedings earn an achievement.

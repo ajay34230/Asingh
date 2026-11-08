@@ -12,6 +12,7 @@ var foe: Enemy
 var dmg := 0.0
 var shooter: Node3D
 var fire := false              # fire arrow: burns the target for a few seconds
+var spirit := false            # spirit arrow: blue glow, triple damage to ghosts
 var _burn_t := 0.0
 var _burn_tick := 0.0
 var _burning: Enemy
@@ -61,6 +62,9 @@ func launch(from: Transform3D, target: Vector3, f: Enemy, damage: float, by: Nod
 	_trail.position = Vector3(0, 0, 0.9)
 	_trail.scale = Vector3(1, 1.1, 1)
 	add_child(_trail)
+	if spirit:
+		mat.albedo_color = Color(0.55, 0.85, 1.0, 0.85)
+		_trail.scale = Vector3(2.5, 1.8, 2.5)
 	if fire:
 		mat.albedo_color = Color(1.0, 0.55, 0.15, 0.8)
 		_trail.scale = Vector3(2.5, 1.6, 2.5)
@@ -101,6 +105,9 @@ func _face(v: Vector3) -> void:
 
 
 func _physics_process(delta: float) -> void:
+	if _model == null:
+		queue_free()
+		return
 	_life += delta
 	if _stuck >= 0.0:
 		_stuck += delta
@@ -148,7 +155,7 @@ func _physics_process(delta: float) -> void:
 			if (prev + seg * tg).distance_to(gp) < 0.45:
 				global_position = prev + seg * tg
 				en.set("last_hit_at", gp)
-				en.take_hit("arrow", dmg * (1.25 if fire else 1.0), vel.normalized())
+				en.take_hit("spirit" if spirit else "arrow", dmg * (1.25 if fire else 1.0), vel.normalized())
 				Sfx.at("tink", global_position, -2.0, 1.6)
 				_stick(en)
 				return
@@ -172,7 +179,7 @@ func _physics_process(delta: float) -> void:
 			var amount := dmg * (2.5 if is_head and en.get("boss") == null else (1.5 if is_head else 1.0)) * (1.25 if fire else 1.0)
 			if "last_hit_at" in en:
 				en.set("last_hit_at", global_position)
-			en.take_hit("arrow", amount, vel.normalized())
+			en.take_hit("spirit" if spirit else "arrow", amount, vel.normalized())
 			if is_head:
 				headshots += 1
 				FloatText.spawn(en.get_parent(), head + Vector3(0, 0.7, 0), Loc.t("HEADSHOT"), Color(1.0, 0.3, 0.2), 1.3, 1.4, 1.1)
@@ -193,7 +200,7 @@ func _physics_process(delta: float) -> void:
 			return
 	var q := PhysicsRayQueryParameters3D.create(prev, next)
 	if shooter is CollisionObject3D:
-		q.exclude = [(shooter as CollisionObject3D).get_rid()]
+		q.exclude = shooter.call("ray_excludes") if shooter.has_method("ray_excludes") else [(shooter as CollisionObject3D).get_rid()]
 	var hit := get_world_3d().direct_space_state.intersect_ray(q)
 	if not hit.is_empty() and not (hit.collider is CharacterBody3D):
 		global_position = (hit.position as Vector3) - vel.normalized() * 0.25

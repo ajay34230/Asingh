@@ -1620,7 +1620,7 @@ func _run_selftest() -> void:
 	print("[selftest] archery: target hp %.0f -> %.0f, arrows in the world %d" % [bhp, bt.hp, stuck])
 	# manual aim: craft fire arrows, hold the draw (focus slows time), put the crosshair on the head, let go
 	items.give("oil", 1)
-	items.give("hide", 1)
+	items.give("feather", 1)
 	if not items.craft("fire_arrow") or items.count("fire_arrow") != 5:
 		fails.append("fire arrows: crafting did not give 5")
 	var bt2 := combat.spawn_enemy(player.global_position + Vector3(2.0, 0, -12.0), false, 0.0, "test2")
@@ -1655,6 +1655,7 @@ func _run_selftest() -> void:
 	await _selftest_boss(fails)
 	await _selftest_horse(fails)
 	await _selftest_dog(fails)
+	await _selftest_crafting(fails)
 	items.unequip("weapon")
 	for k in 5:
 		story.flags.erase("cache_%d" % k)
@@ -3233,8 +3234,76 @@ func _run_capture_ride(arg: String) -> void:
 	get_tree().quit()
 
 
+## Crafting: monster materials, the new recipes, drinking tonics and wards, and spirit arrows on a ghost.
+func _selftest_crafting(fails: PackedStringArray) -> void:
+	var rng := RandomNumberGenerator.new()
+	rng.seed = 7
+	var gd0 := items.count("ghost_dust")
+	var bn0 := items.count("bone")
+	for i in 12:
+		items.loot("ghost", rng)
+		items.loot("skeleton", rng)
+	if items.count("ghost_dust") <= gd0 or items.count("bone") <= bn0:
+		fails.append("crafting: ghosts and skeletons did not drop dust and bones")
+	items.give("feather", 2)
+	items.give("herb", 6)
+	items.give("essence", 1)
+	items.give("ghost_dust", 3)
+	items.give("bone", 1)
+	var made: Array = []
+	for rid in ["spirit_arrow", "tonic", "elixir", "ward"]:
+		if items.craft(rid):
+			made.append(rid)
+	if made.size() != 4 or items.count("spirit_arrow") < 5:
+		fails.append("crafting: could not craft all new recipes (made %s)" % str(made))
+	for i in 80:
+		await get_tree().physics_frame
+	player.stamina = 10.0
+	items.use("tonic")
+	items.use("ward")
+	if player.stamina < 99.0 or not player.power.has("tonic") or not player.power.has("ward"):
+		fails.append("crafting: tonic or ward had no effect")
+	# the ward halves a ghost's blow
+	player.hp = 100.0
+	player._invuln = 0.0
+	player._hurt_by_spirit = true
+	player.take_damage(20.0, Vector3.FORWARD)
+	player._hurt_by_spirit = false
+	var warded := 100.0 - player.hp
+	player.hp = 100.0
+	player._invuln = 0.0
+	player.take_damage(20.0, Vector3.FORWARD)
+	var plain := 100.0 - player.hp
+	if warded <= 0.0 or warded > plain * 0.6:
+		fails.append("crafting: ghost ward did not halve spirit damage (%.1f vs %.1f)" % [warded, plain])
+	player.power.clear()
+	player.hp = player.max_hp
+	# a spirit arrow at a ghost does three times an ordinary arrow
+	var hurt: Array = []
+	for sp in [false, true]:
+		var g := Monster.new()
+		g.player = player
+		add_child(g)
+		g.setup_monster("ghost", player.global_position + Vector3(0, 0, -8.0), "craftghost%s" % sp)
+		g.set_physics_process(false)
+		g.hp = 500.0
+		g.max_hp = 500.0
+		var ar := Arrow.new()
+		add_child(ar)
+		ar.spirit = sp
+		var c: Vector3 = g.global_position + Vector3(0, Arrow.chest_height(g), 0)
+		ar.launch(Transform3D(Basis(), c + Vector3(0, 0, 6.0)), c, g, 10.0, player)
+		for i in 40:
+			await get_tree().physics_frame
+		hurt.append(500.0 - g.hp)
+		g.queue_free()
+	if hurt[0] <= 0.0 or hurt[1] < hurt[0] * 2.5:
+		fails.append("crafting: spirit arrow did not triple damage on a ghost (%s)" % str(hurt))
+	print("[selftest] crafting: made %s, ward %.1f vs %.1f, ghost arrow %.0f vs spirit %.0f" % [str(made), warded, plain, hurt[0], hurt[1]])
+
+
 ## Moti the dog: adoption, following, fighting, fetching a coin, petting.
-func _selftest_dog(fails: Array) -> void:
+func _selftest_dog(fails: PackedStringArray) -> void:
 	if dog_sys.dog == null:
 		fails.append("dog: no stray dog found")
 		return
@@ -3289,7 +3358,7 @@ func _selftest_dog(fails: Array) -> void:
 
 
 ## Horseback archery, whistling for your horse, and riding out onto the Southern Road.
-func _selftest_horse(fails: Array) -> void:
+func _selftest_horse(fails: PackedStringArray) -> void:
 	var horse: Animal = null
 	for c in life:
 		if c is Animal and (c as Animal).species == "horse" and not (c as Animal).driven:
@@ -3324,6 +3393,99 @@ func _selftest_horse(fails: Array) -> void:
 		fails.append("horse: archery from the saddle failed (" + note + ")")
 	if is_instance_valid(tgt):
 		tgt.queue_free()
+	# aim sweep: targets all round the horse; the bow arm must point at each one and every arrow must land
+	# the flattest open ground nearby, so hills do not catch the test arrows
+	var flat := Vector2(150.0, 60.0)
+	var best_bump := INF
+	for gx in range(-160, 170, 20):
+		for gz in range(-160, 170, 20):
+			var h0g := terrain.sample_height(gx, gz)
+			var bump := 0.0
+			for k in 12:
+				var aa := TAU * k / 12.0
+				for rr in [5.0, 11.0]:
+					bump = maxf(bump, absf(terrain.sample_height(gx + cos(aa) * rr, gz + sin(aa) * rr) - h0g))
+			if bump >= best_bump:
+				continue
+			var blocked := false               # nothing built or growing within 12 m at bow height, all round
+			for k in 16:
+				var aa := TAU * k / 16.0
+				for hh in [0.4, 1.2, 2.4]:
+					var q0 := PhysicsRayQueryParameters3D.create(Vector3(gx, h0g + hh, gz), Vector3(gx + cos(aa) * 12.0, h0g + hh, gz + sin(aa) * 12.0))
+					if not get_world_3d().direct_space_state.intersect_ray(q0).is_empty():
+						blocked = true
+			if blocked:
+				continue
+			if bump < best_bump:
+				best_bump = bump
+				flat = Vector2(gx, gz)
+	horse.global_position = Vector3(flat.x, terrain.sample_height(flat.x, flat.y), flat.y)
+	note += ", sweep ground bump %.1f m" % best_bump
+	for i in 10:
+		await get_tree().physics_frame
+	var rows: Array = []
+	var worst := 0.0
+	var misses := 0
+	for deg in [0.0, 35.0, 70.0, 110.0, -35.0, -70.0, -110.0, 180.0]:
+		var hd: float = mounts._heading
+		var ang := hd + deg_to_rad(deg)
+		var dir3 := Vector3(-sin(ang), 0.0, -cos(ang))
+		var tp: Vector3 = horse.global_position + dir3 * 10.0
+		tp.y = terrain.sample_height(tp.x, tp.z)
+		var t2 := combat.spawn_enemy(tp, false, 0.0, "sweep%d" % int(deg))
+		t2.set_physics_process(false)
+		t2.global_position = tp
+		var h0: float = t2.hp
+		player._attack_cd = 0.0
+		player.fire_arrow()
+		var err := 999.0
+		for i in 80:
+			await get_tree().physics_frame
+			if player._rig.move == "bow_shot" and player._rig.move_t > 0.56 and player._rig.move_t < 0.63:
+				var arm: Vector3 = player._rig._bone_pos("wr_L") - player._rig._bone_pos("sh_L")
+				var tg: Vector3 = tp - player._rig._bone_pos("sh_L")
+				err = rad_to_deg(absf(Vector2(arm.x, arm.z).angle_to(Vector2(tg.x, tg.z))))
+		await get_tree().create_timer(0.5).timeout
+		var hit := t2.hp < h0
+		if not hit:
+			misses += 1
+			for an in find_children("*", "Node3D", true, false):
+				if an is Arrow and (an as Arrow)._life < 3.0:
+					var dq := PhysicsRayQueryParameters3D.create(player._rig.nock_transform().origin, an.global_position + (an.global_position - player._rig.nock_transform().origin).normalized() * 0.6)
+					dq.exclude = player.ray_excludes()
+					var dh := get_world_3d().direct_space_state.intersect_ray(dq)
+					print("[selftest] sweep blocker: %s, excludes %d, ride %s" % [str((dh["collider"] as Node).get_path()) if not dh.is_empty() else "none", player.ray_excludes().size(), str(player.ride)])
+					print("[selftest] sweep %d miss: arrow under %s at %s (target %s, nock %s), stuck %.2f" % [int(deg), an.get_parent().name, str(an.global_position), str(tp), str(player._rig.nock_transform().origin), (an as Arrow)._stuck])
+		if absf(deg) <= 110.0:
+			worst = maxf(worst, err)
+		rows.append("%d:%.0f%s" % [int(deg), err, "" if hit else "MISS"])
+		t2.queue_free()
+		player._attack_cd = 0.0
+		await get_tree().physics_frame
+	note += ", sweep [%s]" % " ".join(rows)
+	# held aim with the crosshair from the saddle (the crosshair must not catch your own horse)
+	var mang: float = mounts._heading + 0.4
+	var mp: Vector3 = horse.global_position + Vector3(-sin(mang), 0.0, -cos(mang)) * 11.0
+	mp.y = terrain.sample_height(mp.x, mp.z)
+	var t3 := combat.spawn_enemy(mp, false, 0.0, "sweepaim")
+	t3.set_physics_process(false)
+	t3.global_position = mp
+	var h3: float = t3.hp
+	player._attack_cd = 0.0
+	player.begin_aim()
+	for i in 6:
+		await get_tree().create_timer(0.15, true, false, true).timeout
+		var ch: Vector3 = t3.global_position + Vector3(0, Arrow.chest_height(t3), 0)
+		var dv3: Vector3 = ch - player.camera.global_position
+		player.set_look(atan2(-dv3.x, -dv3.z), atan2(dv3.y, Vector2(dv3.x, dv3.z).length()))
+	player.release_aim()
+	await get_tree().create_timer(1.0).timeout
+	note += ", held aim from the saddle hit %s" % (t3.hp < h3)
+	if t3.hp >= h3:
+		fails.append("horse: held crosshair aim from the saddle missed")
+	t3.queue_free()
+	if misses > 0 or worst > 15.0:
+		fails.append("horse: aim sweep off (worst arm error %.0f deg within 110 deg, %d misses)" % [worst, misses])
 	items.unequip("weapon")
 	player.set_weapon("fists")
 	# whistle from far away
@@ -3359,7 +3521,7 @@ func _selftest_horse(fails: Array) -> void:
 
 
 ## Boss fight: phases, summoned minions, stomp shockwave, weak spot, charge, the boss bar and the kill.
-func _selftest_boss(fails: Array) -> void:
+func _selftest_boss(fails: PackedStringArray) -> void:
 	var mm := get_tree().get_first_node_in_group("monster_missions")
 	if mm == null:
 		fails.append("boss: no monster missions node")

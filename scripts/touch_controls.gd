@@ -327,8 +327,11 @@ func _draw_bow_hud(font: Font) -> void:
 	draw_arc(c, r, -PI * 0.5, -PI * 0.5 + TAU * player.aim_focus, 40, Color(0.45, 0.85, 1.0, 0.8 * btn_alpha), 4.0)
 	var it := player.get_tree().get_first_node_in_group("items")
 	var fa := int(it.call("count", "fire_arrow")) if it != null else 0
+	var sa := int(it.call("count", "spirit_arrow")) if it != null else 0
 	if fa > 0:
 		draw_string(font, c + Vector2(-34.0, r + 26.0), "%s %d" % [Loc.t("FIRE"), fa], HORIZONTAL_ALIGNMENT_LEFT, -1, 18, Color(1.0, 0.6, 0.2, 0.95))
+	if sa > 0:
+		draw_string(font, c + Vector2(-34.0, r + (46.0 if fa > 0 else 26.0)), "%s %d" % [Loc.t("SPIRIT"), sa], HORIZONTAL_ALIGNMENT_LEFT, -1, 18, Color(0.6, 0.88, 1.0, 0.95))
 	if player.aim_blend < 0.3:
 		return
 	var a := player.aim_blend

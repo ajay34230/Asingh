@@ -190,13 +190,15 @@ func take_hit(hk: String, amount: float, from_dir: Vector3) -> void:
 		match hk:
 			"arrow":
 				m = 2.0
+			"spirit":
+				m = 6.0                         # spirit arrows: triple an ordinary arrow
 			"punch", "kick", "round":
 				m = 0.55
 			_:
 				m = 1.3 if (player != null and player.weapon in ["sword", "dagger", "spear", "axe"]) else 0.9
 		if player != null:
 			m *= player.ghost_mult              # Hunter: Spirit Bane
-	elif hk == "arrow":
+	elif hk == "arrow" or hk == "spirit":
 		m = 1.2
 	amount *= m
 	if boss != null:
@@ -318,7 +320,9 @@ func _physics_process(delta: float) -> void:
 		velocity.x = move_toward(velocity.x, 0.0, 20.0 * delta)
 		velocity.z = move_toward(velocity.z, 0.0, 20.0 * delta)
 		if _atk_t >= 0.45 and _atk_t - delta < 0.45 and dist < reach + 0.8:
+			player._hurt_by_spirit = spectral
 			player.take_damage(damage * (1.25 if enraged else 1.0), fwd)
+			player._hurt_by_spirit = false
 		if _atk_t > 0.9:
 			_atk_t = -1.0
 			_cur = ""
