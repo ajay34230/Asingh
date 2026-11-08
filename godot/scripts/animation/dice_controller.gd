@@ -99,6 +99,8 @@ func roll_to(result: int, thrown_from := Vector3.ZERO) -> void:
         var settle := create_tween()
         settle.tween_property(dice_model, "position:y", start_y, 0.16).set_trans(Tween.TRANS_BOUNCE).set_ease(Tween.EASE_OUT)
         await settle.finished
+    ## Settle on the exact orientation (drops the extra whole turns from the tween).
+    dice_model.rotation_degrees = final_euler
     is_rolling = false
     dice_rolled.emit(result)
 

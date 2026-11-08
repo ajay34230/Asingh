@@ -730,10 +730,9 @@ func _build_dice() -> DiceController:
 	var dice := DiceController.new()
 	dice.name = "Dice"
 	dice.position = DICE_POSITION
-	var model := Node3D.new()
-	model.name = "DiceModel"
-	model.add_child((load(DICE_PATH) as PackedScene).instantiate())
-	model.scale = Vector3.ONE * 1.15
+	## Custom royal dice (the supplied dice model renders black on the phone renderer
+	## after some rolls).
+	var model := RoyalDice.build()
 	dice.add_child(model)
 	var shape := CollisionShape3D.new()
 	var sphere := SphereShape3D.new()
@@ -991,6 +990,9 @@ func _run_showcase() -> void:
 		game.tap_token("blue", 0)
 	for i in range(150):
 		await get_tree().process_frame
+		if i % 30 == 0 and "--probe" in OS.get_cmdline_user_args():
+			var m: Node3D = game.dice.get_node("DiceModel")
+			print("PROBE basis det=%s scale=%s rot=%s gscale=%s" % [m.global_basis.determinant(), m.scale, m.rotation_degrees, m.global_basis.get_scale()])
 	print("SHOWCASE DONE")
 	get_tree().quit()
 
