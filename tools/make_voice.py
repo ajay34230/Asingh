@@ -38,6 +38,17 @@ ANNOUNCER_LINES = {
     "your_turn": [("आपकी बारी!", "Aapki baari!")],
     "win": [("जीत मुबारक हो!", "Jeet mubaarak ho!"), ("आप जीत गए!", "Aap jeet gaye!")],
     "lose": [("अगली बार ज़रूर!", "Agli baar zaroor!")],
+    "ladder": [("सीढ़ी चढ़ गए!", "Seedhi chadh gaye!"), ("ऊपर चलो!", "Upar chalo!")],
+    "snake": [("अरे, साँप ने काट लिया!", "Arre, saanp ne kaat liya!"), ("नीचे गिर गए!", "Neeche gir gaye!")],
+    "shield": [("ढाल मिल गई!", "Dhaal mil gayi!")],
+    "star": [("एक और मौका!", "Ek aur mauka!")],
+    "replay": [("फिर से देखिए!", "Phir se dekhiye!")],
+    "team_win": [("आपकी टीम जीत गई!", "Aapki team jeet gayi!")],
+    "journey": [("नई यात्रा शुरू!", "Nayi yaatra shuru!")],
+    "capture_blue": [("नीली गोटी का वार!", "Neeli goti ka vaar!")],
+    "capture_yellow": [("पीली गोटी का वार!", "Peeli goti ka vaar!")],
+    "capture_green": [("हरी गोटी का वार!", "Hari goti ka vaar!")],
+    "capture_red": [("लाल गोटी का वार!", "Laal goti ka vaar!")],
 }
 TOKEN_LINES = {
     "taunt": [("ये लो एक!", "Ye lo ek!"), ("हट जाओ रास्ते से!", "Hat jao raaste se!"), ("तैयार हो जाओ!", "Taiyaar ho jao!")],

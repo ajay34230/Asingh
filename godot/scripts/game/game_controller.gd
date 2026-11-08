@@ -50,7 +50,8 @@ var fight: FightChoreography
 var life: TokenLife
 var replay: FightReplay
 var specials: SpecialSquares
-var blitz := false   ## set by the main scene for snakes / power-up games
+var blitz := false
+var relaxed := false   ## accessibility: slower AI turns   ## set by the main scene for snakes / power-up games
 var forced_roll := -1   ## test/showcase only: the next roll's value
 var _moving_index := 0
 var preview: MovePreview        ## set by the main scene; shows where legal moves land
@@ -72,6 +73,7 @@ func new_game(seat_colors: Array[String] = ["blue", "yellow", "green", "red"], h
 	engine.setup(seats, _seed, rules)
 	tally = {"captures": 0, "lost": 0, "home": 0, "sixes": 0}
 	_spawn_tokens(seat_colors)
+	set_shape_markers(bool(GameSettings.get_option("colorblind")))
 	if specials:
 		for c in specials.get_children():
 			c.queue_free()
@@ -178,6 +180,62 @@ func _apply_token_skin(token: TransformerToken, skin: String) -> void:
 var tally := {"captures": 0, "lost": 0, "home": 0, "sixes": 0}
 
 
+## Colour-blind markers: a gold-rimmed shape floats above each token (blue circle,
+## yellow triangle, green square, red diamond), so colours never need telling apart.
+func set_shape_markers(on: bool) -> void:
+	for color in tokens:
+		for token in tokens[color]:
+			var old: Node = (token as Node3D).get_node_or_null("ShapeMarker")
+			if old:
+				old.queue_free()
+			if on:
+				(token as Node3D).add_child(_shape_marker(color))
+
+
+static func _shape_marker(color: String) -> Node3D:
+	var root := Node3D.new()
+	root.name = "ShapeMarker"
+	root.position = Vector3(0, 1.3, 0)
+	root.scale = Vector3.ONE * 2.2
+	var mesh: Mesh
+	match color:
+		"blue":
+			var c := CylinderMesh.new()
+			c.top_radius = 0.13
+			c.bottom_radius = 0.13
+			c.height = 0.05
+			c.radial_segments = 32
+			mesh = c
+		"yellow":
+			var t := CylinderMesh.new()
+			t.top_radius = 0.16
+			t.bottom_radius = 0.16
+			t.height = 0.05
+			t.radial_segments = 3
+			mesh = t
+		"green":
+			var b := BoxMesh.new()
+			b.size = Vector3(0.22, 0.05, 0.22)
+			mesh = b
+		_:
+			var d := BoxMesh.new()
+			d.size = Vector3(0.2, 0.05, 0.2)
+			mesh = d
+	var m := MeshInstance3D.new()
+	m.mesh = mesh
+	var mat := StandardMaterial3D.new()
+	mat.albedo_color = Color.WHITE
+	mat.emission_enabled = true
+	mat.emission = Color(1, 1, 1)
+	mat.emission_energy_multiplier = 1.2
+	m.material_override = mat
+	if color == "red":
+		m.rotation.y = PI / 4.0
+	m.rotation.x = PI * 0.5 - 0.6   # tilted towards the camera
+	root.add_child(m)
+	return root
+
+
 func current_color() -> String:
 	return engine.current_seat()["color"]
 
@@ -199,7 +257,7 @@ func _start_turn() -> void:
 		message.emit(tr("%s is rolling") % AiController.PERSONAS.get(current_color(), {"name": current_color().capitalize()})["name"])
 		dice.set_rollable(false)
 		if not fast_mode:
-			await get_tree().create_timer(AI_DELAY * (0.35 if blitz else 1.0)).timeout
+			await get_tree().create_timer(AI_DELAY * (0.35 if blitz else (2.2 if relaxed else 1.0))).timeout
 		_roll_now()
 
 func _on_roll_requested() -> void:

@@ -13,7 +13,10 @@ const DEFAULTS := {
 	"show_fps": false,
 	"voice": true,
 	"turn_timer": true,
-	"tutorial_done": false,     ## the first-game coach has been completed         ## 20 s per human action, then the game plays for you              ## spoken Hindi commentary and token dialogue
+	"tutorial_done": false,
+	"colorblind": false,        ## shape markers above tokens (circle, triangle, square, diamond)
+	"large_text": false,        ## interface drawn 15% larger
+	"relaxed_ai": false,        ## AI players take their turns more slowly     ## the first-game coach has been completed         ## 20 s per human action, then the game plays for you              ## spoken Hindi commentary and token dialogue
 	"language": "en",
 	"players": 4,               ## 2 | 3 | 4
 	"difficulty": 1,            ## 0 Easy .. 3 Expert

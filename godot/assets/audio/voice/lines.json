@@ -109,6 +109,93 @@
     "caption": "Agli baar zaroor!",
     "text": "अगली बार ज़रूर!"
    }
+  ],
+  "ladder": [
+   {
+    "file": "ann_ladder_1",
+    "caption": "Seedhi chadh gaye!",
+    "text": "सीढ़ी चढ़ गए!"
+   },
+   {
+    "file": "ann_ladder_2",
+    "caption": "Upar chalo!",
+    "text": "ऊपर चलो!"
+   }
+  ],
+  "snake": [
+   {
+    "file": "ann_snake_1",
+    "caption": "Arre, saanp ne kaat liya!",
+    "text": "अरे, साँप ने काट लिया!"
+   },
+   {
+    "file": "ann_snake_2",
+    "caption": "Neeche gir gaye!",
+    "text": "नीचे गिर गए!"
+   }
+  ],
+  "shield": [
+   {
+    "file": "ann_shield_1",
+    "caption": "Dhaal mil gayi!",
+    "text": "ढाल मिल गई!"
+   }
+  ],
+  "star": [
+   {
+    "file": "ann_star_1",
+    "caption": "Ek aur mauka!",
+    "text": "एक और मौका!"
+   }
+  ],
+  "replay": [
+   {
+    "file": "ann_replay_1",
+    "caption": "Phir se dekhiye!",
+    "text": "फिर से देखिए!"
+   }
+  ],
+  "team_win": [
+   {
+    "file": "ann_team_win_1",
+    "caption": "Aapki team jeet gayi!",
+    "text": "आपकी टीम जीत गई!"
+   }
+  ],
+  "journey": [
+   {
+    "file": "ann_journey_1",
+    "caption": "Nayi yaatra shuru!",
+    "text": "नई यात्रा शुरू!"
+   }
+  ],
+  "capture_blue": [
+   {
+    "file": "ann_capture_blue_1",
+    "caption": "Neeli goti ka vaar!",
+    "text": "नीली गोटी का वार!"
+   }
+  ],
+  "capture_yellow": [
+   {
+    "file": "ann_capture_yellow_1",
+    "caption": "Peeli goti ka vaar!",
+    "text": "पीली गोटी का वार!"
+   }
+  ],
+  "capture_green": [
+   {
+    "file": "ann_capture_green_1",
+    "caption": "Hari goti ka vaar!",
+    "text": "हरी गोटी का वार!"
+   }
+  ],
+  "capture_red": [
+   {
+    "file": "ann_capture_red_1",
+    "caption": "Laal goti ka vaar!",
+    "text": "लाल गोटी का वार!"
+   }
   ]
  },
  "token": {

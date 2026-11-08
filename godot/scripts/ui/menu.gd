@@ -62,6 +62,9 @@ var _haptics: CheckButton
 var _language: OptionButton
 var _voice: CheckButton
 var _timer: CheckButton
+var _cb: CheckButton
+var _big: CheckButton
+var _relax: CheckButton
 var _mode := "ai"
 var _audio: AudioManager
 var _overlay := false
@@ -378,8 +381,8 @@ func _build_setup() -> void:
 
 
 func _build_settings() -> void:
-	var box := _page_root("settings")
-	_title(box, "Settings")
+	var box := _scroll_page("settings", "Settings")
+	var page_box: VBoxContainer = box.get_parent().get_parent()
 	_graphics = _option(box, "Graphics", ["Low", "Medium", "High"])
 	_camera = _check(box, "Tilted 3D camera", true)
 	_anim = _option(box, "Animation speed", ["Slow", "Normal", "Fast"])
@@ -390,17 +393,20 @@ func _build_settings() -> void:
 	_haptics = _check(box, "Vibration", true)
 	_voice = _check(box, "Voice commentary (Hindi)", true)
 	_timer = _check(box, "Turn timer (20 s)", true)
+	_cb = _check(box, "Colour-blind symbols", false)
+	_big = _check(box, "Larger text", false)
+	_relax = _check(box, "Relaxed AI pace", false)
 	var names: Array = []
 	for l in I18n.LANGUAGES:
 		names.append(l[1])
 	_language = _option(box, "Language", names)
 	for c in [_graphics, _anim, _language]:
 		(c as OptionButton).item_selected.connect(func(_i: int) -> void: _save_settings())
-	for c in [_camera, _fps, _mute, _haptics, _voice, _timer]:
+	for c in [_camera, _fps, _mute, _haptics, _voice, _timer, _cb, _big, _relax]:
 		(c as CheckButton).toggled.connect(func(_b: bool) -> void: _save_settings())
 	_music.value_changed.connect(func(_v: float) -> void: _save_settings())
 	_sfx.value_changed.connect(func(_v: float) -> void: _save_settings())
-	_button(box, "Back", func() -> void: _back())
+	_button(page_box, "Back", func() -> void: _back())
 
 
 var _shop_rows: Dictionary = {}
@@ -799,6 +805,9 @@ func _load_settings_into_controls() -> void:
 	_haptics.button_pressed = _audio.haptics if _audio else true
 	_voice.button_pressed = GameSettings.get_option("voice")
 	_timer.button_pressed = GameSettings.get_option("turn_timer")
+	_cb.button_pressed = GameSettings.get_option("colorblind")
+	_big.button_pressed = GameSettings.get_option("large_text")
+	_relax.button_pressed = GameSettings.get_option("relaxed_ai")
 	var code := String(GameSettings.get_option("language"))
 	for i in range(I18n.LANGUAGES.size()):
 		if I18n.LANGUAGES[i][0] == code:
@@ -816,6 +825,9 @@ func _save_settings() -> void:
 		GameSettings.set_option("language", lang)
 		I18n.apply(lang)
 	GameSettings.set_option("turn_timer", _timer.button_pressed)
+	GameSettings.set_option("colorblind", _cb.button_pressed)
+	GameSettings.set_option("large_text", _big.button_pressed)
+	GameSettings.set_option("relaxed_ai", _relax.button_pressed)
 	if _audio:
 		_audio.set_music_volume_db(_music.value)
 		_audio.set_sfx_volume_db(_sfx.value)

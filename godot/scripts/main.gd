@@ -330,6 +330,7 @@ func _start_chapter(index: int) -> void:
 	audio.start_music("game")
 	hud.flash_banner(tr(ch["palace"]), RoyalTheme.GOLD_LIGHT, 2.2)
 	hud.show_caption(tr(ch["intro"]), 4.5)
+	_announce_later("journey", 0.4, true)
 	await get_tree().create_timer(1.2).timeout
 	_start_from_menu(Campaign.config(index))
 
@@ -385,6 +386,10 @@ func _apply_settings() -> void:
 	hud.set_fps_visible(GameSettings.get_option("show_fps"))
 	if voice:
 		voice.enabled = GameSettings.get_option("voice")
+	game.relaxed = bool(GameSettings.get_option("relaxed_ai"))
+	if game.engine and not game.engine.seats.is_empty():
+		game.set_shape_markers(bool(GameSettings.get_option("colorblind")))
+	get_window().content_scale_factor = 1.15 if bool(GameSettings.get_option("large_text")) else 1.0
 	game.turn_seconds = 20.0 if GameSettings.get_option("turn_timer") and not _is_test_launch(OS.get_cmdline_user_args()) else 0.0
 	_fit_camera()
 
@@ -429,12 +434,53 @@ func _place_decorations() -> void:
 		root.rotation_degrees.y = deco["yaw"]
 		root.scale = Vector3.ONE * float(deco["scale"])
 		add_child(root)
-		root.add_child((load(deco["path"]) as PackedScene).instantiate())
+		var model := (load(deco["path"]) as PackedScene).instantiate()
+		root.add_child(model)
+		_repair_meshes(model)
 		if not _decor.has(deco["type"]):
 			_decor[deco["type"]] = root
 		var animator := RoyalEnvironmentAnimator.new()
 		animator.animation_type = deco["type"]
 		root.add_child(animator)
+
+
+## Some supplied models have no normals or no texture coordinates. Without UVs a
+## texture is sampled at one point (often black), so those surfaces keep their material
+## colour instead; missing normals are generated so the phone renderer can light them.
+static func _repair_meshes(node: Node) -> void:
+	for mi in node.find_children("*", "MeshInstance3D", true, false):
+		var m := mi as MeshInstance3D
+		if not (m.mesh is ArrayMesh):
+			continue
+		var src := m.mesh as ArrayMesh
+		var fixed := ArrayMesh.new()
+		var changed := false
+		for i in range(src.get_surface_count()):
+			var arrays := src.surface_get_arrays(i)
+			var mat := m.get_active_material(i)
+			var has_uv: bool = arrays[Mesh.ARRAY_TEX_UV] != null
+			var has_normals: bool = arrays[Mesh.ARRAY_NORMAL] != null
+			if not has_normals:
+				var st := SurfaceTool.new()
+				st.create_from_arrays(arrays)
+				st.generate_normals()
+				arrays = st.commit_to_arrays()
+				changed = true
+			fixed.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, arrays)
+			if mat is BaseMaterial3D and not has_uv and (mat as BaseMaterial3D).albedo_texture:
+				var copy := (mat as BaseMaterial3D).duplicate() as BaseMaterial3D
+				copy.albedo_texture = null
+				copy.albedo_color = copy.albedo_color * Color(0.62, 0.6, 0.58)   # the texture darkened it
+				copy.normal_texture = null
+				copy.roughness_texture = null
+				fixed.surface_set_material(i, copy)
+				changed = true
+			else:
+				fixed.surface_set_material(i, mat)
+		if changed:
+			m.mesh = fixed
+			for i in range(fixed.get_surface_count()):
+				m.set_surface_override_material(i, null)
 
 
 ## Routes presentation cues from the game to sound, haptics and effects.
@@ -497,7 +543,7 @@ func _on_game_event(event_name: String, data: Dictionary) -> void:
 			audio.vibrate(60)
 			hud.flash_banner(["KNOCKOUT!", "BOOM!", "SMASH!"].pick_random(), Color("#ffd24a"))
 			_token_says(data.get("victim_token"), "hurt", data.get("color", ""))
-			_announce_later("capture", 1.4)
+			_announce_later("capture_" + game.current_color() if randf() < 0.5 else "capture", 1.4)
 		"block":
 			audio.vibrate(15)
 			audio.play("thud", 0.1, -6.0)
@@ -527,15 +573,18 @@ func _on_game_event(event_name: String, data: Dictionary) -> void:
 			audio.play("confirm", 0.0, -3.0)
 			effects.burst(pos + up, Color("#7cff7a"), 24, 2.0, 0.8, -1.0)
 			hud.flash_banner(tr("LADDER!"), Color("#9dff8a"), 0.5)
+			_announce("ladder", true)
 		"snake":
 			audio.play("swish", 0.0, -2.0)
 			audio.play("error", 0.0, -8.0)
 			effects.burst(pos + up, Color("#3fae4a"), 24, 1.6, 0.8)
 			hud.flash_banner(tr("SNAKE!"), Color("#ff7a7a"), 0.5)
+			_announce("snake", true)
 		"powerup":
 			audio.play("shield" if data.get("type") == "shield" else "coins", 0.02)
 			effects.burst(pos + up, Color("#4fc3ff") if data.get("type") == "shield" else EffectsManager.GOLD, 40, 2.4, 0.9)
 			hud.flash_banner(tr("SHIELD!") if data.get("type") == "shield" else tr("EXTRA ROLL!"), Color("#9fd8ff") if data.get("type") == "shield" else Color("#ffd24a"), 0.6)
+			_announce("shield" if data.get("type") == "shield" else "star", true)
 		"leave_yard":
 			tutorial.tip("six")
 			audio.vibrate(20)
@@ -567,8 +616,13 @@ func _on_game_event(event_name: String, data: Dictionary) -> void:
 			tutorial.finish()
 			var won: bool = not (data.get("ranking", []) as Array).is_empty() and data["ranking"][0]["human"]
 			var any_human: bool = (data.get("ranking", []) as Array).any(func(r: Dictionary) -> bool: return r["human"])
+			var team_game: bool = not (data.get("ranking", []) as Array).is_empty() and int(data["ranking"][0].get("team", -1)) >= 0
+			if team_game:
+				for r in data["ranking"]:
+					if r["human"]:
+						won = int(r["team"]) == int(data["ranking"][0]["team"])
 			if any_human:
-				_announce_later("win" if won else "lose", 0.6)
+				_announce_later(("team_win" if team_game else "win") if won else "lose", 0.6)
 				if won:
 					audio.vibrate_pattern([40, 80, 40, 80, 140])
 			effects.fireworks(3.0)
@@ -734,6 +788,7 @@ func _play_replay() -> void:
 	var timer_was := game.timer_active
 	game.timer_active = false
 	hud.flash_banner(tr("REPLAY"), Color("#9fd8ff"), 0.6)
+	_announce("replay", true)
 	await game.replay.play(0.5)
 	game.busy = was_busy
 	game.timer_active = timer_was
@@ -1330,6 +1385,10 @@ func _screenshot_and_quit(path: String) -> void:
 		if v.size() == 6:
 			director.set_process(false)
 			camera.look_at_from_position(Vector3(float(v[0]), float(v[1]), float(v[2])), Vector3(float(v[3]), float(v[4]), float(v[5])), Vector3.UP)
+	if "--statues" in OS.get_cmdline_user_args():
+		await get_tree().create_timer(1.0).timeout
+		_elephant_salute()
+		_peacock_dance()
 	## Wait in real time, so effects that run for seconds are still on screen.
 	await get_tree().create_timer(float(_arg_value(OS.get_cmdline_user_args(), "--shot-delay")) if _has_arg("--shot-delay") else 1.0).timeout
 	get_viewport().get_texture().get_image().save_png(path)
