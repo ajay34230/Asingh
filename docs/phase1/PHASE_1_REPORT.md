@@ -519,3 +519,20 @@ Verified by the selftest (PASS: "crafting: made [spirit_arrow, tonic, elixir, wa
 - **Acted out:** crafting plays a short handiwork animation, and drinking any potion, tonic or elixir plays the drinking animation.
 - Effects show as timed chips in the combat HUD (TONIC, GHOST WARD). The tonic is also sold in the supplies shops.
 - New achievement: "Master Crafter" (craft ten things). Hindi text added.
+
+## Addendum: Real-calendar festivals (2026-11-08)
+
+Verified by the selftest (PASS: "events: diwali 12/12 done true outfit true, holi 8/8 ..., kite shot down by an arrow true, sankranti 6/6 ..., dussehra 3/3 ...", plus 9 date checks) and software-rendered captures (`--capture-event`, `EVENT=<id>`). **Not tested on a device.**
+
+- `scripts/live_events.gd` reads the **phone's date**. While a festival is on, the bazaar is decorated every evening, a festival task appears in the quest list, and a festival outfit is sold in the bazaar.
+- **Rewards for each task:** coins, the outfit free (worn straight away), fireworks and the "Festive Spirit" achievement.
+- **Diwali** (Lakshmi Puja −4/+3 days; 8 Nov 2026, 29 Oct 2027, 17 Oct 2028): light 12 clay diyas round the bazaar square. Lanterns glow every evening and fireworks go off at night. Outfit: Diwali Sherwani.
+- **Holi** (−1/+2 days; 22 Mar 2027, 11 Mar 2028): throw colour at 8 villagers (bursts of gulal; they shout "Holi hai!"). Colour bursts by the fountain. Outfit: Holi Kurta.
+- **Makar Sankranti** (13–16 January, every year): 6 kites drift high over the square. Shoot them down with the bow; the manual-aim crosshair locks onto kites. Outfit: Kite Flyer's Jacket.
+- **Dussehra** (Navratri to Vijayadashami; 20 Oct 2026, 9 Oct 2027, 27 Sep 2028):
+  - A 9 m Ravana effigy with ten crowned heads stands south of the square.
+  - It needs 3 fire-arrow hits; ordinary arrows only bring a hint. You get 5 free fire arrows on the first day.
+  - It burns and collapses, followed by fireworks. Outfit: Vijaya Warrior.
+- **Dates:** the lunar dates were checked against publicholidays.in and holidaydb.com, and 2029 onwards needs adding.
+- **Saving and testing:** progress is saved per festival per year. Testing can force a festival with the `EVENT` environment variable or the `event_override` story flag.
+- **New sound:** `firework` (self-made, CC0, credited in ASSETS.md). Hindi text was added.

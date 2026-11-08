@@ -35,6 +35,20 @@ const OUTFITS := [
 	 "dye": [Color(0.4, 0.05, 0.05), Color(0.7, 0.5, 0.25)], "helmet": "Helmet1", "pads": true,
 	 "cape": [Color(0.25, 0.04, 0.03), Color(0.55, 0.4, 0.2), 0.85], "armor": 0.72,
 	 "bonus": {"melee": 0.1}, "desc": "Heavy hide and iron. 28% armour, +10% melee."},
+	# festival outfits: sold in the bazaar only while their festival is on (LiveEvents), and given for its task
+	{"id": "diwali_sherwani", "event": "diwali", "jewels": ["kada_R", "mala_gold"], "name": "Diwali Sherwani", "shop": "bazaar", "price": 180, "body": {"body": "m_Farmer", "scale": 1.0},
+	 "dye": [Color(0.55, 0.05, 0.12), Color(0.95, 0.76, 0.25)], "turban": [Color(0.95, 0.76, 0.25), Color(0.6, 0.05, 0.12)], "sash": Color(0.95, 0.76, 0.25),
+	 "armor": 0.95, "bonus": {"xp": 0.1}, "desc": "Maroon silk and gold for the Festival of Lights. 5% armour, +10% XP."},
+	{"id": "holi_kurta", "event": "holi", "jewels": ["kada_R"], "name": "Holi Kurta", "shop": "bazaar", "price": 150, "body": {"body": "m_Farmer", "scale": 1.0},
+	 "dye": [Color(0.97, 0.95, 0.92), Color(0.95, 0.25, 0.6)], "turban": [Color(0.3, 0.8, 0.35), Color(0.95, 0.25, 0.6)], "sash": Color(1.0, 0.8, 0.1),
+	 "armor": 1.0, "bonus": {"run": 0.06}, "desc": "White cotton splashed with gulal. Run 6% faster."},
+	{"id": "kite_jacket", "event": "sankranti", "jewels": ["pouch"], "name": "Kite Flyer's Jacket", "shop": "bazaar", "price": 160, "body": {"body": "thief", "robe": true, "scale": 1.0},
+	 "dye": [Color(1.0, 0.78, 0.1), Color(0.15, 0.35, 0.8)], "sash": Color(0.9, 0.2, 0.3),
+	 "armor": 0.95, "bonus": {"arrow": 0.1}, "desc": "Bright as a patang. 5% armour, +10% arrow damage."},
+	{"id": "vijaya_warrior", "event": "dussehra", "jewels": ["kada_R", "kada_L", "mala"], "name": "Vijaya Warrior", "shop": "bazaar", "price": 260, "body": {"body": "veteran", "robe": true, "scale": 1.0},
+	 "dye": [Color(0.95, 0.55, 0.1), Color(0.95, 0.76, 0.25)], "turban": [Color(0.95, 0.5, 0.08), Color(0.95, 0.78, 0.25)],
+	 "cape": [Color(0.7, 0.1, 0.06), Color(0.95, 0.78, 0.25), 1.0], "pads": true, "armor": 0.82,
+	 "bonus": {"melee": 0.06}, "desc": "Saffron and gold for the victory of good. 18% armour, +6% melee."},
 	{"id": "knight", "name": "Knight of Veyra", "shop": "dhoop", "price": 800, "body": {"body": "knight", "scale": 1.0, "natural": true},
 	 "helmet": "Helmet3", "cape": [Color(0.6, 0.05, 0.08), Color(0.95, 0.78, 0.25), 1.1], "armor": 0.62, "bonus": {"run": -0.04}, "desc": "Full plate. 38% armour, but 4% slower."},
 ]
@@ -291,6 +305,10 @@ func _fill() -> void:
 			continue
 		if _shop != "" and String(o["shop"]) != _shop and not (own and id == worn()):
 			continue
+		if o.has("event") and not own:
+			var le := get_tree().get_first_node_in_group("live_events")
+			if le == null or not bool(le.call("outfit_on_sale", id)):
+				continue                       # festival outfits only while their festival is on
 		var hb := HBoxContainer.new()
 		hb.add_theme_constant_override("separation", 10)
 		var info := _row("%s%s\n%s" % [String(o["name"]), "   (wearing)" if id == worn() else "", String(o["desc"])], 22,

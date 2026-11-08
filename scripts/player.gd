@@ -504,6 +504,16 @@ func _aim_from_crosshair() -> void:
 		_arrow_target = best.global_position + best_off
 	else:
 		_arrow_target = point
+		# festival targets (kites, the effigy) close to the crosshair line
+		for ft in get_tree().get_nodes_in_group("arrow_targets"):
+			var fn := ft as Node3D
+			if fn == null or not fn.visible:
+				continue
+			var fp: Vector3 = fn.global_position + Vector3(0, float(fn.get_meta("aim_h", 0.0)), 0)
+			var al := (fp - o).dot(fwd)
+			if al > 1.0 and al < 90.0 and (o + fwd * al).distance_to(fp) < float(fn.get_meta("radius", 1.0)) * 1.4 and al < best_along:
+				best_along = al
+				_arrow_target = fp
 
 
 func _set_focus(on: bool) -> void:

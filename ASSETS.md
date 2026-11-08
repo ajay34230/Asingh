@@ -40,6 +40,7 @@ Credit: models by Quaternius (CC0). Credit is not required but is given.
 - `assets/voice/*.ogg` spoken dialogue: rendered offline with the **Kokoro-82M** neural TTS model (Apache-2.0; ONNX build from github.com/thewh1teagle/kokoro-onnx releases) and phonemes from **espeak-ng** (GPL-3.0, used only as a build-time tool; no espeak code ships in the game). Script: `tools/render_voices.py`; lines come from `tools/voice_lines.py`. Models and binaries are not committed.
 - Market sounds (`market_crowd_loop`, `street_murmur_loop`, `water_splash_loop`, `sizzle_loop`, `fire_crackle_loop`, `music_bazaar`, `scrub`, `sweep`, `chop`, `knead`, `pot_clink`, `coin_clink`, `tink`, `cloth_flap`, `goat_bleat`, `hen_cluck`, `child_laugh`, `cart_creak`, `bicycle_bell`) and `deer_call`, `animal_pain`, `animal_thud`: `tools/make_market_audio.py` and inline synthesis (CC0, own work).
 - `whistle` (calling your horse): a two-note shepherd's whistle synthesised inline with Python (sine slide with vibrato and a little breath noise). CC0, own work.
+- `firework` (festival fireworks): a rising whistle, a thump and a crackle of pops, synthesised inline with Python. CC0, own work.
 - Intro theme `music_intro.wav`: `tools/make_intro_music.py` (CC0, own work; plucked sitar-like strings, tanpura drone, flute, frame drum, gramophone character).
 
 ## Audio and plants added after Phase 1 (all own work, no third-party samples)

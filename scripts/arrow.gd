@@ -134,6 +134,23 @@ func _physics_process(delta: float) -> void:
 	var prev := global_position
 	vel.y -= G * delta
 	var next := prev + vel * delta
+	# festival targets (kites, the Ravana effigy) along this step
+	for ft in get_tree().get_nodes_in_group("arrow_targets"):
+		var fn := ft as Node3D
+		if fn == null or not fn.visible:
+			continue
+		var fp: Vector3 = fn.global_position + Vector3(0, float(fn.get_meta("aim_h", 0.0)), 0)
+		var fs := next - prev
+		var ftt := clampf((fp - prev).dot(fs) / maxf(fs.length_squared(), 0.0001), 0.0, 1.0)
+		if (prev + fs * ftt).distance_to(fp) < float(fn.get_meta("radius", 1.0)):
+			var le = fn.get_meta("events", null)
+			if le != null and is_instance_valid(le) and bool(le.call("arrow_hit", fn, fire)):
+				global_position = prev + fs * ftt
+				if String(fn.get_meta("kind", "")) == "effigy":
+					_stick(fn)
+				else:
+					queue_free()
+				return
 	# enemies along this step (the chosen target first, then anyone else in the way)
 	var victims: Array = []
 	if is_instance_valid(foe) and not foe.dead:

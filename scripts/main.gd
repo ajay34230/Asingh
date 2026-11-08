@@ -32,6 +32,7 @@ var shrines: Shrines
 var items: Items
 var coin_sys: CoinSystem
 var dog_sys: DogCompanion
+var live_events: LiveEvents
 var farm: Farm
 var rebuild: VillageRebuild
 var campaign: Campaign
@@ -137,6 +138,8 @@ func _ready() -> void:
 			_run_capture_fight.call_deferred(a.trim_prefix("--capture-fight="))
 		elif a.begins_with("--capture-lab="):
 			_run_capture_lab.call_deferred(a.trim_prefix("--capture-lab="))
+		elif a.begins_with("--capture-event="):
+			_run_capture_event.call_deferred(a.trim_prefix("--capture-event="))
 		elif a.begins_with("--capture-dog="):
 			_run_capture_dog.call_deferred(a.trim_prefix("--capture-dog="))
 		elif a.begins_with("--capture-horse="):
@@ -1011,6 +1014,15 @@ func _build_story() -> void:
 	dog_sys.hud = hud
 	add_child(dog_sys)
 	dog_sys.build.call_deferred()          # after the secrets and the animals exist
+	live_events = LiveEvents.new()
+	live_events.main = self
+	live_events.story = story
+	live_events.player = player
+	live_events.terrain = terrain
+	live_events.hud = hud
+	live_events.festival = festival
+	add_child(live_events)
+	live_events.build()
 	farm = Farm.new()
 	farm.main = self
 	farm.terrain = terrain
@@ -1656,6 +1668,7 @@ func _run_selftest() -> void:
 	await _selftest_horse(fails)
 	await _selftest_dog(fails)
 	await _selftest_crafting(fails)
+	await _selftest_events(fails)
 	items.unequip("weapon")
 	for k in 5:
 		story.flags.erase("cache_%d" % k)
@@ -3234,6 +3247,72 @@ func _run_capture_ride(arg: String) -> void:
 	get_tree().quit()
 
 
+## Real-calendar festivals: the date table, and each festival's task through to its reward.
+func _selftest_events(fails: PackedStringArray) -> void:
+	var dates := {"2026-11-08": "diwali", "2026-11-05": "diwali", "2026-11-13": "", "2027-03-22": "holi", "2027-01-14": "sankranti",
+		"2028-01-15": "sankranti", "2026-10-15": "dussehra", "2026-12-01": "", "2027-10-29": "diwali"}
+	for dk in dates:
+		if LiveEvents.event_for_date(dk) != String(dates[dk]):
+			fails.append("events: %s should be '%s', got '%s'" % [dk, dates[dk], LiveEvents.event_for_date(dk)])
+	var notes: Array = []
+	for id in ["diwali", "holi", "sankranti", "dussehra"]:
+		var le := LiveEvents.new()
+		le.main = self
+		le.story = story
+		le.player = player
+		le.terrain = terrain
+		le.hud = hud
+		le.festival = festival
+		add_child(le)
+		le.year = 2099
+		le.start(id)
+		for i in 5:
+			await get_tree().physics_frame
+		match id:
+			"diwali":
+				for d in le._targets:
+					le.light_diya(d, null)
+			"holi":
+				for n in le._targets.duplicate():
+					le.colour(n, null)
+			"sankranti":
+				# one real arrow at a kite, the rest directly
+				var k: Node3D = le._targets[0]
+				_teleport(LiveEvents.C.x, LiveEvents.C.z)
+				var ar := Arrow.new()
+				add_child(ar)
+				ar.launch(Transform3D(Basis(), k.global_position + Vector3(0, -6.0, 8.0)), k.global_position, null, 10.0, player)
+				for i in 40:
+					await get_tree().physics_frame
+				notes.append("kite shot down by an arrow %s" % (le.progress() >= 1))
+				if le.progress() < 1:
+					fails.append("events: an arrow did not bring down a kite")
+				for t in le._targets:
+					le.arrow_hit(t, false)
+			"dussehra":
+				var ef: Node3D = le._targets[0]
+				le.arrow_hit(ef, false)
+				if le.progress() != 0:
+					fails.append("events: an ordinary arrow burned the effigy")
+				for i in 3:
+					var ar2 := Arrow.new()
+					add_child(ar2)
+					ar2.fire = true
+					var ep: Vector3 = ef.global_position + Vector3(0, 4.8, 0)
+					ar2.launch(Transform3D(Basis(), ep + Vector3(0, 0.5, 9.0)), ep, null, 10.0, player)
+					for j in 30:
+						await get_tree().physics_frame
+		var oid: String = String(LiveEvents.EVENTS[id]["outfit"])
+		notes.append("%s %d/%d done %s outfit %s" % [id, le.progress(), le.goal(), le.done(), bool(story.get_flag("own_" + oid, false))])
+		if not le.done() or not bool(story.get_flag("own_" + oid, false)):
+			fails.append("events: %s task did not complete with its outfit (%s)" % [id, notes[-1]])
+		var qid: String = "event_" + String(id)
+		story.quests = story.quests.filter(func(q: Dictionary) -> bool: return String(q["id"]) != qid)
+		festival.force_kind = ""
+		le.queue_free()
+	print("[selftest] events: " + ", ".join(notes))
+
+
 ## Crafting: monster materials, the new recipes, drinking tonics and wards, and spirit arrows on a ghost.
 func _selftest_crafting(fails: PackedStringArray) -> void:
 	var rng := RandomNumberGenerator.new()
@@ -3611,6 +3690,38 @@ func _selftest_boss(fails: PackedStringArray) -> void:
 			m.queue_free()
 	player.max_hp = 100.0
 	player.hp = 100.0
+
+
+func _run_capture_event(dir: String) -> void:
+	DirAccess.make_dir_recursive_absolute(dir)
+	var ev := live_events.active
+	touch.visible = false
+	atmosphere.time_of_day = 0.8 if ev == "diwali" else 0.45
+	atmosphere.apply_time()
+	var c := LiveEvents.C
+	match ev:
+		"diwali":
+			for d in live_events._targets:
+				live_events.light_diya(d, null)
+			_teleport(c.x - 13.0, c.z + 3.0)
+			player.set_look(-1.75, -0.12)
+		"dussehra":
+			_teleport(c.x + 2.0, c.z + 16.0)
+			player.set_look(PI, 0.18)
+		"sankranti":
+			_teleport(c.x, c.z)
+			player.set_look(0.7, 0.45)
+	player.set_distance(4.0)
+	for i in 90:
+		await get_tree().physics_frame
+	if ev == "diwali":
+		for i in 3:
+			live_events._firework()
+		for i in 40:
+			await get_tree().physics_frame
+	await RenderingServer.frame_post_draw
+	get_viewport().get_texture().get_image().save_png("%s/%s.png" % [dir, ev])
+	get_tree().quit()
 
 
 func _run_capture_dog(dir: String) -> void:

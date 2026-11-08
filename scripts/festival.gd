@@ -11,6 +11,7 @@ var hud: Node
 var terrain: TerrainBuilder
 var day := 0
 var kind := ""                     # "", "lights", "colours"
+var force_kind := ""               # a real-calendar festival (LiveEvents) keeps the square decorated every evening
 var lanterns: Array[MeshInstance3D] = []
 var powder: CPUParticles3D
 var _last_tod := 0.0
@@ -68,6 +69,8 @@ func is_festival_day(d: int) -> bool:
 
 
 func kind_for(d: int) -> String:
+	if force_kind != "":
+		return force_kind
 	if not is_festival_day(d):
 		return ""
 	return "lights" if (d / EVERY) % 2 == 1 else "colours"
