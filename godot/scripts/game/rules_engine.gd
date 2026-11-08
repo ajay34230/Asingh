@@ -26,12 +26,15 @@ var _rng := RandomNumberGenerator.new()
 ## capture_bonus: capturing grants another roll.
 ## home_bonus: moving a token into the centre grants another roll.
 ## quick_end: the game ends as soon as the first player finishes.
+## teams: 2v2 with four seats; seats 0+2 and 1+3 are partners (opposite corners).
+##   Partners never capture each other, and a team wins when both partners finish.
 const DEFAULT_RULES := {
 	"six_to_start": true,
 	"three_sixes_penalty": true,
 	"capture_bonus": true,
 	"home_bonus": true,
 	"quick_end": false,
+	"teams": false,
 }
 var rules: Dictionary = DEFAULT_RULES.duplicate()
 
@@ -63,6 +66,10 @@ func setup(seat_specs: Array, rng_seed: int = 0, rule_overrides: Dictionary = {}
 	_rng.seed = rng_seed
 	if rng_seed == 0:
 		_rng.randomize()
+
+
+func team_of(index: int) -> int:
+	return index % 2 if rules["teams"] and seats.size() == 4 else index
 
 
 func current_seat() -> Dictionary:
@@ -116,7 +123,7 @@ func preview_move(token: int) -> Dictionary:
 		var ring := BoardPath.ring_index_for_progress(seat["color"], to)
 		if not BoardPath.is_safe_ring(ring):
 			for other_index in range(seats.size()):
-				if other_index == current:
+				if other_index == current or team_of(other_index) == team_of(current):
 					continue
 				var other := seats[other_index]
 				for other_token in range(4):
@@ -183,6 +190,13 @@ func _active_seat_count() -> int:
 func _finish_seat(index: int) -> void:
 	seats[index]["rank"] = rankings.size() + 1
 	rankings.append(index)
+	if rules["teams"] and seats.size() == 4:
+		var partner := (index + 2) % 4
+		if _is_finished(seats[partner]):
+			## Both partners home: their team wins; the other team follows by progress.
+			_rank_remaining_by_progress()
+			phase = PHASE_OVER
+		return
 	if rules["quick_end"] and rankings.size() == 1:
 		_rank_remaining_by_progress()
 		phase = PHASE_OVER

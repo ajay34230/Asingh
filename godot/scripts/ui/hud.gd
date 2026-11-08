@@ -325,7 +325,16 @@ func show_result(ranking: Array, reward := 0, total := 0, achievements: Array = 
 			humans += 1
 			if human_place == 0:
 				human_place = entry["place"]
-	if humans == 1 and human_place == 1:
+	var team_game: bool = not ranking.is_empty() and int(ranking[0].get("team", -1)) >= 0
+	var human_team := -1
+	for entry in ranking:
+		if entry["human"]:
+			human_team = int(entry.get("team", -1))
+	if team_game and humans >= 1:
+		var won: bool = int(ranking[0]["team"]) == human_team
+		_result_title.text = "Team Victory!" if won else "Defeat"
+		_result_sub.text = "You and your partner rule the palace" if won else "The rival team takes the crown"
+	elif humans == 1 and human_place == 1:
 		_result_title.text = "Victory!"
 		_result_sub.text = "The maharaja's crown is yours"
 	elif humans == 1:
@@ -361,7 +370,9 @@ func show_result(ranking: Array, reward := 0, total := 0, achievements: Array = 
 		medal.add_theme_font_size_override("font_size", 26 if i == 0 else 22)
 		h.add_child(medal)
 		var who := Label.new()
-		who.text = ("You" if entry["human"] and humans == 1 else String(entry["color"]).capitalize()) + ("" if entry["human"] else "  (AI)")
+		who.text = ("You" if entry["human"] and humans == 1 else String(entry["color"]).capitalize()) if entry["human"] else String(AiController.PERSONAS[entry["color"]]["name"])
+		if team_game:
+			who.text += "   (Team %s)" % ["A", "B"][int(entry["team"])]
 		who.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		who.add_theme_color_override("font_color", Color(COLOR_HEX.get(entry["color"], "#ffffff")).lightened(0.35))
 		who.add_theme_font_size_override("font_size", 26 if i == 0 else 22)

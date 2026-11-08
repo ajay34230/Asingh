@@ -741,7 +741,10 @@ func update_plaques(seats: Array, active_color: String) -> void:
 			continue
 		var seat: Dictionary = seated[color]
 		name_label.modulate = Color("#fff6dc")
-		name_label.text = ("You" if seat["human"] and _human_count(seats) == 1 else NAMES[color]) + ("" if seat["human"] else "  ·  AI")
+		if seat["human"]:
+			name_label.text = "You" if _human_count(seats) == 1 else NAMES[color]
+		else:
+			name_label.text = String(AiController.PERSONAS[color]["name"])
 		var home := 0
 		for i in range(pips.size()):
 			var progress: int = seat["tokens"][i]

@@ -12,7 +12,8 @@ const DEFAULTS := {
 	"anim_speed": 1,            ## 0 slow, 1 normal, 2 fast
 	"show_fps": false,
 	"voice": true,
-	"turn_timer": true,         ## 20 s per human action, then the game plays for you              ## spoken Hindi commentary and token dialogue
+	"turn_timer": true,
+	"tutorial_done": false,     ## the first-game coach has been completed         ## 20 s per human action, then the game plays for you              ## spoken Hindi commentary and token dialogue
 	"language": "en",
 	"players": 4,               ## 2 | 3 | 4
 	"difficulty": 1,            ## 0 Easy .. 3 Expert

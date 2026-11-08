@@ -24,6 +24,7 @@ func _init() -> void:
 	_test_house_rules()
 	_test_each_colour_owns_its_arm()
 	_test_ai_difficulties_finish()
+	_test_team_mode()
 
 	print("%d checks, %d failures" % [_checks, _failures.size()])
 	for message in _failures:
@@ -315,3 +316,56 @@ func _touches_home(cell: Vector2i, home: Vector2i) -> bool:
 				return true
 	return false
 
+
+
+func _team_seats() -> Array:
+	return [{"color": "blue", "human": true}, {"color": "yellow", "human": false},
+		{"color": "green", "human": false}, {"color": "red", "human": false}]
+
+
+func _test_team_mode() -> void:
+	# Partners (blue and green) never capture each other.
+	var e := RulesEngine.new()
+	e.setup(_team_seats(), 5, {"teams": true})
+	e.seats[0]["tokens"] = [10, 0, 0, 0]
+	var target := BoardPath.ring_index_for_progress("blue", 13)
+	e.seats[2]["tokens"] = [((target - BoardPath.start_of("green") + 52) % 52) + 1, 0, 0, 0]
+	e.roll_with_value(3)
+	var r := e.apply_move(0)
+	check(r["captured"].is_empty(), "teammates do not capture each other")
+	# Opponents still can.
+	e = RulesEngine.new()
+	e.setup(_team_seats(), 5, {"teams": true})
+	e.seats[0]["tokens"] = [10, 0, 0, 0]
+	## Red (seat 3, the other team); yellow would be in its home lane on this square.
+	e.seats[3]["tokens"] = [((target - BoardPath.start_of("red") + 52) % 52) + 1, 0, 0, 0]
+	e.roll_with_value(3)
+	r = e.apply_move(0)
+	check(r["captured"].size() == 1, "opponents are captured in team mode")
+	# One partner finishing does not end the game; both partners finishing does.
+	e = RulesEngine.new()
+	e.setup(_team_seats(), 5, {"teams": true})
+	e.seats[0]["tokens"] = [57, 57, 57, 55]
+	e.seats[2]["tokens"] = [57, 57, 57, 55]
+	e.seats[1]["tokens"] = [30, 0, 0, 0]
+	e.roll_with_value(2)
+	e.apply_move(3)
+	check(e.phase != RulesEngine.PHASE_OVER, "one partner home does not end a team game")
+	e.current = 2
+	e.phase = RulesEngine.PHASE_ROLL
+	e.roll_with_value(2)
+	e.apply_move(3)
+	check(e.phase == RulesEngine.PHASE_OVER, "both partners home ends the team game")
+	check(e.rankings[0] == 0 and e.rankings[1] == 2, "the winning team ranks first")
+	check(e.rankings.size() == 4, "everyone is ranked")
+	# Full AI team games finish.
+	for s in range(1, 21):
+		e = RulesEngine.new()
+		e.setup(_team_seats(), s, {"teams": true})
+		var guard := 0
+		while e.phase != RulesEngine.PHASE_OVER and guard < 6000:
+			var o := e.roll()
+			if not o["passed"] and not o["forfeited"]:
+				e.apply_move(AiController.choose_move(e, o["moves"], 2))
+			guard += 1
+		check(e.phase == RulesEngine.PHASE_OVER, "team game %d finishes" % s)

@@ -182,7 +182,7 @@ func _start_turn() -> void:
 		dice.set_rollable(true)
 		_start_timer()
 	else:
-		message.emit("%s is rolling" % current_color().capitalize())
+		message.emit("%s is rolling" % AiController.PERSONAS.get(current_color(), {"name": current_color().capitalize()})["name"])
 		dice.set_rollable(false)
 		if not fast_mode:
 			await get_tree().create_timer(AI_DELAY).timeout
@@ -519,7 +519,8 @@ func _finish_game() -> void:
 	var ranking: Array = []
 	for i in range(engine.rankings.size()):
 		var seat := engine.seats[engine.rankings[i]]
-		ranking.append({"place": i + 1, "color": seat["color"], "human": seat["human"]})
+		ranking.append({"place": i + 1, "color": seat["color"], "human": seat["human"],
+			"team": engine.team_of(engine.rankings[i]) if engine.rules["teams"] else -1})
 	message.emit("Game over")
 	event.emit("game_over", {"ranking": ranking})
 	game_finished.emit(ranking)

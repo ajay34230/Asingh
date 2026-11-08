@@ -340,6 +340,10 @@ func _build_main() -> void:
 	_button(box, "Play vs AI", func() -> void: _open_setup("ai"))
 	_button(box, "Pass and play", func() -> void: _open_setup("pass"))
 	_button(box, "Quick play", func() -> void: _quick_play())
+	_button(box, "Team battle 2v2", func() -> void:
+		var rules := GameSettings.get_rules()
+		rules["teams"] = true
+		start_game.emit({"mode": "team", "players": 4, "difficulty": GameSettings.get_option("difficulty"), "rules": rules}))
 	_button(box, "Royal Bazaar", func() -> void: _refresh_themes(); show_page("themes"))
 	_button(box, "Rewards", func() -> void: _refresh_rewards(); show_page("rewards"))
 	_button(box, "How to play", func() -> void: show_page("howto"))
@@ -526,6 +530,9 @@ func _build_howto() -> void:
 	text.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	text.custom_minimum_size = Vector2(420, 0)
 	box.add_child(text)
+	_button(box, "Replay the tutorial next game", func() -> void:
+		GameSettings.set_option("tutorial_done", false)
+		_back())
 	_button(box, "Back", func() -> void: _back())
 
 

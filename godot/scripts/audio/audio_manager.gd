@@ -141,6 +141,16 @@ func vibrate(milliseconds: int) -> void:
 		Input.vibrate_handheld(milliseconds)
 
 
+## A rhythm of buzzes: [on, off, on, off, ...] in milliseconds.
+func vibrate_pattern(pattern: Array) -> void:
+	if not haptics or muted:
+		return
+	for i in range(0, pattern.size(), 2):
+		Input.vibrate_handheld(int(pattern[i]))
+		var gap := int(pattern[i]) + (int(pattern[i + 1]) if i + 1 < pattern.size() else 0)
+		await get_tree().create_timer(gap / 1000.0, true, false, true).timeout
+
+
 func set_muted(value: bool) -> void:
 	muted = value
 	if muted:

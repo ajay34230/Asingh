@@ -20,6 +20,7 @@ var camera: Camera3D
 var board: RoyalBoard
 var loading: LoadingScreen
 var voice: VoiceManager
+var tutorial: Tutorial
 var bubbles: SpeechBubbles
 var _last_turn_human := false
 var _decor := {}   ## first decoration of each type, for reactions
@@ -92,6 +93,7 @@ func _ready() -> void:
 	safe.shield_raised.connect(func(at: Vector3) -> void:
 		if not game.fast_mode:
 			audio.play("shield", 0.02)
+			tutorial.tip("safe")
 			if randf() < 0.6:
 				_announce("safe")
 			effects.burst(at + Vector3(0, 0.5, 0), EffectsManager.GOLD, 18, 1.4, 0.6))
@@ -128,6 +130,11 @@ func _ready() -> void:
 	add_child(bubbles)
 	game.turn_changed.connect(_on_turn_voice)
 	game.turn_timer.connect(board.set_turn_timer)
+	tutorial = Tutorial.new()
+	hud.add_child(tutorial)
+	game.turn_changed.connect(func(_c: String, human: bool) -> void:
+		if human and not game.fast_mode:
+			tutorial.tip("roll"))
 
 	if "--dice-face" in args:
 		game.dice.setup_face(int(_arg_value(args, "--dice-face")))
@@ -242,6 +249,8 @@ func _start_from_menu(config: Dictionary) -> void:
 	elif players == 3:
 		colors = ["blue", "yellow", "green"]
 	else:
+		colors = ["blue", "yellow", "green", "red"]
+	if config.get("mode", "") == "team":
 		colors = ["blue", "yellow", "green", "red"]
 	var humans: Array[String] = []
 	if config["mode"] == "pass":
@@ -366,6 +375,12 @@ func _on_game_event(event_name: String, data: Dictionary) -> void:
 				_dice_trail(1.3)
 			audio.vibrate(15)
 		"roll_land":
+			if game.is_human_turn():
+				var v := int(data.get("value", 0))
+				if v == 6:
+					audio.vibrate_pattern([25, 70, 25])
+				elif game.engine.seats[game.engine.current]["tokens"].all(func(p: int) -> bool: return p == 0):
+					tutorial.tip("need_six")
 			audio.play("dice_land")
 			effects.burst(pos, EffectsManager.GOLD, 14, 1.2, 0.6)
 			if int(data.get("value", 0)) == 6 and not game.fast_mode:
@@ -375,6 +390,7 @@ func _on_game_event(event_name: String, data: Dictionary) -> void:
 				audio.play("six", 0.0)
 				effects.burst(pos + up, EffectsManager.GOLD, 40, 2.8, 0.9)
 		"select":
+			tutorial.tip("pick")
 			audio.play("token_select")
 		"hop":
 			audio.play("token_step", 0.1, -2.0)
@@ -387,6 +403,7 @@ func _on_game_event(event_name: String, data: Dictionary) -> void:
 			else:
 				audio.play("blade", 0.03)   ## steel drawn: the fight is on
 				_token_says(data.get("attacker_token"), "taunt", data.get("attacker", ""))
+				tutorial.tip("capture")
 		"swing":
 			audio.play("swish", 0.1, 0.0 if data.get("heavy", false) else -5.0)
 		"jab":
@@ -406,6 +423,7 @@ func _on_game_event(event_name: String, data: Dictionary) -> void:
 			_token_says(data.get("victim_token"), "hurt", data.get("color", ""))
 			_announce_later("capture", 1.4)
 		"block":
+			audio.vibrate(15)
 			audio.play("thud", 0.1, -6.0)
 			effects.burst(pos, Color("#bfe3ff"), 18, 2.2, 0.4)
 			_shake(0.02, 0.1)
@@ -428,6 +446,8 @@ func _on_game_event(event_name: String, data: Dictionary) -> void:
 			effects.shockwave(pos)
 			audio.vibrate(25)
 		"leave_yard":
+			tutorial.tip("six")
+			audio.vibrate(20)
 			effects.burst(pos + Vector3(0, 0.1, 0), Color("#ff6f91"), 26, 1.8, 0.9, 2.0)
 			effects.burst(pos + Vector3(0, 0.1, 0), Color("#ffb347"), 16, 1.5, 0.9, 2.0)
 			audio.play("token_land", 0.05)
@@ -435,6 +455,7 @@ func _on_game_event(event_name: String, data: Dictionary) -> void:
 			effects.burst(pos + Vector3(0, 0.9, 0), EffectsManager.GOLD, 16, 1.4, 0.5)
 			audio.play("punch", 0.2, -12.0)
 		"finish":
+			tutorial.tip("home")
 			_dome_fireworks()
 			audio.play("token_finish", 0.0, -3.0)
 			audio.play("coins", 0.03)
@@ -452,10 +473,13 @@ func _on_game_event(event_name: String, data: Dictionary) -> void:
 			audio.play("error", 0.0, -4.0)
 		"game_over":
 			audio.play("victory")
+			tutorial.finish()
 			var won: bool = not (data.get("ranking", []) as Array).is_empty() and data["ranking"][0]["human"]
 			var any_human: bool = (data.get("ranking", []) as Array).any(func(r: Dictionary) -> bool: return r["human"])
 			if any_human:
 				_announce_later("win" if won else "lose", 0.6)
+				if won:
+					audio.vibrate_pattern([40, 80, 40, 80, 140])
 			effects.fireworks(3.0)
 			var ranking: Array = data.get("ranking", [])
 			if not ranking.is_empty() and ranking[0]["human"]:
@@ -507,13 +531,16 @@ func _on_game_finished(ranking: Array) -> void:
 	var reward := 0
 	for entry in ranking:
 		if entry["human"]:
-			reward = maxi(reward, COIN_REWARD[mini(int(entry["place"]) - 1, 3)])
+			var place := int(entry["place"])
+			if int(entry.get("team", -1)) >= 0:
+				place = 1 if int(entry["team"]) == int(ranking[0]["team"]) else 3
+			reward = maxi(reward, COIN_REWARD[mini(place - 1, 3)])
 	var total := GameSettings.add_coins(reward) if reward > 0 and not _demo else GameSettings.get_coins()
 	var unlocked: Array = []
 	var humans := ranking.filter(func(r: Dictionary) -> bool: return r["human"])
 	if humans.size() == 1 and not _demo:
 		var t: Dictionary = game.tally.duplicate()
-		t["won"] = int(humans[0]["place"]) == 1
+		t["won"] = int(humans[0]["place"]) == 1 or (int(humans[0].get("team", -1)) >= 0 and int(humans[0]["team"]) == int(ranking[0]["team"]))
 		t["place"] = humans[0]["place"]
 		t["difficulty"] = game.difficulty
 		unlocked = Progress.record_game(t)

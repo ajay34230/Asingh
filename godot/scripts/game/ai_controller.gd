@@ -8,29 +8,43 @@ extends RefCounted
 enum Difficulty { EASY, NORMAL, HARD, EXPERT }
 const DIFFICULTY_NAMES := ["Easy", "Normal", "Hard", "Expert"]
 
+## Personalities: named opponents with their own style. Weights scale the score terms:
+## attack (captures), safety (safe squares, avoiding danger), race (progress, home).
+const PERSONAS := {
+	"yellow": {"name": "Rani Padmini", "title": "the Careful", "attack": 0.6, "safety": 2.2, "race": 1.0},
+	"green": {"name": "Raja Vikram", "title": "the Bold", "attack": 2.2, "safety": 0.5, "race": 0.9},
+	"red": {"name": "Maharaja Surya", "title": "the Swift", "attack": 1.0, "safety": 0.9, "race": 1.8},
+	"blue": {"name": "Rajkumari Meera", "title": "the Wise", "attack": 1.2, "safety": 1.4, "race": 1.2},
+}
+
+
 static func choose_move(engine: RulesEngine, moves: Array[int], difficulty: int = Difficulty.NORMAL) -> int:
 	if difficulty == Difficulty.EASY and randf() < 0.45:
 		return moves[randi() % moves.size()]
 	var seat := engine.current_seat()
+	var p: Dictionary = PERSONAS.get(seat["color"], {"attack": 1.0, "safety": 1.0, "race": 1.0})
+	var attack: float = p["attack"]
+	var safety: float = p["safety"]
+	var race: float = p["race"]
 	var best: int = moves[0]
 	var best_score := -INF
 	for token in moves:
 		var preview := engine.preview_move(token)
-		var score: float = float(preview["to"]) * 0.5
+		var score: float = float(preview["to"]) * 0.5 * race
 		if difficulty >= Difficulty.HARD:
-			score += _safety_bonus(engine, preview)
+			score += _safety_bonus(engine, preview) * safety
 		if difficulty == Difficulty.EXPERT:
-			score -= _danger(engine, seat, preview) * 12.0
-		score += float(preview["captures"].size()) * 100.0
+			score -= _danger(engine, seat, preview) * 12.0 * safety
+		score += float(preview["captures"].size()) * 100.0 * attack
 		if preview["finishes"]:
-			score += 90.0
+			score += 90.0 * race
 		if preview["from"] == 0:
 			score += 50.0
 		if preview["to"] > BoardPath.COMMON_STEPS and not preview["finishes"]:
 			score += 30.0
 		if preview["to"] <= BoardPath.COMMON_STEPS \
 				and BoardPath.is_safe_ring(BoardPath.ring_index_for_progress(seat["color"], preview["to"])):
-			score += 15.0
+			score += 15.0 * safety
 		if preview["to"] == BoardPath.FINISH_PROGRESS:
 			score += 10.0
 		if score > best_score:
