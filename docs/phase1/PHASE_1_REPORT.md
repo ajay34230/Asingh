@@ -384,3 +384,23 @@ Verified by the selftest (PASS) and software-rendered close-ups. **Not tested on
 - Each outfit lists its own jewellery: the Explorer has a kada and a pouch, the Maharaja two kadas and a gold mala, the Rajput a kada and a rudraksha mala, and so on.
 - Getting a new weapon re-dresses the player so the gear appears.
 - **Villagers and enemies (High graphics only):** the same fabric, leather and metal garment shader with their existing role colours. About a third wear a gold kada and a fifth a silver one. Medium and Low keep the old plain dye, to protect phone speed.
+
+## Addendum: Bow and arrow animation (2026-11-08)
+
+Verified by the selftest (PASS: "archery: target hp 60 -> 42, arrows in the world 1") and software-rendered captures (`--capture-bow`). **Not tested on a device.**
+
+- **Full shot animation** (`bow_shot`, about 1 s):
+  1. Reach back to the quiver.
+  2. Nock an arrow.
+  3. Raise the bow.
+  4. Draw to the cheek with the torso turned side-on and the head looking down the arrow.
+  5. Release.
+  6. Follow through.
+- **Live bowstring:** a two-piece string runs from both bow tips to the drawing hand, and the limbs bend as you pull.
+- **Nocked arrow:** a real arrow sits on the string from the nock to full draw and leaves on release. Arrow models are now sized to 0.8 m from their bounding box, so they are no longer oversized.
+- **Real projectile** (`scripts/arrow.gd`):
+  - The arrow flies a ballistic arc with a faint trail.
+  - It hits enemies along its path and sticks into them or into the world.
+  - Stuck arrows wobble, then clear after 6 s.
+- **Aiming:** the shot locks onto the nearest foe within 26 m and leads a moving target at release. With no foe nearby, it fires 35 m straight ahead of the camera.
+- The player slows to 30% speed while drawing. The **Quick Draw** skill speeds up the animation itself.

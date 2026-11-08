@@ -136,6 +136,8 @@ func _ready() -> void:
 			_run_capture_fight.call_deferred(a.trim_prefix("--capture-fight="))
 		elif a.begins_with("--capture-lab="):
 			_run_capture_lab.call_deferred(a.trim_prefix("--capture-lab="))
+		elif a.begins_with("--capture-bow="):
+			_run_capture_bow.call_deferred(a.trim_prefix("--capture-bow="))
 		elif a.begins_with("--capture-outfits="):
 			_run_capture_outfits.call_deferred(a.trim_prefix("--capture-outfits="))
 		elif a.begins_with("--capture-hero="):
@@ -1588,9 +1590,17 @@ func _run_selftest() -> void:
 	player.locked = false
 	if not player.fire_arrow() or player.arrows_fired < 1:
 		fails.append("bow did not fire at a foe 9 m away")
-	await get_tree().create_timer(0.8).timeout
+	await get_tree().create_timer(0.45).timeout
+	if player._rig._nocked == null or not player._rig._nocked.visible or player._rig._string.size() != 2:
+		fails.append("archery: no arrow on the string while drawing")
+	await get_tree().create_timer(1.0).timeout
 	if bt.hp >= bhp:
 		fails.append("arrow did not hurt the target")
+	var stuck := 0
+	for an in find_children("*", "Node3D", true, false):
+		if an is Arrow:
+			stuck += 1
+	print("[selftest] archery: target hp %.0f -> %.0f, arrows in the world %d" % [bhp, bt.hp, stuck])
 	items.unequip("weapon")
 	for k in 5:
 		story.flags.erase("cache_%d" % k)
@@ -3166,6 +3176,51 @@ func _run_capture_ride(arg: String) -> void:
 			await RenderingServer.frame_post_draw
 			print("[capture] ", an.species, view[0], " -> ", get_viewport().get_texture().get_image().save_png("%s/%s_%s.png" % [dir, an.species, view[0]]))
 		mounts.dismount()
+	get_tree().quit()
+
+
+func _run_capture_bow(dir: String) -> void:
+	DirAccess.make_dir_recursive_absolute(dir)
+	touch.visible = false
+	hud.visible = false
+	atmosphere.time_of_day = 0.4
+	atmosphere.apply_time()
+	_teleport(-60.0, 20.0)
+	for i in 20:
+		await get_tree().physics_frame
+	items.give("bow")
+	items.equip("bow")
+	player.set_weapon("bow")
+	var foe := combat.spawn_enemy(player.global_position + Vector3(0, 0, -10.0), false, 0.0, "target")
+	foe.hp = 9999.0
+	foe.set_physics_process(false)
+	player.hp = 99999.0
+	var view := OS.get_environment("VIEW")
+	for i in 20:
+		await get_tree().physics_frame
+	player._attack_cd = 0.0
+	player.fire_arrow()
+	player.set_physics_process(true)
+	# a fixed camera to the archer's right (or front), looking across the shot
+	var cam := player.camera
+	cam.reparent(self)             # out of the spring arm, so it stays where we put it
+	var pc := player.global_position + Vector3(0, 1.25, 0)
+	cam.global_position = pc + (Vector3(3.2, 0.2, 0.0) if view != "front" else Vector3(1.2, 0.3, -3.0))
+	cam.look_at(pc, Vector3.UP)
+	var shots := [[9, "a_quiver"], [18, "b_nock"], [26, "c_raise"], [35, "d_draw"], [38, "e_anchor"], [41, "f_release"], [49, "g_follow"]]
+	var f := 0
+	for sh in shots:
+		while f < int(sh[0]):
+			await get_tree().physics_frame
+			f += 1
+		await RenderingServer.frame_post_draw
+		get_viewport().get_texture().get_image().save_png("%s/%s_%s.png" % [dir, view if view != "" else "side", String(sh[1])])
+	cam.global_position = foe.global_position + Vector3(2.0, 1.6, 2.5)
+	cam.look_at(foe.global_position + Vector3(0, 1.1, 0), Vector3.UP)
+	for i in 30:
+		await get_tree().physics_frame
+	await RenderingServer.frame_post_draw
+	get_viewport().get_texture().get_image().save_png("%s/%s_h_stuck.png" % [dir, view if view != "" else "side"])
 	get_tree().quit()
 
 

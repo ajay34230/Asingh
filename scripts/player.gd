@@ -339,49 +339,53 @@ func ground_slam() -> int:
 
 
 ## X12: loose an arrow at the nearest enemy within 22 m (works on foot and from the saddle).
+## Archery: aim at the nearest foe (or straight ahead if there is none), then the body does the real
+## sequence (quiver, nock, raise, draw to the cheek, release). The arrow leaves on release from the string.
+var _arrow_foe: Enemy
+var _arrow_target := Vector3.ZERO
+var _arrow_dmg := 0.0
+
+
 func fire_arrow() -> bool:
 	if dead or locked or _attack_cd > 0.0:
 		return false
-	var foe := _nearest_enemy(22.0)
-	if foe == null:
-		return false
-	_attack_cd = 0.68 * bow_cd_mult
+	var foe := _nearest_enemy(26.0)
+	var from := global_position + Vector3(0, 1.4, 0)
+	var target: Vector3
+	if foe != null:
+		var hover := float(foe.get("hover")) if foe.get("hover") != null else 0.0
+		target = foe.global_position + Vector3(0, 1.1 + hover, 0)
+	else:
+		# free shot along the camera's view
+		var cam := get_viewport().get_camera_3d()
+		var fwd := -cam.global_transform.basis.z if cam != null else Vector3(-sin(_model.rotation.y), 0, -cos(_model.rotation.y))
+		target = from + fwd * 35.0
+	_model.rotation.y = atan2(-(target.x - from.x), -(target.z - from.z))
+	var rate := 1.0 / maxf(bow_cd_mult, 0.4)        # Quick Draw makes the whole draw faster
+	_rig.play_move("bow_shot")
+	_rig.move_rate = rate
+	_attack_cd = float(RealHuman.MOVES["bow_shot"][0]) / rate * 0.9
 	spend(4.0)
 	arrows_fired += 1
-	var from := global_position + Vector3(0, 1.4, 0)
-	var target := foe.global_position + Vector3(0, 1.2, 0)
-	_model.rotation.y = atan2(-(target.x - from.x), -(target.z - from.z))
-	_rig.play_move("bow_shot")
-	var arrow := Node3D.new()
-	var am := RealHuman.arrow_model()
-	if am != null:
-		arrow.add_child(am)
-	else:
-		var mi := MeshInstance3D.new()
-		var cm := CylinderMesh.new()
-		cm.top_radius = 0.02
-		cm.bottom_radius = 0.02
-		cm.height = 0.8
-		mi.mesh = cm
-		mi.rotation.x = PI * 0.5
-		arrow.add_child(mi)
-	arrow.visible = false
-	get_parent().add_child(arrow)
-	arrow.global_position = from
-	arrow.look_at(target, Vector3.UP)
-	var dmg := 20.0 * hammer_mult * gear_dmg * arrow_mult * wpn_up() * (2.0 if power.has("power") else 1.0)
-	var tw := arrow.create_tween()
-	tw.tween_interval(0.3)          # the string is drawn back first; the arrow leaves on release
-	tw.tween_callback(func() -> void:
-		arrow.visible = true
-		Sfx.ui_at("swing", -4.0))
-	tw.tween_property(arrow, "global_position", target, maxf(0.12, from.distance_to(target) / 32.0))
-	tw.tween_callback(func() -> void:
-		if is_instance_valid(foe) and not foe.dead:
-			foe.take_hit("arrow", dmg, (target - from))
-			_combat_t = 0.0
-		arrow.queue_free())
+	_arrow_foe = foe
+	_arrow_target = target
+	_arrow_dmg = 20.0 * hammer_mult * gear_dmg * arrow_mult * wpn_up() * (2.0 if power.has("power") else 1.0)
+	Sfx.ui_at("swing", -14.0)
 	return true
+
+
+## Called on the release frame of the bow_shot move.
+func _release_arrow() -> void:
+	var ar := Arrow.new()
+	get_parent().add_child(ar)
+	var target := _arrow_target
+	if is_instance_valid(_arrow_foe) and not _arrow_foe.dead:
+		var hover := float(_arrow_foe.get("hover")) if _arrow_foe.get("hover") != null else 0.0
+		target = _arrow_foe.global_position + Vector3(0, 1.1 + hover, 0)     # it may have moved while we drew
+	ar.launch(_rig.nock_transform(), target, _arrow_foe, _arrow_dmg, self)
+	_combat_t = 0.0
+	Sfx.ui_at("swing", -2.0)
+	StoryFX.shake(self, 0.03, 0.12)
 
 
 func attack() -> void:
@@ -574,6 +578,9 @@ func roll() -> void:
 
 
 func _on_move_hit(mv: String) -> void:
+	if mv == "bow_shot":
+		_release_arrow()
+		return
 	if not MOVE_DMG.has(mv):
 		return
 	var fwd := Vector3(-sin(_model.rotation.y), 0.0, -cos(_model.rotation.y))
@@ -1190,6 +1197,8 @@ func _physics_process(delta: float) -> void:
 	var m := clampf(dir.length(), 0.0, 1.0)
 	var run_blend := 1.0 if fast else (smoothstep(0.82, 0.97, m) if auto_sprint else 0.0)
 	var speed := lerpf(WALK_SPEED, RUN_SPEED * run_mult, run_blend) * (1.45 if power.has("speed") else 1.0)
+	if _rig.move == "bow_shot":
+		speed *= 0.3                  # archers plant their feet to draw
 	var push := m if fast else clampf(m / 0.82, 0.0, 1.0)
 	if crouching:
 		speed = minf(speed, WALK_SPEED * 0.62)

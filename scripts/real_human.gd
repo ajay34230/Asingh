@@ -308,15 +308,37 @@ static func arrow_model() -> Node3D:
 	if not ResourceLoader.exists(path):
 		return null
 	var inst := (load(path) as PackedScene).instantiate() as Node3D
+	var box := AABB()
+	var first := true
+	for mi in inst.find_children("*", "MeshInstance3D", true, false):
+		var m := mi as MeshInstance3D
+		var xf := Transform3D.IDENTITY
+		var n: Node = m
+		while n != null and n != inst:
+			xf = (n as Node3D).transform * xf
+			n = n.get_parent()
+		var bb := xf * m.get_aabb()
+		box = bb if first else box.merge(bb)
+		first = false
+	# lay the longest side along -Z (look_at's forward) and make it 0.8 m long; the head is the heavier end
+	var rot := Basis.IDENTITY
+	if box.size.y >= box.size.x and box.size.y >= box.size.z:
+		rot = Basis(Vector3.RIGHT, -PI * 0.5)     # +Y -> -Z
+	elif box.size.x >= box.size.z:
+		rot = Basis(Vector3.UP, PI * 0.5)         # +X -> -Z
+	var rb := Transform3D(rot, Vector3.ZERO) * box
+	var long := maxf(rb.size.z, 0.0001)
+	var sc := 0.8 / long
 	var holder := Node3D.new()
 	holder.add_child(inst)
-	inst.scale = Vector3.ONE * 1.86          # the model is 0.43 long along +Z (tip forward) after its own node scale
-	inst.rotation.y = PI                     # tip along -Z, the direction look_at() aims
+	inst.transform = Transform3D(rot.scaled(Vector3.ONE * sc), -rb.get_center() * sc)
 	return holder
 
 
 func set_weapon(id: String) -> void:
 	weapon = id
+	if id != "bow":
+		clear_archery()
 	if _skins.is_empty():
 		return
 	for att in [_tool_att, _bow_att]:
@@ -597,7 +619,7 @@ func animate(delta: float, speed: float, grounded: bool) -> void:
 			else:
 				_locomotion(delta)
 	if move != "":
-		move_t += delta
+		move_t += delta * move_rate
 		_move_pose()
 		if move_t >= _move_hit_at and not _move_sent:
 			_move_sent = true
@@ -625,6 +647,110 @@ func animate(delta: float, speed: float, grounded: bool) -> void:
 	_hit_overlay(delta)
 	_overlay(delta)
 	_apply()
+	if weapon == "bow":
+		_archery()
+
+
+# --- archery: a live bowstring and the arrow on the string --------------------------------------
+var move_rate := 1.0              # playback speed of the current move (Quick Draw speeds up the bow)
+var _string: Array[MeshInstance3D] = []
+var _nocked: Node3D
+const BOW_HALF := 0.6             # grip to tip along the bow, metres
+
+
+func _bone_pos(key: String) -> Vector3:
+	var i: int = _bone_idx[0][key]
+	if i < 0:
+		return global_position
+	return _skins[0].global_transform * _skins[0].get_bone_global_pose(i).origin
+
+
+static func _place_between(mi: MeshInstance3D, a: Vector3, b: Vector3) -> void:
+	var d := b - a
+	var l := d.length()
+	if l < 0.0001:
+		mi.visible = false
+		return
+	var y := d / l
+	var x := y.cross(Vector3.FORWARD if absf(y.dot(Vector3.FORWARD)) < 0.9 else Vector3.RIGHT).normalized()
+	var z := x.cross(y)
+	mi.global_transform = Transform3D(Basis(x, y * l, z), (a + b) * 0.5)
+	mi.visible = true
+
+
+func _archery() -> void:
+	if _bow_att == null or _bow_att.get_child_count() == 0 or _skins.is_empty():
+		return
+	var bow := _bow_att.get_child(0) as Node3D
+	if bow == null or not bow.is_inside_tree():
+		return
+	if _string.is_empty():
+		var sm := StandardMaterial3D.new()
+		sm.albedo_color = Color(0.92, 0.9, 0.82)
+		sm.roughness = 0.6
+		var cm := CylinderMesh.new()
+		cm.top_radius = 0.0035
+		cm.bottom_radius = 0.0035
+		cm.height = 1.0
+		cm.radial_segments = 4
+		cm.rings = 1
+		for i in 2:
+			var mi := MeshInstance3D.new()
+			mi.mesh = cm
+			mi.material_override = sm
+			mi.top_level = true
+			mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+			add_child(mi)
+			_string.append(mi)
+		_nocked = Node3D.new()
+		_nocked.top_level = true
+		var am := arrow_model()
+		if am != null:
+			_nocked.add_child(am)
+		add_child(_nocked)
+	var bx := bow.global_transform
+	var up := bx.basis.y.normalized()
+	var top := bx.origin + up * BOW_HALF
+	var bot := bx.origin - up * BOW_HALF
+	var grip := bx.origin
+	# the string sits a hand's width behind the grip; while drawing it follows the string hand
+	var rest := grip - (bx.basis.z.normalized()) * 0.12
+	var drawing := move == "bow_shot" and move_t > 0.3 and move_t < _move_hit_at
+	var nock := rest
+	if drawing:
+		nock = _bone_pos("wr_R")
+		# the limbs bend as the string comes back
+		var pull := clampf((nock - rest).length() / 0.6, 0.0, 1.0)
+		top -= up * 0.05 * pull
+		bot += up * 0.05 * pull
+	_place_between(_string[0], top, nock)
+	_place_between(_string[1], nock, bot)
+	# the arrow: in the hand from the quiver, then on the string, pointing past the bow hand at the target
+	var show := move == "bow_shot" and move_t > 0.14 and move_t < _move_hit_at
+	_nocked.visible = show
+	if show:
+		var hand := _bone_pos("wr_R")
+		var dir := (grip - hand).normalized() if move_t > 0.3 else (global_transform.basis.y.normalized() + global_transform.basis.z.normalized() * 0.4).normalized()
+		if dir.length() < 0.5:
+			dir = -global_transform.basis.z
+		var b := Basis.looking_at(dir, Vector3.UP if absf(dir.y) < 0.95 else Vector3.FORWARD)
+		_nocked.global_transform = Transform3D(b, hand + dir * 0.38)
+
+
+## Where the arrow on the string is right now (the shot leaves from here).
+func nock_transform() -> Transform3D:
+	if _nocked != null and _nocked.is_inside_tree():
+		return _nocked.global_transform
+	return global_transform.translated_local(Vector3(0, 1.4, -0.4))
+
+
+func clear_archery() -> void:
+	for m in _string:
+		m.queue_free()
+	_string.clear()
+	if _nocked != null:
+		_nocked.queue_free()
+		_nocked = null
 
 
 # --- unarmed fighting and reactions ------------------------------------------------------------
@@ -632,7 +758,7 @@ func animate(delta: float, speed: float, grounded: bool) -> void:
 ## Reactions (looping until cleared): flinch, stagger, plead, held, clutch, sob, crawl.
 const MOVES := {
 	"jab": [0.38, 0.12], "cross": [0.42, 0.15], "hook": [0.46, 0.17], "uppercut": [0.5, 0.2],
-	"kick_front": [0.72, 0.3], "kick_round": [0.75, 0.32], "kick_side": [0.72, 0.3], "bow_shot": [0.62, 0.34],
+	"kick_front": [0.72, 0.3], "kick_round": [0.75, 0.32], "kick_side": [0.72, 0.3], "bow_shot": [1.0, 0.64],
 	"roll": [0.45, 0.44], "grab": [0.4, 0.3], "lift": [0.5, 0.5], "throw": [0.45, 0.12],
 }
 var move := ""
@@ -662,6 +788,7 @@ func play_move(n: String) -> float:
 	_move_dur = MOVES[n][0]
 	_move_hit_at = MOVES[n][1]
 	_move_sent = false
+	move_rate = 1.0
 	return lead
 
 
@@ -752,12 +879,18 @@ func _kf_moves() -> Dictionary:
 			[0.4, {"hip_R": Vector3(1.25, 0, 0.35), "kn_R": Vector3(-0.05, 0, 0), "hip_L": Vector3(0.1, 1.2, 0), "kn_L": Vector3(-0.4, 0, 0), "hips": Vector3(0, 1.35, 0), "spine": Vector3(0.05, 0.55, 0.55), "sh_L": Vector3(-0.7, 0, 0.9), "sh_R": Vector3(-0.7, 0, 0.9), "dy": -0.1}],
 			[0.52, {"hip_R": Vector3(1.2, 0, 0.2), "kn_R": Vector3(-1.7, 0, 0), "hips": Vector3(0, 0.7, 0), "dy": -0.1}],
 			[0.72, {}]],
-		# archery: side-on stance, bow arm straight out at the target, string hand drawn back to the cheek, release
+		# archery, after real archers: reach over the shoulder to the quiver, draw an arrow and nock it,
+		# raise the bow arm straight at the target while turning side-on, pull the string back to the
+		# cheek (anchor), a breath of aim, release (the string hand springs back past the ear), follow through.
 		"bow_shot": [[0.0, {}],
-			[0.12, {"sh_L": Vector3(-1.5, 0.0, 0.05), "el_L": Vector3(0.1, 0, 0), "sh_R": Vector3(-1.4, 0.35, 0), "el_R": Vector3(1.5, 0, 0), "spine": Vector3(-0.04, 0.75, 0), "hips": Vector3(0, 0.45, 0), "head": Vector3(0.05, -0.7, 0), "dy": -0.05}],
-			[0.3, {"sh_L": Vector3(-1.55, 0.0, 0.05), "el_L": Vector3(0.05, 0, 0), "sh_R": Vector3(-1.35, 0.8, 0), "el_R": Vector3(2.5, 0, 0), "spine": Vector3(-0.04, 0.85, 0), "hips": Vector3(0, 0.5, 0), "head": Vector3(0.05, -0.8, 0), "dy": -0.05}],
-			[0.37, {"sh_L": Vector3(-1.55, 0.0, 0.05), "el_L": Vector3(0.05, 0, 0), "sh_R": Vector3(-1.1, 0.95, 0.45), "el_R": Vector3(1.1, 0, 0), "spine": Vector3(-0.02, 0.85, 0), "hips": Vector3(0, 0.5, 0), "head": Vector3(0.05, -0.8, 0), "dy": -0.05}],
-			[0.62, {}]],
+			[0.16, {"sh_R": Vector3(-2.5, 0.45, 0.35), "el_R": Vector3(2.0, 0, 0), "sh_L": Vector3(-0.55, 0.0, 0.12), "el_L": Vector3(0.35, 0, 0), "spine": Vector3(-0.02, 0.25, 0), "hips": Vector3(0, 0.2, 0), "head": Vector3(0.0, -0.2, 0)}],
+			[0.3, {"sh_R": Vector3(-1.25, 0.2, 0.05), "el_R": Vector3(1.55, 0, 0), "sh_L": Vector3(-1.05, 0.0, 0.05), "el_L": Vector3(0.45, 0, 0), "spine": Vector3(-0.02, 0.45, 0), "hips": Vector3(0, 0.3, 0), "head": Vector3(0.05, -0.4, 0)}],
+			[0.42, {"sh_L": Vector3(-1.55, 0.0, 0.05), "el_L": Vector3(0.08, 0, 0), "sh_R": Vector3(-1.45, 0.4, 0), "el_R": Vector3(1.35, 0, 0), "spine": Vector3(-0.03, 0.75, 0), "hips": Vector3(0, 0.45, 0), "head": Vector3(0.05, -0.7, 0), "dy": -0.04}],
+			[0.58, {"sh_L": Vector3(-1.57, 0.0, 0.05), "el_L": Vector3(0.04, 0, 0), "sh_R": Vector3(-1.38, 0.85, 0), "el_R": Vector3(2.55, 0, 0), "spine": Vector3(-0.04, 0.88, 0), "hips": Vector3(0, 0.5, 0), "head": Vector3(0.05, -0.82, 0), "dy": -0.05}],
+			[0.64, {"sh_L": Vector3(-1.57, 0.0, 0.05), "el_L": Vector3(0.04, 0, 0), "sh_R": Vector3(-1.38, 0.88, 0), "el_R": Vector3(2.6, 0, 0), "spine": Vector3(-0.04, 0.9, 0), "hips": Vector3(0, 0.5, 0), "head": Vector3(0.05, -0.82, 0), "dy": -0.05}],
+			[0.7, {"sh_L": Vector3(-1.5, 0.0, 0.08), "el_L": Vector3(0.06, 0, 0), "sh_R": Vector3(-1.05, 1.05, 0.5), "el_R": Vector3(1.05, 0, 0), "spine": Vector3(-0.02, 0.9, 0), "hips": Vector3(0, 0.5, 0), "head": Vector3(0.05, -0.82, 0), "dy": -0.05}],
+			[0.84, {"sh_L": Vector3(-1.4, 0.0, 0.1), "el_L": Vector3(0.1, 0, 0), "sh_R": Vector3(-1.0, 1.05, 0.55), "el_R": Vector3(1.0, 0, 0), "spine": Vector3(-0.02, 0.85, 0), "hips": Vector3(0, 0.5, 0), "head": Vector3(0.05, -0.8, 0), "dy": -0.04}],
+			[1.0, {}]],
 	}
 
 
