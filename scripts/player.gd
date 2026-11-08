@@ -53,6 +53,7 @@ var focus: Interactable = null
 var look_sens_y := 1.0          # vertical look multiplier (settings)
 var auto_sprint := true         # a full stick push breaks into a run
 var haptics := true             # phone vibrates when hurt
+var _vib_logged := false
 var look_sens := 1.0             # multiplier on LOOK_SENSITIVITY (settings)
 var invert_y := false
 var base_fov := BASE_FOV
@@ -918,7 +919,10 @@ func take_damage(amount: float, from: Vector3) -> void:
 			Sfx.ui_at("hit_thud", -8.0)
 			StoryFX.shake(self, 0.04, 0.12)
 	if haptics and OS.has_feature("mobile"):
-		Input.vibrate_handheld(70)
+		if not _vib_logged:
+			_vib_logged = true
+			LogCollector.event("first hit this run: vibrate")      # if the app dies right after this line, it was the vibration
+		Input.vibrate_handheld(70)              # needs android.permission.VIBRATE (export preset permissions/vibrate)
 	hp = maxf(0.0, hp - amount)
 	FloatText.spawn(get_parent(), global_position + Vector3(0, 2.2, 0), "-" + str(int(round(amount))), Color(1.0, 0.25, 0.25), 1.1)
 	_combat_t = 0.0

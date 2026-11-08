@@ -1046,7 +1046,6 @@ func _build_story() -> void:
 	live_events.festival = festival
 	add_child(live_events)
 	live_events.build()
-	_prewarm_monsters.call_deferred()
 	# the season follows the phone's calendar (SEASON overrides it for testing)
 	var sn := OS.get_environment("SEASON")
 	atmosphere.season = sn if Atmosphere.SEASONS.has(sn) else Atmosphere.season_for_month(int(Time.get_date_dict_from_system()["month"]))
@@ -3908,33 +3907,6 @@ func _selftest_boss(fails: PackedStringArray) -> void:
 			m.queue_free()
 	player.max_hp = 100.0
 	player.hp = 100.0
-
-
-## Load the ghost models and build their glowing see-through materials while the world is loading, out of sight
-## far below the ground, so the phone is not hit by it the moment the ghost mission starts. Freed after a few seconds.
-func _prewarm_monsters() -> void:
-	if "--selftest" in OS.get_cmdline_user_args():
-		return
-	var tmp: Array = []
-	for k in ["ghost", "ghost_skull"]:
-		var mon := Monster.new()
-		add_child(mon)
-		# in front of the camera but under the ground: drawn (so its shaders get built) yet hidden by the terrain
-		var fwd := -player.camera.global_transform.basis.z
-		fwd.y = 0.0
-		var at := player.global_position + fwd.normalized() * 10.0
-		at.y = terrain.sample_height(at.x, at.z) - 4.0
-		mon.setup_monster(k, at, "prewarm_" + k)
-		mon.set_physics_process(false)
-		mon.set_process(false)
-		for g in ["enemies", "monsters"]:
-			if mon.is_in_group(g):
-				mon.remove_from_group(g)
-		tmp.append(mon)
-	get_tree().create_timer(6.0).timeout.connect(func() -> void:
-		for m in tmp:
-			if is_instance_valid(m):
-				m.queue_free())
 
 
 ## Diagnostics: run The Restless Dead and report story changes, saves, nodes and frame time per second.

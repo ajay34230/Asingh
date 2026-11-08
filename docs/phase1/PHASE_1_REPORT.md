@@ -640,3 +640,15 @@ User report from an I2012 (vivo) with an Adreno 650 on Vulkan driver 1.1.128, Lo
   - whether a cut-scene or photo mode is on
   - Any single frame over 2 s is logged as "freeze", and each mission wave spawn is logged.
 - **New diagnostic mode:** `--probe-ghost` runs the ghost mission and prints story changes, node counts and frames per second.
+
+## Addendum: Likely cause of the ghost-mission crash, vibration permission (2026-11-08)
+
+The user confirmed that the game closes by itself in the first ghost mission. Verified here by the selftest (PASS). **The device crash is not reproduced and the cause is not confirmed until the new build is played.**
+
+- **Likely cause:** `Player.take_damage` calls `Input.vibrate_handheld(70)` on a phone whenever the player is hurt, but neither Android export preset declared `android.permission.VIBRATE`. Android refuses the vibrate call with a security error, and the app closes without Godot logging anything.
+  - This matches the report: each crash came 10–40 s after The Restless Dead started (the first ghost hit), with no script error in the log, and it happened on the 6 Nov build too.
+- **Fix:**
+  - `permissions/vibrate=true` is now set in both presets (debug and release).
+  - The first hit of each run logs "first hit this run: vibrate" just before vibrating. If a future report ends on that line, the vibration is confirmed as the cause.
+  - VIBRATE is a normal (install-time) permission, so no prompt is shown and nothing changes for Play Store data safety.
+- **Removed:** the ghost pre-loading added in the previous commit. If the ghost models themselves turned out to be the problem, it would have moved the crash to every launch.
