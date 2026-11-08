@@ -9,6 +9,7 @@ signal settings_changed
 signal quit_requested
 signal closed
 signal board_theme_changed
+signal campaign_start(index: int)
 
 const HOW_TO_PLAY := """Royal India Ludo
 
@@ -84,6 +85,7 @@ func _ready() -> void:
 	_build_themes()
 	_build_rewards()
 	_build_profile()
+	_build_journey()
 	show_page("main")
 
 
@@ -348,6 +350,7 @@ func _build_main() -> void:
 	panel.add_child(box)
 	UiFx.ornaments(panel)
 	_panels["main"] = panel
+	_button(box, "Royal Journey", func() -> void: _refresh_journey(); show_page("journey"))
 	_button(box, "Play vs AI", func() -> void: _open_setup("ai"))
 	_button(box, "Pass and play", func() -> void: _open_setup("pass"))
 	_button(box, "Quick play", func() -> void: _quick_play())
@@ -552,6 +555,51 @@ func _refresh_rewards() -> void:
 		row.add_theme_font_size_override("font_size", 19)
 		row.add_theme_color_override("font_color", Color("#ffe39a") if done else Color(0.85, 0.75, 0.65, 0.75))
 		_rewards_box.add_child(row)
+
+
+var _journey_box: VBoxContainer
+
+
+func _build_journey() -> void:
+	_journey_box = _scroll_page("journey", "Royal Journey")
+	var page_box: VBoxContainer = _journey_box.get_parent().get_parent()
+	_button(page_box, "Back", func() -> void: _back())
+
+
+func _refresh_journey() -> void:
+	for c in _journey_box.get_children():
+		c.queue_free()
+	var done := Campaign.completed()
+	for i in range(Campaign.CHAPTERS.size()):
+		var ch: Dictionary = Campaign.CHAPTERS[i]
+		var card := PanelContainer.new()
+		var style := StyleBoxFlat.new()
+		var theme_cols: Dictionary = BoardThemes.THEMES[ch["theme"]]
+		style.bg_color = (theme_cols["lacquer"] as Color).darkened(0.3) if Campaign.unlocked(i) else Color(0.12, 0.08, 0.08)
+		style.border_color = RoyalTheme.GOLD if Campaign.unlocked(i) else Color(0.4, 0.33, 0.28)
+		style.set_border_width_all(2)
+		style.set_corner_radius_all(12)
+		style.set_content_margin_all(14)
+		card.add_theme_stylebox_override("panel", style)
+		var col := VBoxContainer.new()
+		card.add_child(col)
+		var head := Label.new()
+		var state := tr("Completed") if i < done else (tr("Unlocked") if Campaign.unlocked(i) else tr("Locked"))
+		head.text = "%d. %s   ·   %s" % [i + 1, tr(ch["palace"]), state]
+		head.add_theme_font_size_override("font_size", 22)
+		head.add_theme_color_override("font_color", RoyalTheme.GOLD_LIGHT if Campaign.unlocked(i) else Color(0.6, 0.55, 0.5))
+		col.add_child(head)
+		var body := Label.new()
+		body.text = "%s\n%s   ·   %s %d" % [tr(ch["intro"]), tr(ch["twist"]), tr("Reward"), ch["reward"]]
+		body.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		body.custom_minimum_size = Vector2(560, 0)
+		body.add_theme_font_size_override("font_size", 17)
+		col.add_child(body)
+		if Campaign.unlocked(i):
+			var idx := i
+			var b := _button(col, "Play this chapter" if i >= done else "Play again", func() -> void: campaign_start.emit(idx))
+			b.custom_minimum_size = Vector2(0, 44)
+		_journey_box.add_child(card)
 
 
 var _profile_box: VBoxContainer

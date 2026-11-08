@@ -424,6 +424,10 @@ func show_result(ranking: Array, reward := 0, total := 0, achievements: Array = 
 			lines.append(xp_line)
 			xp_info = []
 		for id in achievements:
+			if String(id).begins_with("campaign:"):
+				var ch: Dictionary = Campaign.CHAPTERS[int(String(id).trim_prefix("campaign:"))]
+				lines.append(tr("Chapter complete: %s  (+%d)") % [tr(ch["palace"]), ch["reward"]])
+				continue
 			if String(id).begins_with("challenge:"):
 				var c: Array = Festivals.CHALLENGES[String(id).trim_prefix("challenge:")]
 				lines.append(tr("Weekly challenge complete: %s  (+%d)") % [tr(c[0]), c[3]])

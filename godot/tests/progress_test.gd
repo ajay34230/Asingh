@@ -46,6 +46,32 @@ func _init() -> void:
 	Progress.set_player_name("  Arjun  ")
 	_check("name trimmed", Progress.player_name() == "Arjun")
 
+	_check("campaign starts at chapter 1", Campaign.completed() == 0 and Campaign.unlocked(0) and not Campaign.unlocked(1))
+	for i in range(Campaign.CHAPTERS.size()):
+		var cfg := Campaign.config(i)
+		var e := RulesEngine.new()
+		var seats: Array = []
+		for c in cfg["colors"]:
+			seats.append({"color": c, "human": false})
+		e.setup(seats, 7 + i, cfg["rules"])
+		var guard := 0
+		while e.phase != RulesEngine.PHASE_OVER and guard < 8000:
+			var o := e.roll()
+			if not o["passed"] and not o["forfeited"]:
+				e.apply_move(AiController.choose_move(e, o["moves"], cfg["difficulty"]))
+			guard += 1
+		_check("chapter %d game finishes" % (i + 1), e.phase == RulesEngine.PHASE_OVER)
+	var c1 := Progress.coins()
+	var lines := Campaign.finish(0, true)
+	_check("winning chapter 1 unlocks chapter 2", Campaign.completed() == 1 and Campaign.unlocked(1) and lines.size() == 1)
+	_check("chapter reward and theme unlock", Progress.coins() == c1 + 200 and Progress.owns("theme_jaipur"))
+	_check("replaying a chapter pays nothing", Campaign.finish(0, true).is_empty())
+	_check("losing does not advance", Campaign.finish(1, false).is_empty() and Campaign.completed() == 1)
+	Festivals.override = "holi"
+	_check("festival doubles coins", Festivals.coin_multiplier() == 2)
+	Festivals.override = ""
+	_check("three weekly challenges", Festivals.this_week().size() == 3)
+
 	DirAccess.remove_absolute(ProjectSettings.globalize_path(path))
 	if not backup.is_empty():
 		var f := FileAccess.open(path, FileAccess.WRITE)

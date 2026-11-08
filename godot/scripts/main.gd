@@ -163,6 +163,13 @@ func _ready() -> void:
 		_start_from_menu({"mode": "ai", "players": 4, "difficulty": 1, "rules": GameSettings.get_rules()})
 	else:
 		hud.visible = false
+		if _pending_chapter >= 0:
+			var idx := _pending_chapter
+			_pending_chapter = -1
+			hud.visible = true
+			menu.visible = false
+			_start_chapter(idx)
+			return
 		menu.show_page("main")
 		## First launch of the day: offer the daily reward.
 		if Progress.daily_status()[0] and _reopen_page == "":
@@ -211,6 +218,8 @@ func _ready() -> void:
 			menu._refresh_themes()
 		elif page == "rewards":
 			menu._refresh_rewards()
+		elif page == "journey":
+			menu._refresh_journey()
 		if page != "":
 			menu.show_page(page)
 		_screenshot_and_quit(menu_shot)
@@ -239,6 +248,7 @@ func _build_menu() -> void:
 	menu.quit_requested.connect(func() -> void: get_tree().quit())
 	menu.closed.connect(_on_menu_closed)
 	## A new theme rebuilds the scene; come back to the themes page afterwards.
+	menu.campaign_start.connect(_begin_chapter)
 	menu.board_theme_changed.connect(func() -> void:
 		_reopen_page = "themes"
 		_intro_seen = true
@@ -266,6 +276,8 @@ func _start_from_menu(config: Dictionary) -> void:
 		colors = ["blue", "yellow", "green", "red"]
 	if config.get("mode", "") == "team":
 		colors = ["blue", "yellow", "green", "red"]
+	if config.has("colors"):
+		colors.assign(config["colors"])
 	var humans: Array[String] = []
 	if config["mode"] == "pass":
 		humans = colors.duplicate()
@@ -285,7 +297,9 @@ func _start_from_menu(config: Dictionary) -> void:
 
 var _last_config: Dictionary = {}
 static var _intro_seen := false
-static var _reopen_page := ""   ## the long opening plays once per launch
+static var _reopen_page := ""
+static var _pending_chapter := -1   ## a Royal Journey chapter to start after the reload
+static var _theme_before := ""      ## the player's own theme, restored after a chapter   ## the long opening plays once per launch
 
 
 ## Rematch and restart use the last configuration.
@@ -296,8 +310,31 @@ func _start_new_game() -> void:
 	_start_from_menu(_last_config)
 
 
+## Royal Journey: switch to the chapter's palace (a scene reload), then play it.
+func _begin_chapter(index: int) -> void:
+	var ch: Dictionary = Campaign.CHAPTERS[index]
+	if _theme_before == "":
+		_theme_before = BoardThemes.current_id()
+	_pending_chapter = index
+	_intro_seen = true
+	BoardThemes.set_current(ch["theme"])
+	loading.cover(func() -> void: get_tree().reload_current_scene())
+
+
+func _start_chapter(index: int) -> void:
+	var ch: Dictionary = Campaign.CHAPTERS[index]
+	audio.start_music("game")
+	hud.flash_banner(tr(ch["palace"]), RoyalTheme.GOLD_LIGHT, 2.2)
+	hud.show_caption(tr(ch["intro"]), 4.5)
+	await get_tree().create_timer(1.2).timeout
+	_start_from_menu(Campaign.config(index))
+
+
 func _quit_to_menu() -> void:
 	get_tree().paused = false
+	if _theme_before != "":
+		BoardThemes.set_current(_theme_before)
+		_theme_before = ""
 	loading.cover(func() -> void: get_tree().reload_current_scene())
 
 
@@ -579,6 +616,8 @@ func _on_game_finished(ranking: Array) -> void:
 		unlocked = Progress.record_game(t)
 		for cid in Festivals.record(t):
 			unlocked.append("challenge:" + cid)
+		if _last_config.get("mode", "") == "campaign":
+			unlocked.append_array(Campaign.finish(int(_last_config["chapter"]), t["won"]))
 		var lv := Progress.add_game_xp(t)
 		hud.xp_info = lv
 		total = Progress.coins()
