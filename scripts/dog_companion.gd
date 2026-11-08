@@ -119,7 +119,7 @@ func adopt(silent: bool = false) -> void:
 		return
 	_bark()
 	if hud != null and hud.has_method("banner"):
-		hud.banner(Loc.t("Moti is your dog now!"), Loc.t("He follows you, finds hidden coins and treasure, and bites your enemies."))
+		hud.banner(Loc.t("Moti is your dog now!") + "\n" + Loc.t("He follows you, finds hidden coins and treasure, and bites your enemies."), "seal_found")
 
 
 func pet() -> void:

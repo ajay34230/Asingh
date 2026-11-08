@@ -620,3 +620,23 @@ Reported by the user: "The direction of bow face while aiming is facing wrong di
   - While shooting, the bow's back (the grip side, −X) now faces the target, the tips and string (+X) face the archer, and the limbs stand upright.
   - The string is tied at the measured tip positions (`BOW_TIP_TOP` and `BOW_TIP_BOT`) instead of a guessed offset. At rest it runs straight between them.
 - **Measured at full draw:** bow back toward target 1.00 (dot product), limbs toward up 0.98, bow arm 1° off the target line.
+
+## Addendum: Crash report from the device, 8 Nov (2026-11-08)
+
+User report from an I2012 (vivo) with an Adreno 650 on Vulkan driver 1.1.128, Low quality: three "ended unexpectedly" runs. Verified here by the selftest (PASS), plus a headless run of The Restless Dead (`--probe-ghost`) that shows no runaway story-change loop and steady node counts. **The device crash itself is not reproduced here and its cause is not confirmed.**
+
+- **What the report shows:**
+  - All three crashes came 10–40 s after The Restless Dead (`m_ghost1`, the night ghost mission) started. One of them was on the old build from 6 Nov (c62b6f7), so the problem predates the bow work.
+  - Godot logged no script error before any of them, which points to a native, GPU-driver or out-of-memory kill, or a freeze the player closed.
+  - One run sat at 1 fps with no frames drawn yet. Others ran at 19–24 fps with up to 1,333 draw calls and about 450 MB of memory.
+- **Fixed (my bugs from today):** festival, achievement, dog and backup banners passed their second line as the banner's sound name, so the game tried to load "…Diwali Sherwani.wav". The lines are now joined into the banner text. `Sfx` also never tries to load a sound that is not in the game, so a wrong name is silent instead of an error.
+- **Fewer disk writes:** every story change wrote the whole save file (JSON, write, read back, backup copy, rename), several times a second while ghosts die. Saves now happen at most once every 3 s, plus always when the app is paused or closed.
+- **Ghost pre-loading:** the ghost and flying-skull models and their see-through glowing materials are built during loading (in front of the camera but under the ground, then freed), so the phone does not have to build them the moment the mission starts.
+- **Better crash clues:** the breadcrumb is now written every 2 s instead of every 3 s and adds:
+  - the slowest frame since the last breadcrumb, and the time scale
+  - health, weapon, aiming, riding and locked
+  - time of day, rain and dust
+  - the running monster mission, its wave and the number of monsters alive
+  - whether a cut-scene or photo mode is on
+  - Any single frame over 2 s is logged as "freeze", and each mission wave spawn is logged.
+- **New diagnostic mode:** `--probe-ghost` runs the ghost mission and prints story changes, node counts and frames per second.

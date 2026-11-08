@@ -76,7 +76,7 @@ func unlock(id: String) -> bool:
 	if story != null:
 		story.set_flag("coins", int(story.get_flag("coins", 0)) + REWARD)      # every achievement pays a little
 	if hud != null and hud.has_method("banner"):
-		hud.banner(Loc.t("Achievement: ") + Loc.t(String(DEFS[id][0])), "+%d %s" % [REWARD, Loc.t("coins")])
+		hud.banner(Loc.t("Achievement: ") + Loc.t(String(DEFS[id][0])) + "\n" + "+%d %s" % [REWARD, Loc.t("coins")], "seal_found")
 	return true
 
 

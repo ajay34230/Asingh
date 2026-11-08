@@ -337,6 +337,7 @@ func _spawn_wave(rise: bool) -> void:
 			n += 1
 	if n > 0:
 		Sfx.at("scream", _ground(at) + Vector3(0, 2, 0), -6.0, 0.6)
+	LogCollector.event("monster mission %s wave %d spawned %d" % [running, wave + 1, n])
 	story.changed.emit()                  # the tracker shows the new count
 
 

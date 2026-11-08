@@ -96,7 +96,8 @@ func setup(p: Player, h: HouseBuilder) -> Sfx:
 
 func _stream(n: String) -> AudioStream:
 	if not _cache.has(n):
-		_cache[n] = load(DIR + n + ".wav")
+		var p := DIR + n + ".wav"
+		_cache[n] = load(p) if n != "" and ResourceLoader.exists(p) else null       # a wrong name is silent, not an error
 	return _cache[n]
 
 
@@ -144,7 +145,10 @@ static func emitter(parent: Node3D, n: String, pos: Vector3, db: float, max_dist
 
 static func ui(n: String, db: float = 0.0) -> void:
 	if instance != null:
-		instance._ui.stream = instance._stream(n)
+		var st := instance._stream(n)
+		if st == null:
+			return
+		instance._ui.stream = st
 		instance._ui.volume_db = db
 		instance._ui.pitch_scale = 1.0
 		instance._ui.play()

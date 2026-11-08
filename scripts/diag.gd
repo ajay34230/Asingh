@@ -16,6 +16,7 @@ var _t := 0.0
 var _low := 0.0
 var _cool := 0.0
 var _enabled := true
+var _worst := 0.0                  # the slowest frame since the last breadcrumb (a freeze shows up here)
 
 
 func _ready() -> void:
@@ -42,21 +43,43 @@ func summary() -> String:
 	var pos := Vector3.ZERO
 	if player != null and is_instance_valid(player):
 		pos = player.global_position
-	return "t=%d fps=%d pos=(%d,%d,%d) mem=%dMB vram=%dMB draws=%d nodes=%d quality=%d" % [
+	var s := "t=%d fps=%d pos=(%d,%d,%d) mem=%dMB vram=%dMB draws=%d nodes=%d quality=%d" % [
 		int(Time.get_ticks_msec() / 1000), int(Engine.get_frames_per_second()), int(pos.x), int(pos.y), int(pos.z),
 		int(OS.get_static_memory_usage() / 1048576), int(Performance.get_monitor(Performance.RENDER_VIDEO_MEM_USED) / 1048576),
 		int(Performance.get_monitor(Performance.RENDER_TOTAL_DRAW_CALLS_IN_FRAME)), int(Performance.get_monitor(Performance.OBJECT_NODE_COUNT)),
 		int(GameSettings.v.get("quality", 0))]
+	# what the player was doing, so a crash can be tied to a mission, a weapon or a mode
+	s += " worst_frame=%dms tscale=%.2f" % [int(_worst * 1000.0), Engine.time_scale]
+	if player != null and is_instance_valid(player):
+		s += " hp=%d weapon=%s aim=%s ride=%s locked=%s" % [int(player.hp), player.weapon, player.aiming, player.mounted, player.locked]
+	if main != null:
+		var at = main.get("atmosphere")
+		if at != null:
+			s += " tod=%.2f rain=%.1f dust=%.1f" % [float(at.time_of_day), float(at.rain), float(at.dust)]
+		var mm := main.get_tree().get_first_node_in_group("monster_missions") if main.is_inside_tree() else null
+		if mm != null and String(mm.get("running")) != "":
+			s += " mission=%s wave=%d alive=%d" % [String(mm.get("running")), int(mm.get("wave")), (mm.get("alive") as Array).size()]
+		var cn = main.get("cin")
+		if cn != null and bool(cn.get("playing")):
+			s += " cutscene"
+		var pm = main.get("photo_mode")
+		if pm != null and bool(pm.get("active")):
+			s += " photo"
+	return s
 
 
 func _process(delta: float) -> void:
 	_t -= delta
 	_cool -= delta
+	_worst = maxf(_worst, delta / maxf(Engine.time_scale, 0.05))
+	if delta > 2.0:
+		LogCollector.event("freeze: one frame took %.1f s (%s)" % [delta, summary()])
 	if _t <= 0.0:
-		_t = 3.0
+		_t = 2.0
 		var f := FileAccess.open(CRUMB, FileAccess.WRITE)
 		if f != null:
 			f.store_string(summary())
+		_worst = 0.0
 	# adaptive quality: 8 s below 22 fps lowers the preset one step (at most once per 40 s)
 	if player == null or player.locked or not _enabled:
 		_low = 0.0

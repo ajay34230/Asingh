@@ -136,7 +136,7 @@ func _ready() -> void:
 		pg.visible = false
 		stack.add_child(pg)
 	_show_page("Inventory")
-	story.changed.connect(save)
+	story.changed.connect(_save_soon)       # at most one disk write every few seconds, not one per story change
 	story.mission_event.connect(func(kind: String, t: String) -> void:
 		LogCollector.event("mission %s: %s" % [kind, t])
 		if kind == "new":
@@ -294,7 +294,7 @@ func _fill_slots() -> void:
 		var p := SaveTransfer.export_now()
 		var hud: Node = (main as Node).get("hud")
 		if p != "":
-			hud.banner(Loc.t("Backup code copied. File saved:"), p.get_file())
+			hud.banner(Loc.t("Backup code copied. File saved:") + "\n" + p.get_file())
 		elif DisplayServer.clipboard_get().begins_with(SaveTransfer.PREFIX):
 			hud.banner(Loc.t("Backup code copied to the clipboard."))
 		else:
@@ -706,6 +706,10 @@ func toggle() -> void:
 
 
 func _process(delta: float) -> void:
+	if _save_due >= 0.0:
+		_save_due -= delta
+		if _save_due < 0.0:
+			save()
 	_timer += delta
 	if _timer > 20.0:
 		_timer = 0.0
@@ -761,7 +765,22 @@ func restart_mission() -> void:
 	get_tree().reload_current_scene()
 
 
+var _save_due := -1.0
+
+
+## Story changes arrive in bursts (every kill in a fight); write the save once, a few seconds after the first.
+func _save_soon() -> void:
+	if _save_due < 0.0:
+		_save_due = 3.0
+
+
+func _notification(what: int) -> void:
+	if what == NOTIFICATION_APPLICATION_PAUSED or what == NOTIFICATION_WM_CLOSE_REQUEST:
+		save()                                 # leaving the app always writes the latest state
+
+
 func save() -> void:
+	_save_due = -1.0
 	if player == null or story == null or not story.get_flag("intro_done"):
 		return
 	var p := player.global_position

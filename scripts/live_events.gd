@@ -135,8 +135,7 @@ func start(id: String) -> void:
 				it.call("give", "fire_arrow", 5)
 		(func() -> void:
 			if hud != null:
-				hud.banner(Loc.t(String(e["intro"])), Loc.t("Festival outfit in the bazaar: %s") % Loc.t(_outfit_name(String(e["outfit"]))))
-			Sfx.ui("cheer_crowd", -6.0)).call_deferred()
+				hud.banner(Loc.t(String(e["intro"])) + "\n" + Loc.t("Festival outfit in the bazaar: %s") % Loc.t(_outfit_name(String(e["outfit"]))), "cheer_crowd")).call_deferred()
 
 
 func _outfit_name(oid: String) -> String:
@@ -198,7 +197,7 @@ func _complete() -> void:
 	if wr != null:
 		wr.call("wear", oid)
 	if hud != null:
-		hud.banner(Loc.t("Happy %s!") % Loc.t(String(e["name"])), "+%d %s, %s" % [int(e["coins"]), Loc.t("coins"), Loc.t(_outfit_name(oid))])
+		hud.banner(Loc.t("Happy %s!") % Loc.t(String(e["name"])) + "\n" + "+%d %s, %s" % [int(e["coins"]), Loc.t("coins"), Loc.t(_outfit_name(oid))], "seal_found")
 	Sfx.ui("cheer_crowd", -2.0)
 	for i in 5:
 		get_tree().create_timer(0.35 * i).timeout.connect(_firework)
