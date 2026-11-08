@@ -174,7 +174,7 @@ func _on_press(idx: int, pos: Vector2) -> void:
 			return
 	if player != null and not player.mounted and pos.distance_to(_weapon_button_centre()) < 50.0 * btn_scale:
 		var w := player.cycle_weapon()
-		_toast = "Weapon: " + Loc.t(w.capitalize())
+		_toast = Loc.t("Weapon: ") + Loc.t(w.capitalize())
 		_toast_time = 1.6
 		return
 	if _horse_visible() and on_whistle.is_valid() and pos.distance_to(_horse_button_centre()) < 46.0 * btn_scale:
@@ -277,13 +277,13 @@ func _draw() -> void:
 		draw_string(font, Vector2(16, 28), _fps_text, HORIZONTAL_ALIGNMENT_LEFT, -1, 22, Color(1, 1, 1, 0.85))
 	if hints_on and _hint_time > 0.0:
 		var a := clampf(_hint_time / 3.0, 0.0, 1.0)
-		draw_string(font, Vector2(16, 58), "Left: move   Right: look (two fingers: zoom)   USE appears near things",
+		draw_string(font, Vector2(16, 58), Loc.t("Left: move   Right: look (two fingers: zoom)   USE appears near things"),
 			HORIZONTAL_ALIGNMENT_LEFT, -1, 20, Color(1, 1, 1, 0.9 * a))
 	# Interaction prompt, USE button and message toast.
 	if player != null and player.mounted:
 		_draw_button(font, _use_button_centre(), 50.0 * btn_scale, "GET OFF", _use_id != -1)
 	elif _focus != null and is_instance_valid(_focus):
-		var ptxt := _focus.prompt
+		var ptxt := Loc.t(_focus.prompt)
 		var psz := font.get_string_size(ptxt, HORIZONTAL_ALIGNMENT_LEFT, -1, 26)
 		var pc := Vector2(_vp.x * 0.5, _vp.y - 120.0)
 		draw_rect(Rect2(pc - Vector2(psz.x * 0.5 + 16.0, 30.0), Vector2(psz.x + 32.0, 42.0)), Color(0, 0, 0, 0.45))
@@ -291,10 +291,11 @@ func _draw() -> void:
 		_draw_button(font, _use_button_centre(), 50.0 * btn_scale, "USE", _use_id != -1)
 	if _toast_time > 0.0:
 		var ta := clampf(_toast_time / 1.0, 0.0, 1.0)
-		var tsz := font.get_string_size(_toast, HORIZONTAL_ALIGNMENT_LEFT, -1, 24)
+		var toast := Loc.t(_toast)
+		var tsz := font.get_string_size(toast, HORIZONTAL_ALIGNMENT_LEFT, -1, 24)
 		var tc := Vector2(_vp.x * 0.5, 80.0)
 		draw_rect(Rect2(tc - Vector2(tsz.x * 0.5 + 16.0, 28.0), Vector2(tsz.x + 32.0, 40.0)), Color(0, 0, 0, 0.5 * ta))
-		draw_string(font, tc + Vector2(-tsz.x * 0.5, 0.0), _toast, HORIZONTAL_ALIGNMENT_LEFT, -1, 24, Color(1, 1, 1, ta))
+		draw_string(font, tc + Vector2(-tsz.x * 0.5, 0.0), toast, HORIZONTAL_ALIGNMENT_LEFT, -1, 24, Color(1, 1, 1, ta))
 	# Joystick (only visible while touching).
 	if _stick_id != -1:
 		draw_circle(_stick_origin, STICK_RADIUS, Color(1, 1, 1, 0.12))
@@ -357,5 +358,6 @@ func _draw_button(font: Font, c: Vector2, r: float, label: String, active: bool)
 	var ba := btn_alpha
 	draw_circle(c, r, Color(1, 1, 1, (0.34 if active else 0.14) * ba))
 	draw_arc(c, r, 0.0, TAU, 32, Color(1, 1, 1, minf(1.0, 0.55 * ba)), 2.5)
+	label = Loc.t(label)
 	var size := font.get_string_size(label, HORIZONTAL_ALIGNMENT_LEFT, -1, 22)
 	draw_string(font, c + Vector2(-size.x * 0.5, 8.0), label, HORIZONTAL_ALIGNMENT_LEFT, -1, 22, Color(1, 1, 1, 0.95))

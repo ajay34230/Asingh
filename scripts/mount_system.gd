@@ -45,7 +45,7 @@ func _attach(a: Animal) -> void:
 	var it := Interactable.new()
 	var h: float = float(Animal.SPECIES[a.species]["height"])
 	it.position = Vector3(0, a.back_y, 0)
-	it.prompt = "Ride the %s" % a.species.replace("_", " ")
+	it.prompt = "Ride the %s" % a.species.replace("_", " ")          # translated when drawn
 	it.reach = 3.2
 	it.on_interact = func(_by: Node3D, _me: Interactable) -> void: mount_animal(a)
 	a.add_child(it)
@@ -76,7 +76,7 @@ func mount_animal(a: Animal) -> void:
 	player.set_distance(5.6)
 	player._rig.set_react("ride")
 	Sfx.at(Animal.CALLS.get(a.species, ["cow_moo"])[0], a.global_position + Vector3(0, 1.2, 0), -3.0)
-	player.say("You swing onto the %s. Stick to ride, JUMP to leap, GET OFF to dismount." % a.species.replace("_", " "))
+	player.say(Loc.tf("You swing onto the %s. Stick to ride, JUMP to leap, GET OFF to dismount.", [a.species.replace("_", " ")]))
 
 
 func dismount() -> void:
@@ -132,9 +132,9 @@ func whistle() -> String:
 			best = an
 	Sfx.ui_at("whistle", -4.0)
 	if best == null:
-		return "No %s can hear you here." % kind.replace("_", " ")
+		return Loc.tf("No %s can hear you here.", [kind.replace("_", " ")])
 	if bd < 4.0:
-		return "Your %s is right here." % kind.replace("_", " ")
+		return Loc.tf("Your %s is right here.", [kind.replace("_", " ")])
 	if bd > 45.0:
 		# out of sight behind you, then it runs in
 		var back := Vector3(sin(player._yaw), 0.0, cos(player._yaw))
@@ -146,7 +146,7 @@ func whistle() -> String:
 	best.driven = true
 	if best._anim != null:
 		best._anim.play(best._gallop if best._has_gallop else best._walk, 0.2)
-	return "You whistle. Your %s is coming!" % kind.replace("_", " ")
+	return Loc.tf("You whistle. Your %s is coming!", [kind.replace("_", " ")])
 
 
 func _tick_called(delta: float) -> void:

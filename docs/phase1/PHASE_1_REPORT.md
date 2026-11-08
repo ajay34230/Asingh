@@ -536,3 +536,20 @@ Verified by the selftest (PASS: "events: diwali 12/12 done true outfit true, hol
 - **Dates:** the lunar dates were checked against publicholidays.in and holidaydb.com, and 2029 onwards needs adding.
 - **Saving and testing:** progress is saved per festival per year. Testing can force a festival with the `EVENT` environment variable or the `event_override` story flag.
 - **New sound:** `firework` (self-made, CC0, credited in ASSETS.md). Hindi text was added.
+
+## Addendum: Hindi for the newer systems (2026-11-08)
+
+Verified by the selftest (PASS: "hindi: 185 table texts checked, 0 untranslated", plus sample lines through the translator) and a software-rendered capture in Hindi (`--capture-event` with `HINDI=1`). **Not tested on a device.** The translations are my own and have not been checked by a native speaker.
+
+- The switch already covered the original story, dialogue and menus. The newer systems were in English only.
+- **231 new entries** in `data/hindi.json` (1,111 in total), covering:
+  - monster missions (titles, briefings, places, objectives, banners, raids)
+  - all outfits, shops and dyes
+  - skills, daily challenges, the login streak, weapon upgrades and level-up banners
+  - items and crafting
+  - bosses, Moti, horses and the whistle, festivals
+  - the map, achievements
+  - and **the on-screen buttons**, which were English even in Hindi mode (दौड़, कूदो, मारो, झुको, रोको, लुढ़को, इस्तेमाल, उतरो)
+- **`Loc.tf(format, args)`:** lines built from parts ("Go to %s") are now translated as a whole pattern, so Hindi word order is right ("गाँव का कब्रिस्तान जाओ"). Banners translate line by line.
+- **Prompts and toasts** (USE prompts, messages) are translated when drawn, so they follow the current language.
+- **Instant switching:** changing the language in Settings now re-translates the HUD at once (`Main.relocalize()`), so the quest panel, Map/Journal and the health line switch without a restart.

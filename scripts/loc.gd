@@ -61,6 +61,15 @@ static func t(text: String) -> String:
 	return res
 
 
+## Translate a format string and every text argument, then fill it in. Hindi often puts the place or
+## name first ("Go to %s" -> "%s जाओ"), so lines are built from a translated pattern, not glued pieces.
+static func tf(fmt: String, args: Array) -> String:
+	var out: Array = []
+	for a in args:
+		out.append(t(a) if a is String else a)
+	return t(fmt) % out
+
+
 ## Speaker names in the dialogue box.
 static func name_of(who: String) -> String:
 	if lang != "hi":

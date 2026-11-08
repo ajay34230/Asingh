@@ -116,7 +116,7 @@ func gain(amount: int, why: String = "") -> void:
 		player.hp_changed.emit(player.hp, player.max_hp)
 		Sfx.ui("seal_found", -2.0)
 		if hud != null:
-			hud.call("banner", "LEVEL %d!\n+%d skill point%s. Open II > Hero" % [lv, ups, "" if ups == 1 else "s"], "seal_found")
+			hud.call("banner", ("LEVEL %d!\n+%d skill point. Open II > Hero" if ups == 1 else "LEVEL %d!\n+%d skill points. Open II > Hero") % [lv, ups], "seal_found")
 		HitFx.burst(player.get_parent(), player.global_position + Vector3(0, 1.2, 0), true, Color(1.0, 0.85, 0.3))
 		LogCollector.event("level up %d (%s)" % [lv, why])
 	story.changed.emit()
@@ -217,7 +217,7 @@ func upgrade(w: String) -> bool:
 	story.flags["up_" + w] = lv
 	Sfx.ui("anvil", -2.0)
 	if hud != null:
-		hud.call("banner", "%s upgraded to +%d" % [w.capitalize(), lv], "seal_found")
+		hud.call("banner", Loc.tf("%s upgraded to +%d", [w.capitalize(), lv]), "seal_found")
 	gain(30, "upgrade")
 	story.changed.emit()
 	changed.emit()
@@ -275,7 +275,7 @@ func note(counter: String, n: int = 1) -> void:
 			story.add("coins", int(d[4]))
 			gain(40, "daily")
 			if hud != null:
-				hud.call("banner", "DAILY CHALLENGE DONE\n%s  +%d coins" % [String(d[1]), int(d[4])], "seal_found")
+				hud.call("banner", "DAILY CHALLENGE DONE\n%s  +%d %s" % [Loc.t(String(d[1])), int(d[4]), Loc.t("coins")], "seal_found")
 		all = all and done
 	if all and not bool(story.get_flag("dc_chest", false)):
 		story.flags["dc_chest"] = true
@@ -296,7 +296,7 @@ func _open_chest() -> void:
 	gain(60, "chest")
 	Sfx.ui("seal_found", 0.0)
 	if hud != null:
-		hud.call("banner", "BONUS CHEST!\n+%d coins, %d x %s" % [coins, n, String(Items.DEFS[extra]["name"])], "seal_found")
+		hud.call("banner", "BONUS CHEST!\n+%d %s, %d x %s" % [coins, Loc.t("coins"), n, Loc.t(String(Items.DEFS[extra]["name"]))], "seal_found")
 	LogCollector.event("daily chest opened")
 
 
@@ -323,11 +323,11 @@ func check_login() -> void:
 		it.call("give", String(r[1]), int(r[2]))
 	if int(r[3]) > 0:
 		story.flags["skill_pts"] = points() + int(r[3])
-	var what := "+%d coins" % int(r[0])
+	var what := "+%d %s" % [int(r[0]), Loc.t("coins")]
 	if String(r[1]) != "":
-		what += ", %d x %s" % [int(r[2]), String(Items.DEFS[String(r[1])]["name"])]
+		what += ", %d x %s" % [int(r[2]), Loc.t(String(Items.DEFS[String(r[1])]["name"]))]
 	if int(r[3]) > 0:
-		what += ", +1 skill point"
+		what += ", " + Loc.t("+1 skill point")
 	if hud != null:
 		hud.call("banner", "DAY %d STREAK!\n%s" % [streak, what], "seal_found")
 	LogCollector.event("login streak %d" % streak)

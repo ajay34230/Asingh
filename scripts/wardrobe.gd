@@ -218,7 +218,7 @@ func buy(id: String) -> bool:
 	LogCollector.event("bought outfit " + id)
 	wear(id)
 	if hud != null:
-		hud.call("banner", "New outfit: " + String(o["name"]), "seal_found")
+		hud.call("banner", Loc.tf("New outfit: %s", [String(o["name"])]), "seal_found")
 	return true
 
 
@@ -311,7 +311,7 @@ func _fill() -> void:
 				continue                       # festival outfits only while their festival is on
 		var hb := HBoxContainer.new()
 		hb.add_theme_constant_override("separation", 10)
-		var info := _row("%s%s\n%s" % [String(o["name"]), "   (wearing)" if id == worn() else "", String(o["desc"])], 22,
+		var info := _row("%s%s\n%s" % [Loc.t(String(o["name"])), ("   " + Loc.t("(wearing)")) if id == worn() else "", Loc.t(String(o["desc"]))], 22,
 			Color(0.6, 1.0, 0.6) if id == worn() else Color.WHITE)
 		info.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		hb.add_child(info)
@@ -350,7 +350,7 @@ func _fill() -> void:
 			b.add_theme_color_override("font_color", Color.BLACK if c.get_luminance() > 0.5 else Color.WHITE)
 			grid.add_child(b)
 		_list.add_child(grid)
-		var hel := _btn("Helmet: " + ("shown" if bool(story.get_flag("show_helmet", true)) else "hidden"), func() -> void:
+		var hel := _btn(Loc.t("Helmet: shown" if bool(story.get_flag("show_helmet", true)) else "Helmet: hidden"), func() -> void:
 			story.set_flag("show_helmet", not bool(story.get_flag("show_helmet", true)))
 			wear(worn())
 			_fill())
@@ -360,11 +360,11 @@ func _fill() -> void:
 		for sp in SUPPLIES:
 			var item: String = sp[0]
 			var price2: int = sp[1]
-			_list.add_child(_btn("%s   %d coins" % [String(Items.DEFS[item]["name"]), price2], func() -> void:
+			_list.add_child(_btn("%s   %d %s" % [Loc.t(String(Items.DEFS[item]["name"])), price2, Loc.t("coins")], func() -> void:
 				if buy_supply(item, price2):
 					_fill(), coins < price2))
 	if _shop == "":
-		var hel2 := _btn("Helmet: " + ("shown" if bool(story.get_flag("show_helmet", true)) else "hidden"), func() -> void:
+		var hel2 := _btn(Loc.t("Helmet: shown" if bool(story.get_flag("show_helmet", true)) else "Helmet: hidden"), func() -> void:
 			story.set_flag("show_helmet", not bool(story.get_flag("show_helmet", true)))
 			wear(worn())
 			_fill())

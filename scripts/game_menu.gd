@@ -526,23 +526,23 @@ func _fill_hero() -> void:
 	bar.add_theme_stylebox_override("fill", fill)
 	_hero_vb.add_child(bar)
 	# daily challenges
-	_hero_vb.add_child(_hero_label("TODAY'S CHALLENGES   (login streak: day %d)" % pg.streak(), 26, gold))
+	_hero_vb.add_child(_hero_label(Loc.t("TODAY'S CHALLENGES") + "   (" + Loc.t("login streak: day %d" % pg.streak()) + ")", 26, gold))
 	var ds := pg.dailies()
 	for i in ds.size():
 		var d: Array = ds[i]
 		var done := bool(story.get_flag("dc_done%d" % i, false))
-		_hero_vb.add_child(_hero_label("%s %s   %d/%d   +%d coins" % ["✔" if done else "•", String(d[1]), pg.daily_progress(i), int(d[3]), int(d[4])], 22, Color(0.6, 1.0, 0.6) if done else Color(1, 1, 1)))
+		_hero_vb.add_child(_hero_label("%s %s   %d/%d   +%d %s" % ["✔" if done else "•", Loc.t(String(d[1])), pg.daily_progress(i), int(d[3]), int(d[4]), Loc.t("coins")], 22, Color(0.6, 1.0, 0.6) if done else Color(1, 1, 1)))
 	_hero_vb.add_child(_hero_label("Finish all three for a bonus chest." if not bool(story.get_flag("dc_chest", false)) else "Bonus chest opened. New challenges tomorrow!", 20, Color(0.85, 0.85, 0.8)))
 	# skills
-	_hero_vb.add_child(_hero_label("SKILLS   (%d point%s to spend: earn more by levelling up)" % [pg.points(), "" if pg.points() == 1 else "s"], 26, gold))
+	_hero_vb.add_child(_hero_label(Loc.t("SKILLS") + "   (" + Loc.t(("%d point to spend: earn more by levelling up" if pg.points() == 1 else "%d points to spend: earn more by levelling up") % pg.points()) + ")", 26, gold))
 	for branch in ["Fighter", "Hunter", "Survivor"]:
-		_hero_vb.add_child(_hero_label(branch.to_upper(), 22, Color(0.9, 0.6, 0.35)))
+		_hero_vb.add_child(_hero_label(Loc.t(branch.to_upper()), 22, Color(0.9, 0.6, 0.35)))
 		for id in Progression.SKILLS:
 			var sk: Dictionary = Progression.SKILLS[id]
 			if String(sk["branch"]) != branch:
 				continue
 			var r := pg.rank(id)
-			var b := _button("%s  %s  (%s)" % [String(sk["name"]), "★".repeat(r) + "☆".repeat(Progression.MAX_RANK - r), String(sk["desc"])], func() -> void:
+			var b := _button("%s  %s  (%s)" % [Loc.t(String(sk["name"])), "★".repeat(r) + "☆".repeat(Progression.MAX_RANK - r), Loc.t(String(sk["desc"]))], func() -> void:
 				if pg.learn(id):
 					_fill_hero())
 			b.disabled = not pg.can_learn(id)
@@ -560,10 +560,10 @@ func _fill_hero() -> void:
 		var lvw := pg.up_level(w)
 		var why := pg.can_upgrade(w)
 		var c := Progression.upgrade_cost(lvw + 1)
-		var label := "%s +%d" % [String(w).capitalize(), lvw]
+		var label := "%s +%d" % [Loc.t(String(w).capitalize()), lvw]
 		if lvw < Progression.UPGRADE_MAX:
-			label += "  ->  +%d   (%d iron, %d essence, %d coins)" % [lvw + 1, int(c["iron"]), int(c["essence"]), int(c["coins"])]
-		var b2 := _button(label + ("" if why == "" else "   - " + why), func() -> void:
+			label += "  ->  +%d   %s" % [lvw + 1, Loc.t("(%d iron, %d essence, %d coins)" % [int(c["iron"]), int(c["essence"]), int(c["coins"])])]
+		var b2 := _button(label + ("" if why == "" else "   - " + Loc.t(why)), func() -> void:
 			if pg.upgrade(w):
 				_fill_hero())
 		b2.disabled = why != ""

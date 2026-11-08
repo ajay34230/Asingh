@@ -170,6 +170,8 @@ static func apply(key: String) -> void:
 				(main.get("player") as Player).set_outfit(int(v[key]))
 		"lang":
 			Loc.set_language("hi" if int(v[key]) == 1 else "en")
+			if main != null and main.has_method("relocalize"):
+				main.call_deferred("relocalize")      # the HUD switches language at once, no restart
 		"quality":
 			if main != null:
 				main.call("apply_quality", int(v[key]))

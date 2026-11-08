@@ -752,6 +752,22 @@ func _selftest_save_v2(fails: PackedStringArray, notes: PackedStringArray) -> vo
 
 ## Real graphics tiers: 0 High, 1 Medium, 2 Low. Controls render scale, shadows, glow, foliage
 ## draw distance and rain density. Called by GameMenu whenever the setting changes.
+## After a language change: re-translate every on-screen label and button, and redraw the quest panel and HUD.
+func relocalize() -> void:
+	var stack: Array[Node] = [self]
+	while not stack.is_empty():
+		var n: Node = stack.pop_back()
+		if n is CanvasLayer or n is Control:
+			Loc.apply_to_tree(n)
+			continue
+		for c in n.get_children():
+			stack.append(c)
+	if story != null:
+		story.changed.emit()
+	if combat_hud != null and player != null:
+		combat_hud.call("_on_hp", player.hp, player.max_hp)
+
+
 func apply_quality(tier: int) -> void:
 	atmosphere.quality = tier
 	get_viewport().scaling_3d_scale = [0.9, 0.78, 0.62][tier]
@@ -1669,6 +1685,7 @@ func _run_selftest() -> void:
 	await _selftest_dog(fails)
 	await _selftest_crafting(fails)
 	await _selftest_events(fails)
+	_selftest_hindi(fails)
 	items.unequip("weapon")
 	for k in 5:
 		story.flags.erase("cache_%d" % k)
@@ -3247,6 +3264,49 @@ func _run_capture_ride(arg: String) -> void:
 	get_tree().quit()
 
 
+## Hindi: sample lines through the translator, and every name and description in the newer data tables.
+func _selftest_hindi(fails: PackedStringArray) -> void:
+	var was := Loc.lang
+	Loc.set_language("hi")
+	var checks := [
+		[Loc.tf("Go to %s", ["the village graveyard"]), "गाँव का कब्रिस्तान जाओ"],
+		[Loc.t("Wave 2/3: 4 left"), "लहर 2/3: 4 बचे"],
+		[Loc.t("Lv 3   HEALTH  80 / 100"), "स्तर 3   सेहत  80 / 100"],
+		[Loc.t("Defeat 12 enemies or monsters"), "12 दुश्मन या राक्षस हराओ"],
+		[Loc.tf("You whistle. Your %s is coming!", ["horse"]), "तुमने सीटी बजाई। तुम्हारा घोड़ा आ रहा है!"],
+		[Loc.t("JUMP"), "कूदो"],
+	]
+	for c in checks:
+		if String(c[0]) != String(c[1]):
+			fails.append("hindi: got '%s', want '%s'" % [c[0], c[1]])
+	var missing: Array = []
+	var texts: Array = []
+	for m in MonsterMissions.MISSIONS:
+		texts.append_array([m["title"], m["short"], m["place"]])
+		if String(m["line"]) != "":
+			texts.append(m["line"])
+	for o in Wardrobe.OUTFITS:
+		texts.append_array([o["name"], o["desc"]])
+	for id in Progression.SKILLS:
+		texts.append_array([Progression.SKILLS[id]["name"], Progression.SKILLS[id]["desc"]])
+	for id in Items.DEFS:
+		texts.append_array([Items.DEFS[id]["name"], Items.DEFS[id]["desc"]])
+	for id in Achievements.DEFS:
+		texts.append_array(Achievements.DEFS[id])
+	for id in BossBrain.NAMES:
+		texts.append(BossBrain.NAMES[id])
+	for id in LiveEvents.EVENTS:
+		var e: Dictionary = LiveEvents.EVENTS[id]
+		texts.append_array([e["name"], e["title"], e["task"], e["intro"]])
+	for tx in texts:
+		if Loc.t(String(tx)) == String(tx):
+			missing.append(tx)
+	Loc.set_language(was)
+	print("[selftest] hindi: %d table texts checked, %d untranslated" % [texts.size(), missing.size()])
+	if not missing.is_empty():
+		fails.append("hindi: untranslated %s" % str(missing.slice(0, 8)))
+
+
 ## Real-calendar festivals: the date table, and each festival's task through to its reward.
 func _selftest_events(fails: PackedStringArray) -> void:
 	var dates := {"2026-11-08": "diwali", "2026-11-05": "diwali", "2026-11-13": "", "2027-03-22": "holi", "2027-01-14": "sankranti",
@@ -3695,7 +3755,10 @@ func _selftest_boss(fails: PackedStringArray) -> void:
 func _run_capture_event(dir: String) -> void:
 	DirAccess.make_dir_recursive_absolute(dir)
 	var ev := live_events.active
-	touch.visible = false
+	touch.visible = OS.get_environment("HINDI") != ""
+	if OS.get_environment("HINDI") != "":
+		Loc.set_language("hi")
+		relocalize()
 	atmosphere.time_of_day = 0.8 if ev == "diwali" else 0.45
 	atmosphere.apply_time()
 	var c := LiveEvents.C

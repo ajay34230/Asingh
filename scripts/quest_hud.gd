@@ -279,7 +279,10 @@ func _process(delta: float) -> void:
 			_banner.modulate.a = 0.0
 	elif not _queue.is_empty():
 		var b: Array = _queue.pop_front()
-		_banner.text = Loc.t(str(b[0]))
+		var lines: Array = []
+		for ln in str(b[0]).split("\n"):
+			lines.append(Loc.t(ln))             # each line is its own phrase (a title, then a reward line)
+		_banner.text = "\n".join(lines)
 		_banner_t = 3.2
 		if b[1] != "":
 			Sfx.ui(b[1], -3.0)

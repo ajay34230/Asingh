@@ -72,7 +72,7 @@ func build() -> void:
 			"id": id, "title": String(m["title"]), "blurb": String(m["short"]),
 			"show": func() -> bool: return prev == "" or bool(story.get_flag(prev + "_done", false)),
 			"objs": [
-				{"text": func() -> String: return "Go to " + String(m["place"]),
+				{"text": func() -> String: return Loc.tf("Go to %s", [String(m["place"])]),
 				 "done": func() -> bool: return bool(story.get_flag(id + "_started", false)) or bool(story.get_flag(id + "_done", false)),
 				 "target": func() -> Vector3: return _ground(m["at"])},
 				{"text": func() -> String: return _obj_text(m),
@@ -88,7 +88,7 @@ func build() -> void:
 		"id": "raid", "title": "Night Raid", "blurb": "Ghosts attack a settlement.",
 		"show": func() -> bool: return not pending_raid.is_empty() or running == "raid",
 		"objs": [
-			{"text": func() -> String: return ("Hurry to " + String(pending_raid["place"])) if not pending_raid.is_empty() else "Hurry to the raid",
+			{"text": func() -> String: return Loc.tf("Hurry to %s", [String(pending_raid["place"])]) if not pending_raid.is_empty() else "Hurry to the raid",
 			 "done": func() -> bool: return running == "raid",
 			 "target": func() -> Vector3: return _ground(pending_raid["at"]) if not pending_raid.is_empty() else (_ground(_m["at"]) if running == "raid" else Vector3.ZERO)},
 			{"text": func() -> String: return _obj_text(_m) if running == "raid" else "Drive the ghosts away",
@@ -102,9 +102,9 @@ func _obj_text(m: Dictionary) -> String:
 	var n: int = (m["waves"] as Array).size()
 	if running == String(m["id"]):
 		var left := alive.size()
-		var s := "Wave %d/%d: %d left" % [wave + 1, n, left]
+		var s := Loc.t("Wave %d/%d: %d left" % [wave + 1, n, left])
 		if Vector2(m["goal"]) != Vector2.ZERO:
-			s = "Protect %s (%d%%). " % [String(m.get("protect", m["place"])), int(village)] + s
+			s = Loc.tf("Protect %s (%d%%).", [String(m.get("protect", m["place"])), int(village)]) + " " + s
 		return s
 	return String(m["short"])
 
@@ -253,14 +253,14 @@ func raid_now(spot_index: int = -1) -> void:
 		lv = int(pg.call("level"))
 	var extra := mini(lv / 3, 4)
 	pending_raid = {
-		"id": "raid", "title": "Night Raid: " + String(sp[0]).capitalize(), "short": "Ghosts are raiding %s! Hurry!" % String(sp[0]),
+		"id": "raid", "title": Loc.tf("Night Raid: %s", [String(sp[0]).capitalize()]), "short": Loc.tf("Ghosts are raiding %s! Hurry!", [String(sp[0])]),
 		"at": sp[1], "goal": sp[1], "night": false, "place": String(sp[0]), "protect": String(sp[0]),
 		"waves": [[["ghost", 3 + extra]], [["ghost", 2 + extra], ["ghost_skull", 2]]],
 		"gift": "", "coins": 50 + 10 * lv, "line": "", "repeat": true,
 	}
 	Sfx.ui("sting_danger", -4.0)
 	if hud != null:
-		hud.call("banner", "NIGHT RAID!\nGhosts are attacking %s" % String(sp[0]), "mission_new")
+		hud.call("banner", "NIGHT RAID!\n" + Loc.tf("Ghosts are attacking %s", [String(sp[0])]), "mission_new")
 	story.changed.emit()
 
 
@@ -305,7 +305,7 @@ func start(m: Dictionary, skip_intro: bool = false) -> void:
 
 func _announce() -> void:
 	if hud != null:
-		hud.call("banner", "%s\nWave 1/%d" % [String(_m["title"]), (_m["waves"] as Array).size()], "mission_new")
+		hud.call("banner", "%s\nWave 1/%d" % [Loc.t(String(_m["title"])), (_m["waves"] as Array).size()], "mission_new")
 
 
 func _spawn_wave(rise: bool) -> void:
@@ -386,7 +386,7 @@ func _run(delta: float) -> void:
 	_hp_last = player.hp
 	# the player fell: the mission resets and can be retried by coming back
 	if player.dead:
-		_abort("You fell. Return to %s to try again." % String(_m["place"]))
+		_abort(Loc.tf("You fell. Return to %s to try again.", [String(_m["place"])]))
 		return
 	# haunting: monsters near the village centre drain its heart
 	var goal: Vector2 = _m["goal"]
@@ -398,7 +398,7 @@ func _run(delta: float) -> void:
 			if Vector2(g.x - goal.x, g.z - goal.y).length() < 6.0:
 				village -= delta * 2.2
 		if village <= 0.0:
-			_abort("%s has fallen to the dead. Return and try again." % String(_m["place"]).capitalize())
+			_abort(Loc.tf("%s has fallen to the dead. Return and try again.", [String(_m["place"])]).capitalize())
 			return
 	alive = alive.filter(func(x: Variant) -> bool: return is_instance_valid(x) and not (x as Enemy).dead)
 	if not alive.is_empty():
@@ -445,12 +445,12 @@ func _complete() -> void:
 	if it != null and gift != "" and gift != "bow":
 		it.call("give", gift, 3 if gift == "potion" else 1)
 	if hud != null:
-		hud.call("banner", "MISSION COMPLETE  %s\n+%d coins" % ["★".repeat(stars) + "☆".repeat(3 - stars), coins], "seal_found")
+		hud.call("banner", "%s  %s\n+%d %s" % [Loc.t("MISSION COMPLETE"), "★".repeat(stars) + "☆".repeat(3 - stars), coins, Loc.t("coins")], "seal_found")
 		if String(_m["line"]) != "" and gift != "bow":
 			hud.call("banner", String(_m["line"]), "")
 		var nx := available()
 		if not nx.is_empty():
-			hud.call("banner", "NEXT: " + String(nx["title"]), "mission_new")
+			hud.call("banner", Loc.tf("NEXT: %s", [String(nx["title"])]), "mission_new")
 	var ach := get_tree().get_first_node_in_group("achievements")
 	if ach != null and id == "m_ghost1":
 		ach.call("unlock", "ghostbuster")
