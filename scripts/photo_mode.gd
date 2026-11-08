@@ -282,6 +282,9 @@ func capture() -> String:
 	if path != "":
 		saved += 1
 		last_path = path
+		var ach := get_tree().get_first_node_in_group("achievements")
+		if ach != null:
+			ach.call("unlock", "photographer")
 		Sfx.ui("tink", -4.0)
 		_hint.text = Loc.t("Photo saved: ") + path.get_base_dir().get_file() + "/" + path.get_file()
 	return path

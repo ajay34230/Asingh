@@ -1705,6 +1705,7 @@ func _run_selftest() -> void:
 	_selftest_hindi(fails)
 	await _selftest_photo(fails)
 	await _selftest_seasons(fails)
+	_selftest_transfer(fails)
 	items.unequip("weapon")
 	for k in 5:
 		story.flags.erase("cache_%d" % k)
@@ -3281,6 +3282,34 @@ func _run_capture_ride(arg: String) -> void:
 			print("[capture] ", an.species, view[0], " -> ", get_viewport().get_texture().get_image().save_png("%s/%s_%s.png" % [dir, an.species, view[0]]))
 		mounts.dismount()
 	get_tree().quit()
+
+
+## Save transfer: a backup code round-trips, damaged codes are refused, and restoring keeps the old save.
+func _selftest_transfer(fails: PackedStringArray) -> void:
+	menu.save()
+	if not story.get_flag("intro_done"):
+		story.set_flag("intro_done", true)
+		menu.save()
+	var code := SaveTransfer.pack()
+	var d := SaveTransfer.unpack(code)
+	var note := "code %d chars" % code.length()
+	if code == "" or d.is_empty():
+		fails.append("transfer: backup code did not round-trip (%s)" % note)
+		return
+	if int((d["save"]["flags"] as Dictionary).get("coins", -1)) != int(story.get_flag("coins", 0)):
+		fails.append("transfer: coins changed in the backup")
+	var broken := code.substr(0, code.length() - 12) + "AAAAAAAAAAAA"
+	if not SaveTransfer.unpack(broken).is_empty() or not SaveTransfer.unpack("hello").is_empty():
+		fails.append("transfer: a damaged code was accepted")
+	var p := SaveTransfer.export_now()
+	note += ", file %s" % (p != "" and FileAccess.file_exists(p))
+	if p == "" or SaveTransfer.unpack(FileAccess.get_file_as_string(p)).is_empty():
+		fails.append("transfer: export file missing or unreadable")
+	if SaveTransfer.import_from(code) != "" or not FileAccess.file_exists(SaveTransfer.BEFORE):
+		fails.append("transfer: import did not keep the previous save")
+	if p != "" and p.begins_with("/"):
+		DirAccess.remove_absolute(p)
+	print("[selftest] transfer: " + note)
 
 
 ## Seasons and dust storms: month table, how often each season brings rain or dust, a storm building up.

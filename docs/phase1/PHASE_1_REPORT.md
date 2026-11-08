@@ -591,3 +591,22 @@ Verified by the selftest (PASS: "weather: varsha rain 85% dust 0%, grishma rain 
   - Large dust puffs race across the view (scaled down on Medium and Low quality).
   - Dust storms are twice as likely out on the Southern Road dunes.
 - Hindi text added for the season names and banners.
+
+## Addendum: Achievements and save transfer (2026-11-08)
+
+Verified by the selftest (PASS: "transfer: code 1392 chars, file true", a damaged code refused, import keeps the previous save). **Not tested on a device.** Whether Android lets the game write to Downloads is untested; if it cannot, the file goes to the game's own folder, and the clipboard code still works.
+
+- **Google Play cloud save is not included.** It needs the Play Games Services plugin plus a Play Console setup (game ID, OAuth) that only the account owner can do. This is the no-account alternative.
+- **Backup & new phone** (Save slots page), handled by `scripts/save_transfer.gd`:
+  - **Export backup:**
+    - Packs the whole save (story, coins, items, outfits, skills, Moti, festivals and more) plus the achievements into one code.
+    - The code is gzip-compressed and base64-encoded, with a size and checksum.
+    - It goes on the clipboard, ready to paste into WhatsApp, email or a note, and is also saved as `lostkingdom_save_<date>.txt` in Downloads.
+  - **Import code (clipboard)** and **Import file (Downloads, newest backup):**
+    - Both ask for a second tap to confirm, then check the code (prefix, size, checksum, save shape).
+    - The current save is kept as `save_before_import.json` before loading the backup.
+- **Achievements:**
+  - Each one now pays 25 coins, shown in its banner.
+  - Three new ones: Horse Archer (an arrow hit from the saddle), Say Cheese (a photo in photo mode) and Into the Andhi (standing in a dust storm).
+  - With today's other additions, the game now has 33 achievements.
+- Hindi text added.

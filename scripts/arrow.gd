@@ -209,6 +209,10 @@ func _physics_process(delta: float) -> void:
 				if ach2 != null and ach2.has_method("unlock"):
 					ach2.call("unlock", "focus")
 			Sfx.at("hit_thud", global_position, -4.0, 1.4)
+			if shooter is Player and (shooter as Player).mounted:
+				var ach3 := get_tree().get_first_node_in_group("achievements")
+				if ach3 != null:
+					ach3.call("unlock", "horse_archer")
 			if fire and not en.dead:
 				_burning = en
 				_burn_t = 4.0

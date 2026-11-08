@@ -283,6 +283,40 @@ func _fill_slots() -> void:
 		lb.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		lb.disabled = SaveSystem.read(SLOT_PATH % n).is_empty()
 		row.add_child(lb)
+	# backup and move to another phone
+	_sl_box.add_child(_heading("Backup & new phone"))
+	var help := Label.new()
+	help.autowrap_mode = TextServer.AUTOWRAP_WORD
+	help.text = Loc.t("Export copies a backup code and saves it in Downloads. Send the code or the file to yourself (WhatsApp, email, Drive). On the new phone, copy the code and tap Import code, or put the file in Downloads and tap Import file.")
+	_sl_box.add_child(help)
+	var eb := _button("Export backup", func() -> void:
+		save()
+		var p := SaveTransfer.export_now()
+		var hud: Node = (main as Node).get("hud")
+		if p != "":
+			hud.banner(Loc.t("Backup code copied. File saved:"), p.get_file())
+		elif DisplayServer.clipboard_get().begins_with(SaveTransfer.PREFIX):
+			hud.banner(Loc.t("Backup code copied to the clipboard."))
+		else:
+			hud.banner(Loc.t("Nothing to back up yet.")))
+	_sl_box.add_child(eb)
+	for spec in [["Import code (clipboard)", true], ["Import file (Downloads)", false]]:
+		var from_clip: bool = spec[1]
+		var ib := _button(String(spec[0]), func() -> void: pass)
+		ib.pressed.connect(func() -> void:
+			if not ib.has_meta("armed"):
+				ib.set_meta("armed", true)
+				ib.text = Loc.t("Tap again: this replaces your current game")
+				return
+			var why := SaveTransfer.import_from(DisplayServer.clipboard_get() if from_clip else "")
+			if why != "":
+				ib.remove_meta("armed")
+				ib.text = Loc.t(String(spec[0]))
+				(main as Node).get("hud").banner(Loc.t(why))
+				return
+			get_tree().paused = false
+			get_tree().reload_current_scene())
+		_sl_box.add_child(ib)
 
 
 func _build_travel() -> Control:

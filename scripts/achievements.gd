@@ -28,12 +28,17 @@ const DEFS := {
 	"champion": ["Crop Champion", "Win the crop contest."],
 	"headshot": ["Eagle Eye", "Defeat an enemy with an arrow to the head."],
 	"focus": ["Still Mind", "Hit a foe while time is slowed by focus."],
+	"horse_archer": ["Horse Archer", "Hit an enemy with an arrow from the saddle."],
+	"photographer": ["Say Cheese", "Take a photo in photo mode."],
+	"andhi": ["Into the Andhi", "Stand out in a dust storm."],
 	"festive": ["Festive Spirit", "Finish a festival task."],
 	"crafter": ["Master Crafter", "Craft ten things."],
 	"best_friend": ["Best Friends", "Pet Moti five times."],
 	"slayer": ["Giant Slayer", "Defeat a boss monster."],
 	"weakspot": ["Heart Seeker", "Hit a boss's weak spot three times in one fight."],
 }
+
+const REWARD := 25
 
 var story: Story
 var player: Player
@@ -68,8 +73,10 @@ func unlock(id: String) -> bool:
 		return false
 	done[id] = true
 	save_file()
+	if story != null:
+		story.set_flag("coins", int(story.get_flag("coins", 0)) + REWARD)      # every achievement pays a little
 	if hud != null and hud.has_method("banner"):
-		hud.banner("Achievement: " + Loc.t(String(DEFS[id][0])), "")
+		hud.banner(Loc.t("Achievement: ") + Loc.t(String(DEFS[id][0])), "+%d %s" % [REWARD, Loc.t("coins")])
 	return true
 
 
@@ -109,6 +116,8 @@ func _process(delta: float) -> void:
 		unlock("champion")
 	if int(story.get_flag("animals_fed", 0)) >= 3:
 		unlock("beasts")
+	if atmo != null and atmo.dust > 0.8:
+		unlock("andhi")
 	if atmo != null and atmo.night > 0.8:
 		unlock("night")
 
