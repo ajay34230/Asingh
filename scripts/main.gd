@@ -31,6 +31,7 @@ var photo_mode: PhotoMode
 var shrines: Shrines
 var items: Items
 var coin_sys: CoinSystem
+var dog_sys: DogCompanion
 var farm: Farm
 var rebuild: VillageRebuild
 var campaign: Campaign
@@ -136,6 +137,8 @@ func _ready() -> void:
 			_run_capture_fight.call_deferred(a.trim_prefix("--capture-fight="))
 		elif a.begins_with("--capture-lab="):
 			_run_capture_lab.call_deferred(a.trim_prefix("--capture-lab="))
+		elif a.begins_with("--capture-dog="):
+			_run_capture_dog.call_deferred(a.trim_prefix("--capture-dog="))
 		elif a.begins_with("--capture-horse="):
 			_run_capture_horse.call_deferred(a.trim_prefix("--capture-horse="))
 		elif a.begins_with("--capture-boss="):
@@ -1000,6 +1003,14 @@ func _build_story() -> void:
 	coin_sys.hud = hud
 	add_child(coin_sys)
 	coin_sys.build()
+	dog_sys = DogCompanion.new()
+	dog_sys.main = self
+	dog_sys.player = player
+	dog_sys.story = story
+	dog_sys.terrain = terrain
+	dog_sys.hud = hud
+	add_child(dog_sys)
+	dog_sys.build.call_deferred()          # after the secrets and the animals exist
 	farm = Farm.new()
 	farm.main = self
 	farm.terrain = terrain
@@ -1643,6 +1654,7 @@ func _run_selftest() -> void:
 		bt2.queue_free()
 	await _selftest_boss(fails)
 	await _selftest_horse(fails)
+	await _selftest_dog(fails)
 	items.unequip("weapon")
 	for k in 5:
 		story.flags.erase("cache_%d" % k)
@@ -3221,6 +3233,61 @@ func _run_capture_ride(arg: String) -> void:
 	get_tree().quit()
 
 
+## Moti the dog: adoption, following, fighting, fetching a coin, petting.
+func _selftest_dog(fails: Array) -> void:
+	if dog_sys.dog == null:
+		fails.append("dog: no stray dog found")
+		return
+	dog_sys.adopt()
+	if not dog_sys.adopted or not dog_sys.dog.driven:
+		fails.append("dog: adoption failed")
+	_teleport(150.0, 60.0)
+	for i in 240:
+		await get_tree().physics_frame
+	var dd := dog_sys.dog.global_position.distance_to(player.global_position)
+	var note := "follows at %.1f m" % dd
+	if dd > 6.0:
+		fails.append("dog: did not keep up with the player (%.1f m)" % dd)
+	var foe := combat.spawn_enemy(player.global_position + Vector3(4.0, 0, -3.0), false, 0.0, "dogfoe")
+	foe.set_physics_process(false)
+	var fhp: float = foe.hp
+	var b0 := dog_sys.bites
+	for i in 300:
+		await get_tree().physics_frame
+		if dog_sys.bites > b0 + 1:
+			break
+	note += ", bites %d, foe hp %.0f -> %.0f" % [dog_sys.bites - b0, fhp, foe.hp]
+	if dog_sys.bites <= b0 or foe.hp >= fhp:
+		fails.append("dog: did not bite an enemy near the player (" + note + ")")
+	if is_instance_valid(foe):
+		foe.queue_free()
+	for i in 30:
+		await get_tree().physics_frame
+	# a coin 12 m away: Moti fetches it
+	var f0 := dog_sys.finds
+	var coin_n: Node3D = null
+	if coin_sys.coins.size() > 0:
+		coin_n = coin_sys.coins[0]["node"]
+		var cp := coin_n.global_position
+		_teleport(cp.x + 12.0, cp.z)
+		dog_sys._place_near_player()
+		dog_sys.mode = "follow"
+		for i in 600:
+			await get_tree().physics_frame
+			if dog_sys.finds > f0:
+				break
+		note += ", coin fetched %s" % (dog_sys.finds > f0)
+		if dog_sys.finds <= f0:
+			fails.append("dog: did not fetch a coin 12 m away (mode %s)" % dog_sys.mode)
+	player.hp = 50.0
+	dog_sys.pet()
+	note += ", pet heals %s" % (player.hp > 50.0)
+	if player.hp <= 50.0:
+		fails.append("dog: petting did not heal")
+	player.hp = player.max_hp
+	print("[selftest] dog: " + note)
+
+
 ## Horseback archery, whistling for your horse, and riding out onto the Southern Road.
 func _selftest_horse(fails: Array) -> void:
 	var horse: Animal = null
@@ -3382,6 +3449,38 @@ func _selftest_boss(fails: Array) -> void:
 			m.queue_free()
 	player.max_hp = 100.0
 	player.hp = 100.0
+
+
+func _run_capture_dog(dir: String) -> void:
+	DirAccess.make_dir_recursive_absolute(dir)
+	touch.visible = false
+	atmosphere.time_of_day = 0.42
+	atmosphere.apply_time()
+	for i in 10:
+		await get_tree().physics_frame
+	dog_sys.adopt(true)
+	_teleport(-60.0, 20.0)
+	player.set_look(2.6, -0.2)
+	player.set_distance(4.5)
+	player.move_input = Vector2(0, 0.6)
+	for i in 150:
+		await get_tree().physics_frame
+	player.move_input = Vector2.ZERO
+	for i in 40:
+		await get_tree().physics_frame
+	await RenderingServer.frame_post_draw
+	get_viewport().get_texture().get_image().save_png("%s/a_follow.png" % dir)
+	dog_sys.pet()
+	for i in 20:
+		await get_tree().physics_frame
+	var cam := player.camera
+	cam.reparent(self)
+	var dp := dog_sys.dog.global_position
+	cam.global_position = dp + Vector3(1.6, 1.0, 1.6)
+	cam.look_at(dp + Vector3(0, 0.5, 0), Vector3.UP)
+	await RenderingServer.frame_post_draw
+	get_viewport().get_texture().get_image().save_png("%s/b_close.png" % dir)
+	get_tree().quit()
 
 
 func _run_capture_horse(dir: String) -> void:

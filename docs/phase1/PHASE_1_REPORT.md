@@ -463,3 +463,19 @@ Verified by the selftest (PASS: "horse: fired true, seated true, twist -0.23, ta
   - If it gets stuck for 14 s, it simply arrives beside you.
   - New sound: `whistle` (self-made, CC0, credited in ASSETS.md).
 - **Ride the whole map:** riding was fenced to the old ±195 m valley. You can now ride out along the Southern Road to Kesar Sarai and Dhoopgarh. At the true edge of the world the animal stops instead of snapping back.
+
+## Addendum: Moti, the companion dog (2026-11-08)
+
+Verified by the selftest (PASS: "dog: follows at 3.3 m, bites 2, foe hp 60 -> 48, coin fetched true, pet heals true") and software-rendered captures (`--capture-dog`). **Not tested on a device.**
+
+- **Adoption:** the stray husky near the village (the existing Quaternius CC0 dog) has a "Make friends with the stray dog" prompt. Once adopted, he is **Moti**: a red collar with a brass bell and a name tag. Adoption is saved (`dog_adopted`).
+- **Follows you:**
+  - On foot he keeps a step behind and to the right, walking or galloping to keep up.
+  - He runs alongside your horse at up to 14 m/s.
+  - If he falls more than 45 m behind (fast travel, cut-scenes), he catches up out of sight.
+- **Sniffs out treasure:**
+  - Gold coins within 20 m: he runs to them and fetches them, which counts toward "Coin Collector" and the bounty.
+  - Buried caches within 26 m: he runs to the spot, digs and barks until you come over ("Moti smells something buried!"). Each cache is announced once.
+- **Fights with you:** when an enemy is within 12 m of you, he runs at the nearest one and bites every 1.1 s (6 damage). Bites stagger men; monsters only take the damage.
+- **Pet him** (USE when close): a wag and a bark, +10 health (once a minute). Five pets earns the "Best Friends" achievement.
+- Hindi text added.
