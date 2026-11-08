@@ -467,7 +467,7 @@ func _refresh_themes() -> void:
 		else:
 			equipped = Progress.equipped(item[0]) == id
 		var state := tr("Equipped") if equipped else (tr("Owned: tap to use") if Progress.owns(id) else tr("%d coins") % item[2])
-		(_shop_rows[id] as Button).text = "   %s      -      %s" % [item[1], state]
+		(_shop_rows[id] as Button).text = "   %s      -      %s" % [tr(item[1]), state]
 
 
 ## Rewards: daily reward, achievements and lifetime stats.
@@ -481,7 +481,7 @@ func _refresh_rewards() -> void:
 	for c in _rewards_box.get_children():
 		c.queue_free()
 	var daily := Progress.daily_status()
-	var claim := _button(_rewards_box, ("Claim daily reward: day %d, %d coins" % [int(daily[1]) + 1, daily[2]]) if daily[0] else "Daily reward claimed. Come back tomorrow!", func() -> void:
+	var claim := _button(_rewards_box, (tr("Claim daily reward: day %d, %d coins") % [int(daily[1]) + 1, daily[2]]) if daily[0] else tr("Daily reward claimed. Come back tomorrow!"), func() -> void:
 		var got := Progress.claim_daily()
 		if got > 0 and _audio:
 			_audio.play("coins", 0.03)
@@ -492,21 +492,21 @@ func _refresh_rewards() -> void:
 	var parts: Array[String] = []
 	for i in range(7):
 		parts.append(("[%d]" if i == int(daily[1]) else "%d") % Progress.DAILY[i])
-	days.text = "7-day streak:  " + "  ".join(parts)
+	days.text = tr("7-day streak:") + "  " + "  ".join(parts)
 	days.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	days.add_theme_font_size_override("font_size", 18)
 	_rewards_box.add_child(days)
 	var st := Progress.stats()
 	var stats := Label.new()
-	stats.text = "Games %d   Wins %d   Win rate %d%%   Best streak %d\nCaptures %d   Tokens lost %d   Tokens home %d   Sixes %d" % [
-		st["games"], st["wins"], (100 * st["wins"] / maxi(1, st["games"])), st["best_streak"], st["captures"], st["lost"], st["home"], st["sixes"]]
+	stats.text = (tr("Games %d   Wins %d   Win rate %d%%   Best streak %d") % [st["games"], st["wins"], (100 * st["wins"] / maxi(1, st["games"])), st["best_streak"]]) \
+		+ "\n" + (tr("Captures %d   Tokens lost %d   Tokens home %d   Sixes %d") % [st["captures"], st["lost"], st["home"], st["sixes"]])
 	stats.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	stats.add_theme_font_size_override("font_size", 18)
 	stats.add_theme_color_override("font_color", Color("#f3e3c0"))
 	_rewards_box.add_child(stats)
 	var unlocked := Progress.unlocked()
 	var head := Label.new()
-	head.text = "Achievements  %d / %d" % [unlocked.size(), Progress.ACHIEVEMENTS.size()]
+	head.text = tr("Achievements  %d / %d") % [unlocked.size(), Progress.ACHIEVEMENTS.size()]
 	head.add_theme_font_size_override("font_size", 26)
 	head.add_theme_color_override("font_color", RoyalTheme.GOLD_LIGHT)
 	_rewards_box.add_child(head)
@@ -514,7 +514,7 @@ func _refresh_rewards() -> void:
 		var a: Array = Progress.ACHIEVEMENTS[id]
 		var row := Label.new()
 		var done := unlocked.has(id)
-		row.text = ("[done]  " if done else "[    ]  ") + "%s: %s   (+%d)" % [a[0], a[1], a[2]]
+		row.text = ("[done]  " if done else "[    ]  ") + "%s: %s   (+%d)" % [tr(a[0]), tr(a[1]), a[2]]
 		row.add_theme_font_size_override("font_size", 19)
 		row.add_theme_color_override("font_color", Color("#ffe39a") if done else Color(0.85, 0.75, 0.65, 0.75))
 		_rewards_box.add_child(row)

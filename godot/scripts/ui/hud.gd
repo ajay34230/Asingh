@@ -397,7 +397,7 @@ func show_result(ranking: Array, reward := 0, total := 0, achievements: Array = 
 		var lines: Array[String] = [tr("Treasury: %d coins") % total]
 		for id in achievements:
 			var a: Array = Progress.ACHIEVEMENTS[id]
-			lines.append("Achievement unlocked: %s  (+%d)" % [a[0], a[2]])
+			lines.append(tr("Achievement unlocked: %s  (+%d)") % [tr(a[0]), a[2]])
 		_coin_total.text = "\n".join(lines))
 
 
