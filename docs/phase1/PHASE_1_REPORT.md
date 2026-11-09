@@ -715,3 +715,40 @@ Verified by the selftest (PASS) and software-rendered bazaar close-ups (`--captu
   - a new garment-shader kind 5: never dyed, fine strand detail, a smooth sheen (roughness 0.42) and a soft rim
   - it is also skipped by the Low-quality flat dye (`RealHuman._dye`)
 - **Weave:** the cotton weave ran at 260 cycles per metre and 16% strength, which showed as a coarse checkerboard at talking distance. It is now 520 cycles per metre at 7%: felt up close, gone at a few metres. Leather grain dropped from 20% to 16%.
+
+## Addendum: Performance pass for Low graphics (2026-11-09)
+
+**Why:** the device crash breadcrumbs showed 19–24 fps on Low, with up to 1,333 draw calls.
+
+**How it was measured:** a new `--probe-perf` mode (with `TIER`, `SPLIT` and `SHOT` environment options) stands at five places players spend time. At each one it prints:
+- draw calls, objects and primitives,
+- the visible surfaces, grouped by what made them.
+
+The counts come from Godot's software (Compatibility) renderer, which counts passes differently from the phone's Mobile renderer. Treat them as **relative** numbers. **Not tested on a device.**
+
+**Draw calls on Low (quality 2), at the probe camera, before and after:**
+
+| Spot | Before | After | Change |
+|---|---|---|---|
+| Bazaar square | 2,715 | 1,409 | −48% |
+| Farm | 1,120 | 762 | −32% |
+| Village (Hamlet) | 728 | 434 | −40% |
+| Graveyard (ghost mission) | 411 | 259 | −37% |
+| Southern Road | 156 | 101 | −35% |
+
+Primitives in the bazaar fell from 1,314k to 880k.
+
+**What changed:**
+- **Plain colours are merged across materials** (`StaticBatcher`). An untextured surface's colour is now baked into its vertices, so every plain surface in a 24 m cell with similar roughness shares one material and one draw. The bazaar went from 501 merged batches to 200, the hamlet from 207 to 96.
+- **More of the world is merged:**
+  - the rocks and boulders, Sal forest, ruins and farm now go through the batcher;
+  - the bunting (54 static boxes named "Flag") and the two cloth-merchant stalls had been skipped only because their names contained "flag" or "cloth". They are renamed and now merge.
+- **Clouds:** each cloud is one mesh instead of 5–9 spheres (26 draws instead of about 180). This also fixes a bug: the distance culling for small props was hiding most clouds on every preset.
+- **Distance culling scales with size** on Medium and Low. A small object stops drawing at 38 m on Low (60 m on Medium), and larger things are visible further out, up to the old 90 m / 125 m limits. High is unchanged.
+- **Small shadows off on Low:** objects under about 2 m (pots, cups, tools, pebbles) no longer cast shadows on Low. People (skinned meshes), the player and everything larger keep theirs.
+- **Thinner background crowd on Low:**
+  - in the bazaar, half the strolling shoppers, half the haggling customers and half the playing children are left out;
+  - every stall keeper, worker, guard and anyone with dialogue or a quest stays.
+- **Settings now load first** (`GameSettings.load_file()` at the start of `main._ready`), so the world is built for the chosen preset. Before this, settings loaded after the town was built.
+- **Visual check:** software-rendered captures of the bazaar and village on Low show the merged stalls keeping their colours and the clouds present.
+- **Tests:** the selftest passes.

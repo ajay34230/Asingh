@@ -233,7 +233,7 @@ func _lamps_and_bunting() -> void:
 			var f := (j + 1.0) / 8.0
 			var q := tp.lerp(centre, f) - Vector3(0, sin(f * PI) * 0.7, 0)
 			var flag := _box(root, Vector3(0.28, 0.34, 0.02), q - Vector3(0, 0.18, 0), _mat(CLOTHS[(k + j) % CLOTHS.size()]), false, Vector3(0, -rad_to_deg(atan2(centre.z - tp.z, centre.x - tp.x)), 0))
-			flag.name = "Flag"
+			flag.name = "Pennant"   # static, so it can be merged ("flag" is a moving-part word)
 
 
 # --- stalls ----------------------------------------------------------------------------------
@@ -245,7 +245,7 @@ func _stalls() -> void:
 		var yaw := atan2(-cos(a), -sin(a))        # front (+Z) looks toward the fountain
 		var spec: Array = STALLS[i]
 		var s := Node3D.new()
-		s.name = "Stall_%d_%s" % [i, spec[0]]
+		s.name = "Stall_%d_%s" % [i, String(spec[0]).replace("cloth", "silk")]   # "cloth" would stop it merging
 		s.position = Vector3(pos.x, 0, pos.y)
 		s.rotation.y = yaw
 		root.add_child(s)
@@ -724,6 +724,11 @@ func _preset(key: String, tool: String = "", tint_i: int = -1) -> Dictionary:
 	return p
 
 
+## Low graphics: a thinner background crowd (shoppers, customers, children); everyone with a job or a word stays.
+static func _low() -> bool:
+	return int(GameSettings.v.get("quality", 0)) >= 2
+
+
 func _npc(key: String, tool: String, mode: String, label: String, local: Vector3, yaw: float, tint_i: int = -1, stall: String = "general") -> Npc:
 	var n := Npc.new().setup(_preset(key, tool, tint_i), mode, label)
 	n.player = player
@@ -765,7 +770,7 @@ func _people() -> void:
 		var n := _npc(key, tool, mode, "Hawker%d" % i, Vector3(behind.x, 0, behind.z), yaw + PI, i, kind)
 		n.role = "trader"
 		# a haggling customer in front of every second stall
-		if i % 2 == 0:
+		if i % (4 if _low() else 2) == 0:
 			var front := sp + fwd * 2.2
 			var ck: String = (women[(i + 1) % women.size()] if i % 4 == 0 else men[(i + 3) % men.size()])
 			_npc(ck, "", "haggle", "Customer%d" % i, Vector3(front.x, 0, front.z), yaw, i + 2)
@@ -791,7 +796,7 @@ func _people() -> void:
 	musician.role = "traveller"
 	# strollers: walk loops around the square and along the streets
 	var strollers := ["villager_man", "lady_green", "farmer", "dancer", "girl_casual", "scholar", "huntress", "weaver", "villager2", "lady_medieval"]
-	for k in strollers.size():
+	for k in (strollers.size() / 2 if _low() else strollers.size()):
 		var arm := k % 4
 		var aw := arm * PI * 0.5
 		var au := Vector2(cos(aw), sin(aw))
@@ -806,7 +811,7 @@ func _people() -> void:
 		var sn := _npc(strollers[k], "", "idle", "Shopper%d" % k, Vector3(path[0].x - C.x, 0, path[0].z - C.y), 0.0, k)
 		sn.routine = {"type": "walk", "points": path, "home": path[0]}
 	# children playing on the square
-	for k in 4:
+	for k in (2 if _low() else 4):
 		var ck := "child_a" if k % 2 == 0 else "child_b"
 		var cn := _npc(ck, "", "idle", "TownChild%d" % k, Vector3(3.0 + k, 0, -5.0 + k), 0.0, k + 1)
 		var cc := Vector3(C.x + 5.0, terrain.sample_height(C.x + 5.0, C.y + 5.0), C.y + 5.0)

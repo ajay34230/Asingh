@@ -66,6 +66,7 @@ var frontier: FrontierBuilder
 
 func _ready() -> void:
 	var t0 := Time.get_ticks_msec()
+	GameSettings.load_file()          # early, so the world is built for the chosen graphics preset
 	terrain = TerrainBuilder.new(1337)
 	frontier = FrontierBuilder.new()
 	frontier.generate()
@@ -138,6 +139,8 @@ func _ready() -> void:
 			_run_capture_fight.call_deferred(a.trim_prefix("--capture-fight="))
 		elif a.begins_with("--capture-lab="):
 			_run_capture_lab.call_deferred(a.trim_prefix("--capture-lab="))
+		elif a == "--probe-perf":
+			_run_probe_perf.call_deferred()
 		elif a == "--probe-ghost":
 			_run_probe_ghost.call_deferred()
 		elif a.begins_with("--capture-look="):
@@ -794,20 +797,32 @@ func apply_quality(tier: int) -> void:
 			gi.visibility_range_end_margin = 8.0
 			gi.visibility_range_fade_mode = GeometryInstance3D.VISIBILITY_RANGE_FADE_SELF
 	# Lag fix: every other small prop stops being drawn beyond a distance that shrinks with the preset.
+	# Small things go sooner than big ones on the lower presets (a cup or a flag at ~40 m, a house much further).
 	var far_end: float = [170.0, 125.0, 90.0][tier]
+	var near_end: float = [170.0, 60.0, 38.0][tier]
+	var per_m: float = [0.0, 14.0, 10.0][tier]
 	for n2 in find_children("*", "GeometryInstance3D", true, false):
 		var g2 := n2 as GeometryInstance3D
 		if g2 is Label3D or g2 is GPUParticles3D or g2 is CPUParticles3D:
 			continue
+		# Low: small things (cups, pots, pebbles, tools) cast no shadow; each caster is drawn again for the shadow map.
+		if g2.cast_shadow == GeometryInstance3D.SHADOW_CASTING_SETTING_ON and not g2.has_meta("shadow_sz"):
+			g2.set_meta("shadow_sz", g2.get_aabb().size.length() * g2.global_transform.basis.get_scale().x)
+		if g2.has_meta("shadow_sz") and not player.is_ancestor_of(g2) and not (g2 is MeshInstance3D and (g2 as MeshInstance3D).skin != null):
+			var small := tier >= 2 and float(g2.get_meta("shadow_sz")) < 2.0
+			g2.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF if small else GeometryInstance3D.SHADOW_CASTING_SETTING_ON
 		if g2.has_meta("far_set"):
-			g2.visibility_range_end = far_end
+			if float(g2.get_meta("far_set")) >= 9999.0:
+				continue
+			g2.visibility_range_end = clampf(near_end + float(g2.get_meta("far_set")) * per_m, near_end, far_end)
 			continue
-		if g2.visibility_range_end > 0.0 or g2.get_aabb().size.length() > 60.0:
+		var sz := g2.get_aabb().size.length() * g2.global_transform.basis.get_scale().x
+		if g2.visibility_range_end > 0.0 or sz > 60.0:
 			continue
-		g2.visibility_range_end = far_end
+		g2.visibility_range_end = clampf(near_end + sz * per_m, near_end, far_end)
 		g2.visibility_range_end_margin = 6.0
 		g2.visibility_range_fade_mode = GeometryInstance3D.VISIBILITY_RANGE_FADE_DISABLED
-		g2.set_meta("far_set", true)
+		g2.set_meta("far_set", sz)
 
 
 ## Lag fix: lights fade out with distance so the phone only shades the few near the player.
@@ -1115,7 +1130,7 @@ func _build_story() -> void:
 	hints.player = player
 	hints.hud = hud
 	add_child(hints)
-	for bn in ["BazaarTown", "Hamlet", "Railway"]:
+	for bn in ["BazaarTown", "Hamlet", "Railway", "Rocks", "SalForest", "Ruins", "Farm"]:
 		var broot := get_node_or_null(bn) as Node3D
 		if broot != null:
 			var br: Dictionary = StaticBatcher.merge(broot)
@@ -3988,6 +4003,120 @@ func _selftest_boss(fails: PackedStringArray) -> void:
 			m.queue_free()
 	player.max_hp = 100.0
 	player.hp = 100.0
+
+
+## Diagnostics: draw calls and what makes them, at the places players spend time (Low quality).
+func _run_probe_perf() -> void:
+	var tier := int(OS.get_environment("TIER")) if OS.get_environment("TIER") != "" else 2
+	GameSettings.v["quality"] = tier
+	await get_tree().process_frame
+	for c in get_children():
+		if c is TitleScreen:
+			c.queue_free()
+		elif c is CanvasLayer and OS.get_environment("SHOT") != "":
+			(c as CanvasLayer).visible = false
+	player.locked = false
+	apply_quality(tier)
+	atmosphere.time_of_day = 0.45
+	atmosphere.apply_time()
+	var spots := [["village", -80.0, 4.0, 0.6], ["bazaar", 22.0, -30.0, 0.0], ["graveyard", -122.0, 56.0, 2.4], ["road", 18.0, 300.0, PI], ["farm", 60.0, 60.0, 1.0]]
+	for sp in spots:
+		_teleport(float(sp[1]), float(sp[2]))
+		player.set_look(float(sp[3]), -0.12)
+		for i in 90:
+			await get_tree().process_frame
+		var cam := get_viewport().get_camera_3d()
+		var groups := {}
+		var surf_total := 0
+		for n in find_children("*", "GeometryInstance3D", true, false):
+			var g := n as GeometryInstance3D
+			if not g.is_visible_in_tree() or g is Label3D:
+				continue
+			var ab := g.get_aabb()
+			var centre := g.global_transform * ab.get_center()
+			var d := centre.distance_to(cam.global_position)
+			if g.visibility_range_end > 0.0 and d > g.visibility_range_end + ab.size.length() * 0.5:
+				continue
+			if d > cam.far or not cam.is_position_in_frustum(centre) and d > ab.size.length():
+				continue
+			var surfs := 1
+			if g is MeshInstance3D and (g as MeshInstance3D).mesh != null:
+				surfs = (g as MeshInstance3D).mesh.get_surface_count()
+			elif g is MultiMeshInstance3D and (g as MultiMeshInstance3D).multimesh != null and (g as MultiMeshInstance3D).multimesh.mesh != null:
+				surfs = (g as MultiMeshInstance3D).multimesh.mesh.get_surface_count()
+			var top: Node = g
+			while top.get_parent() != null and top.get_parent() != self:
+				top = top.get_parent()
+			var key := String(top.name)
+			if top is Npc:
+				key = "NPC"
+			elif top is Animal:
+				key = "Animal"
+			elif top is Enemy or top is Monster:
+				key = "Enemy"
+			key = key.rstrip("0123456789").trim_suffix("_").trim_suffix("@")
+			if OS.get_environment("SPLIT") != "" and key == OS.get_environment("SPLIT"):
+				var sub: Node = g
+				while sub.get_parent() != top:
+					sub = sub.get_parent()
+				var nm := String(sub.name)
+				if sub == g and g.name.contains("MeshInstance"):
+					nm = "merged"
+				elif sub.get_child_count() > 0:
+					var ch := sub
+					var d2: Node = g
+					while d2.get_parent() != ch:
+						d2 = d2.get_parent()
+					nm += "/" + String(d2.name).left(12)
+				key = nm.rstrip("0123456789").replace("@", "")
+			groups[key] = int(groups.get(key, 0)) + surfs
+			surf_total += surfs
+		var keys := groups.keys()
+		keys.sort_custom(func(x, y) -> bool: return groups[x] > groups[y])
+		var top_list: Array = []
+		for k in keys.slice(0, 9 if OS.get_environment("SPLIT") == "" else 30):
+			top_list.append("%s=%d" % [k, groups[k]])
+		if sp[0] == "bazaar":
+			var why := {}
+			var mats := {}
+			for n in get_node("BazaarTown").find_children("*", "GeometryInstance3D", true, false):
+				var g2 := n as GeometryInstance3D
+				if not g2.is_visible_in_tree():
+					continue
+				if g2.name.begins_with("Merged"):
+					var mm := (g2 as MeshInstance3D).mesh.surface_get_material(0) as BaseMaterial3D
+					if mm != null:
+						var tk := "tex" if mm.albedo_texture != null else "flat"
+						mats[tk + ("_em" if mm.emission_enabled else "")] = int(mats.get(tk + ("_em" if mm.emission_enabled else ""), 0)) + 1
+					continue
+				var r := g2.get_class()
+				if g2 is MeshInstance3D:
+					var mi2 := g2 as MeshInstance3D
+					if mi2.get_script() != null: r = "script"
+					elif mi2.visibility_range_end > 0.0:
+						if mi2.mesh is ArrayMesh and mi2.get_parent() == get_node("BazaarTown") and mi2.get_child_count() == 0 and String(mi2.name).contains("Mesh"):
+							r = "merged"
+						else:
+							var pp: Node = mi2.get_parent()
+							r = "vr:%s/%s/%s" % [String(pp.get_parent().name).rstrip("0123456789").left(14), String(pp.name).rstrip("0123456789").left(14), String(mi2.name).rstrip("0123456789").left(12)]
+					elif mi2.cast_shadow != GeometryInstance3D.SHADOW_CASTING_SETTING_ON: r = "noshadow"
+					elif mi2.mesh != null and mi2.mesh.surface_get_material(0) is ShaderMaterial or mi2.material_override is ShaderMaterial: r = "shader"
+					else:
+						var bm2 := (mi2.material_override if mi2.material_override != null else (mi2.mesh.surface_get_material(0) if mi2.mesh != null else null)) as BaseMaterial3D
+						if bm2 != null and bm2.transparency != 0: r = "transp"
+						else: r = "name:" + String(mi2.name).left(10) + "/" + String(mi2.get_parent().name).left(10)
+				why[r] = int(why.get(r, 0)) + 1
+			var wk := why.keys()
+			wk.sort_custom(func(x, y) -> bool: return why[x] > why[y])
+			var wl: Array = []
+			for k in wk.slice(0, 25):
+				wl.append("%s=%d" % [k, why[k]])
+			print("[perf] bazaar unmerged: ", ", ".join(wl))
+			print("[perf] bazaar merged materials: ", mats)
+		if OS.get_environment("SHOT") != "":
+			get_viewport().get_texture().get_image().save_png("%s/%s_t%d.png" % [OS.get_environment("SHOT"), sp[0], tier])
+		print("[perf] %s draws=%d objects=%d prims=%dk  visible surfaces=%d  top: %s" % [sp[0], int(Performance.get_monitor(Performance.RENDER_TOTAL_DRAW_CALLS_IN_FRAME)), int(Performance.get_monitor(Performance.RENDER_TOTAL_OBJECTS_IN_FRAME)), int(Performance.get_monitor(Performance.RENDER_TOTAL_PRIMITIVES_IN_FRAME) / 1000), surf_total, ", ".join(top_list)])
+	get_tree().quit()
 
 
 ## Diagnostics: run The Restless Dead and report story changes, saves, nodes and frame time per second.

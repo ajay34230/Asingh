@@ -190,15 +190,18 @@ func _make_sky_extras() -> void:
 		var rr := rng.randf_range(250.0, 1500.0)
 		cl.position = Vector3(cos(ang) * rr, rng.randf_range(170.0, 300.0), sin(ang) * rr)
 		var sc := rng.randf_range(0.8, 1.7)
+		var st := SurfaceTool.new()          # one mesh (one draw call) per cloud, not one per puff
+		st.begin(Mesh.PRIMITIVE_TRIANGLES)
 		for j in rng.randi_range(5, 9):
-			var b := MeshInstance3D.new()
-			b.mesh = sph
-			b.material_override = _puff_mat
-			b.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 			var r := rng.randf_range(22.0, 48.0) * sc
-			b.scale = Vector3(r, r * 0.8, r)
-			b.position = Vector3(rng.randf_range(-70, 70) * sc, rng.randf_range(-6, 14) * sc * (1.0 if j > 1 else 0.0), rng.randf_range(-35, 35) * sc)
-			cl.add_child(b)
+			var at := Vector3(rng.randf_range(-70, 70) * sc, rng.randf_range(-6, 14) * sc * (1.0 if j > 1 else 0.0), rng.randf_range(-35, 35) * sc)
+			st.append_from(sph, 0, Transform3D(Basis.from_scale(Vector3(r, r * 0.8, r)), at))
+		var b := MeshInstance3D.new()
+		b.mesh = st.commit()
+		b.material_override = _puff_mat
+		b.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		b.set_meta("far_set", 9999.0)        # never distance-culled (clouds are far away by design)
+		cl.add_child(b)
 		_puffs.add_child(cl)
 
 
