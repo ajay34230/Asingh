@@ -239,6 +239,7 @@ func _enter_phase(p: int) -> void:
 	_gem.visible = true
 	if p == 3:
 		mon.enraged = true
+		mon._set_ghost("rage", 1.0)          # cracks, embers and eyes burn hotter
 		mon.speed *= 1.25
 		mon.attack_cd *= 0.75
 		_gem_mat.emission = Color(1.0, 0.25, 0.1)

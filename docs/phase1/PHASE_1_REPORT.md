@@ -690,3 +690,19 @@ Requested: "Enhance the ghosts and character graphics". Verified by the selftest
   - Skin is pulled 20% toward a natural warm tone, with a soft rim highlight and a little more backlight (ears and edges).
 - **Outfits:** Village Kurta, Diwali Sherwani and Holi Kurta moved from the villager body, which has a flat face with square black eyes, to the warrior body with a modelled face and beard. The turbans now sit properly.
 - **Villagers far away:** villagers beyond 90 m are not simulated, and one that spawned that far never got a pose, so it stood in the model's raw T-pose. They now get an idle pose refreshed twice a second.
+
+## Addendum: Monster graphics (2026-11-09)
+
+Verified by the selftest (PASS, including the boss fight) and software-rendered close-ups by day and night (`--capture-look` with `MONSTERS=...`). **Not tested on a device.**
+
+- **`scripts/monster_look.gd`:** one procedural shader for the solid monsters, with a style per kind on top of their flat painted colours:
+  - **Skeleton raiders:** grimy, cracked old bone and a sickly green edge glint.
+  - **Yeti:** streaky fur with frosted tips and an icy rim.
+  - **Mushroom King:** a spotted cap whose spots glow and pulse, and a toxic green rim.
+  - **Demon:** glowing lava cracks that pulse, plus an ember rim.
+  - **Dragon:** overlapping scales with a sheen, embers smouldering between them, and a fiery rim.
+- **For all of them:**
+  - The darkest painted parts glow in the monster's colour.
+  - Every hit gives a short white flash (the ghosts' flash now works for all monsters).
+  - When a boss enters phase 3, its cracks, embers and eyes burn hotter (`rage`).
+- The monsters were Quaternius CC0 models with one flat colour sheet each. No new assets were added; all detail is procedural (noise in model space, scaled to metres).

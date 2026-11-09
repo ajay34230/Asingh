@@ -4026,6 +4026,32 @@ func _run_capture_look(dir: String) -> void:
 	var fs := _flat_spot()
 	_teleport(fs.x, fs.y)
 	var cam := player.camera
+	if OS.get_environment("MONSTERS") != "":
+		# close-ups of other monsters, day then night
+		cam.reparent(self)
+		for tod in [0.42, 0.9]:
+			atmosphere.time_of_day = tod
+			atmosphere.apply_time()
+			for kind in OS.get_environment("MONSTERS").split(","):
+				var mo := Monster.new()
+				mo.player = player
+				add_child(mo)
+				mo.setup_monster(kind, player.global_position + Vector3(0, 0, -8.0), "look_" + kind)
+				mo.set_physics_process(false)
+				mo.rotation.y = PI                    # face the camera
+				for i in 30:
+					await get_tree().physics_frame
+				var h := float(Monster.KINDS[kind]["height"])
+				var mp := mo.global_position + Vector3(0, h * 0.55, 0)
+				cam.global_position = mp + Vector3(h * 0.5, h * 0.1, h * 1.3 + 1.0)
+				cam.look_at(mp, Vector3.UP)
+				cam.fov = 45.0
+				await RenderingServer.frame_post_draw
+				get_viewport().get_texture().get_image().save_png("%s/mon_%s_%d.png" % [dir, kind, int(tod * 10)])
+				mo.queue_free()
+				await get_tree().physics_frame
+		get_tree().quit()
+		return
 	if OS.get_environment("OUTFITS") != "":
 		# hero close-ups in several outfits (skin and dye check)
 		atmosphere.time_of_day = 0.42

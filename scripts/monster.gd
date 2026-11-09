@@ -139,12 +139,22 @@ func _load_model(file: String, height: float, tint: Color) -> Node3D:
 				_mats.append(gm)
 				_ghost_mats.append([gm, xf.basis.get_scale().y])
 				continue
+			if MonsterLook.has_style(mkind) and src.albedo_texture != null:
+				# lava cracks, scales, fur, glowing spots and eyes (MonsterLook)
+				var lm := MonsterLook.material(src, mkind, tint, height)
+				mi2.set_surface_override_material(si, lm)
+				_mats.append(lm)
+				_ghost_mats.append([lm, xf.basis.get_scale().y])
+				continue
 			var mat := src.duplicate() as StandardMaterial3D
 			mat.albedo_color = mat.albedo_color * tint
 			mi2.set_surface_override_material(si, mat)
 			_mats.append(mat)
 	var sc := height / maxf(box.size.y, 0.01)
 	inst.scale = Vector3.ONE * sc
+	for gp in _ghost_mats:
+		if not spectral:
+			(gp[0] as ShaderMaterial).set_shader_parameter("unit", sc * float(gp[1]))
 	if spectral:
 		for gp in _ghost_mats:
 			(gp[0] as ShaderMaterial).set_shader_parameter("inv_scale", 1.0 / maxf(sc * float(gp[1]), 0.0001))
@@ -217,8 +227,9 @@ func take_hit(hk: String, amount: float, from_dir: Vector3) -> void:
 	hp -= amount
 	FloatText.spawn(get_parent(), global_position + Vector3(0, _hp_bar.position.y - 0.2, 0), str(int(round(amount))), Color(0.6, 0.95, 1.0) if spectral else Color(1.0, 0.8, 0.3), 1.0 if amount < 20.0 else 1.4)
 	HitFx.burst(get_parent(), global_position + Vector3(0, chest_h, 0), true, Color(0.6, 0.85, 1.0) if spectral else Color(0.7, 0.2, 0.2))
-	if spectral and not _ghost_mats.is_empty():
-		create_tween().tween_method(func(v: float) -> void: _set_ghost("flash", v), 1.0, 0.0, 0.18)
+	if not _ghost_mats.is_empty():
+		# a white flash on every hit (ghost and monster shaders both have "flash")
+		create_tween().tween_method(func(v: float) -> void: _set_ghost("flash", v), 1.0 if spectral else 0.6, 0.0, 0.18)
 	_refresh_bar()
 	if hp <= 0.0:
 		_die(hk, from_dir)
