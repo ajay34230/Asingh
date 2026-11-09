@@ -17,6 +17,9 @@ var is_transformed := false
 var is_moving := false
 var path_index := -1
 var has_left_home := false
+## true: the polished pawn built in code (RoyalPawn); false: the supplied GLB models.
+const USE_ROYAL_PAWN := true
+
 ## Height of the token root when standing on the board. The game sets this per square.
 var ground_y := 0.25
 
@@ -35,6 +38,18 @@ const LIMB_PATHS := {
 
 func configure(team_colour: String) -> void:
     team = team_colour.to_lower()
+    if USE_ROYAL_PAWN:
+        ## The polished pawn built in code (metallic paint, gold trims, gem eyes).
+        body_node = RoyalPawn.build_body(team)
+        body_node.name = "JewelPawnBody"
+        add_child(body_node)
+        limb_root = Node3D.new()
+        limb_root.name = "TransformerLimbRig"
+        add_child(limb_root)
+        _build_pivots()
+        RoyalPawn.dress_limbs(self, team, arm_pivots, leg_pivots)
+        _fold_pose()
+        return
     body_scene = load(BODY_PATHS[team]) as PackedScene
     limb_scene = load(LIMB_PATHS[team]) as PackedScene
     body_node = body_scene.instantiate() as Node3D

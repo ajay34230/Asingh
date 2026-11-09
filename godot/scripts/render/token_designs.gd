@@ -88,9 +88,9 @@ const MASTERY_NAMES := ["", "Bronze mastery", "Silver mastery", "Gold mastery"]
 
 ## Customising: the metal of crowns and trims, and the colour of the aura.
 const METALS := {
-	"gold": ["Gold", Color("#e8b54f"), 0.25],
-	"silver": ["Silver", Color("#d4dae0"), 0.22],
-	"rose": ["Rose gold", Color("#e8a088"), 0.25],
+	"gold": ["Gold", Color("#f2c662"), 0.26],
+	"silver": ["Silver", Color("#e4e8ee"), 0.24],
+	"rose": ["Rose gold", Color("#f0aa90"), 0.26],
 	"onyx": ["Black onyx", Color("#2c2834"), 0.15],
 }
 const AURAS := {
@@ -138,6 +138,9 @@ static func apply(token: TransformerToken, spec: String, team: Color) -> void:
 	var parsed := parse(spec)
 	var id: String = parsed[0]
 	token.set_meta("design", id)   # the fight picks a legendary's signature finisher
+	var finial := token.body_node.get_node_or_null("HeadFinial") if token.body_node else null
+	if finial:
+		finial.visible = id == "design_classic"   # head gear replaces the gold finial
 	if id == "design_classic":
 		return
 	var head := Node3D.new()
@@ -146,6 +149,7 @@ static func apply(token: TransformerToken, spec: String, team: Color) -> void:
 	token.body_node.add_child(head)
 	var m: Array = METALS[parsed[1]]
 	var gold := RoyalBoard.metal(m[1], m[2])
+	gold.metallic = 0.85 if parsed[1] != "onyx" else 1.0   # a touch of base colour so gold never mirrors black
 	match id:
 		"design_raja":
 			_turban(head, Color("#ff9a1f"), gold)
@@ -506,7 +510,7 @@ static func _body_meshes(token: TransformerToken) -> Array:
 		if root == null:
 			continue
 		for m in root.find_children("*", "MeshInstance3D", true, false):
-			if not String(token.get_path_to(m)).contains("DesignGear"):
+			if not String(token.get_path_to(m)).contains("DesignGear") and not m.has_meta("no_skin"):
 				out.append(m)
 	return out
 

@@ -664,7 +664,7 @@ func _build_plaque(color: String) -> void:
 	var statue_root := Node3D.new()
 	statue_root.position = Vector3(ex, 0.33, 0)
 	base.add_child(statue_root)
-	var statue := (load(TransformerToken.BODY_PATHS[color]) as PackedScene).instantiate() as Node3D
+	var statue := RoyalPawn.build_body(color)
 	statue.scale = Vector3.ONE * 0.85
 	statue_root.add_child(statue)
 	var seg_mesh := BoxMesh.new()
