@@ -233,8 +233,8 @@ func _dye(main_c: Color, trim_c: Color) -> int:
 			if not (mat is StandardMaterial3D):
 				continue
 			var nm := mat.resource_name.to_lower()
-			if nm in KEEP:
-				continue
+			if nm in KEEP or mi.name.to_lower().contains("head"):
+				continue                     # skin, eyes and hair (the head mesh) keep their own colours
 			var d := (mat as StandardMaterial3D).duplicate() as StandardMaterial3D
 			d.albedo_color = main_c if n % 2 == 0 else trim_c
 			d.roughness = 0.85

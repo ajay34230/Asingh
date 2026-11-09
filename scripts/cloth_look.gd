@@ -14,7 +14,7 @@ render_mode cull_back, diffuse_burley, specular_schlick_ggx;
 uniform sampler2D tex : source_color, filter_linear_mipmap, repeat_enable;
 uniform bool use_tex = false;
 uniform vec4 base : source_color = vec4(0.6, 0.5, 0.4, 1.0);
-uniform int kind = 0;            // 0 cloth, 1 leather, 2 metal, 3 skin, 4 painted atlas (decide per pixel)
+uniform int kind = 0;            // 0 cloth, 1 leather, 2 metal, 3 skin, 4 painted atlas (decide per pixel), 5 hair
 uniform vec4 dye_a : source_color = vec4(1.0);
 uniform vec4 dye_b : source_color = vec4(1.0);
 uniform float dye_on = 0.0;      // 0 none, 1 = dye_a, 2 = dye_b (flat surfaces); atlas: luminance picks
@@ -45,8 +45,8 @@ void fragment() {
 		float mn = min(c.r, min(c.g, c.b));
 		float sat = mx > 0.0 ? (mx - mn) / mx : 0.0;
 		k = garment ? ((sat < 0.12 && mx > 0.35) ? 2 : (mx < 0.22 ? 1 : 0)) : 3;
-	} else if (k == 3) {
-		garment = false;
+	} else if (k == 3 || k == 5) {
+		garment = false;                 // skin and hair keep their own colours
 	}
 	float lum = dot(c.rgb, vec3(0.299, 0.587, 0.114));
 	if (k == 3) {
@@ -66,8 +66,12 @@ void fragment() {
 	vec2 q = (an.x > an.y && an.x > an.z) ? opos.yz : ((an.y > an.z) ? opos.xz : opos.xy);
 	float detail = 0.0;
 	vec2 grad = vec2(0.0);
-	if (k == 0) {
-		vec2 w = q * 260.0;
+	if (k == 5) {
+		// hair: fine strands along one direction, no weave
+		detail = vnoise(vec2(q.x * 700.0, q.y * 30.0)) - 0.5;
+		grad = vec2(0.0);
+	} else if (k == 0) {
+		vec2 w = q * 520.0;              // a fine weave: felt up close, gone at a few metres
 		detail = 0.5 * (sin(w.x) * sin(w.y + sin(w.x * 0.5) * 0.6)) + 0.5 * (vnoise(q * 40.0) - 0.5);
 		grad = vec2(cos(w.x) * sin(w.y), sin(w.x) * cos(w.y));
 	} else if (k == 1) {
@@ -80,13 +84,14 @@ void fragment() {
 		detail = vnoise(q * 160.0) - 0.5;
 	}
 	float fade = clamp(1.0 - length(fwidth(q * 260.0)) * 0.35, 0.0, 1.0);
-	float amt = (k == 0 ? 0.16 : (k == 1 ? 0.2 : (k == 2 ? 0.08 : 0.04))) * fade;
+	float amt = (k == 0 ? 0.07 : (k == 1 ? 0.16 : (k == 2 ? 0.08 : (k == 5 ? 0.12 : 0.04)))) * fade;
 	ALBEDO = c.rgb * (1.0 + detail * amt);
 	vec3 pert = vec3(grad.x, 0.0, grad.y) * amt * 0.35;
 	NORMAL = normalize(NORMAL + (VIEW_MATRIX * MODEL_MATRIX * vec4(pert, 0.0)).xyz);
 	if (k == 0) { ROUGHNESS = 0.86; SPECULAR = 0.3; RIM = 0.3; RIM_TINT = 0.6; }
 	else if (k == 1) { ROUGHNESS = 0.55 - detail * 0.2; SPECULAR = 0.45; }
 	else if (k == 2) { METALLIC = 0.88; ROUGHNESS = 0.3 + detail * 0.2; SPECULAR = 0.7; }
+	else if (k == 5) { ROUGHNESS = 0.42; SPECULAR = 0.55; RIM = 0.15; RIM_TINT = 0.7; }
 	else { ROUGHNESS = 0.5; SPECULAR = 0.38; BACKLIGHT = vec3(0.4, 0.14, 0.09) * 0.4; RIM = 0.22; RIM_TINT = 0.8; }
 }
 """
@@ -190,6 +195,8 @@ static func dress(rig: RealHuman, dye: Array) -> void:
 				continue
 			var has_tex := sm.albedo_texture != null
 			var k := _kind_for(sm.resource_name, has_tex)
+			if not has_tex and k != 3 and mi.name.to_lower().contains("head"):
+				k = 5      # on the villagers' head meshes anything but skin and eyes is hair (named by colour)
 			var mat := ShaderMaterial.new()
 			mat.shader = _garment
 			mat.set_shader_parameter("use_tex", has_tex)

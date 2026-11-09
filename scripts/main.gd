@@ -4026,6 +4026,30 @@ func _run_capture_look(dir: String) -> void:
 	var fs := _flat_spot()
 	_teleport(fs.x, fs.y)
 	var cam := player.camera
+	if OS.get_environment("CROWD") != "":
+		# villagers in the bazaar, from a little distance and close up
+		cam.reparent(self)
+		atmosphere.time_of_day = 0.42
+		atmosphere.apply_time()
+		var c := LiveEvents.C
+		_teleport(c.x, c.z + 6.0)
+		for i in 60:
+			await get_tree().physics_frame
+		var npcs: Array = []
+		for n in get_tree().get_nodes_in_group("npcs"):
+			if n is Node3D and (n as Node3D).global_position.distance_to(player.global_position) < 40.0:
+				npcs.append(n)
+		npcs.sort_custom(func(a: Node3D, b: Node3D) -> bool: return a.global_position.distance_to(player.global_position) < b.global_position.distance_to(player.global_position))
+		for k in mini(4, npcs.size()):
+			var np: Vector3 = (npcs[k] as Node3D).global_position + Vector3(0, 1.3, 0)
+			var fw := -(npcs[k] as Node3D).global_transform.basis.z
+			cam.global_position = np + fw * 2.2 + Vector3(0, 0.15, 0)
+			cam.look_at(np, Vector3.UP)
+			cam.fov = 45.0
+			await RenderingServer.frame_post_draw
+			get_viewport().get_texture().get_image().save_png("%s/crowd_%d.png" % [dir, k])
+		get_tree().quit()
+		return
 	if OS.get_environment("MONSTERS") != "":
 		# close-ups of other monsters, day then night
 		cam.reparent(self)

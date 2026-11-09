@@ -706,3 +706,12 @@ Verified by the selftest (PASS, including the boss fight) and software-rendered 
   - Every hit gives a short white flash (the ghosts' flash now works for all monsters).
   - When a boss enters phase 3, its cracks, embers and eyes burn hotter (`rage`).
 - The monsters were Quaternius CC0 models with one flat colour sheet each. No new assets were added; all detail is procedural (noise in model space, scaled to metres).
+
+## Addendum: Villager hair and cloth weave (2026-11-09)
+
+Verified by the selftest (PASS) and software-rendered bazaar close-ups (`--capture-look` with `CROWD=1`). **Not tested on a device.**
+
+- **Hair:** the villager models (`assets/people`) name their hair materials by colour ("Brown", "DarkBrown", "Red"), so hair was classed as cloth. It got dyed blue or teal and covered in the weave. Now, on a villager's head mesh, every surface that isn't skin or eyes is hair:
+  - a new garment-shader kind 5: never dyed, fine strand detail, a smooth sheen (roughness 0.42) and a soft rim
+  - it is also skipped by the Low-quality flat dye (`RealHuman._dye`)
+- **Weave:** the cotton weave ran at 260 cycles per metre and 16% strength, which showed as a coarse checkerboard at talking distance. It is now 520 cycles per metre at 7%: felt up close, gone at a few metres. Leather grain dropped from 20% to 16%.
