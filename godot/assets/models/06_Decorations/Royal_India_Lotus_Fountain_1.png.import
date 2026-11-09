@@ -1,0 +1,37 @@
+[remap]
+
+importer="texture"
+type="CompressedTexture2D"
+uid="uid://6flyr7xi4vyc"
+path="res://.godot/imported/Royal_India_Lotus_Fountain_1.png-c152db8395cad1c9aab7ed67a8292fc0.ctex"
+metadata={
+"vram_texture": false
+}
+generator_parameters={
+"md5": "aa9f7b24b587ad2efed5fd9659d8a6eb"
+}
+
+[deps]
+
+source_file="res://assets/models/06_Decorations/Royal_India_Lotus_Fountain_1.png"
+dest_files=["res://.godot/imported/Royal_India_Lotus_Fountain_1.png-c152db8395cad1c9aab7ed67a8292fc0.ctex"]
+
+[params]
+
+compress/mode=1
+compress/high_quality=false
+compress/lossy_quality=0.82
+compress/hdr_compression=1
+compress/normal_map=0
+compress/channel_pack=0
+mipmaps/generate=true
+mipmaps/limit=-1
+roughness/mode=0
+roughness/src_normal=""
+process/fix_alpha_border=true
+process/premult_alpha=false
+process/normal_map_invert_y=false
+process/hdr_as_srgb=false
+process/hdr_clamp_exposure=false
+process/size_limit=0
+detect_3d/compress_to=1
