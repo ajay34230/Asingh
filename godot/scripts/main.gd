@@ -1616,7 +1616,8 @@ func _screenshot_and_quit(path: String) -> void:
 			director.set_process(false)
 			camera.look_at_from_position(Vector3(float(v[0]), float(v[1]), float(v[2])), Vector3(float(v[3]), float(v[4]), float(v[5])), Vector3.UP)
 	if "--design-gallery" in OS.get_cmdline_user_args():
-		## All designs in a row on the left wing, for checking them on screen.
+		## All designs in a grid on the board (game tokens hidden), for checking them.
+		game.visible = false
 		var ids := TokenDesigns.DESIGNS.keys()
 		var colors := ["blue", "yellow", "green", "red"]
 		for i in range(ids.size()):
@@ -1624,7 +1625,8 @@ func _screenshot_and_quit(path: String) -> void:
 			add_child(t)
 			t.configure(colors[i % 4])
 			t.transform_out(0.01)
-			t.position = Vector3(-16.0 + (i % 5) * 1.25, RoyalBoard.WING_TOP, 2.6 + (i / 5) * 1.6)
+			var per_row := 7
+			t.position = Vector3(-4.2 + (i % per_row) * 1.4, RoyalBoard.TILE_TOP, -3.6 + (i / per_row) * 2.0)
 			t.scale = Vector3.ONE * 0.95
 			TokenDesigns.apply(t, ids[i], RoyalBoard.PALETTE[colors[i % 4]])
 	if "--statues" in OS.get_cmdline_user_args():

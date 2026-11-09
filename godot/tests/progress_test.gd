@@ -72,10 +72,6 @@ func _init() -> void:
 	Festivals.override = ""
 	_check("three weekly challenges", Festivals.this_week().size() == 3)
 
-	DirAccess.remove_absolute(ProjectSettings.globalize_path(path))
-	if not backup.is_empty():
-		var f := FileAccess.open(path, FileAccess.WRITE)
-		f.store_buffer(backup)
 
 	## Renting designs: videos, Royal Tickets, free trial, expiry, styles.
 	_check("lotus not usable yet", not Progress.can_use("design_lotus"))
@@ -106,5 +102,9 @@ func _init() -> void:
 	GameSettings.save_value("progress", "daily_streak", 2)
 	Progress.claim_daily()
 	_check("day 3 of the streak gives a Royal Ticket", Progress.tickets() == t0 + 1)
+	DirAccess.remove_absolute(ProjectSettings.globalize_path(path))
+	if not backup.is_empty():
+		var f := FileAccess.open(path, FileAccess.WRITE)
+		f.store_buffer(backup)
 	print("PROGRESS TEST " + ("PASS" if failures == 0 else "FAIL"))
 	quit(1 if failures else 0)
