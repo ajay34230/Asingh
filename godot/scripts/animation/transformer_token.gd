@@ -21,6 +21,13 @@ var has_left_home := false
 ## supplied GLB models). Set from the "Token model" setting; tests may override it.
 static var style_override := ""
 
+## Joint positions (right side; the left mirrors them). The pawn models share these.
+const PAWN_LAYOUT := {
+    "shoulder": Vector3(0.245, 0.575, 0.0), "elbow": Vector3(0.275, 0.375, 0.045), "wrist": Vector3(0.125, 0.275, 0.135),
+    "hip": Vector3(0.115, 0.215, 0.005), "knee": Vector3(0.17, 0.105, 0.055), "ankle": Vector3(0.095, 0.07, 0.145),
+}
+var _layout: Dictionary = PAWN_LAYOUT
+
 
 static func current_style() -> String:
     if style_override != "":
@@ -31,6 +38,8 @@ static func current_style() -> String:
 ## The body alone, for statuettes (plaques).
 static func build_statue(color: String) -> Node3D:
     match current_style():
+        "knight":
+            return KnightPawn.build_body(color)
         "robot":
             return RoboPawn.build_body(color)
         "royal":
@@ -56,6 +65,20 @@ const LIMB_PATHS := {
 func configure(team_colour: String) -> void:
     team = team_colour.to_lower()
     var style := current_style()
+    if style == "knight":
+        ## The armoured robot knight: it stands on its own legs, so the limbs ride on
+        ## the body (hops and squashes carry them) and use the knight's pivot layout.
+        body_node = KnightPawn.build_body(team)
+        body_node.name = "JewelPawnBody"
+        add_child(body_node)
+        limb_root = Node3D.new()
+        limb_root.name = "TransformerLimbRig"
+        body_node.add_child(limb_root)
+        _layout = KnightPawn.LAYOUT
+        _build_pivots()
+        KnightPawn.dress_limbs(team, arm_pivots, leg_pivots)
+        _fold_pose()
+        return
     if style == "robot" or style == "royal":
         ## Models built in code: realistic robots, or the polished royal pawn.
         body_node = RoboPawn.build_body(team) if style == "robot" else RoyalPawn.build_body(team)
@@ -86,17 +109,18 @@ func _build_pivots() -> void:
     var sides := [-1, 1]
     for side in sides:
         var side_name := "L" if side < 0 else "R"
-        var shoulder_pos := Vector3(side * 0.245, 0.575, 0.0)
-        var elbow_pos := Vector3(side * 0.275, 0.375, 0.045)
-        var wrist_pos := Vector3(side * 0.125, 0.275, 0.135)
+        var mirror := Vector3(side, 1, 1)
+        var shoulder_pos: Vector3 = _layout["shoulder"] * mirror
+        var elbow_pos: Vector3 = _layout["elbow"] * mirror
+        var wrist_pos: Vector3 = _layout["wrist"] * mirror
         var shoulder := _make_pivot("ArmShoulder" + side_name, limb_root, shoulder_pos)
         var elbow := _make_pivot("ArmElbow" + side_name, shoulder, elbow_pos - shoulder_pos)
         var wrist := _make_pivot("ArmWrist" + side_name, elbow, wrist_pos - elbow_pos)
         arm_pivots[side_name] = {"shoulder": shoulder, "elbow": elbow, "wrist": wrist}
 
-        var hip_pos := Vector3(side * 0.115, 0.215, 0.005)
-        var knee_pos := Vector3(side * 0.17, 0.105, 0.055)
-        var ankle_pos := Vector3(side * 0.095, 0.07, 0.145)
+        var hip_pos: Vector3 = _layout["hip"] * mirror
+        var knee_pos: Vector3 = _layout["knee"] * mirror
+        var ankle_pos: Vector3 = _layout["ankle"] * mirror
         var hip := _make_pivot("LegHip" + side_name, limb_root, hip_pos)
         var knee := _make_pivot("LegKnee" + side_name, hip, knee_pos - hip_pos)
         var ankle := _make_pivot("LegAnkle" + side_name, knee, ankle_pos - knee_pos)

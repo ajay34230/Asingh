@@ -55,7 +55,7 @@ var _difficulty: OptionButton
 var _rule_boxes: Dictionary = {}
 var _graphics: OptionButton
 var _tokens: OptionButton
-const TOKEN_STYLES := ["robot", "royal", "original"]
+const TOKEN_STYLES := ["knight", "robot", "royal", "original"]
 var _camera: CheckButton
 var _anim: OptionButton
 var _fps: CheckButton
@@ -440,7 +440,7 @@ func _build_settings() -> void:
 	var box := _scroll_page("settings", "Settings")
 	var page_box: VBoxContainer = _frame_of(box)
 	_graphics = _option(box, "Graphics", ["Low", "Medium", "High"])
-	_tokens = _option(box, "Token model", ["Robot", "Royal pawn", "Original"])
+	_tokens = _option(box, "Token model", ["Robot knight", "Robot", "Royal pawn", "Original"])
 	_tokens.item_selected.connect(func(i: int) -> void:
 		var style: String = TOKEN_STYLES[i]
 		if style != String(GameSettings.get_option("token_style")):
