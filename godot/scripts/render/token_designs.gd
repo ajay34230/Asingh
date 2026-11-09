@@ -72,6 +72,16 @@ const SETS := {
 	"festivals": ["Festival Spirit", "set_festivals", ["design_diya", "design_holi", "design_kite", "design_tiranga", "design_star"]],
 }
 
+## Victory poses: weapons are raised, legends whirl into the air, royals bow; others
+## do the usual dance.
+const POSES := {
+	"design_warrior": "raise", "design_rani": "raise", "design_hanuman": "raise", "design_cricket": "raise",
+	"design_maratha": "raise", "design_tiranga": "raise",
+	"design_garuda": "whirl", "design_nataraja": "whirl", "design_surya": "whirl", "design_naga": "whirl",
+	"design_ghost": "whirl", "design_bollywood": "whirl", "design_holi": "whirl",
+	"design_maharaja": "bow", "design_mughal": "bow", "design_raja": "bow", "design_chai": "bow", "design_diya": "bow",
+}
+
 ## Mastery: games played wearing a design; each level adds a star circling the head.
 const MASTERY := [10, 25, 50]
 const MASTERY_NAMES := ["", "Bronze mastery", "Silver mastery", "Gold mastery"]

@@ -1089,15 +1089,25 @@ func _celebrate(ranking: Array) -> void:
 			_gold_rain(4.0)
 		"victory_lotus":
 			_lotus_bloom()
+	var design: String = TokenDesigns.parse(game.design_for(color))[0]
+	var pose: String = TokenDesigns.POSES.get(design, "dance")
 	for i in range(BoardPath.TOKENS_PER_PLAYER):
 		var token: TransformerToken = game.tokens[color][i]
 		token.transform_out(0.2)
-		_dance(token, i * 0.15)
+		_dance(token, i * 0.15, pose)
+	## The winner's design says its own line, with a speech bubble.
+	if voice and voice.has_design_line(design):
+		await get_tree().create_timer(0.9).timeout
+		var caption := voice.design_line(design)
+		if caption != "" and is_instance_valid(game.tokens[color][0]):
+			bubbles.say(game.tokens[color][0], caption, color)
 
 
-func _dance(token: TransformerToken, delay: float) -> void:
+func _dance(token: TransformerToken, delay: float, pose := "dance") -> void:
 	await get_tree().create_timer(delay).timeout
-	for n in range(6):
+	if pose != "dance":
+		await _victory_pose(token, pose)
+	for n in range(6 if pose == "dance" else 3):
 		if not is_instance_valid(token):
 			return
 		var t := token.create_tween().set_parallel(true)
@@ -1108,6 +1118,43 @@ func _dance(token: TransformerToken, delay: float) -> void:
 			t.tween_property(arm["shoulder"], "rotation", Vector3(-2.8, 0, 0.5 if side == "L" else -0.5), 0.18)
 		t.chain().tween_property(token.body_node, "position:y", 0.0, 0.18).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_IN)
 		await t.finished
+
+
+## A design's own victory pose, played before the dance.
+func _victory_pose(token: TransformerToken, pose: String) -> void:
+	if not is_instance_valid(token):
+		return
+	var arms: Dictionary = token.arm_pivots
+	match pose:
+		"raise":   # weapon arm thrust high, other fist on the hip, three proud stamps
+			var t := token.create_tween().set_parallel(true)
+			t.tween_property(arms["R"]["shoulder"], "rotation", Vector3(-3.0, 0, -0.25), 0.25).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+			t.tween_property(arms["R"]["elbow"], "rotation", Vector3(-0.2, 0, 0), 0.25)
+			t.tween_property(arms["L"]["shoulder"], "rotation", Vector3(-0.3, 0, 0.9), 0.25)
+			t.tween_property(arms["L"]["elbow"], "rotation", Vector3(-1.6, 0, 0), 0.25)
+			await t.finished
+			for i in range(3):
+				var s := token.create_tween()
+				s.tween_property(token.body_node, "position:y", 0.12, 0.12).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
+				s.tween_property(token.body_node, "position:y", 0.0, 0.12).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_IN)
+				await s.finished
+		"whirl":   # rises and whirls twice in the air, arms spread like wings
+			var t := token.create_tween().set_parallel(true)
+			for side in ["L", "R"]:
+				t.tween_property(arms[side]["shoulder"], "rotation", Vector3(-1.5, 0, 1.3 if side == "L" else -1.3), 0.3)
+			t.tween_property(token.body_node, "position:y", 0.7, 0.6).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_OUT)
+			t.tween_property(token, "rotation:y", token.rotation.y + TAU * 2.0, 1.2).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
+			t.chain().tween_property(token.body_node, "position:y", 0.0, 0.35).set_trans(Tween.TRANS_BOUNCE).set_ease(Tween.EASE_OUT)
+			await t.finished
+		"bow":   # a royal bow to the court, then arms open wide
+			var t := token.create_tween()
+			t.tween_property(token.body_node, "rotation:x", 0.45, 0.35).set_trans(Tween.TRANS_SINE)
+			t.parallel().tween_property(arms["R"]["shoulder"], "rotation", Vector3(-1.2, 0, 0.6), 0.35)
+			t.tween_interval(0.35)
+			t.tween_property(token.body_node, "rotation:x", 0.0, 0.3).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+			t.parallel().tween_property(arms["R"]["shoulder"], "rotation", Vector3(-2.4, 0, -0.9), 0.3)
+			t.parallel().tween_property(arms["L"]["shoulder"], "rotation", Vector3(-2.4, 0, 0.9), 0.3)
+			await t.finished
 
 
 ## Tilted perspective camera. The camera distance is chosen so the whole board spans

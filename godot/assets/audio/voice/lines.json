@@ -389,5 +389,182 @@
     }
    ]
   }
+ },
+ "design": {
+  "design_rani": [
+   {
+    "file": "design_rani_win",
+    "caption": "Main apni Jhansi nahin doongi!",
+    "text": "मैं अपनी झाँसी नहीं दूँगी!"
+   }
+  ],
+  "design_hanuman": [
+   {
+    "file": "design_hanuman_win",
+    "caption": "Jai Bajrangbali!",
+    "text": "जय बजरंगबली!"
+   }
+  ],
+  "design_garuda": [
+   {
+    "file": "design_garuda_win",
+    "caption": "Aasmaan mera hai!",
+    "text": "आसमान मेरा है!"
+   }
+  ],
+  "design_nataraja": [
+   {
+    "file": "design_nataraja_win",
+    "caption": "Nataraj ka taandav!",
+    "text": "नटराज का तांडव!"
+   }
+  ],
+  "design_robo": [
+   {
+    "file": "design_robo_win",
+    "caption": "Mission poora hua!",
+    "text": "मिशन पूरा हुआ!"
+   }
+  ],
+  "design_ghost": [
+   {
+    "file": "design_ghost_win",
+    "caption": "Is mahal mein mera raaj hai!",
+    "text": "इस महल में मेरा राज है!"
+   }
+  ],
+  "design_surya": [
+   {
+    "file": "design_surya_win",
+    "caption": "Suraj kabhi nahin doobta!",
+    "text": "सूरज कभी नहीं डूबता!"
+   }
+  ],
+  "design_shadow": [
+   {
+    "file": "design_shadow_win",
+    "caption": "Andhere ki jeet!",
+    "text": "अंधेरे की जीत!"
+   }
+  ],
+  "design_maharaja": [
+   {
+    "file": "design_maharaja_win",
+    "caption": "Raja to raja hai!",
+    "text": "राजा तो राजा है!"
+   }
+  ],
+  "design_warrior": [
+   {
+    "file": "design_warrior_win",
+    "caption": "Ranbhoomi meri hai!",
+    "text": "रणभूमि मेरी है!"
+   }
+  ],
+  "design_bollywood": [
+   {
+    "file": "design_bollywood_win",
+    "caption": "Picture abhi baaki hai, dost!",
+    "text": "पिक्चर अभी बाकी है, दोस्त!"
+   }
+  ],
+  "design_cricket": [
+   {
+    "file": "design_cricket_win",
+    "caption": "Chhakka! Match hamara!",
+    "text": "छक्का! मैच हमारा!"
+   }
+  ],
+  "design_chai": [
+   {
+    "file": "design_chai_win",
+    "caption": "Jeet ki chai ho jaaye!",
+    "text": "जीत की चाय हो जाए!"
+   }
+  ],
+  "design_lion": [
+   {
+    "file": "design_lion_win",
+    "caption": "Jungle ka raja kaun? Main!",
+    "text": "जंगल का राजा कौन? मैं!"
+   }
+  ],
+  "design_tiger": [
+   {
+    "file": "design_tiger_win",
+    "caption": "Baagh ki dahaad suno!",
+    "text": "बाघ की दहाड़ सुनो!"
+   }
+  ],
+  "design_naga": [
+   {
+    "file": "design_naga_win",
+    "caption": "Naagraaj ki jai!",
+    "text": "नागराज की जय!"
+   }
+  ],
+  "design_mughal": [
+   {
+    "file": "design_mughal_win",
+    "caption": "Shahenshah ki jeet!",
+    "text": "शहंशाह की जीत!"
+   }
+  ],
+  "design_maratha": [
+   {
+    "file": "design_maratha_win",
+    "caption": "Har Har Mahadev!",
+    "text": "हर हर महादेव!"
+   }
+  ],
+  "design_lotus": [
+   {
+    "file": "design_lotus_win",
+    "caption": "Kamal ki tarah khili jeet!",
+    "text": "कमल की तरह खिली जीत!"
+   }
+  ],
+  "design_peacock": [
+   {
+    "file": "design_peacock_win",
+    "caption": "Mor ki shaan dekho!",
+    "text": "मोर की शान देखो!"
+   }
+  ],
+  "design_diya": [
+   {
+    "file": "design_diya_win",
+    "caption": "Shubh Deepavali!",
+    "text": "शुभ दीपावली!"
+   }
+  ],
+  "design_holi": [
+   {
+    "file": "design_holi_win",
+    "caption": "Bura na mano, Holi hai!",
+    "text": "बुरा न मानो, होली है!"
+   }
+  ],
+  "design_tiranga": [
+   {
+    "file": "design_tiranga_win",
+    "caption": "Jai Hind!",
+    "text": "जय हिंद!"
+   }
+  ],
+  "design_airavata": [
+   {
+    "file": "design_airavata_win",
+    "caption": "Airavat jeet gaya!",
+    "text": "ऐरावत जीत गया!"
+   }
+  ],
+  "design_monsoon": [
+   {
+    "file": "design_monsoon_win",
+    "caption": "Jeet ki baarish!",
+    "text": "जीत की बारिश!"
+   }
+  ]
  }
 }

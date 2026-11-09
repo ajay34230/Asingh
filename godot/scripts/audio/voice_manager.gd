@@ -62,6 +62,21 @@ func token_line(key: String, color: String) -> String:
 	return line["caption"]
 
 
+## A design's own victory line ("Main apni Jhansi nahin doongi!"). Returns the caption.
+func design_line(design_id: String) -> String:
+	if not _can_speak():
+		return ""
+	var lines: Array = _table.get("design", {}).get(design_id, [])
+	if lines.is_empty():
+		return ""
+	_play(_tokens, lines[0]["file"])
+	return lines[0]["caption"]
+
+
+func has_design_line(design_id: String) -> bool:
+	return _table.get("design", {}).has(design_id)
+
+
 func _can_speak() -> bool:
 	return enabled and not (audio and audio.muted)
 
