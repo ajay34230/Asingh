@@ -18,6 +18,8 @@ export GODOT_ANDROID_KEYSTORE_RELEASE_PATH=build/release/royalludo-release.keyst
 export GODOT_ANDROID_KEYSTORE_RELEASE_USER=royalludo
 export GODOT_ANDROID_KEYSTORE_RELEASE_PASSWORD=<password>
 godot --headless --path godot --export-release "Android Release" ../build/release/RoyalIndiaLudo.aab
+# the same release, as a signed APK to install directly or share:
+godot --headless --path godot --export-release "Android Release APK" ../build/release/RoyalIndiaLudo-release.apk
 ```
 
 Bump `version/code` (and `version/name`) in `godot/export_presets.cfg` for each upload.
