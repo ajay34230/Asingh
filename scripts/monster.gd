@@ -31,7 +31,8 @@ var _cur := ""
 var _atk_t := -1.0
 var _hit_t := 0.0
 var _bob := 0.0
-var _mats: Array[StandardMaterial3D] = []
+var _mats: Array[Material] = []
+var _ghost_mats: Array = []          # [ShaderMaterial, mesh scale] for spectral bodies (GhostLook)
 static var _cache := {}
 
 
@@ -130,18 +131,27 @@ func _load_model(file: String, height: float, tint: Color) -> Node3D:
 			var src := mi2.get_active_material(si) as StandardMaterial3D
 			if src == null:
 				continue
+			if spectral:
+				# glowing rim, misty body, fading rippling tail, glowing eyes (GhostLook)
+				var gm := GhostLook.material(src, ghost_glow(), mkind == "ghost_skull", mi2.mesh.get_aabb(), 1.0)
+				mi2.set_surface_override_material(si, gm)
+				mi2.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF      # spirits throw no shadow
+				_mats.append(gm)
+				_ghost_mats.append([gm, xf.basis.get_scale().y])
+				continue
 			var mat := src.duplicate() as StandardMaterial3D
 			mat.albedo_color = mat.albedo_color * tint
-			if spectral:
-				mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
-				mat.albedo_color.a = 0.78
-				mat.emission_enabled = true
-				mat.emission = Color(0.35, 0.55, 0.75)
-				mat.emission_energy_multiplier = 0.6
 			mi2.set_surface_override_material(si, mat)
 			_mats.append(mat)
 	var sc := height / maxf(box.size.y, 0.01)
 	inst.scale = Vector3.ONE * sc
+	if spectral:
+		for gp in _ghost_mats:
+			(gp[0] as ShaderMaterial).set_shader_parameter("inv_scale", 1.0 / maxf(sc * float(gp[1]), 0.0001))
+		add_child(GhostLook.wisps(ghost_glow(), height))
+		# it forms out of glowing specks
+		_set_ghost("rise", 1.0)
+		create_tween().tween_method(func(v: float) -> void: _set_ghost("rise", v), 1.0, 0.0, 1.1)
 	inst.position.y = -box.position.y * sc
 	_anim = inst.find_child("AnimationPlayer", true, false) as AnimationPlayer
 	if _anim != null:
@@ -207,6 +217,8 @@ func take_hit(hk: String, amount: float, from_dir: Vector3) -> void:
 	hp -= amount
 	FloatText.spawn(get_parent(), global_position + Vector3(0, _hp_bar.position.y - 0.2, 0), str(int(round(amount))), Color(0.6, 0.95, 1.0) if spectral else Color(1.0, 0.8, 0.3), 1.0 if amount < 20.0 else 1.4)
 	HitFx.burst(get_parent(), global_position + Vector3(0, chest_h, 0), true, Color(0.6, 0.85, 1.0) if spectral else Color(0.7, 0.2, 0.2))
+	if spectral and not _ghost_mats.is_empty():
+		create_tween().tween_method(func(v: float) -> void: _set_ghost("flash", v), 1.0, 0.0, 0.18)
 	_refresh_bar()
 	if hp <= 0.0:
 		_die(hk, from_dir)
@@ -228,6 +240,16 @@ func take_hit(hk: String, amount: float, from_dir: Vector3) -> void:
 		speed *= 1.25
 		attack_cd *= 0.75
 		Sfx.at("scream", global_position + Vector3(0, 2.0, 0), 0.0, 0.6)
+
+
+## Glow colour of a spectral body: cold blue for ghosts, green fire for the flying skulls.
+func ghost_glow() -> Color:
+	return Color(0.55, 1.0, 0.6) if mkind == "ghost_skull" else Color(0.45, 0.8, 1.0)
+
+
+func _set_ghost(param: String, v: float) -> void:
+	for gp in _ghost_mats:
+		(gp[0] as ShaderMaterial).set_shader_parameter(param, v)
 
 
 func _die(_hk: String, _dir: Vector3) -> void:
@@ -252,9 +274,12 @@ func _die(_hk: String, _dir: Vector3) -> void:
 	var tw := create_tween()
 	tw.tween_interval(1.2)
 	if spectral:
-		for mt in _mats:
-			tw.parallel().tween_property(mt, "albedo_color:a", 0.0, 1.0)
+		# burns away from the edges with a bright rim, drifting up
+		tw.parallel().tween_method(func(v: float) -> void: _set_ghost("dissolve", v), 0.0, 1.0, 1.0)
 		tw.parallel().tween_property(_model, "position:y", 1.2, 1.0)
+		var wp := get_node_or_null("Wisps") as CPUParticles3D
+		if wp != null:
+			wp.emitting = false
 	else:
 		tw.tween_property(_model, "position:y", -1.5, 1.6)
 	tw.tween_callback(queue_free)

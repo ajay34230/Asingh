@@ -10,7 +10,7 @@ extends CanvasLayer
 const OUTFITS := [
 	{"id": "explorer", "jewels": ["kada_R", "pouch"], "name": "Explorer's Mail", "shop": "", "price": 0, "body": {"body": "striker_mail", "robe": true, "scale": 0.99},
 	 "dye": [Color(0.7, 0.2, 0.12), Color(0.35, 0.22, 0.12)], "armor": 1.0, "bonus": {}, "desc": "Your trusty travelling mail."},
-	{"id": "kurta", "jewels": ["kada_R"], "name": "Village Kurta", "shop": "bazaar", "price": 60, "body": {"body": "m_Farmer", "scale": 1.0},
+	{"id": "kurta", "jewels": ["kada_R"], "name": "Village Kurta", "shop": "bazaar", "price": 60, "body": {"body": "veteran", "robe": true, "scale": 1.0},
 	 "dye": [Color(0.95, 0.93, 0.86), Color(0.95, 0.55, 0.12)], "turban": [Color(0.95, 0.55, 0.1), Color(0.85, 0.2, 0.15)],
 	 "sash": Color(0.15, 0.45, 0.25), "armor": 1.0, "bonus": {"run": 0.05}, "desc": "White cotton kurta, saffron safa. Run 5% faster."},
 	{"id": "adventurer", "jewels": ["kada_R"], "name": "Adventurer's Gear", "shop": "bazaar", "price": 120, "body": {"body": "m_Adventurer", "scale": 1.0, "natural": true},
@@ -36,10 +36,10 @@ const OUTFITS := [
 	 "cape": [Color(0.25, 0.04, 0.03), Color(0.55, 0.4, 0.2), 0.85], "armor": 0.72,
 	 "bonus": {"melee": 0.1}, "desc": "Heavy hide and iron. 28% armour, +10% melee."},
 	# festival outfits: sold in the bazaar only while their festival is on (LiveEvents), and given for its task
-	{"id": "diwali_sherwani", "event": "diwali", "jewels": ["kada_R", "mala_gold"], "name": "Diwali Sherwani", "shop": "bazaar", "price": 180, "body": {"body": "m_Farmer", "scale": 1.0},
+	{"id": "diwali_sherwani", "event": "diwali", "jewels": ["kada_R", "mala_gold"], "name": "Diwali Sherwani", "shop": "bazaar", "price": 180, "body": {"body": "veteran", "robe": true, "scale": 1.0},
 	 "dye": [Color(0.55, 0.05, 0.12), Color(0.95, 0.76, 0.25)], "turban": [Color(0.95, 0.76, 0.25), Color(0.6, 0.05, 0.12)], "sash": Color(0.95, 0.76, 0.25),
 	 "armor": 0.95, "bonus": {"xp": 0.1}, "desc": "Maroon silk and gold for the Festival of Lights. 5% armour, +10% XP."},
-	{"id": "holi_kurta", "event": "holi", "jewels": ["kada_R"], "name": "Holi Kurta", "shop": "bazaar", "price": 150, "body": {"body": "m_Farmer", "scale": 1.0},
+	{"id": "holi_kurta", "event": "holi", "jewels": ["kada_R"], "name": "Holi Kurta", "shop": "bazaar", "price": 150, "body": {"body": "veteran", "robe": true, "scale": 1.0},
 	 "dye": [Color(0.97, 0.95, 0.92), Color(0.95, 0.25, 0.6)], "turban": [Color(0.3, 0.8, 0.35), Color(0.95, 0.25, 0.6)], "sash": Color(1.0, 0.8, 0.1),
 	 "armor": 1.0, "bonus": {"run": 0.06}, "desc": "White cotton splashed with gulal. Run 6% faster."},
 	{"id": "kite_jacket", "event": "sankranti", "jewels": ["pouch"], "name": "Kite Flyer's Jacket", "shop": "bazaar", "price": 160, "body": {"body": "thief", "robe": true, "scale": 1.0},

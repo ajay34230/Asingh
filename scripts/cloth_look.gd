@@ -19,6 +19,8 @@ uniform vec4 dye_a : source_color = vec4(1.0);
 uniform vec4 dye_b : source_color = vec4(1.0);
 uniform float dye_on = 0.0;      // 0 none, 1 = dye_a, 2 = dye_b (flat surfaces); atlas: luminance picks
 uniform float unit = 1.0;        // metres per mesh unit
+uniform bool all_garment = false;
+uniform float shrink = 0.0;      // metres: pull a body under a tunic inward so it never pokes through // painted atlas that is all clothing (the tunic overlays): no skin block
 varying vec3 opos;
 varying vec3 onrm;
 float h21(vec2 p) { return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
@@ -26,13 +28,19 @@ float vnoise(vec2 p) {
 	vec2 i = floor(p); vec2 f = fract(p); f = f * f * (3.0 - 2.0 * f);
 	return mix(mix(h21(i), h21(i + vec2(1, 0)), f.x), mix(h21(i + vec2(0, 1)), h21(i + vec2(1, 1)), f.x), f.y);
 }
-void vertex() { opos = VERTEX * unit; onrm = NORMAL; }
+void vertex() {
+	if (shrink > 0.0) {
+		float below_neck = 1.0 - smoothstep(1.34, 1.46, VERTEX.y * unit);
+		VERTEX -= NORMAL * (shrink / unit) * below_neck;
+	}
+	opos = VERTEX * unit; onrm = NORMAL;
+}
 void fragment() {
 	vec4 c = use_tex ? texture(tex, UV) : base;
 	int k = kind;
 	bool garment = true;
 	if (k == 4) {
-		garment = UV.y > 0.625 && UV.x < 0.5;
+		garment = all_garment || (UV.y > 0.625 && UV.x < 0.5);
 		float mx = max(c.r, max(c.g, c.b));
 		float mn = min(c.r, min(c.g, c.b));
 		float sat = mx > 0.0 ? (mx - mn) / mx : 0.0;
@@ -41,11 +49,15 @@ void fragment() {
 		garment = false;
 	}
 	float lum = dot(c.rgb, vec3(0.299, 0.587, 0.114));
+	if (k == 3) {
+		// skin: pull the painted orange toward a natural warm tone
+		c.rgb = mix(c.rgb, vec3(lum) * vec3(1.14, 0.93, 0.80) * 1.04, 0.2);
+	}
 	if (garment && dye_on > 0.0 && k != 2) {
 		vec3 d = dye_on > 1.5 ? dye_b.rgb : dye_a.rgb;
 		if (kind == 4) {
 			d = mix(dye_b.rgb, dye_a.rgb, smoothstep(0.12, 0.35, lum));
-			c.rgb = mix(c.rgb, d * clamp(lum * 2.4, 0.25, 1.35), 0.82);
+			c.rgb = mix(c.rgb, d * clamp(lum * 2.0, 0.25, 1.05), 0.78);   // rich, not neon; keeps the weave
 		} else {
 			c.rgb = d;
 		}
@@ -75,7 +87,7 @@ void fragment() {
 	if (k == 0) { ROUGHNESS = 0.86; SPECULAR = 0.3; RIM = 0.3; RIM_TINT = 0.6; }
 	else if (k == 1) { ROUGHNESS = 0.55 - detail * 0.2; SPECULAR = 0.45; }
 	else if (k == 2) { METALLIC = 0.88; ROUGHNESS = 0.3 + detail * 0.2; SPECULAR = 0.7; }
-	else { ROUGHNESS = 0.52; SPECULAR = 0.35; BACKLIGHT = vec3(0.35, 0.12, 0.08) * 0.35; }
+	else { ROUGHNESS = 0.5; SPECULAR = 0.38; BACKLIGHT = vec3(0.4, 0.14, 0.09) * 0.4; RIM = 0.22; RIM_TINT = 0.8; }
 }
 """
 const CAPE := """
@@ -135,6 +147,16 @@ static func _kind_for(mat_name: String, has_tex: bool) -> int:
 	return 0
 
 
+## True for meshes that came from a tunic overlay file (robe_*.glb).
+static func _from_robe(mi: Node) -> bool:
+	var n := mi
+	while n != null:
+		if n.scene_file_path.get_file().begins_with("robe_"):
+			return true
+		n = n.get_parent()
+	return false
+
+
 ## Restyle every surface of a rig. dye: [main, trim] colours, or [] to keep the outfit's own colours.
 static func dress(rig: RealHuman, dye: Array) -> void:
 	if _garment == null:
@@ -148,6 +170,11 @@ static func dress(rig: RealHuman, dye: Array) -> void:
 			tallest = maxf(tallest, maxf(sz.x, maxf(sz.y, sz.z)))
 	var unit := 1.75 / maxf(tallest, 0.000001)
 	var alt := 0
+	var has_robe := false
+	for m in meshes:
+		if _from_robe(m):
+			has_robe = true
+			break
 	for m in meshes:
 		var mi := m as MeshInstance3D
 		if mi.mesh == null:
@@ -168,8 +195,13 @@ static func dress(rig: RealHuman, dye: Array) -> void:
 			mat.set_shader_parameter("use_tex", has_tex)
 			if has_tex:
 				mat.set_shader_parameter("tex", sm.albedo_texture)
+				# the tunic overlays (robe_*.glb) are cloth all over; their pale patches are not skin
+				var tp := sm.albedo_texture.resource_path.get_file()
+				mat.set_shader_parameter("all_garment", tp.begins_with("robe_") or mi.get_parent().name.begins_with("robe_") or _from_robe(mi))
 			mat.set_shader_parameter("base", sm.albedo_color)
 			mat.set_shader_parameter("kind", k)
+			if has_robe and not _from_robe(mi) and mi.name.to_lower().begins_with("superhero"):
+				mat.set_shader_parameter("shrink", 0.018)     # the bare body stays under the tunic
 			mat.set_shader_parameter("unit", unit)
 			if dye.size() >= 2 and k != 3 and k != 2:
 				mat.set_shader_parameter("dye_a", dye[0])

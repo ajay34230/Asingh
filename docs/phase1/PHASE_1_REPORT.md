@@ -670,3 +670,23 @@ Requested: "make aiming like that of PUBG so that we can aim ghost". Verified by
 - **Hit markers:** a white X in the centre for a hit, red for a headshot, a weak spot or a kill.
 - **Gyroscope aiming** (setting: Off, When aiming or scoped, or Always), with speed and invert settings. Tilting the phone turns the view.
 - Hindi text added for the new labels and settings.
+
+## Addendum: Ghost and character graphics (2026-11-09)
+
+Requested: "Enhance the ghosts and character graphics". Verified by the selftest (PASS) and software-rendered close-ups (`--capture-look`, with `OUTFITS=a,b,...` for the hero in several outfits). **Not tested on a device.** The ghost shader adds two noise lookups per pixel only on ghost surfaces; its cost on the Adreno 650 at Low quality is not measured.
+
+- **Ghosts and flying skulls** (`scripts/ghost_look.gd`, one shader material per surface, all procedural):
+  - A glowing rim (fresnel) round a misty, semi-transparent body. A depth pre-pass means the inside no longer shows through the front, which made the old ghosts look like stacked blue blobs.
+  - The tail thins away to nothing and ripples slowly; the head stays still.
+  - Scrolling mist in the body and a faint flicker.
+  - Dark parts of the texture (eyes, mouth) glow. The skull of the flying skull stays solid.
+  - Glow colour: cold blue for ghosts, green fire for flying skulls.
+  - Ghosts form out of glowing specks when they appear, burn away into specks with a bright edge when they die, and flash white when hit.
+  - Soft wisps trail off the tail: 12 on High and Medium, 6 on Low.
+  - Spirits no longer cast solid black shadows.
+- **Hero clothes and skin** (garment shader in `cloth_look.gd`):
+  - The bare body under the tunic overlays poked through in a star-shaped pattern on the chest of every robed outfit. That body is now pulled 1.8 cm inward below the neck when a tunic covers it.
+  - Atlas dye was neon (brightness up to 1.35× the dye colour). It is now capped at 1.05× and mixed at 78%, keeping the weave.
+  - Skin is pulled 20% toward a natural warm tone, with a soft rim highlight and a little more backlight (ears and edges).
+- **Outfits:** Village Kurta, Diwali Sherwani and Holi Kurta moved from the villager body, which has a flat face with square black eyes, to the warrior body with a modelled face and beard. The turbans now sit properly.
+- **Villagers far away:** villagers beyond 90 m are not simulated, and one that spawned that far never got a pose, so it stood in the model's raw T-pose. They now get an idle pose refreshed twice a second.

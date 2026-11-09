@@ -140,6 +140,8 @@ func _ready() -> void:
 			_run_capture_lab.call_deferred(a.trim_prefix("--capture-lab="))
 		elif a == "--probe-ghost":
 			_run_probe_ghost.call_deferred()
+		elif a.begins_with("--capture-look="):
+			_run_capture_look.call_deferred(a.trim_prefix("--capture-look="))
 		elif a.begins_with("--capture-pubg="):
 			_run_capture_pubg.call_deferred(a.trim_prefix("--capture-pubg="))
 		elif a.begins_with("--capture-weather="):
@@ -4013,6 +4015,100 @@ func _run_probe_ghost() -> void:
 			if sec >= 3 and frames % 20 == 0:
 				player.attack()
 		print("[probe] s%d changed %d nodes %d (+%d) frames %d alive %d" % [sec, counts["changed"] - c0, get_tree().get_node_count(), get_tree().get_node_count() - n0, frames, (mm.get("alive") as Array).size()])
+	get_tree().quit()
+
+
+## Close-ups for judging the look of the hero, a villager and the ghosts (day and night).
+func _run_capture_look(dir: String) -> void:
+	DirAccess.make_dir_recursive_absolute(dir)
+	touch.visible = false
+	hud.visible = false
+	var fs := _flat_spot()
+	_teleport(fs.x, fs.y)
+	var cam := player.camera
+	if OS.get_environment("OUTFITS") != "":
+		# hero close-ups in several outfits (skin and dye check)
+		atmosphere.time_of_day = 0.42
+		atmosphere.apply_time()
+		var wr := get_tree().get_first_node_in_group("wardrobe")
+		cam.reparent(self)
+		for oid in OS.get_environment("OUTFITS").split(","):
+			story.set_flag("own_" + oid, true)
+			wr.call("wear", oid)
+			for i in 20:
+				await get_tree().physics_frame
+			var pc0 := player.global_position + Vector3(0, 1.45, 0)
+			var fwd0 := -player._model.global_transform.basis.z
+			cam.global_position = pc0 + fwd0 * 1.5 + Vector3(0, 0.1, 0)
+			cam.look_at(pc0, Vector3.UP)
+			cam.fov = 40.0
+			await RenderingServer.frame_post_draw
+			get_viewport().get_texture().get_image().save_png("%s/outfit_%s.png" % [dir, oid])
+		get_tree().quit()
+		return
+	for pass_i in 2:
+		atmosphere.time_of_day = 0.42 if pass_i == 0 else 0.9
+		atmosphere.apply_time()
+		var g := Monster.new()
+		g.player = player
+		add_child(g)
+		g.setup_monster("ghost", player.global_position + Vector3(2.5, 0, -3.0), "lookghost")
+		g.set_physics_process(false)
+		var sk := Monster.new()
+		sk.player = player
+		add_child(sk)
+		sk.setup_monster("ghost_skull", player.global_position + Vector3(-2.0, 0, -3.5), "lookskull")
+		sk.set_physics_process(false)
+		for i in 40:
+			await get_tree().physics_frame
+		cam.reparent(self) if cam.get_parent() != self else null
+		var pc := player.global_position + Vector3(0, 1.45, 0)
+		cam.global_position = pc + Vector3(0.3, 0.1, -1.6)
+		cam.look_at(pc, Vector3.UP)
+		cam.fov = 40.0
+		await RenderingServer.frame_post_draw
+		get_viewport().get_texture().get_image().save_png("%s/hero_%d.png" % [dir, pass_i])
+		var gp := g.global_position + Vector3(0, 1.4, 0)
+		cam.global_position = gp + Vector3(-0.5, 0.2, 2.6)
+		cam.look_at(gp, Vector3.UP)
+		for i in 5:
+			await get_tree().physics_frame
+		await RenderingServer.frame_post_draw
+		get_viewport().get_texture().get_image().save_png("%s/ghost_%d.png" % [dir, pass_i])
+		var sp := sk.global_position + Vector3(0, 1.2, 0)
+		cam.global_position = sp + Vector3(0.4, 0.1, 2.2)
+		cam.look_at(sp, Vector3.UP)
+		await RenderingServer.frame_post_draw
+		get_viewport().get_texture().get_image().save_png("%s/skull_%d.png" % [dir, pass_i])
+		if pass_i == 1:
+			# a ghost burning away
+			cam.global_position = gp + Vector3(-0.5, 0.6, 2.8)
+			cam.look_at(gp + Vector3(0, 0.6, 0), Vector3.UP)
+			g.take_hit("arrow", 999.0, Vector3.FORWARD)
+			for k in 5:
+				await get_tree().create_timer(0.35).timeout
+				await RenderingServer.frame_post_draw
+				get_viewport().get_texture().get_image().save_png("%s/ghost_dying_%d.png" % [dir, k])
+		if is_instance_valid(g):
+			g.queue_free()
+		sk.queue_free()
+	# a villager
+	var best: Node3D = null
+	for n in get_tree().get_nodes_in_group("npcs"):
+		if n is Node3D:
+			best = n
+			break
+	if best != null:
+		var np: Vector3 = best.global_position + Vector3(0, 1.45, 0)
+		atmosphere.time_of_day = 0.42
+		atmosphere.apply_time()
+		var fwd := -(best as Node3D).global_transform.basis.z
+		cam.global_position = np + fwd * 1.7 + Vector3(0, 0.1, 0)
+		cam.look_at(np, Vector3.UP)
+		for i in 5:
+			await get_tree().physics_frame
+		await RenderingServer.frame_post_draw
+		get_viewport().get_texture().get_image().save_png("%s/npc.png" % dir)
 	get_tree().quit()
 
 

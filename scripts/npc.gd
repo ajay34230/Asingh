@@ -349,11 +349,20 @@ func _process(delta: float) -> void:
 		Walls.fix(self, prev_pos, 0.5)
 
 
+var _far_t := 0.0
+
+
 func _step(delta: float) -> void:
 	if player == null or rig == null:
 		return
 	if not companion and global_position.distance_squared_to(player.global_position) > 8100.0:
-		return                              # lag fix: people beyond 90 m are not simulated
+		# lag fix: people beyond 90 m are not simulated, but keep a standing pose (never the model's T-pose),
+		# refreshed twice a second
+		_far_t -= delta
+		if _far_t <= 0.0:
+			_far_t = 0.5 + randf() * 0.2
+			rig.animate(0.5, 0.0, true)
+		return
 	if companion:
 		_companion_step(delta)
 		return
