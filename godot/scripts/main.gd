@@ -1700,6 +1700,10 @@ func _screenshot_and_quit(path: String) -> void:
 			t.scale = Vector3.ONE * 1.25
 			if "--transformed" in OS.get_cmdline_user_args():
 				t.transform_out(0.01)
+			if _has_arg("--lineup-designs="):   # dress the four in chosen token designs
+				var ds := _arg_value(OS.get_cmdline_user_args(), "--lineup-designs").split(",")
+				if i < ds.size() and ds[i] != "":
+					TokenDesigns.apply(t, ds[i], RoyalBoard.PALETTE[cols[i]])
 			if "--celebrate" in OS.get_cmdline_user_args():
 				get_tree().create_timer(2.0 + i * 0.25).timeout.connect(func() -> void: RoboPawn.celebrate(t))
 	if "--design-gallery" in OS.get_cmdline_user_args():

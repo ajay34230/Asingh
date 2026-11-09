@@ -75,6 +75,7 @@ func configure(team_colour: String) -> void:
         limb_root.name = "TransformerLimbRig"
         body_node.add_child(limb_root)
         _layout = KnightPawn.LAYOUT
+        set_meta("head_y", KnightPawn.HEAD_MOUNT_Y)   # design gear sits on the taller helmet
         _build_pivots()
         KnightPawn.dress_limbs(team, arm_pivots, leg_pivots)
         _fold_pose()

@@ -19,6 +19,7 @@ const LAYOUT := {
 }
 const HEAD_CENTER := Vector3(0, 0.735, 0.0)
 const HEAD_SCALE := 0.9
+const HEAD_MOUNT_Y := 0.885   ## where token-design head gear sits on the knight
 const GLOW := {"blue": Color("#2f9dff"), "red": Color("#ff5a4a"), "green": Color("#5dff9a"), "yellow": Color("#ffc94a")}
 
 static var _meshes := {}
@@ -533,6 +534,168 @@ static func _sword(wrist: Node3D, color_name: String) -> void:
 	for k in range(5):   # a gently curved blade in segments
 		var b := _mi(sword, _box(Vector3(0.034 - k * 0.004, 0.06, 0.008)), RoboPawn.chrome(), Vector3(k * k * 0.004, 0.075 + k * 0.055, 0), Vector3(0, 0, -0.08 * k))
 	_glow_mi(sword, _box(Vector3(0.004, 0.25, 0.01)), glow(color_name, 2.5), Vector3(0.014, 0.18, 0), Vector3(0, 0, -0.12))
+
+
+# --- knight editions of the token designs -------------------------------------------------
+
+## design id -> [armour colour, metallic, roughness, stripe colour, glow colour]
+## Every design turns the knight into its own edition: armour finish, colour stripes and
+## the light of the eyes, core, ear discs, shield emblem and sparks. The design's gear
+## (turban, crown, mace, wings...) is added on the helmet by TokenDesigns.
+const FINISH := {
+	"design_raja": [Color("#e9e1d0"), 0.3, 0.35, Color("#ff9a1f"), Color("#3bff90")],
+	"design_tiger": [Color("#d8741e"), 0.45, 0.4, Color("#1a1410"), Color("#ffb020")],
+	"design_peacock": [Color("#138080"), 0.7, 0.3, Color("#1a3aa8"), Color("#14d8c8")],
+	"design_lotus": [Color("#f2c4d4"), 0.4, 0.3, Color("#ff5a9a"), Color("#ffd0e8")],
+	"design_maharaja": [Color("#e6b552"), 0.9, 0.25, Color("#c0102a"), Color("#ffd040")],
+	"design_warrior": [Color("#b8c0c8"), 0.85, 0.3, Color("#a0101a"), Color("#ff6a3a")],
+	"design_shadow": [Color("#18161e"), 0.35, 0.7, Color("#4a1466"), Color("#ff2040")],
+	"design_surya": [Color("#f0c050"), 0.9, 0.22, Color("#ff7a10"), Color("#ffe060")],
+	"design_maratha": [Color("#e0802a"), 0.5, 0.35, Color("#f4f0e6"), Color("#ffb040")],
+	"design_hampi": [Color("#8a857c"), 0.0, 0.95, Color("#4a7a2a"), Color("#9fd06a")],
+	"design_mughal": [Color("#f4ecd8"), 0.25, 0.3, Color("#138a4a"), Color("#ffd060")],
+	"design_rani": [Color("#8a1020"), 0.6, 0.3, Color("#e6b552"), Color("#ff6060")],
+	"design_chola": [Color("#c47e40"), 0.85, 0.38, Color("#3fbf9f"), Color("#ffb060")],
+	"design_snowleopard": [Color("#e8eaee"), 0.4, 0.35, Color("#3a3a40"), Color("#a8e8ff")],
+	"design_banyan": [Color("#6a4a2a"), 0.1, 0.85, Color("#4a9a2a"), Color("#9fff6a")],
+	"design_lion": [Color("#c08a40"), 0.6, 0.35, Color("#7a4a1a"), Color("#ffcf5a")],
+	"design_monsoon": [Color("#5a6a80"), 0.6, 0.3, Color("#3a8aff"), Color("#9fd0ff")],
+	"design_chai": [Color("#8a5a30"), 0.4, 0.45, Color("#f4e6c8"), Color("#ffcf8a")],
+	"design_bollywood": [Color("#1a1a22"), 0.8, 0.15, Color("#e6b552"), Color("#ff4ab0")],
+	"design_cricket": [Color("#1a2a6a"), 0.5, 0.35, Color("#2aa8ff"), Color("#ffffff")],
+	"design_naga": [Color("#1f6a3a"), 0.7, 0.3, Color("#e6b552"), Color("#3bff6a")],
+	"design_airavata": [Color("#f2efe8"), 0.2, 0.3, Color("#e6b552"), Color("#fff0c0")],
+	"design_hanuman": [Color("#c8401a"), 0.6, 0.32, Color("#e6b552"), Color("#ffb020")],
+	"design_garuda": [Color("#e6b552"), 0.9, 0.25, Color("#c4102e"), Color("#ffb020")],
+	"design_nataraja": [Color("#6a4020"), 0.8, 0.35, Color("#ff7a1a"), Color("#ff7a1a")],
+	"design_robo": [Color("#dfe4ea"), 0.95, 0.12, Color("#2ae0ff"), Color("#2ae0ff")],
+	"design_ghost": [Color("#bfeaff"), 0.1, 0.2, Color("#7ad8ff"), Color("#9ff0ff")],
+	"design_diya": [Color("#b4582a"), 0.2, 0.6, Color("#e6b552"), Color("#ffb030")],
+	"design_holi": [Color("#f4f4f4"), 0.2, 0.4, Color("#ff2a8a"), Color("#20c0ff")],
+	"design_kite": [Color("#4aa8e8"), 0.5, 0.3, Color("#ffd020"), Color("#ff2a5a")],
+	"design_tiranga": [Color("#f4f4f4"), 0.3, 0.3, Color("#ff9933"), Color("#138808")],
+	"design_star": [Color("#c01a2a"), 0.6, 0.3, Color("#f4f4f4"), Color("#ffe060")],
+}
+
+
+static func _finish_mat(id: String, shade: int) -> StandardMaterial3D:
+	var key := "fin_%s_%d" % [id, shade]
+	if not _mats.has(key):
+		var f: Array = FINISH[id]
+		var base: Color = f[0]
+		var m := StandardMaterial3D.new()
+		m.albedo_color = [base, base.darkened(0.22), base.darkened(0.58)][shade]
+		m.metallic = f[1]
+		m.roughness = clampf(float(f[2]) + shade * 0.05, 0.0, 1.0)
+		m.roughness_texture = RoboPawn._noise_tex()
+		m.uv1_triplanar = true
+		m.uv1_scale = Vector3(7, 7, 7)
+		m.rim_enabled = true
+		m.rim = 0.2
+		m.rim_tint = 0.7
+		if id == "design_ghost":   # spectral: see-through, softly glowing armour
+			m.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+			m.albedo_color.a = [0.42, 0.34, 0.26][shade]
+			m.emission_enabled = true
+			m.emission = Color("#5ac8ff")
+			m.emission_energy_multiplier = 0.7 - shade * 0.15
+			m.cull_mode = BaseMaterial3D.CULL_DISABLED
+		elif id == "design_hampi":   # carved granite
+			var n := NoiseTexture2D.new()
+			n.noise = FastNoiseLite.new()
+			n.noise.frequency = 0.09
+			n.color_ramp = Gradient.new()
+			n.color_ramp.set_color(0, base.darkened(0.45 + shade * 0.1))
+			n.color_ramp.set_color(1, base.lightened(0.1 - shade * 0.1))
+			m.albedo_texture = n
+			m.albedo_color = Color.WHITE
+		_mats[key] = m
+	return _mats[key]
+
+
+static func _finish_stripe(id: String) -> StandardMaterial3D:
+	var key := "fin_stripe_" + id
+	if not _mats.has(key):
+		var c: Color = FINISH[id][3]
+		var m := StandardMaterial3D.new()
+		m.albedo_color = c
+		m.metallic = 0.6
+		m.roughness = 0.3
+		m.emission_enabled = true
+		m.emission = c
+		m.emission_energy_multiplier = 0.3
+		if id == "design_ghost":
+			m.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+			m.albedo_color.a = 0.6
+			m.emission_energy_multiplier = 1.5
+		_mats[key] = m
+	return _mats[key]
+
+
+## Dresses (or undresses, for the classic look) a knight in a design's edition.
+static func apply_design(token: Node3D, id: String) -> void:
+	var team := String(token.get("team"))
+	var meshes: Array = []
+	for m in token.body_node.find_children("*", "MeshInstance3D", true, false):
+		if not String(token.get_path_to(m)).contains("DesignGear"):
+			meshes.append(m)
+	for m in meshes:   # back to the plain knight first
+		if m.has_meta("kd_orig"):
+			m.material_override = m.get_meta("kd_orig")
+			m.remove_meta("kd_orig")
+	if not FINISH.has(id):
+		return
+	var team_glow: Color = GLOW.get(team, Color.WHITE)
+	var new_glow: Color = FINISH[id][4]
+	var shades := [gunmetal(0), gunmetal(1), gunmetal(2)]
+	for m in meshes:
+		var mat: Material = m.material_override
+		var repl: Material = null
+		var k := shades.find(mat)
+		if k >= 0:
+			repl = _finish_mat(id, k)
+		elif mat == stripe(team):
+			repl = _finish_stripe(id)
+		elif mat is StandardMaterial3D and (mat as StandardMaterial3D).emission_enabled \
+				and (mat as StandardMaterial3D).shading_mode == BaseMaterial3D.SHADING_MODE_UNSHADED \
+				and (mat as StandardMaterial3D).emission.is_equal_approx(team_glow):
+			repl = RoboPawn.glow(new_glow, float(mat.get_meta("base_energy", 4.0)))
+		if repl:
+			m.set_meta("kd_orig", mat)
+			m.material_override = repl
+	if id == "design_ghost":
+		_ghost_wisps(token)
+
+
+## Ghost edition: pale wisps drift up around the knight.
+static func _ghost_wisps(token: Node3D) -> void:
+	var p := CPUParticles3D.new()
+	p.name = "DesignGearWisps"
+	p.amount = 18
+	p.lifetime = 1.6
+	p.emission_shape = CPUParticles3D.EMISSION_SHAPE_SPHERE
+	p.emission_sphere_radius = 0.22
+	p.direction = Vector3.UP
+	p.spread = 25.0
+	p.gravity = Vector3(0, 0.25, 0)
+	p.initial_velocity_min = 0.05
+	p.initial_velocity_max = 0.15
+	p.scale_amount_min = 0.5
+	p.scale_amount_max = 1.2
+	var mesh := SphereMesh.new()
+	mesh.radius = 0.018
+	mesh.height = 0.036
+	var mat := StandardMaterial3D.new()
+	mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	mat.albedo_color = Color(0.7, 0.95, 1.0, 0.5)
+	mat.emission_enabled = true
+	mat.emission = Color("#9ff0ff")
+	mat.emission_energy_multiplier = 2.0
+	mesh.material = mat
+	p.mesh = mesh
+	p.position = Vector3(0, 0.35, 0)
+	token.body_node.add_child(p)
 
 
 static func is_knight(token: Node3D) -> bool:

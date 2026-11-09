@@ -142,11 +142,13 @@ static func apply(token: TransformerToken, spec: String, team: Color) -> void:
 		var crest := token.body_node.get_node_or_null(crest_path) if token.body_node else null
 		if crest:
 			crest.visible = id == "design_classic"
+	if KnightPawn.is_knight(token):
+		KnightPawn.apply_design(token, id)   # knight editions: own armour, stripes and glow
 	if id == "design_classic":
 		return
 	var head := Node3D.new()
 	head.name = "DesignGearHead"
-	head.position = Vector3(0, HEAD_Y, 0)
+	head.position = Vector3(0, float(token.get_meta("head_y", HEAD_Y)), 0)
 	token.body_node.add_child(head)
 	var m: Array = METALS[parsed[1]]
 	var gold := RoyalBoard.metal(m[1], m[2])
@@ -518,6 +520,8 @@ static func _body_meshes(token: TransformerToken) -> Array:
 
 ## Whole-body designs (bronze, granite, chrome, ghost) swap the token's material.
 static func _skin(token: TransformerToken, mat: Material) -> void:
+	if KnightPawn.is_knight(token):
+		return   # knights get their own finish for these designs (KnightPawn.apply_design)
 	for m in _body_meshes(token):
 		var mesh := m as MeshInstance3D
 		if not mesh.has_meta("design_orig"):
