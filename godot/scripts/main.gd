@@ -180,11 +180,17 @@ func _ready() -> void:
 		_start_from_menu({"mode": "ai", "players": 4, "difficulty": 1, "rules": GameSettings.get_rules()})
 	else:
 		hud.visible = false
+		if "--journey-test" in args:
+			_journey_test()
 		if _pending_chapter >= 0:
+			## A Royal Journey chapter after the palace reload. (No early return: the
+			## settings and the loading-screen reveal below must still run.)
 			var idx := _pending_chapter
 			_pending_chapter = -1
 			hud.visible = true
 			menu.visible = false
+			_apply_settings()
+			loading.reveal(0.7)
 			_start_chapter(idx)
 			return
 		menu.show_page("main")
@@ -500,6 +506,29 @@ func _net_autoplay() -> void:
 	get_tree().quit()
 
 
+## Test: start a Royal Journey chapter from the menu while a game is paused behind it,
+## then check that the palace loads, the loading screen lifts and the match runs.
+static var _journey_stage := 0
+
+
+func _journey_test() -> void:
+	if _journey_stage == 0:
+		_journey_stage = 1
+		await get_tree().create_timer(1.0).timeout
+		get_tree().paused = true
+		_begin_chapter(0)
+		return
+	for k in range(40):   # up to 20 s on slow machines
+		await get_tree().create_timer(0.5, true, false, true).timeout
+		if not loading._root.visible and game.engine != null and not game.engine.seats.is_empty():
+			break
+	var lifted := not loading._root.visible
+	var running := game.engine != null and not game.engine.seats.is_empty() and not get_tree().paused
+	print("journey test: loading lifted=%s game running=%s theme=%s" % [lifted, running, BoardThemes.current_id()])
+	print("JOURNEY TEST " + ("PASS" if lifted and running else "FAIL"))
+	get_tree().quit(0 if lifted and running else 1)
+
+
 ## Royal Journey: switch to the chapter's palace (a scene reload), then play it.
 func _begin_chapter(index: int) -> void:
 	var ch: Dictionary = Campaign.CHAPTERS[index]
@@ -507,6 +536,8 @@ func _begin_chapter(index: int) -> void:
 		_theme_before = BoardThemes.current_id()
 	_pending_chapter = index
 	_intro_seen = true
+	get_tree().paused = false   # a game paused behind the menu must not stay paused
+	Engine.time_scale = 1.0
 	BoardThemes.set_current(ch["theme"])
 	loading.cover(func() -> void: get_tree().reload_current_scene())
 
