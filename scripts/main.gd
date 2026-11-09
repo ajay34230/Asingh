@@ -137,6 +137,8 @@ func _ready() -> void:
 			_run_capture_pickups.call_deferred(a.trim_prefix("--capture-pickups="))
 		if a.begins_with("--capture-fight="):
 			_run_capture_fight.call_deferred(a.trim_prefix("--capture-fight="))
+		elif a.begins_with("--capture-gait="):
+			_run_capture_gait.call_deferred(a.trim_prefix("--capture-gait="))
 		elif a.begins_with("--capture-lab="):
 			_run_capture_lab.call_deferred(a.trim_prefix("--capture-lab="))
 		elif a == "--probe-perf":
@@ -2240,6 +2242,87 @@ func _run_capture_lab(dir: String) -> void:
 	get_tree().quit()
 
 
+## Gait filmstrip: seven rigs side by side, each frozen at the next eighth of one stride (heel strike first),
+## seen from the side; one picture for walking and one for running (GAIT_SPEEDS overrides "1.5,5.5").
+func _run_capture_gait(dir: String) -> void:
+	DirAccess.make_dir_recursive_absolute(dir)
+	touch.visible = false
+	for c in get_children():
+		if c is TitleScreen:
+			c.queue_free()
+		elif c is CanvasLayer:
+			(c as CanvasLayer).visible = false
+	atmosphere.time_of_day = 0.42
+	atmosphere.apply_time()
+	var base := _flat_spot()
+	_teleport(base.x, base.y)
+	for i in 30:
+		await get_tree().physics_frame
+	player._model.visible = false
+	player.set_physics_process(false)
+	player.set_process(false)
+	var pp := player.global_position
+	var rigs: Array[RealHuman] = []
+	for i in 7:
+		var r := RealHuman.new().setup(player._rig.preset.duplicate(), "Gait%d" % i)
+		add_child(r)
+		r.global_position = Vector3(pp.x - 4.8 + i * 1.6, terrain.sample_height(pp.x - 4.8 + i * 1.6, pp.z), pp.z)
+		r.rotation.y = -PI * 0.5
+		r.set_process(false)
+		rigs.append(r)
+	var cam := Camera3D.new()
+	add_child(cam)
+	cam.fov = 42.0
+	cam.global_position = pp + Vector3(0.0, 1.0, 12.0)
+	cam.look_at(pp + Vector3(0, 0.9, 0))
+	cam.current = true
+	if OS.get_environment("GAIT_PROBE") != "":
+		var r0: RealHuman = rigs[0]
+		var fwd := -r0.global_transform.basis.z
+		var sk: Skeleton3D = r0._skins[0]
+		var ball := -1
+		for bi in sk.get_bone_count():
+			if sk.get_bone_parent(bi) == sk.find_bone("foot_l"):
+				ball = bi
+				print("[gait] foot child: ", sk.get_bone_name(bi))
+		for test in [["hip_L", Vector3(0.5, 0, 0), "an_L"], ["sh_L", Vector3(-0.5, 0, 0), "wr_L"], ["kn_L", Vector3(-0.8, 0, 0), "an_L"], ["el_L", Vector3(1.0, 0, 0), "wr_L"], ["spine", Vector3(-0.3, 0, 0), "head"], ["hips", Vector3(0, 0.3, 0), "hip_L"]]:
+			for k in RealHuman.BONES:
+				r0._pose[k] = Vector3.ZERO
+			r0._hips_dy = 0.0
+			r0._apply()
+			var a0: Vector3 = r0._bone_pos(test[2]) - r0._bone_pos("hips")
+			r0._pose[test[0]] = test[1]
+			r0._apply()
+			var a1: Vector3 = r0._bone_pos(test[2]) - r0._bone_pos("hips")
+			print("[gait] %s %s -> %s moves fwd %.2f up %.2f" % [test[0], str(test[1]), test[2], (a1 - a0).dot(fwd), a1.y - a0.y])
+		for k in RealHuman.BONES:
+			r0._pose[k] = Vector3.ZERO
+		r0._apply()
+		var b0 := (sk.global_transform * sk.get_bone_global_pose(ball).origin) - r0._bone_pos("an_L")
+		r0._pose["an_L"] = Vector3(0.4, 0, 0)
+		r0._apply()
+		var b1 := (sk.global_transform * sk.get_bone_global_pose(ball).origin) - r0._bone_pos("an_L")
+		print("[gait] an_L +0.4: toe height %.3f -> %.3f (ball bone %d)" % [b0.y, b1.y, ball])
+		get_tree().quit()
+		return
+	var speeds := (OS.get_environment("GAIT_SPEEDS") if OS.get_environment("GAIT_SPEEDS") != "" else "1.5,5.5").split(",")
+	for sp in speeds:
+		for i in rigs.size():
+			var r: RealHuman = rigs[i]
+			r.mode = "locomotion"
+			r._speed_smooth = float(sp)
+			r._air = 0.0
+			r.air_vy = 0.0
+			r._phase = fmod(RealHuman.GAIT_HEEL + TAU * i / 8.0, TAU)
+			r._locomotion(0.0)
+			r._apply()
+		for i in 6:
+			await get_tree().process_frame
+		await RenderingServer.frame_post_draw
+		print("[capture] gait ", sp, " -> ", get_viewport().get_texture().get_image().save_png("%s/gait_%s.png" % [dir, sp]))
+	get_tree().quit()
+
+
 ## Close-up of hands for checking the finger curl axis: rigs with arms held forward, one shot per axis.
 func _run_capture_fist(dir: String) -> void:
 	DirAccess.make_dir_recursive_absolute(dir)
@@ -4220,7 +4303,7 @@ func _run_capture_look(dir: String) -> void:
 			var fwd0 := -player._model.global_transform.basis.z
 			cam.global_position = pc0 + fwd0 * 1.5 + Vector3(0, 0.1, 0)
 			cam.look_at(pc0, Vector3.UP)
-			cam.fov = 40.0
+			cam.fov = 42.0
 			await RenderingServer.frame_post_draw
 			get_viewport().get_texture().get_image().save_png("%s/outfit_%s.png" % [dir, oid])
 		get_tree().quit()
@@ -4244,7 +4327,7 @@ func _run_capture_look(dir: String) -> void:
 		var pc := player.global_position + Vector3(0, 1.45, 0)
 		cam.global_position = pc + Vector3(0.3, 0.1, -1.6)
 		cam.look_at(pc, Vector3.UP)
-		cam.fov = 40.0
+		cam.fov = 42.0
 		await RenderingServer.frame_post_draw
 		get_viewport().get_texture().get_image().save_png("%s/hero_%d.png" % [dir, pass_i])
 		var gp := g.global_position + Vector3(0, 1.4, 0)

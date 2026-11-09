@@ -37,6 +37,7 @@ const MISSIONS := [
 	 "gift": "potion", "coins": 300, "line": ""},
 ]
 const START_RADIUS := 26.0
+const VILLAGE_DRAIN := 0.8        # village heart lost per second for each monster haunting the centre (was 2.2, uncapped)
 
 var main: Node3D
 var story: Story
@@ -59,6 +60,7 @@ var _streak := 0
 var _streak_t := 0.0
 var _saved_tod := -1.0
 var _graves: Node3D
+var _warned := false
 
 
 func build() -> void:
@@ -269,6 +271,7 @@ func start(m: Dictionary, skip_intro: bool = false) -> void:
 	running = String(m["id"])
 	wave = 0
 	village = 100.0
+	_warned = false
 	alive.clear()
 	_t0 = Time.get_ticks_msec() / 1000.0
 	_hp_lost = 0.0
@@ -392,12 +395,24 @@ func _run(delta: float) -> void:
 	# haunting: monsters near the village centre drain its heart
 	var goal: Vector2 = _m["goal"]
 	if goal != Vector2.ZERO:
+		# gentle: 0.8 a second per haunting monster, at most three counted (a full village lasts 40 s or more
+		# with the centre overrun), and it slowly recovers while the centre is clear
+		var haunting := 0
 		for mon in alive:
 			if not is_instance_valid(mon):
 				continue
 			var g := (mon as Node3D).global_position
 			if Vector2(g.x - goal.x, g.z - goal.y).length() < 6.0:
-				village -= delta * 2.2
+				haunting += 1
+		if haunting > 0:
+			village -= delta * VILLAGE_DRAIN * mini(haunting, 3)
+		else:
+			village = minf(100.0, village + delta * 0.5)
+		if village < 35.0 and not _warned and hud != null:
+			_warned = true
+			hud.call("banner", Loc.tf("%s is losing heart! Drive the ghosts away!", [String(_m.get("protect", _m["place"]))]).capitalize(), "")
+		elif village > 50.0:
+			_warned = false
 		if village <= 0.0:
 			_abort(Loc.tf("%s has fallen to the dead. Return and try again.", [String(_m["place"])]).capitalize())
 			return
@@ -432,7 +447,7 @@ func _complete() -> void:
 	var stars := 1
 	if _hp_lost < player.max_hp * 0.6:
 		stars += 1
-	if _hp_lost < player.max_hp * 0.25 and secs < 150.0:
+	if _hp_lost < player.max_hp * 0.25 and secs < 240.0:
 		stars += 1
 	if Vector2(_m["goal"]) != Vector2.ZERO and village < 50.0:
 		stars = mini(stars, 2)

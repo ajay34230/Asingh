@@ -1826,19 +1826,59 @@ func _hammer() -> void:
 		_pose["an_" + tag] = Vector3.ZERO
 
 
+const GAIT_HEEL := PI * 0.5        # _phase at which the left heel strikes the ground
+# Joint angles over one stride (u: 0 = this leg's heel strike .. 1 = the next), degrees, from published human
+# gait curves (sagittal hip flexion, knee flexion, ankle dorsiflexion), smoothed. Walking: 60% stance, a knee
+# that gives a little as the heel lands, toe-off push at ~60%, the knee folding to ~60 deg in swing. Running:
+# ~38% stance, the knee loading to ~40 deg, a strong push-off, then the heel folding high under the hip.
+const WALK_HIP := [0.0, 24.0, 0.1, 21.0, 0.3, 6.0, 0.5, -11.0, 0.62, -4.0, 0.75, 14.0, 0.88, 26.0, 1.0, 24.0]
+const WALK_KNEE := [0.0, 4.0, 0.12, 16.0, 0.25, 10.0, 0.4, 5.0, 0.6, 36.0, 0.72, 58.0, 0.85, 28.0, 0.95, 4.0, 1.0, 4.0]
+const WALK_ANKLE := [0.0, 0.0, 0.07, -6.0, 0.25, 4.0, 0.45, 10.0, 0.6, -16.0, 0.7, -6.0, 0.85, 3.0, 1.0, 0.0]
+const RUN_HIP := [0.0, 30.0, 0.15, 14.0, 0.38, -14.0, 0.5, -4.0, 0.7, 38.0, 0.85, 44.0, 1.0, 30.0]
+const RUN_KNEE := [0.0, 20.0, 0.13, 40.0, 0.38, 16.0, 0.55, 85.0, 0.7, 118.0, 0.85, 62.0, 0.95, 25.0, 1.0, 20.0]
+const RUN_ANKLE := [0.0, 6.0, 0.13, 18.0, 0.38, -24.0, 0.5, -14.0, 0.72, 2.0, 0.9, 10.0, 1.0, 6.0]
+
+
+## A periodic curve through [u0, v0, u1, v1, ...] (u from 0 to 1, last value = first), smooth (Catmull-Rom).
+static func _gcurve(k: Array, u: float) -> float:
+	var n := k.size() / 2
+	u = fposmod(u, 1.0)
+	var i := 0
+	while i < n - 2 and u >= float(k[2 * i + 2]):
+		i += 1
+	var u0 := float(k[2 * i])
+	var u1 := float(k[2 * i + 2])
+	var t := clampf((u - u0) / maxf(u1 - u0, 0.0001), 0.0, 1.0)
+	var p1 := float(k[2 * i + 1])
+	var p2 := float(k[2 * i + 3])
+	var p0 := float(k[2 * (i - 1) + 1]) if i > 0 else float(k[2 * (n - 2) + 1])
+	var p3 := float(k[2 * (i + 2) + 1]) if i + 2 < n else float(k[3])
+	var t2 := t * t
+	return 0.5 * (2.0 * p1 + (p2 - p0) * t + (2.0 * p0 - 5.0 * p1 + 4.0 * p2 - p3) * t2 + (3.0 * p1 - p0 - 3.0 * p2 + p3) * t2 * t)
+
+
 func _locomotion(delta: float) -> void:
 	var sp := _speed_smooth
 	var run_k := smoothstep(2.8, 5.0, sp)
-	var freq := sp / (1.2 + 0.5 * sp)
+	# strides per second: a brisk walk at 2.4 m/s ~1.1 Hz, a run at 6.5 m/s ~1.5 Hz (shorter, quicker steps
+	# than before, so the feet keep up with the ground)
+	var freq := lerpf(0.5 + 0.25 * sp, 1.25 + 0.04 * sp, run_k)
 	_phase = fmod(_phase + TAU * freq * delta, TAU)
 	var stride := clampf(sp / 2.6, 0.0, 1.0)
-	var amp := lerpf(0.42, 0.85, run_k) * minf(1.0, stride + 0.3)
+	# how big the movements are: a slow shuffle is small, a brisk walk full; the run is always full
+	var size_k := lerpf(clampf(sp / 2.2, 0.2, 1.1), clampf(sp / 5.5, 0.85, 1.15), run_k)
 	var air := _air
 	for side in [0, 1]:
 		var tag := "L" if side == 0 else "R"
 		var ph := _phase + (PI if side == 1 else 0.0)
 		var swing := sin(ph)
-		var flex := (0.15 + lerpf(0.55, 1.15, run_k) * maxf(0.0, cos(ph + 0.35))) * minf(1.0, stride + 0.2)
+		var u := (ph - GAIT_HEEL) / TAU
+		var g_hip := deg_to_rad(lerpf(_gcurve(WALK_HIP, u), _gcurve(RUN_HIP, u), run_k))
+		var g_kn := deg_to_rad(lerpf(_gcurve(WALK_KNEE, u), _gcurve(RUN_KNEE, u), run_k))
+		var g_an := deg_to_rad(lerpf(_gcurve(WALK_ANKLE, u), _gcurve(RUN_ANKLE, u), run_k))
+		g_hip = 0.1 + (g_hip - 0.1) * size_k
+		g_kn = 0.05 + (g_kn - 0.05) * lerpf(0.45, 1.0, minf(size_k, 1.0)) * maxf(size_k, 1.0)
+		g_an *= minf(size_k, 1.0)
 		var up := clampf(air_vy / 6.0, 0.0, 1.0)
 		var down := clampf(-air_vy / 8.0, 0.0, 1.0)
 		var lead: bool = side == 0
@@ -1858,10 +1898,13 @@ func _locomotion(delta: float) -> void:
 				# walking jump off one foot: lead knee driven up, trailing leg tucked behind; descent: legs reach down
 				air_hip = (lerpf(0.2, 1.0, up) if lead else lerpf(-0.2, -0.55, up)) + down * (0.1 if lead else 0.5)
 				air_kn = (lerpf(0.35, 1.3, up) if lead else lerpf(0.5, 1.4, up)) * (1.0 - 0.5 * down)
-		_pose["hip_" + tag] = Vector3(lerpf(amp * swing, air_hip, air), 0.0, 0.0)
-		_pose["kn_" + tag] = Vector3(-lerpf(flex, air_kn, air), 0.0, 0.0)
-		_pose["an_" + tag] = Vector3(lerpf(-0.25 * cos(ph + 0.35) * stride + 0.4 * maxf(0.0, -swing) * 0.4, 0.4 - 0.5 * down, air), 0.0, 0.0)
-		var arm_swing := -sin(ph) * lerpf(0.38, 0.8, run_k) * minf(1.0, stride + 0.2)
+		_pose["hip_" + tag] = Vector3(lerpf(g_hip, air_hip, air), 0.0, 0.0)
+		_pose["kn_" + tag] = Vector3(-lerpf(g_kn, air_kn, air), 0.0, 0.0)
+		_pose["an_" + tag] = Vector3(lerpf(g_an, 0.4 - 0.5 * down, air), 0.0, 0.0)
+		# arms swing with the OPPOSITE leg (this arm goes back as this leg comes forward), lagging it a touch;
+		# a little more forward than back; bent loosely walking, about 90 degrees running and pumping
+		var arm_ph := ph - 0.25
+		var arm_swing := (sin(arm_ph) * lerpf(0.32, 0.72, run_k) * minf(1.0, size_k) - lerpf(0.06, 0.18, run_k)) * minf(1.0, stride + 0.25)
 		# arms: stand = both swing up overhead and come forward at the top; run = opposite arm to the lead leg
 		# drives forward; walk = swing up and spread for balance on the way down
 		var air_sh := -0.4 - 1.1 * up - 0.3 * down
@@ -1872,16 +1915,24 @@ func _locomotion(delta: float) -> void:
 		elif jump_kind == "run":
 			air_sh = (0.55 if lead else -1.15)
 			air_ab = 0.25 * down
-		_pose["sh_" + tag] = Vector3(lerpf(arm_swing, air_sh, air), 0.0, air_ab * air)
-		_pose["el_" + tag] = Vector3(lerpf(0.22 + lerpf(0.1, 1.0, run_k) * (0.5 + 0.5 * maxf(0.0, -sin(ph))), 0.5, air), 0.0, 0.0)
-	var bob := (0.018 + 0.03 * run_k) * stride
-	_hips_dy = -bob * (1.0 - cos(2.0 * _phase)) * 0.5
-	_pose["hips"] = Vector3(0.0, 0.14 * sin(_phase) * stride, -0.03 * sin(_phase) * stride)
-	var lean := 0.03 + 0.07 * stride + 0.14 * run_k
+		var fwd_k := maxf(0.0, -sin(arm_ph))          # 1 with this arm at the front of its swing
+		var el := lerpf(0.28 + 0.22 * fwd_k * stride, 1.35 + 0.35 * fwd_k - 0.15 * maxf(0.0, sin(arm_ph)), run_k)
+		_pose["sh_" + tag] = Vector3(lerpf(arm_swing, air_sh, air), 0.0, lerpf(lerpf(0.05, 0.12, run_k), air_ab, air))
+		_pose["el_" + tag] = Vector3(lerpf(el, 0.5, air), 0.0, 0.0)
+	# up and down twice a stride: walking, lowest as each heel lands and highest passing over the planted foot;
+	# running, lowest at mid-stance (the legs absorb the landing) and highest in flight; a slight crouch running
+	var bob := lerpf(0.022 * minf(size_k, 1.0), 0.045, run_k) * stride
+	var bob_ph := 2.0 * (_phase - GAIT_HEEL) - run_k * TAU * 2.0 * 0.15
+	_hips_dy = -bob * (0.5 + 0.5 * cos(bob_ph)) - 0.035 * run_k
+	# pelvis turns with the forward leg, the shoulders counter-turn against it; the head stays facing ahead
+	var twist := -sin(_phase) * lerpf(0.09, 0.12, run_k) * stride
+	var counter := sin(_phase) * lerpf(0.16, 0.26, run_k) * stride
+	_pose["hips"] = Vector3(0.0, twist, -0.035 * sin(_phase) * stride)
+	var lean := 0.03 + 0.05 * stride + 0.13 * run_k + 0.02 * maxf(0.0, sp - 6.0)
 	if jump_kind == "run":
 		lean = lerpf(lean, 0.28, air)
 	elif jump_kind == "stand":
 		lean = lerpf(lean, 0.12 * (1.0 - clampf(absf(air_vy) / 5.0, 0.0, 1.0)), air)
-	_pose["spine"] = Vector3(-lean, -0.2 * sin(_phase) * stride, 0.025 * sin(_phase) * stride)
-	_pose["chest"] = Vector3.ZERO
-	_pose["head"] = Vector3(lean * 0.8 - 0.02, 0.1 * sin(_phase) * stride, 0.0)
+	_pose["spine"] = Vector3(-lean, counter * 0.6, 0.025 * sin(_phase) * stride)
+	_pose["chest"] = Vector3(-0.015 * run_k * cos(bob_ph), counter * 0.4, 0.0)
+	_pose["head"] = Vector3(lean * 0.8 - 0.02 + 0.02 * run_k * cos(bob_ph), -(twist + counter) * 0.85, 0.0)

@@ -752,3 +752,29 @@ Primitives in the bazaar fell from 1,314k to 880k.
 - **Settings now load first** (`GameSettings.load_file()` at the start of `main._ready`), so the world is built for the chosen preset. Before this, settings loaded after the town was built.
 - **Visual check:** software-rendered captures of the bazaar and village on Low show the merged stalls keeping their colours and the clouds present.
 - **Tests:** the selftest passes.
+
+## Addendum: Natural walk and run; a fairer ghost mission (2026-11-09)
+
+Verified by the selftest (PASS) and a new side-view filmstrip capture (`--capture-gait`, `GAIT_SPEEDS=2.4,6.5`): seven characters frozen at successive eighths of one stride. A `GAIT_PROBE=1` mode prints which way each joint bends. **Not tested on a device.**
+
+**Walk and run (`RealHuman._locomotion`):**
+- **The old cycle had two errors.** The probe found:
+  - the arms swung forward with the *same-side* leg, a robotic "pacing" walk;
+  - the pelvis and shoulders twisted the wrong way.
+- **New leg motion:** hip, knee and ankle now follow joint-angle curves taken from published human gait data (smooth periodic splines over the stride).
+  - **Walk:** about 60% of each stride is on the ground. The knee gives about 16° as the heel lands, the ankle pushes off at about 60%, and the knee folds to about 58° in the swing.
+  - **Run:** about 38% of each stride is on the ground. The knee loads to about 40°, there is a strong push-off, and the heel folds high (about 118°) under the hip, with a flight phase.
+  - Walk and run blend by speed. A slow walk is smaller, not just slower.
+- **Arms:** they swing with the opposite leg, lagging it slightly and swinging a little more forward than back. The elbows are loosely bent when walking and pump at about 80–100° when running.
+- **Body:**
+  - The pelvis turns with the forward leg while the shoulders counter-turn, and the head stays facing ahead.
+  - **Up-and-down motion:** walking, the body is lowest as each heel lands. Running, it is lowest at mid-stance, with a slight crouch.
+  - The lean grows with speed.
+- **Step rate:** about 1.1 strides a second at the 2.4 m/s walk and about 1.5 at the 6.5 m/s run. These are quicker, shorter steps than before (0.86 and 1.25), so the feet keep up with the ground better.
+- **Unchanged:** jumping and landing poses.
+
+**Ghost mission timing (`MonsterMissions`):**
+- **Drain:** the protected village lost 2.2 heart per second for *each* monster near its centre, with no cap, so five ghosts took it in about 9 seconds. It now loses 0.8 a second per monster, and at most three count, so it takes at least about 42 seconds from full.
+- **Recovery:** while the centre is clear, the village heart recovers 0.5 a second.
+- **Warning:** a banner warns once when the heart drops below 35%.
+- **3-star time:** the fight-time limit for three stars went from 150 s to 240 s.
