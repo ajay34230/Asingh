@@ -1243,6 +1243,8 @@ func _preview_design(id: String) -> void:
 		_preview_status.text = tr("Rented: %s left") % Progress.format_time(left)
 	else:
 		_preview_status.text = tr("Unlock it for good, or rent it for a while")
+	if FightChoreography.SIGNATURES.has(id):
+		_preview_status.text += "\n" + tr("Signature finisher: %s") % tr(FightChoreography.SIGNATURES[id][1])
 	## Festival designs out of season: look, but wait for the festival
 	if not Progress.design_available(id):
 		var fest: String = TokenDesigns.FESTIVAL_OF[id]

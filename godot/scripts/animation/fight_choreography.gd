@@ -22,6 +22,19 @@ var _stars: Node3D
 
 const FINISHERS := ["uppercut", "spin_kick", "flying_kick", "slam"]
 const EXCHANGES := ["counter", "dodge", "none"]
+## Legendary token designs always finish with their own signature move.
+## design id -> [finisher, banner]
+const SIGNATURES := {
+	"design_garuda": ["garuda_dive", "GARUDA DIVE!"],
+	"design_nataraja": ["tandava", "TANDAVA!"],
+	"design_hanuman": ["mace_smash", "GADA PRAHAAR!"],
+	"design_surya": ["sun_blast", "SURYA BLAST!"],
+	"design_shadow": ["shadow_strike", "SHADOW STRIKE!"],
+	"design_robo": ["laser", "LASER BEAM!"],
+	"design_ghost": ["possess", "POSSESSED!"],
+}
+## Signature moves that end with the victim already on the floor (no knock-back).
+const GROUNDED := ["slam", "mace_smash"]
 
 var _skip := false
 var forced_finisher := ""   ## tests and recordings only
@@ -43,6 +56,11 @@ func perform(attacker: TransformerToken, victim: TransformerToken, home: Vector3
 	if not use_punch and finisher == "uppercut":
 		finisher = "spin_kick"
 	var exchange: String = EXCHANGES.pick_random()
+	var design := String(attacker.get_meta("design", ""))
+	var banner := ""
+	if SIGNATURES.has(design):
+		finisher = SIGNATURES[design][0]
+		banner = SIGNATURES[design][1]
 	if forced_finisher != "":
 		finisher = forced_finisher
 	if forced_exchange != "":
@@ -75,7 +93,23 @@ func perform(attacker: TransformerToken, victim: TransformerToken, home: Vector3
 	# 4. Finisher, from the hero angle, in slow motion.
 	_shot("low", attacker, victim)
 	cue.emit("finisher", {"name": finisher, "attacker": attacker})
+	if banner != "":
+		cue.emit("signature", {"name": banner, "position": attacker.global_position})
 	match finisher:
+		"garuda_dive":
+			await _garuda_dive(attacker, victim)
+		"tandava":
+			await _tandava(attacker, victim)
+		"mace_smash":
+			await _mace_smash(attacker, victim, ground_v)
+		"sun_blast":
+			await _sun_blast(attacker, victim)
+		"shadow_strike":
+			await _shadow_strike(attacker, victim)
+		"laser":
+			await _laser(attacker, victim)
+		"possess":
+			await _possess(attacker, victim)
 		"uppercut":
 			await _uppercut(attacker, victim)
 		"spin_kick":
@@ -85,8 +119,9 @@ func perform(attacker: TransformerToken, victim: TransformerToken, home: Vector3
 		"slam":
 			await _slam(attacker, victim, ground_v)
 	_shot("side", attacker, victim, false)
-	if finisher != "slam":
+	if not finisher in GROUNDED:
 		await _launch(victim, attacker, ground_v)
+	attacker.global_position.y = ground_a
 	_pose(attacker, _guard(), 0.15)
 
 	# 5. Dazed, 6. throw home (crane shot), 7. victory.
@@ -554,3 +589,239 @@ func _victory(attacker: TransformerToken, ground: float) -> void:
 	await _wait(0.15)
 	attacker.ground_y = ground
 	await _pose(attacker, _guard(), 0.12)
+
+
+
+# --- signature finishers (legendary designs) ----------------------------------------
+
+func _burst(at: Vector3, color: Color, amount := 30, speed := 2.4, life := 0.8, gravity := 2.0) -> void:
+	cue.emit("burst", {"position": at, "color": color, "amount": amount, "speed": speed, "life": life, "gravity": gravity})
+
+
+func _glow_mat(c: Color, energy := 4.0, alpha := 1.0) -> StandardMaterial3D:
+	var m := StandardMaterial3D.new()
+	m.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	m.albedo_color = Color(c, alpha)
+	m.emission_enabled = true
+	m.emission = c
+	m.emission_energy_multiplier = energy
+	if alpha < 1.0:
+		m.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	return m
+
+
+func _impact(attacker: TransformerToken, victim: TransformerToken, at: Vector3, kind := "punch", shake := 0.2) -> void:
+	cue.emit("impact", {"position": at, "victim": victim, "kind": kind, "big": true})
+	if director:
+		director.punch_in(8.0, 0.9)
+		director.shake(shake, 0.45)
+	await _hit_stop(0.14)
+
+
+## Garuda soars high, hangs in the air, then dives talons-first into the victim.
+func _garuda_dive(attacker: TransformerToken, victim: TransformerToken) -> void:
+	var start := attacker.global_position
+	cue.emit("charge", {"position": start, "attacker": attacker})
+	var wings := {"arm_L": [Vector3(-1.4, 0, 1.4), Vector3(-0.1, 0, 0)], "arm_R": [Vector3(-1.4, 0, -1.4), Vector3(-0.1, 0, 0)]}
+	_pose(attacker, wings, 0.15)
+	_shot("sky", attacker, victim)
+	var high := start + Vector3.UP * 1.9 - _forward(attacker) * 0.3
+	var rise := attacker.create_tween()
+	rise.tween_property(attacker, "global_position", high, 0.4 * anim_scale).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_OUT)
+	await rise.finished
+	_burst(high, Color("#ffd24a"), 30, 1.6, 0.8, 0.5)
+	await _wait(0.12)
+	_slow_motion(0.3, 0.6)
+	cue.emit("swing", {"position": high, "heavy": true})
+	var target := victim.global_position + Vector3.UP * 0.4
+	var dive := attacker.create_tween().set_parallel(true)
+	dive.tween_property(attacker, "global_position", target - _forward(attacker) * 0.2, 0.18 * anim_scale).set_trans(Tween.TRANS_EXPO).set_ease(Tween.EASE_IN)
+	dive.tween_property(attacker.body_node, "rotation:x", 0.9, 0.18 * anim_scale)
+	await dive.finished
+	_burst(target, Color("#ffb020"), 50, 3.0, 0.9)
+	await _impact(attacker, victim, target, "kick", 0.25)
+	var land := attacker.create_tween().set_parallel(true)
+	land.tween_property(attacker.body_node, "rotation:x", 0.0, 0.2 * anim_scale)
+	land.tween_property(attacker, "global_position", Vector3(target.x, start.y, target.z) - _forward(attacker) * 0.5, 0.25 * anim_scale).set_trans(Tween.TRANS_BOUNCE).set_ease(Tween.EASE_OUT)
+	await land.finished
+
+
+## Nataraja's cosmic dance: a whirling spin that throws off rings of fire.
+func _tandava(attacker: TransformerToken, victim: TransformerToken) -> void:
+	var start := attacker.global_position
+	var heading := attacker.rotation.y
+	cue.emit("charge", {"position": start, "attacker": attacker})
+	var dance := {"arm_L": [Vector3(-1.5, 0, 1.2), Vector3(-0.8, 0, 0)], "arm_R": [Vector3(-1.2, 0, -1.4), Vector3(-0.2, 0, 0)],
+		"leg_L": [Vector3(-1.2, 0, -0.5), Vector3(1.2, 0, 0)]}
+	await _pose(attacker, dance, 0.15)
+	_slow_motion(0.4, 0.9)
+	var lunge := _reach(attacker, victim, 0.5)
+	var spin := attacker.create_tween().set_parallel(true)
+	spin.tween_property(attacker, "rotation:y", heading + TAU * 3.0, 0.6 * anim_scale).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_IN)
+	spin.tween_property(attacker, "global_position", start + _forward(attacker) * lunge, 0.6 * anim_scale)
+	spin.tween_property(attacker.body_node, "position:y", 0.15, 0.3 * anim_scale)
+	for i in range(3):
+		var at := start + _forward(attacker) * lunge * (i + 1) / 3.0 + Vector3.UP * 0.4
+		get_tree().create_timer(0.18 * (i + 1) * anim_scale).timeout.connect(func() -> void:
+			cue.emit("swing", {"position": at, "heavy": true})
+			_burst(at, Color("#ff6a1a"), 26, 2.6, 0.6, -0.5))
+	await spin.finished
+	attacker.rotation.y = heading
+	var hit := victim.global_position + Vector3.UP * 0.4
+	_burst(hit, Color("#ffc83a"), 60, 3.2, 0.8, -0.5)
+	await _impact(attacker, victim, hit, "kick")
+	var land := attacker.create_tween()
+	land.tween_property(attacker.body_node, "position:y", 0.0, 0.2 * anim_scale).set_trans(Tween.TRANS_BOUNCE).set_ease(Tween.EASE_OUT)
+	await land.finished
+
+
+## Hanuman leaps and brings the mace down: the victim is flattened, the ground quakes.
+func _mace_smash(attacker: TransformerToken, victim: TransformerToken, ground: float) -> void:
+	var start := attacker.global_position
+	cue.emit("charge", {"position": start, "attacker": attacker})
+	var overhead := {"arm_L": [Vector3(-2.9, 0, 0.3), Vector3(-0.3, 0, 0)], "arm_R": [Vector3(-2.9, 0, -0.3), Vector3(-0.3, 0, 0)]}
+	_pose(attacker, overhead, 0.15)
+	_shot("sky", attacker, victim)
+	var apex := start.lerp(victim.global_position, 0.6) + Vector3.UP * 1.3
+	var jump := attacker.create_tween()
+	jump.tween_property(attacker, "global_position", apex, 0.3 * anim_scale).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
+	await jump.finished
+	_slow_motion(0.3, 0.5)
+	cue.emit("swing", {"position": apex, "heavy": true})
+	_pose(attacker, {"arm_L": [Vector3(-1.0, 0, 0.2), Vector3(0, 0, 0)], "arm_R": [Vector3(-1.0, 0, -0.2), Vector3(0, 0, 0)]}, 0.1, Tween.TRANS_EXPO)
+	var down := victim.global_position - _forward(attacker) * 0.45
+	down.y = ground
+	var drop := attacker.create_tween()
+	drop.tween_property(attacker, "global_position", down, 0.14 * anim_scale).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_IN)
+	await drop.finished
+	var at := victim.global_position + Vector3.UP * 0.2
+	cue.emit("crash", {"position": victim.global_position})
+	_burst(at, Color("#ffd24a"), 70, 3.4, 0.9, 3.0)
+	cue.emit("quake", {"position": victim.global_position})
+	var squash := victim.create_tween()
+	squash.tween_property(victim.body_node, "scale", Vector3(1.4, 0.45, 1.4), 0.06 * anim_scale)
+	await _impact(attacker, victim, at, "punch", 0.32)
+	squash = victim.create_tween()
+	squash.tween_property(victim.body_node, "scale", Vector3.ONE, 0.3 * anim_scale).set_trans(Tween.TRANS_ELASTIC).set_ease(Tween.EASE_OUT)
+	await squash.finished
+
+
+## Surya gathers the sun above its head and hurls it.
+func _sun_blast(attacker: TransformerToken, victim: TransformerToken) -> void:
+	cue.emit("charge", {"position": attacker.global_position, "attacker": attacker})
+	_shot("sky", attacker, victim)
+	_pose(attacker, {"arm_L": [Vector3(-2.9, 0, 0.35), Vector3(-0.4, 0, 0)], "arm_R": [Vector3(-2.9, 0, -0.35), Vector3(-0.4, 0, 0)]}, 0.18)
+	var sun := MeshInstance3D.new()
+	var sphere := SphereMesh.new()
+	sphere.radius = 0.25
+	sphere.height = 0.5
+	sun.mesh = sphere
+	sun.material_override = _glow_mat(Color("#ffc040"), 6.0)
+	sun.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	get_parent().add_child(sun)
+	sun.global_position = attacker.global_position + Vector3.UP * 1.45
+	sun.scale = Vector3.ONE * 0.1
+	var grow := sun.create_tween()
+	grow.tween_property(sun, "scale", Vector3.ONE, 0.45 * anim_scale).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+	_burst(sun.global_position, Color("#ffe080"), 30, 1.2, 0.6, -0.5)
+	await grow.finished
+	_slow_motion(0.35, 0.6)
+	cue.emit("swing", {"position": sun.global_position, "heavy": true})
+	_pose(attacker, {"arm_L": [Vector3(-1.6, 0, 0.1), Vector3(0, 0, 0)], "arm_R": [Vector3(-1.6, 0, -0.1), Vector3(0, 0, 0)]}, 0.1, Tween.TRANS_EXPO)
+	var target := victim.global_position + Vector3.UP * 0.45
+	var fly := sun.create_tween()
+	fly.tween_property(sun, "global_position", target, 0.2 * anim_scale).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_IN)
+	await fly.finished
+	sun.queue_free()
+	_burst(target, Color("#ffb020"), 80, 3.6, 1.0, 0.5)
+	_burst(target, Color("#ffffff"), 30, 2.0, 0.5, 0.0)
+	await _impact(attacker, victim, target, "punch", 0.28)
+
+
+## The shadow vanishes in smoke and strikes from behind.
+func _shadow_strike(attacker: TransformerToken, victim: TransformerToken) -> void:
+	var smoke := Color("#2a1a3a")
+	cue.emit("charge", {"position": attacker.global_position, "attacker": attacker})
+	_burst(attacker.global_position + Vector3.UP * 0.4, smoke, 50, 1.4, 0.8, -1.0)
+	cue.emit("whiff", {"position": attacker.global_position})
+	attacker.visible = false
+	await _wait(0.25)
+	var behind := victim.global_position + _forward(attacker) * 0.5
+	attacker.global_position = behind
+	_face(attacker, victim.global_position)
+	attacker.visible = true
+	_burst(behind + Vector3.UP * 0.4, smoke, 40, 1.4, 0.7, -1.0)
+	_slow_motion(0.3, 0.5)
+	cue.emit("swing", {"position": behind, "heavy": true})
+	var arm: Dictionary = attacker.arm_pivots["R"]
+	var strike := attacker.create_tween().set_parallel(true)
+	strike.tween_property(arm["shoulder"], "rotation", Vector3(-1.6, 0, 0.6), 0.08 * anim_scale).set_trans(Tween.TRANS_EXPO)
+	strike.tween_property(arm["elbow"], "rotation", Vector3(-0.05, 0, 0), 0.08 * anim_scale)
+	strike.tween_property(attacker.body_node, "rotation:y", -0.6, 0.08 * anim_scale)
+	await strike.finished
+	var at := victim.global_position + Vector3.UP * 0.45
+	_burst(at, Color("#ff2a40"), 40, 2.8, 0.6)
+	await _impact(attacker, victim, at, "punch")
+	var back := attacker.create_tween()
+	back.tween_property(attacker.body_node, "rotation:y", 0.0, 0.15 * anim_scale)
+	await back.finished
+
+
+## Robo Raja fires a laser from its visor.
+func _laser(attacker: TransformerToken, victim: TransformerToken) -> void:
+	cue.emit("charge", {"position": attacker.global_position, "attacker": attacker})
+	await _pose(attacker, _guard(), 0.1)
+	var eye := attacker.global_position + Vector3.UP * 0.82 + _forward(attacker) * 0.18
+	var target := victim.global_position + Vector3.UP * 0.45
+	_burst(eye, Color("#2ae0ff"), 20, 0.8, 0.4, 0.0)
+	await _wait(0.2)
+	_slow_motion(0.35, 0.7)
+	var beam := MeshInstance3D.new()
+	var cyl := CylinderMesh.new()
+	cyl.top_radius = 0.035
+	cyl.bottom_radius = 0.035
+	var length := eye.distance_to(target)
+	cyl.height = length
+	beam.mesh = cyl
+	beam.material_override = _glow_mat(Color("#40f0ff"), 8.0, 0.9)
+	beam.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	get_parent().add_child(beam)
+	beam.global_position = (eye + target) * 0.5
+	beam.look_at(target, Vector3.UP if absf((target - eye).normalized().y) < 0.99 else Vector3.RIGHT)
+	beam.rotate_object_local(Vector3.RIGHT, PI * 0.5)   # cylinders stand along Y
+	cue.emit("swing", {"position": eye, "heavy": true})
+	for i in range(4):
+		_burst(target, Color("#9ff8ff"), 14, 2.0, 0.4)
+		await _wait(0.06)
+	await _impact(attacker, victim, target, "punch", 0.22)
+	beam.queue_free()
+
+
+## The ghost glides into its victim, shakes it from inside and bursts out.
+func _possess(attacker: TransformerToken, victim: TransformerToken) -> void:
+	var start := attacker.global_position
+	cue.emit("charge", {"position": start, "attacker": attacker})
+	_pose(attacker, {"arm_L": [Vector3(-1.6, 0, 0.2), Vector3(0, 0, 0)], "arm_R": [Vector3(-1.6, 0, -0.2), Vector3(0, 0, 0)]}, 0.15)
+	var glide := attacker.create_tween().set_parallel(true)
+	glide.tween_property(attacker, "global_position", victim.global_position + Vector3.UP * 0.1, 0.4 * anim_scale).set_trans(Tween.TRANS_SINE)
+	glide.tween_property(attacker, "scale", attacker.scale * 0.6, 0.4 * anim_scale)
+	await glide.finished
+	attacker.visible = false
+	_burst(victim.global_position + Vector3.UP * 0.5, Color("#9ff0ff"), 30, 1.0, 0.7, -1.0)
+	var shake := func(p: float) -> void:
+		victim.body_node.rotation.z = sin(p * TAU * 6.0) * 0.35
+		victim.body_node.position.x = sin(p * TAU * 9.0) * 0.05
+	var t := victim.create_tween()
+	t.tween_method(shake, 0.0, 1.0, 0.6 * anim_scale)
+	await t.finished
+	victim.body_node.rotation.z = 0.0
+	victim.body_node.position.x = 0.0
+	_slow_motion(0.3, 0.5)
+	attacker.global_position = victim.global_position - _forward(attacker) * 0.5
+	attacker.global_position.y = start.y
+	attacker.scale = attacker.scale / 0.6
+	attacker.visible = true
+	var at := victim.global_position + Vector3.UP * 0.5
+	_burst(at, Color("#c8f8ff"), 60, 3.0, 0.8, -0.5)
+	cue.emit("swing", {"position": at, "heavy": true})
+	await _impact(attacker, victim, at, "punch")

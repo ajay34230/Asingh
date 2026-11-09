@@ -786,6 +786,14 @@ func _on_game_event(event_name: String, data: Dictionary) -> void:
 		"faceoff":
 			if not game.fast_mode:
 				hud.set_skip_hint(true)
+		"burst":   # signature finishers: fire, feathers, sunlight, smoke
+			effects.burst(pos, data.get("color", EffectsManager.GOLD), int(data.get("amount", 30)), float(data.get("speed", 2.4)), float(data.get("life", 0.8)), float(data.get("gravity", 2.0)))
+		"signature":
+			hud.flash_banner(tr(data.get("name", "")), Color("#ffd24a"), 0.9)
+			audio.play("confirm", 0.0, -2.0)
+		"quake":
+			effects.shockwave(pos)
+			_shake(0.3, 0.5)
 		"crash":
 			audio.play("thud", 0.05, -2.0)
 			effects.dust(pos)

@@ -137,6 +137,7 @@ static func apply(token: TransformerToken, spec: String, team: Color) -> void:
 			mesh.remove_meta("design_orig")
 	var parsed := parse(spec)
 	var id: String = parsed[0]
+	token.set_meta("design", id)   # the fight picks a legendary's signature finisher
 	if id == "design_classic":
 		return
 	var head := Node3D.new()

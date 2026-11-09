@@ -97,10 +97,14 @@ func shot(kind: String, attacker: Node3D, victim: Node3D, cut := true) -> void:
 			_fight_offset = -line * 2.2 + side * 0.7 + Vector3.UP * 1.1
 		"high":
 			_fight_offset = side * 1.2 + Vector3.UP * 3.6
+		"sky":   # wide and looking up: aerial signature moves stay in frame
+			_fight_offset = side * 4.4 - line * 1.0 + Vector3.UP * 1.6
 		_:
 			_fight_offset = (side * 0.88 + Vector3.UP * 0.47) * 3.6
 	if cut:
 		var mid := a.lerp(b, 0.5) + Vector3(0, 0.3, 0)
+		if kind == "sky":
+			mid += Vector3.UP * 0.7
 		_close_position = mid + _fight_offset
 		_focus_point = mid
 
