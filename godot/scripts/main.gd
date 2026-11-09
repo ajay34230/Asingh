@@ -54,6 +54,8 @@ func _ready() -> void:
 			menu_shot = arg.trim_prefix("--menu-screenshot=")
 
 	I18n.setup()
+	if _has_arg("--token-style="):   # tests and screenshots: robot | royal | original
+		TransformerToken.style_override = _arg_value(args, "--token-style")
 	if _has_arg("--festival="):
 		Festivals.override = _arg_value(args, "--festival")
 	## Loading screen first, so it is on screen while the palace is built.
@@ -1113,6 +1115,8 @@ func _celebrate(ranking: Array) -> void:
 
 func _dance(token: TransformerToken, delay: float, pose := "dance") -> void:
 	await get_tree().create_timer(delay).timeout
+	if is_instance_valid(token):
+		RoboPawn.celebrate(token)
 	if pose != "dance":
 		await _victory_pose(token, pose)
 	for n in range(6 if pose == "dance" else 3):
@@ -1132,6 +1136,7 @@ func _dance(token: TransformerToken, delay: float, pose := "dance") -> void:
 func _victory_pose(token: TransformerToken, pose: String) -> void:
 	if not is_instance_valid(token):
 		return
+	RoboPawn.celebrate(token)   # robots: ears spin, the fan spreads, fins rise
 	var arms: Dictionary = token.arm_pivots
 	match pose:
 		"raise":   # weapon arm thrust high, other fist on the hip, three proud stamps
@@ -1682,6 +1687,21 @@ func _screenshot_and_quit(path: String) -> void:
 		if v.size() == 6:
 			director.set_process(false)
 			camera.look_at_from_position(Vector3(float(v[0]), float(v[1]), float(v[2])), Vector3(float(v[3]), float(v[4]), float(v[5])), Vector3.UP)
+	if "--lineup" in OS.get_cmdline_user_args():
+		## The four characters side by side in the centre, facing the camera.
+		game.visible = false
+		game.dice.visible = false
+		var cols := ["green", "red", "blue", "yellow"]
+		for i in range(cols.size()):
+			var t := TransformerToken.new()
+			add_child(t)
+			t.configure(cols[i])
+			t.position = Vector3(-1.65 + i * 1.1, RoyalBoard.TILE_TOP + 0.05, 0.4)
+			t.scale = Vector3.ONE * 1.25
+			if "--transformed" in OS.get_cmdline_user_args():
+				t.transform_out(0.01)
+			if "--celebrate" in OS.get_cmdline_user_args():
+				get_tree().create_timer(2.0 + i * 0.25).timeout.connect(func() -> void: RoboPawn.celebrate(t))
 	if "--design-gallery" in OS.get_cmdline_user_args():
 		## All designs in a grid on the board (game tokens hidden), for checking them.
 		game.visible = false

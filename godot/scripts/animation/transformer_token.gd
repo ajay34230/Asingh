@@ -17,8 +17,25 @@ var is_transformed := false
 var is_moving := false
 var path_index := -1
 var has_left_home := false
-## true: the polished pawn built in code (RoyalPawn); false: the supplied GLB models.
-const USE_ROYAL_PAWN := true
+## Which model to build: "robot" (RoboPawn), "royal" (RoyalPawn) or "original" (the
+## supplied GLB models). Set from the "Token model" setting; tests may override it.
+static var style_override := ""
+
+
+static func current_style() -> String:
+    if style_override != "":
+        return style_override
+    return String(GameSettings.get_option("token_style"))
+
+
+## The body alone, for statuettes (plaques).
+static func build_statue(color: String) -> Node3D:
+    match current_style():
+        "robot":
+            return RoboPawn.build_body(color)
+        "royal":
+            return RoyalPawn.build_body(color)
+    return (load(BODY_PATHS[color]) as PackedScene).instantiate() as Node3D
 
 ## Height of the token root when standing on the board. The game sets this per square.
 var ground_y := 0.25
@@ -38,16 +55,20 @@ const LIMB_PATHS := {
 
 func configure(team_colour: String) -> void:
     team = team_colour.to_lower()
-    if USE_ROYAL_PAWN:
-        ## The polished pawn built in code (metallic paint, gold trims, gem eyes).
-        body_node = RoyalPawn.build_body(team)
+    var style := current_style()
+    if style == "robot" or style == "royal":
+        ## Models built in code: realistic robots, or the polished royal pawn.
+        body_node = RoboPawn.build_body(team) if style == "robot" else RoyalPawn.build_body(team)
         body_node.name = "JewelPawnBody"
         add_child(body_node)
         limb_root = Node3D.new()
         limb_root.name = "TransformerLimbRig"
         add_child(limb_root)
         _build_pivots()
-        RoyalPawn.dress_limbs(self, team, arm_pivots, leg_pivots)
+        if style == "robot":
+            RoboPawn.dress_limbs(team, arm_pivots, leg_pivots)
+        else:
+            RoyalPawn.dress_limbs(self, team, arm_pivots, leg_pivots)
         _fold_pose()
         return
     body_scene = load(BODY_PATHS[team]) as PackedScene

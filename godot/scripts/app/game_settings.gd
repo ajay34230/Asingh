@@ -8,6 +8,7 @@ const PATH := "user://settings.cfg"
 
 const DEFAULTS := {
 	"graphics": "medium",       ## low | medium | high (medium suits most phones)
+	"token_style": "robot",     ## robot | royal | original: which token model is used
 	"camera_tilt": true,        ## true: tilted 3D view; false: straight top-down
 	"anim_speed": 1,            ## 0 slow, 1 normal, 2 fast
 	"show_fps": false,

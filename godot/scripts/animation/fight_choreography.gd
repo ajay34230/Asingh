@@ -370,6 +370,7 @@ func _launch(victim: TransformerToken, attacker: Node3D, ground: float) -> void:
 
 
 func _dazed(victim: TransformerToken, seconds: float) -> void:
+	RoboPawn.defeated(victim, seconds + 0.8)   # robots: eyes flicker, head droops
 	_stars = _make_stars()
 	victim.add_child(_stars)
 	_stars.position = Vector3(0, 0.95, 0)

@@ -54,6 +54,8 @@ var _players: OptionButton
 var _difficulty: OptionButton
 var _rule_boxes: Dictionary = {}
 var _graphics: OptionButton
+var _tokens: OptionButton
+const TOKEN_STYLES := ["robot", "royal", "original"]
 var _camera: CheckButton
 var _anim: OptionButton
 var _fps: CheckButton
@@ -438,6 +440,12 @@ func _build_settings() -> void:
 	var box := _scroll_page("settings", "Settings")
 	var page_box: VBoxContainer = _frame_of(box)
 	_graphics = _option(box, "Graphics", ["Low", "Medium", "High"])
+	_tokens = _option(box, "Token model", ["Robot", "Royal pawn", "Original"])
+	_tokens.item_selected.connect(func(i: int) -> void:
+		var style: String = TOKEN_STYLES[i]
+		if style != String(GameSettings.get_option("token_style")):
+			GameSettings.set_option("token_style", style)
+			board_theme_changed.emit())   # rebuild the scene with the new tokens
 	_camera = _check(box, "Tilted 3D camera", true)
 	_anim = _option(box, "Animation speed", ["Slow", "Normal", "Fast"])
 	_fps = _check(box, "Show frame rate", false)
@@ -977,6 +985,7 @@ func _quick_play() -> void:
 
 func _load_settings_into_controls() -> void:
 	_graphics.select(["low", "medium", "high"].find(GameSettings.get_option("graphics")))
+	_tokens.select(maxi(0, TOKEN_STYLES.find(String(GameSettings.get_option("token_style")))))
 	_camera.button_pressed = GameSettings.get_option("camera_tilt")
 	_anim.select(GameSettings.get_option("anim_speed"))
 	_fps.button_pressed = GameSettings.get_option("show_fps")
