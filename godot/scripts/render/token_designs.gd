@@ -138,7 +138,7 @@ static func apply(token: TransformerToken, spec: String, team: Color) -> void:
 	var parsed := parse(spec)
 	var id: String = parsed[0]
 	token.set_meta("design", id)   # the fight picks a legendary's signature finisher
-	for crest_path in ["HeadFinial", "RoboHead/HeadCrest", "KnightHead/CatEarL", "KnightHead/CatEarR"]:   # head gear replaces the crest
+	for crest_path in ["HeadFinial", "RoboHead/HeadCrest", "KnightHead/HeadCrest"]:   # head gear replaces the crest
 		var crest := token.body_node.get_node_or_null(crest_path) if token.body_node else null
 		if crest:
 			crest.visible = id == "design_classic"

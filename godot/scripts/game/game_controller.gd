@@ -196,11 +196,14 @@ func refresh_designs() -> void:
 
 
 func design_for(color: String) -> String:
+	## Robot knights and robots carry their own crests (ears, fan, halo...), so the
+	## computer players show those rather than a design.
+	var ai_design: String = "" if TransformerToken.current_style() in ["knight", "robot"] else AI_DESIGNS.get(color, "")
 	if net and net.active:
-		return String(net.designs.get(color, AI_DESIGNS.get(color, "")))
+		return String(net.designs.get(color, ai_design))
 	if humans_skin(color) or (human_colors.has(color) and human_colors.size() > 1):
 		return Progress.equipped_design_spec() if humans_skin(color) else ""
-	return AI_DESIGNS.get(color, "")
+	return ai_design
 
 
 ## Per-game tally for the human player (rewards and achievements).
