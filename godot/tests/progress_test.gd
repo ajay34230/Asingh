@@ -94,14 +94,41 @@ func _init() -> void:
 	Progress.set_design_style("design_surya", "metal", "silver")
 	Progress.set_design_style("design_surya", "aura", "ruby")
 	Progress.equip("design_surya")
-	_check("style travels in the spec", Progress.equipped_design_spec() == "design_surya|silver|ruby")
-	_check("bad spec parts fall back", TokenDesigns.parse("design_nope|plastic|x") == ["design_classic", "gold", "rarity"])
+	_check("style travels in the spec", Progress.equipped_design_spec() == "design_surya|silver|ruby|0")
+	_check("bad spec parts fall back", TokenDesigns.parse("design_nope|plastic|x|9") == ["design_classic", "gold", "rarity", 3])
 	_check("format time", Progress.format_time(3600 * 5 + 12 * 60) == "5h 12m" and Progress.format_time(840) == "14m")
 	var t0 := Progress.tickets()
 	GameSettings.save_value("progress", "daily_last", Progress._today() - 1)
 	GameSettings.save_value("progress", "daily_streak", 2)
 	Progress.claim_daily()
 	_check("day 3 of the streak gives a Royal Ticket", Progress.tickets() == t0 + 1)
+
+	## Festival designs, shards, mastery and sets.
+	Festivals.override = "holi"
+	_check("holi design on sale during holi", Progress.design_available("design_holi") and not Progress.design_available("design_diya"))
+	_check("out-of-season design cannot be bought or rented", Progress.buy("design_diya") == "season" and not Progress.use_ticket("design_diya") and not Progress.start_trial("design_diya"))
+	Festivals.override = ""
+	Progress.set_shard_target("design_chai")
+	_check("shard target can be picked", Progress.shard_target() == "design_chai")
+	var sh := Progress.add_shards(3)
+	_check("shards add up", sh[0] == "design_chai" and sh[1] == 3 and sh[2] == 10 and not sh[3])
+	sh = Progress.add_shards(7)
+	_check("10 shards unlock a rare design for good", sh[3] and Progress.owns("design_chai"))
+	_check("next target moves on", Progress.shard_target() != "design_chai")
+	for i in range(9):
+		Progress.add_design_game("design_chai")
+	_check("no mastery before 10 games", Progress.mastery_level("design_chai") == 0)
+	_check("10th game gives bronze mastery", Progress.add_design_game("design_chai") and Progress.mastery_level("design_chai") == 1)
+	Progress.equip("design_chai")
+	_check("mastery travels in the spec", Progress.equipped_design_spec().ends_with("|1") and TokenDesigns.parse(Progress.equipped_design_spec())[3] == 1)
+	var wild: Array = TokenDesigns.SETS["wild"][2]
+	var own: Array = Progress.owned()
+	for d in wild:
+		if not own.has(d):
+			own.append(d)
+	GameSettings.save_value("progress", "owned", own)
+	var c_set := Progress.coins()
+	_check("completing a set pays once", Progress.check_sets() == ["wild"] and Progress.coins() == c_set + 600 and Progress.check_sets().is_empty())
 	DirAccess.remove_absolute(ProjectSettings.globalize_path(path))
 	if not backup.is_empty():
 		var f := FileAccess.open(path, FileAccess.WRITE)

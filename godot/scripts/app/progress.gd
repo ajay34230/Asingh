@@ -20,6 +20,14 @@ const ACHIEVEMENTS := {
 	"expert_win": ["Grandmaster", "Beat the Expert AI", 400],
 	"all_themes": ["Collector", "Own every board theme", 300],
 	"daily_7": ["Devotee", "Claim the daily reward 7 days in a row", 250],
+	## Token design sets (TokenDesigns.SETS)
+	"set_legends": ["Keeper of Legends", "Own every Legends of India design", 1000],
+	"set_court": ["Lord of the Court", "Own every Royal Court design", 800],
+	"set_wild": ["Beast Master", "Own every Wild India design", 600],
+	"set_heritage": ["Heritage Guardian", "Own every Living Heritage design", 800],
+	"set_bazaar": ["Bazaar Star", "Own every Palace Bazaar design", 800],
+	"set_festivals": ["Festival Royalty", "Own every festival design", 1500],
+	"mastery_gold": ["True Devotion", "Reach gold mastery with a design", 500],
 }
 
 ## id -> [kind, display name, price]
@@ -72,6 +80,11 @@ const SHOP := {
 	"design_nataraja": ["design", "Nataraja's Fire", 2600],
 	"design_robo": ["design", "Robo Raja", 2200],
 	"design_ghost": ["design", "Ghost of the Palace", 2000],
+	"design_diya": ["design", "Diwali Diya", 900],
+	"design_holi": ["design", "Holi Rang", 900],
+	"design_kite": ["design", "Sankranti Kite", 900],
+	"design_tiranga": ["design", "Tiranga Pride", 900],
+	"design_star": ["design", "Christmas Star", 900],
 }
 
 
@@ -204,10 +217,12 @@ static func owns(id: String) -> bool:
 	return owned().has(id)
 
 
-## Buys an item if affordable. Returns "ok", "owned" or "coins".
+## Buys an item if affordable. Returns "ok", "owned", "coins" or "season".
 static func buy(id: String) -> String:
 	if owns(id):
 		return "owned"
+	if not design_available(id):
+		return "season"   # a festival design out of its festival
 	var price := int(SHOP[id][2])
 	if coins() < price:
 		return "coins"
@@ -221,6 +236,7 @@ static func buy(id: String) -> String:
 			all_themes = false
 	if all_themes:
 		unlock("all_themes")
+	check_sets()
 	return "ok"
 
 
@@ -240,11 +256,115 @@ static func equip(id: String) -> void:
 # --- renting designs: watch videos, spend a Royal Ticket, or try one free -------------
 
 ## How many videos rent a design, and for how long, by rarity.
-const VIDEOS_NEEDED := {"rare": 1, "epic": 2, "legendary": 3}
-const RENT_HOURS := {"rare": 24, "epic": 24, "legendary": 12}
+const VIDEOS_NEEDED := {"rare": 1, "epic": 2, "legendary": 3, "festival": 2}
+const RENT_HOURS := {"rare": 24, "epic": 24, "legendary": 12, "festival": 24}
 const TICKET_HOURS := 24
 const TRIAL_MINUTES := 15
 const VIDEOS_PER_DAY := 8
+
+
+## Festival designs can be bought or rented only while their festival is on (or once
+## owned). Everything else is always on sale.
+static func design_available(id: String) -> bool:
+	var fest := String(TokenDesigns.FESTIVAL_OF.get(id, ""))
+	return fest == "" or owns(id) or Festivals.current() == fest
+
+
+# --- shards: every game drops shards towards a design you choose ----------------------
+
+const SHARDS_NEEDED := {"rare": 10, "epic": 20, "legendary": 40, "festival": 20}
+
+
+static func shards_needed(id: String) -> int:
+	return int(SHARDS_NEEDED.get(TokenDesigns.rarity_of(id), 10))
+
+
+static func shards(id: String) -> int:
+	return int((_load("shards", {}) as Dictionary).get(id, 0))
+
+
+## The design shards go to: the one the player picked, else the cheapest one not owned.
+static func shard_target() -> String:
+	var t := String(_load("shard_target", ""))
+	if TokenDesigns.DESIGNS.has(t) and not owns(t) and design_available(t):
+		return t
+	var best := ""
+	for id in TokenDesigns.DESIGNS:
+		if owns(id) or not design_available(id):
+			continue
+		if best == "" or int(TokenDesigns.DESIGNS[id][2]) < int(TokenDesigns.DESIGNS[best][2]):
+			best = id
+	return best
+
+
+static func set_shard_target(id: String) -> void:
+	if TokenDesigns.DESIGNS.has(id) and not owns(id):
+		_store("shard_target", id)
+
+
+## Adds shards to the target design. Returns [design, shards now, needed, unlocked?].
+static func add_shards(n: int) -> Array:
+	var id := shard_target()
+	if id == "":
+		return []
+	var all: Dictionary = _load("shards", {})
+	var got := int(all.get(id, 0)) + n
+	var need := shards_needed(id)
+	var done := got >= need
+	all[id] = 0 if done else got
+	_store("shards", all)
+	if done:
+		var list := owned()
+		list.append(id)
+		_store("owned", list)   # the caller checks sets, so it can report them
+	return [id, mini(got, need), need, done]
+
+
+# --- mastery: games played wearing each design ----------------------------------------
+
+static func design_games(id: String) -> int:
+	return int((_load("design_games", {}) as Dictionary).get(id, 0))
+
+
+static func mastery_level(id: String) -> int:
+	var g := design_games(id)
+	var lvl := 0
+	for need in TokenDesigns.MASTERY:
+		if g >= int(need):
+			lvl += 1
+	return lvl
+
+
+## Counts a finished game for the design worn. Returns true when that raised its mastery.
+static func add_design_game(id: String) -> bool:
+	if id == "design_classic" or not TokenDesigns.DESIGNS.has(id):
+		return false
+	var before := mastery_level(id)
+	var all: Dictionary = _load("design_games", {})
+	all[id] = int(all.get(id, 0)) + 1
+	_store("design_games", all)
+	var after := mastery_level(id)
+	if after >= 3:
+		unlock("mastery_gold")
+	return after > before
+
+
+# --- sets -------------------------------------------------------------------------------
+
+## [owned count, total] for a set.
+static func set_progress(set_id: String) -> Array:
+	var ids: Array = TokenDesigns.SETS[set_id][2]
+	return [ids.filter(func(d: String) -> bool: return owns(d)).size(), ids.size()]
+
+
+## Pays out any newly completed sets; returns their ids.
+static func check_sets() -> Array:
+	var done: Array = []
+	for set_id in TokenDesigns.SETS:
+		var p := set_progress(set_id)
+		if int(p[0]) >= int(p[1]) and unlock(String(TokenDesigns.SETS[set_id][1])):
+			done.append(set_id)
+	return done
 
 
 static func now() -> int:
@@ -295,6 +415,8 @@ static func videos_left_today() -> int:
 
 ## A video was watched to the end for this design. Returns true when that rented it.
 static func watched_video(id: String) -> bool:
+	if not design_available(id):
+		return false
 	_store("videos_day", {"day": _today(), "count": VIDEOS_PER_DAY - videos_left_today() + 1})
 	var vp: Dictionary = _load("video_progress", {})
 	var n := int(vp.get(id, 0)) + 1
@@ -315,7 +437,7 @@ static func add_tickets(n: int) -> void:
 
 
 static func use_ticket(id: String) -> bool:
-	if tickets() <= 0:
+	if tickets() <= 0 or not design_available(id):
 		return false
 	_store("tickets", tickets() - 1)
 	rent(id, TICKET_HOURS * 3600)
@@ -328,7 +450,7 @@ static func trial_used(id: String) -> bool:
 
 ## One free short trial per design.
 static func start_trial(id: String) -> bool:
-	if trial_used(id) or can_use(id):
+	if trial_used(id) or can_use(id) or not design_available(id):
 		return false
 	var t: Array = _load("trials", [])
 	t.append(id)
@@ -367,7 +489,7 @@ static func set_design_style(id: String, key: String, value: String) -> void:
 static func equipped_design_spec() -> String:
 	var id := equipped("design")
 	var s := design_style(id)
-	return "%s|%s|%s" % [id, s["metal"], s["aura"]]
+	return "%s|%s|%s|%d" % [id, s["metal"], s["aura"], mastery_level(id)]
 
 
 # --- profile: name, XP, level, title -------------------------------------------------

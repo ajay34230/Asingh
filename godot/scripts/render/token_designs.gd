@@ -10,6 +10,7 @@ const RARITY := {
 	"rare": ["Rare", Color("#4fa8ff")],
 	"epic": ["Epic", Color("#c070ff")],
 	"legendary": ["Legendary", Color("#ffb020")],
+	"festival": ["Festival", Color("#ff5ab0")],
 }
 
 ## id -> [name, rarity, price]
@@ -46,7 +47,34 @@ const DESIGNS := {
 	"design_nataraja": ["Nataraja's Fire", "legendary", 2600],
 	"design_robo": ["Robo Raja", "legendary", 2200],
 	"design_ghost": ["Ghost of the Palace", "legendary", 2000],
+	## Festival designs: on sale only while their festival is on
+	"design_diya": ["Diwali Diya", "festival", 900],
+	"design_holi": ["Holi Rang", "festival", 900],
+	"design_kite": ["Sankranti Kite", "festival", 900],
+	"design_tiranga": ["Tiranga Pride", "festival", 900],
+	"design_star": ["Christmas Star", "festival", 900],
 }
+
+## Festival designs -> the festival (Festivals.FESTIVALS id) when they can be unlocked.
+const FESTIVAL_OF := {
+	"design_diya": "diwali", "design_holi": "holi", "design_kite": "pongal",
+	"design_tiranga": "independence", "design_star": "christmas",
+}
+
+## Collections: own every design in a set to earn its title and coins.
+## id -> [name, achievement id, designs]
+const SETS := {
+	"legends": ["Legends of India", "set_legends", ["design_naga", "design_airavata", "design_hanuman", "design_garuda", "design_nataraja"]],
+	"court": ["The Royal Court", "set_court", ["design_raja", "design_maharaja", "design_mughal", "design_rani", "design_maratha"]],
+	"wild": ["Wild India", "set_wild", ["design_tiger", "design_snowleopard", "design_lion", "design_peacock"]],
+	"heritage": ["Living Heritage", "set_heritage", ["design_lotus", "design_chola", "design_hampi", "design_banyan", "design_monsoon"]],
+	"bazaar": ["Palace Bazaar", "set_bazaar", ["design_chai", "design_bollywood", "design_cricket", "design_robo", "design_ghost"]],
+	"festivals": ["Festival Spirit", "set_festivals", ["design_diya", "design_holi", "design_kite", "design_tiranga", "design_star"]],
+}
+
+## Mastery: games played wearing a design; each level adds a star circling the head.
+const MASTERY := [10, 25, 50]
+const MASTERY_NAMES := ["", "Bronze mastery", "Silver mastery", "Gold mastery"]
 
 ## Customising: the metal of crowns and trims, and the colour of the aura.
 const METALS := {
@@ -77,7 +105,8 @@ static func parse(spec: String) -> Array:
 	var id := p[0] if DESIGNS.has(p[0]) else "design_classic"
 	var metal := p[1] if p.size() > 1 and METALS.has(p[1]) else "gold"
 	var aura := p[2] if p.size() > 2 and AURAS.has(p[2]) else "rarity"
-	return [id, metal, aura]
+	var mastery := clampi(int(p[3]), 0, 3) if p.size() > 3 and p[3].is_valid_int() else 0
+	return [id, metal, aura, mastery]
 
 
 static func aura_color(id: String, aura: String) -> Color:
@@ -161,10 +190,23 @@ static func apply(token: TransformerToken, spec: String, team: Color) -> void:
 			_robo(head, token)
 		"design_ghost":
 			_ghost(head, token)
+		"design_diya":
+			_diya(head, token)
+		"design_holi":
+			_holi(head)
+		"design_kite":
+			_kite(head, token)
+		"design_tiranga":
+			_tiranga(head, gold)
+		"design_star":
+			_star(head)
 	var r := rarity_of(id)
-	if r == "epic" or r == "legendary":
+	if r == "epic" or r == "legendary" or r == "festival":
 		var ring := _aura(token, aura_color(id, parsed[2]))
-		ring.set_meta("trail", r == "legendary")
+		## Legendary and festival designs leave sparks; Holi's are every colour.
+		ring.set_meta("trail", "holi" if id == "design_holi" else (r == "legendary" or r == "festival"))
+	if int(parsed[3]) > 0:
+		_mastery_stars(head, int(parsed[3]))
 
 
 # --- gear ------------------------------------------------------------------------------
@@ -489,6 +531,10 @@ class GearAnimator extends Node3D:
 					n.rotation.y = sin(t * 4.0 + i * 0.8) * 0.35
 				"blink":
 					n.visible = fmod(t + i * 0.3, 1.2) < 0.6
+				"orbit":   # mastery stars circling the head
+					var a := t * 1.6 + TAU * i / parts.size()
+					n.position = Vector3(cos(a) * 0.26, 0.32 + sin(t * 2.0 + i) * 0.03, sin(a) * 0.26)
+					n.rotation.y = -a
 				"bolt":   # a lightning flash every few seconds
 					n.visible = fmod(t, 3.1) < 0.12 or (fmod(t, 3.1) > 0.2 and fmod(t, 3.1) < 0.26)
 
@@ -835,3 +881,94 @@ static func _ghost(head: Node3D, token: TransformerToken) -> void:
 	_skin(token, mist)
 	for x in [-0.05, 0.05]:
 		_mi(head, _sphere(0.025), _glow(Color("#9ff0ff"), 6.0), Vector3(x, -0.03, 0.17))
+
+
+
+# --- festival designs --------------------------------------------------------------------
+
+static func _diya(head: Node3D, token: TransformerToken) -> void:
+	var clay := _solid(Color("#b4582a"), 0.8)
+	var lamp := _mi(head, _cyl(0.1, 0.05, 0.06, 20), clay, Vector3(0, 0.04, 0))
+	_mi(lamp, _torus(0.085, 0.1), RoyalBoard.metal(Color("#e8b54f"), 0.3), Vector3(0, 0.03, 0))
+	var flame_root := Node3D.new()
+	flame_root.position = Vector3(0, 0.08, 0.04)
+	head.add_child(flame_root)
+	var flame := _mi(flame_root, _sphere(0.04), _glow(Color("#ffb030"), 6.0), Vector3(0, 0.04, 0))
+	flame.scale = Vector3(0.7, 1.6, 0.7)
+	_mi(flame_root, _sphere(0.018), _glow(Color("#fff2b0"), 8.0), Vector3(0, 0.03, 0))
+	_animate(head, "flicker", [flame_root])
+	## A marigold garland around the neck.
+	var garland := _on_body(token, "DesignGearGarland", Vector3(0, 0.66, 0))
+	for i in range(18):
+		var a := TAU * i / 18.0
+		_mi(garland, _sphere(0.03), _solid(Color("#ff9a10") if i % 2 == 0 else Color("#ffd020"), 0.7), Vector3(cos(a) * 0.22, -abs(sin(a * 0.5)) * 0.06, sin(a) * 0.2))
+
+
+static func _holi(head: Node3D) -> void:
+	var colors := [Color("#ff2a8a"), Color("#20c0ff"), Color("#ffd020"), Color("#30e070"), Color("#a040ff")]
+	var band := _mi(head, _torus(0.15, 0.18), _solid(Color("#ffffff"), 0.7), Vector3(0, -0.01, 0))
+	band.rotation.x = 0.1
+	for i in range(10):   # splashes of colour powder
+		var a := TAU * i / 10.0 + 0.2
+		var splash := _mi(head, _sphere(0.04 + (i % 3) * 0.01), _solid(colors[i % colors.size()], 0.9), Vector3(cos(a) * 0.15, 0.03 + (i % 2) * 0.05, sin(a) * 0.15))
+		splash.scale = Vector3(1.2, 0.5, 1.2)
+	var pichkari := _mi(head, _cyl(0.02, 0.02, 0.2, 10), _solid(Color("#30e070"), 0.4), Vector3(0.16, 0.14, 0))
+	pichkari.rotation.z = 0.9
+
+
+static func _kite(head: Node3D, token: TransformerToken) -> void:
+	_mi(head, _torus(0.14, 0.17), _solid(Color("#ffd020"), 0.6), Vector3(0, 0.0, 0))
+	var back := _on_body(token, "DesignGearKite", Vector3(0, 0.9, -0.22))
+	var kite := Node3D.new()
+	back.add_child(kite)
+	var sail := _mi(kite, _boxm(Vector3(0.3, 0.3, 0.01)), _solid(Color("#e01e5a"), 0.6), Vector3.ZERO)
+	sail.rotation.z = PI * 0.25
+	var stripe := _mi(kite, _boxm(Vector3(0.42, 0.04, 0.012)), _solid(Color("#ffd020"), 0.6), Vector3(0, 0, 0.002))
+	stripe.rotation.z = PI * 0.25
+	for i in range(4):   # ribbon tail
+		_mi(kite, _boxm(Vector3(0.04, 0.05, 0.008)), _solid(Color("#20a0ff") if i % 2 == 0 else Color("#ffd020"), 0.6), Vector3(0, -0.24 - i * 0.07, 0))
+	_mi(back, _cyl(0.004, 0.004, 0.4, 6), _solid(Color("#f0f0f0"), 0.8), Vector3(0.0, -0.2, 0.02)).rotation.z = 0.2
+	_animate(back, "wave", [kite])
+
+
+static func _tiranga(head: Node3D, gold: Material) -> void:
+	var colours := [Color("#ff9933"), Color("#ffffff"), Color("#138808")]
+	for i in range(3):
+		_mi(head, _torus(0.1, 0.17 - i * 0.012), _solid(colours[i], 0.55), Vector3(0, 0.03 + (2 - i) * 0.05, 0))
+	_mi(head, _sphere(0.1), _solid(colours[0], 0.55), Vector3(0, 0.14, 0))
+	var chakra := _mi(head, _torus(0.03, 0.045), _solid(Color("#0a2a8a"), 0.3), Vector3(0, 0.08, 0.17))
+	chakra.rotation.x = PI * 0.5
+	for i in range(8):   # spokes of the chakra
+		var spoke := _mi(head, _boxm(Vector3(0.004, 0.06, 0.004)), _solid(Color("#0a2a8a"), 0.3), Vector3(0, 0.08, 0.175))
+		spoke.rotation.z = PI * i / 8.0
+	_mi(head, _sphere(0.012), gold, Vector3(0, 0.08, 0.18))
+
+
+static func _star(head: Node3D) -> void:
+	var red := _solid(Color("#d01e2a"), 0.6)
+	var cap := _mi(head, _cyl(0.0, 0.16, 0.26, 24), red, Vector3(0, 0.12, -0.02))
+	cap.rotation.x = -0.25
+	_mi(head, _torus(0.14, 0.18), _solid(Color("#ffffff"), 0.9), Vector3(0, 0.0, 0))
+	var star := Node3D.new()
+	star.position = Vector3(0, 0.36, -0.02)
+	star.scale = Vector3.ONE * 2.0
+	head.add_child(star)
+	var glow := _glow(Color("#ffe060"), 5.0)
+	for i in range(5):   # a five-pointed glowing star
+		var arm := _mi(star, _cyl(0.0, 0.03, 0.09, 6), glow, Vector3.ZERO)
+		arm.rotation.z = TAU * i / 5.0
+		arm.position = Vector3(-sin(TAU * i / 5.0), cos(TAU * i / 5.0), 0) * 0.045
+	_mi(star, _sphere(0.03), glow)
+
+
+## Mastery: one to three golden stars circling above the head.
+static func _mastery_stars(head: Node3D, level: int) -> void:
+	var stars: Array = []
+	var colours := [Color("#cd7f45"), Color("#d8dde6"), Color("#ffd24a")]
+	for i in range(level):
+		var st := Node3D.new()
+		head.add_child(st)
+		var m := _mi(st, _sphere(0.03), _glow(colours[level - 1], 4.0))
+		m.scale = Vector3(1, 1, 0.5)
+		stars.append(st)
+	_animate(head, "orbit", stars)

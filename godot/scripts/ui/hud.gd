@@ -225,6 +225,7 @@ var _result_sub: Label
 var _podium: VBoxContainer
 var _coin_label: Label
 var _coin_total: Label
+var _coin_scroll: ScrollContainer
 
 const MEDALS := [Color("#ffd24a"), Color("#d8dde6"), Color("#cd7f45"), Color("#7a5a48")]
 const PLACE_NAMES := ["1st", "2nd", "3rd", "4th"]
@@ -266,7 +267,13 @@ func _build_result(root: Control) -> void:
 	_coin_total.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	_coin_total.add_theme_font_size_override("font_size", 20)
 	_coin_total.add_theme_color_override("font_color", Color("#e8c98a"))
-	box.add_child(_coin_total)
+	## Many reward lines (XP, achievements, shards, mastery...) scroll inside a small
+	## window, so the panel always fits a landscape phone screen.
+	_coin_scroll = ScrollContainer.new()
+	_coin_scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	_coin_total.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_coin_scroll.add_child(_coin_total)
+	box.add_child(_coin_scroll)
 	_menu_button(box, "Rematch", func() -> void:
 		_result.visible = false
 		rematch_pressed.emit())
@@ -448,13 +455,32 @@ func show_result(ranking: Array, reward := 0, total := 0, achievements: Array = 
 				var ch: Dictionary = Campaign.CHAPTERS[int(String(id).trim_prefix("campaign:"))]
 				lines.append(tr("Chapter complete: %s  (+%d)") % [tr(ch["palace"]), ch["reward"]])
 				continue
+			if String(id).begins_with("shards:"):
+				var sp := String(id).split(":")
+				var dname := tr(TokenDesigns.DESIGNS[sp[1]][0])
+				if sp[4] == "1":
+					lines.append(tr("Unlocked with shards: %s!") % dname)
+				else:
+					lines.append(tr("Shards for %s: %s/%s") % [dname, sp[2], sp[3]])
+				continue
+			if String(id).begins_with("mastery:"):
+				var mp := String(id).split(":")
+				lines.append(tr("%s reached %s!") % [tr(TokenDesigns.DESIGNS[mp[1]][0]), tr(TokenDesigns.MASTERY_NAMES[int(mp[2])])])
+				continue
+			if String(id).begins_with("set:"):
+				var st: Array = TokenDesigns.SETS[String(id).trim_prefix("set:")]
+				var sa: Array = Progress.ACHIEVEMENTS[st[1]]
+				lines.append(tr("Collection complete: %s  (+%d)") % [tr(st[0]), sa[2]])
+				continue
 			if String(id).begins_with("challenge:"):
 				var c: Array = Festivals.CHALLENGES[String(id).trim_prefix("challenge:")]
 				lines.append(tr("Weekly challenge complete: %s  (+%d)") % [tr(c[0]), c[3]])
 				continue
 			var a: Array = Progress.ACHIEVEMENTS[id]
 			lines.append(tr("Achievement unlocked: %s  (+%d)") % [tr(a[0]), a[2]])
-		_coin_total.text = "\n".join(lines))
+		_coin_total.text = "\n".join(lines)
+		_coin_scroll.custom_minimum_size.y = mini(lines.size(), 3) * 30
+		_coin_scroll.scroll_vertical = 0)
 
 
 func hide_result() -> void:

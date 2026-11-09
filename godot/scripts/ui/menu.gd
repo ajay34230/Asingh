@@ -473,11 +473,13 @@ var _preview_buy: Button
 var _preview_video: Button
 var _preview_ticket: Button
 var _preview_trial: Button
+var _preview_shards: Button
 var _preview_status: Label
 var _style_box: VBoxContainer
 var _metal_row: HBoxContainer
 var _aura_row: HBoxContainer
 var _status_tick := 0.0
+var _sets_label: Label
 var _preview_id := "design_classic"
 var _rewards_box: VBoxContainer
 var _coin_badge: Label
@@ -555,6 +557,13 @@ func _refresh_themes() -> void:
 	if _shop_coins == null:
 		return
 	_shop_coins.text = tr("Treasury: %d coins") % Progress.coins() + "   ·   " + tr("Royal Tickets: %d") % Progress.tickets()
+	if _sets_label:
+		var parts: Array[String] = []
+		for set_id in TokenDesigns.SETS:
+			var sp := Progress.set_progress(set_id)
+			var a: Array = Progress.ACHIEVEMENTS[TokenDesigns.SETS[set_id][1]]
+			parts.append("%s  %d/%d  ->  %s (+%d)" % [tr(TokenDesigns.SETS[set_id][0]), sp[0], sp[1], tr(a[0]), a[2]] + ("   " + tr("Complete!") if int(sp[0]) >= int(sp[1]) else ""))
+		_sets_label.text = tr("Collections") + "\n" + "\n".join(parts)
 	for id in _shop_rows:
 		var item: Array = Progress.SHOP[id]
 		var equipped := false
@@ -567,6 +576,10 @@ func _refresh_themes() -> void:
 			(_shop_rows[id] as Button).add_theme_color_override("font_color", (r[1] as Color).lightened(0.2))
 			item = [item[0], "%s  [%s]" % [tr(item[1]), tr(r[0])], item[2]]
 		var state := tr("Equipped") if equipped else (tr("Owned: tap to use") if Progress.owns(id) else tr("%d coins") % item[2])
+		if item[0] == "design" and not Progress.design_available(id):
+			state = tr("Festival: %s only") % tr(Festivals.FESTIVALS[TokenDesigns.FESTIVAL_OF[id]][0])
+		elif item[0] == "design" and Progress.owns(id) and Progress.mastery_level(id) > 0:
+			state += "  " + "*".repeat(Progress.mastery_level(id))
 		if not Progress.owns(id) and Progress.time_left(id) > 0:
 			state = (tr("Equipped") + ", " if equipped else "") + tr("Rented: %s left") % Progress.format_time(Progress.time_left(id))
 		(_shop_rows[id] as Button).text = "   %s      -      %s" % [tr(item[1]), state]
@@ -1117,6 +1130,11 @@ func _build_design_preview(parent: VBoxContainer) -> void:
 	_preview_video = _small_button(col, _preview_watch)
 	_preview_ticket = _small_button(col, _preview_use_ticket)
 	_preview_trial = _small_button(col, _preview_try)
+	_preview_shards = _small_button(col, func() -> void:
+		Progress.set_shard_target(_preview_id)
+		if _audio:
+			_audio.play("token_select")
+		_preview_design(_preview_id))
 	## Customise: metal finish for every design, aura colour for Epic and Legendary.
 	_style_box = VBoxContainer.new()
 	_style_box.add_theme_constant_override("separation", 6)
@@ -1128,6 +1146,11 @@ func _build_design_preview(parent: VBoxContainer) -> void:
 	_style_box.add_child(sh)
 	_metal_row = _style_row(_style_box, "Metal", TokenDesigns.METALS, "metal")
 	_aura_row = _style_row(_style_box, "Aura", TokenDesigns.AURAS, "aura")
+	## Collections: own a whole set for a title and coins.
+	_sets_label = Label.new()
+	_sets_label.add_theme_font_size_override("font_size", 18)
+	_sets_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	parent.add_child(_sets_label)
 	_preview_design(Progress.equipped("design"))
 
 
@@ -1205,13 +1228,29 @@ func _preview_design(id: String) -> void:
 	## Free trial, once per design
 	_preview_trial.visible = not usable and not Progress.trial_used(id)
 	_preview_trial.text = tr("Free %d-minute trial") % Progress.TRIAL_MINUTES
+	## Shards: every game drops some towards the design you pick
+	var target := Progress.shard_target() == id
+	_preview_shards.visible = not owned and id != "design_classic"
+	_preview_shards.disabled = target
+	_preview_shards.text = (tr("Collecting shards: %d/%d") if target else tr("Collect shards for this (%d/%d)")) % [Progress.shards(id), Progress.shards_needed(id)]
 	## Status
 	if owned:
 		_preview_status.text = tr("Yours to keep") if id != "design_classic" else ""
+		var lvl := Progress.mastery_level(id)
+		if id != "design_classic":
+			_preview_status.text += "  ·  " + (tr(TokenDesigns.MASTERY_NAMES[lvl]) + ", " if lvl > 0 else "") + tr("%d games played") % Progress.design_games(id)
 	elif left > 0:
 		_preview_status.text = tr("Rented: %s left") % Progress.format_time(left)
 	else:
 		_preview_status.text = tr("Unlock it for good, or rent it for a while")
+	## Festival designs out of season: look, but wait for the festival
+	if not Progress.design_available(id):
+		var fest: String = TokenDesigns.FESTIVAL_OF[id]
+		_preview_status.text = tr("Festival design: on sale only during %s") % tr(Festivals.FESTIVALS[fest][0])
+		for b in [_preview_buy, _preview_video, _preview_ticket, _preview_trial, _preview_shards]:
+			b.visible = false
+	elif TokenDesigns.FESTIVAL_OF.has(id) and not owned:
+		_preview_status.text = tr("Limited time: only during %s!") % tr(Festivals.FESTIVALS[TokenDesigns.FESTIVAL_OF[id]][0])
 	## Customise (only once you can use it, and not for the plain classic)
 	_style_box.visible = usable and id != "design_classic"
 	_aura_row.visible = d[1] == "epic" or d[1] == "legendary"
@@ -1231,6 +1270,8 @@ func _preview_use() -> void:
 
 func _preview_purchase() -> void:
 	var r := Progress.buy(_preview_id)
+	if r == "season":
+		return
 	if r == "coins":
 		_shop_coins.text = tr("Not enough coins: win games and claim daily rewards")
 		if _audio:

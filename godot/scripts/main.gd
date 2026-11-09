@@ -742,7 +742,10 @@ func _on_game_event(event_name: String, data: Dictionary) -> void:
 			if walker and walker.find_child("DesignGearAura", false, false) and not game.fast_mode:
 				var ring := walker.get_node("DesignGearAura") as MeshInstance3D
 				var col: Color = ring.material_override.albedo_color
-				if ring.get_meta("trail", false):   # legendary designs leave sparks
+				var trail: Variant = ring.get_meta("trail", false)
+				if trail is String and trail == "holi":   # every hop a new colour cloud
+					effects.burst(walker.global_position + Vector3(0, 0.3, 0), [Color("#ff2a8a"), Color("#20c0ff"), Color("#ffd020"), Color("#30e070"), Color("#a040ff")].pick_random(), 16, 1.0, 0.7, -0.2)
+				elif trail is bool and trail:   # legendary and festival designs leave sparks
 					effects.burst(walker.global_position + Vector3(0, 0.3, 0), Color(col, 1.0), 10, 0.8, 0.6, -0.3)
 			audio.play("token_step", 0.1, -2.0)
 		"land":
@@ -924,6 +927,15 @@ func _on_game_finished(ranking: Array) -> void:
 			unlocked.append("challenge:" + cid)
 		if _last_config.get("mode", "") == "campaign":
 			unlocked.append_array(Campaign.finish(int(_last_config["chapter"]), t["won"]))
+		## Collection rewards: shards towards a design, mastery for the one worn.
+		var sh := Progress.add_shards(3 if t["won"] else 1)
+		if not sh.is_empty():
+			unlocked.append("shards:%s:%d:%d:%d" % [sh[0], sh[1], sh[2], 1 if sh[3] else 0])
+		var worn := Progress.equipped("design")
+		if Progress.add_design_game(worn):
+			unlocked.append("mastery:%s:%d" % [worn, Progress.mastery_level(worn)])
+		for set_id in Progress.check_sets():
+			unlocked.append("set:" + set_id)
 		var lv := Progress.add_game_xp(t)
 		hud.xp_info = lv
 		total = Progress.coins()
@@ -1626,9 +1638,9 @@ func _screenshot_and_quit(path: String) -> void:
 			t.configure(colors[i % 4])
 			t.transform_out(0.01)
 			var per_row := 7
-			t.position = Vector3(-4.2 + (i % per_row) * 1.4, RoyalBoard.TILE_TOP, -3.6 + (i / per_row) * 2.0)
+			t.position = Vector3(-3.0 + (i % per_row) * 1.2, RoyalBoard.TILE_TOP, -3.6 + (i / per_row) * 2.0)
 			t.scale = Vector3.ONE * 0.95
-			TokenDesigns.apply(t, ids[i], RoyalBoard.PALETTE[colors[i % 4]])
+			TokenDesigns.apply(t, "%s|gold|rarity|%d" % [ids[i], i % 4], RoyalBoard.PALETTE[colors[i % 4]])   # mastery 0-3 too
 	if "--statues" in OS.get_cmdline_user_args():
 		await get_tree().create_timer(1.0).timeout
 		_elephant_salute()
