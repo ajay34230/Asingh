@@ -13,6 +13,38 @@ document: what exists, how to run every test, how to build, what was measured, a
 not done. Then read `dlc/README.md` and `docs/RELEASE.md`. Do not start from zero and do not
 replace the project; everything below is an upgrade of what is there.
 
+## Links
+
+Project
+- Repository: https://github.com/ajay34230/Asingh
+- Work branch (all the work is here, not merged to `main`): https://github.com/ajay34230/Asingh/tree/ccr-1a31b667-aqu8jk
+- README, the handover document: https://github.com/ajay34230/Asingh/blob/ccr-1a31b667-aqu8jk/README.md
+- This prompt: https://github.com/ajay34230/Asingh/blob/ccr-1a31b667-aqu8jk/docs/NEXT_PROMPT.md
+- Release and signing guide: https://github.com/ajay34230/Asingh/blob/ccr-1a31b667-aqu8jk/docs/RELEASE.md
+- Asset credits and licences: https://github.com/ajay34230/Asingh/blob/ccr-1a31b667-aqu8jk/docs/CREDITS.md
+- Graphics-pack guide: https://github.com/ajay34230/Asingh/blob/ccr-1a31b667-aqu8jk/dlc/README.md
+- Graphics-pack list the game reads: https://raw.githubusercontent.com/ajay34230/asingh/ccr-1a31b667-aqu8jk/dlc/manifest.json
+- Download the branch as a zip: https://github.com/ajay34230/Asingh/archive/refs/heads/ccr-1a31b667-aqu8jk.zip
+- Open a pull request to `main`: https://github.com/ajay34230/Asingh/compare/main...ccr-1a31b667-aqu8jk
+- The previous session: https://claude.ai/code/session_01KiJHJo8en5g322hA8p4ypj
+
+Tools
+- Godot 4.3, editor and export templates: https://godotengine.org/download/archive/4.3-stable/
+- JDK 17, for Android builds: https://adoptium.net/temurin/releases/?version=17
+- Android Studio and SDK: https://developer.android.com/studio
+- Blender, for 3D models: https://www.blender.org/download/
+- Kokoro TTS, used for the Hindi voice lines: https://huggingface.co/hexgrad/Kokoro-82M
+
+Free assets (check each licence and record it in docs/CREDITS.md)
+- Poly Haven, CC0 textures, HDRIs and models: https://polyhaven.com
+- ambientCG, CC0 PBR materials: https://ambientcg.com
+- Kenney, CC0 game assets: https://kenney.nl/assets
+- Quaternius, CC0 low-poly models: https://quaternius.com
+
+Publishing
+- Google Play Console: https://play.google.com/console
+- AdMob, for real rewarded videos: https://admob.google.com
+
 ## What I want
 
 The game plays well and has a lot in it, but it still looks like a toy. I want it to look
