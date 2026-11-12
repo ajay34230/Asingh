@@ -87,12 +87,20 @@ static func _mesh(key: String, make: Callable) -> Mesh:
 	return _meshes[key]
 
 
+## Tessellation is kept modest: 16 knights are on screen in a 4-player game.
+const DETAIL := 0.6
+
+
+static func _q(segs: int, least := 8) -> int:
+	return maxi(least, int(segs * DETAIL))
+
+
 static func _sphere(r: float, segs := 28) -> Mesh:
-	return RoboPawn._sphere(r, segs)
+	return RoboPawn._sphere(r, _q(segs, 10))
 
 
 static func _cyl(top: float, bottom: float, h: float, segs := 24) -> Mesh:
-	return RoboPawn._cyl(top, bottom, h, segs)
+	return RoboPawn._cyl(top, bottom, h, _q(segs))
 
 
 static func _box(size: Vector3) -> Mesh:
@@ -103,7 +111,7 @@ static func _box(size: Vector3) -> Mesh:
 
 
 static func _torus(major: float, minor: float, rings := 40) -> Mesh:
-	return RoboPawn._torus(major, minor, rings)
+	return RoboPawn._torus(major, minor, _q(rings, 14))
 
 
 static func _capsule(r: float, h: float) -> Mesh:
@@ -171,7 +179,6 @@ static func _slab(key: String, outline: PackedVector2Array, depth: float, bevel:
 				for k in order:
 					st.set_normal(nrm)
 					st.add_vertex(quad[k])
-		st.generate_tangents()
 		return st.commit())
 
 
@@ -182,10 +189,28 @@ static func build_body(color_name: String) -> Node3D:
 	_base(body, color_name)
 	_torso(body, color_name)
 	_head(body, color_name)
+	_bake_body(body, color_name)
 	var anim := KnightAnimator.new()
 	anim.name = "KnightAnimator"
 	body.add_child(anim)
 	return body
+
+
+## Merges the knight's hundreds of parts into a few meshes (see MeshMerge): the body, the
+## head, its crest, the chest core and each spark. Moving parts keep their own node.
+static func _bake_body(body: Node3D, color_name: String) -> void:
+	var head: Node3D = body.get_node("KnightHead")
+	var crest: Node3D = head.get_node("HeadCrest")
+	var sparks: Node3D = body.get_node("Sparks")
+	var core: Node3D = body.get_node("ChestCore")
+	var bolts: Array = sparks.get_children().filter(func(n: Node) -> bool: return n.get_class() == "Node3D")
+	MeshMerge.bake(crest, "kn_crest_" + color_name, [], false)
+	MeshMerge.bake(head, "kn_head_" + color_name, [crest])
+	MeshMerge.bake(core, "kn_core_" + color_name, [], false)
+	MeshMerge.bake(sparks, "kn_cracks_" + color_name, bolts, false)
+	for i in range(bolts.size()):
+		MeshMerge.bake(bolts[i], "kn_bolt%d_%s" % [i, color_name], [], false)
+	MeshMerge.bake(body, "kn_body_" + color_name, [head, sparks, core])
 
 
 static func _base(body: Node3D, color_name: String) -> void:
@@ -195,12 +220,12 @@ static func _base(body: Node3D, color_name: String) -> void:
 	## Layered round base: wide chamfered foot, recessed band, raised top disc.
 	_mi(body, _mesh("kb_foot", func() -> Mesh:
 		return Monuments.lathe(PackedVector2Array([Vector2(0, 0), Vector2(0.33, 0), Vector2(0.342, 0.012),
-			Vector2(0.342, 0.03), Vector2(0.325, 0.042), Vector2(0, 0.042)]), 64)), g2)
+			Vector2(0.342, 0.03), Vector2(0.325, 0.042), Vector2(0, 0.042)]), 40)), g2)
 	_mi(body, _cyl(0.3, 0.31, 0.022, 64), g1, Vector3(0, 0.053, 0))
 	_mi(body, _torus(0.306, 0.007, 64), stripe(color_name), Vector3(0, 0.053, 0))   # colour band
 	_mi(body, _mesh("kb_top", func() -> Mesh:
 		return Monuments.lathe(PackedVector2Array([Vector2(0, 0.064), Vector2(0.29, 0.064), Vector2(0.298, 0.07),
-			Vector2(0.298, 0.084), Vector2(0.288, 0.092), Vector2(0, 0.092)]), 64)), g0)
+			Vector2(0.298, 0.084), Vector2(0.288, 0.092), Vector2(0, 0.092)]), 40)), g0)
 	_mi(body, _torus(0.24, 0.004, 64), g2, Vector3(0, 0.092, 0))       # engraved rings on top
 	_mi(body, _torus(0.15, 0.003, 48), g2, Vector3(0, 0.092, 0))
 	## Front emblem plate (a chevron-shaped block) and side medallions.
@@ -467,6 +492,26 @@ static func dress_limbs(color_name: String, arm_pivots: Dictionary, leg_pivots: 
 			_round_shield(shield, color_name, true)
 		_:
 			_kite_shield(shield, color_name)
+	## Merge each limb segment (and the shield and sword) into one mesh.
+	MeshMerge.bake(shield, "kn_shield_" + color_name, [], false)
+	var sword: Node3D = arm_pivots["L"]["wrist"].get_node_or_null("KnightSword")
+	if sword:
+		MeshMerge.bake(sword, "kn_sword_" + color_name, [], false)
+	for side_name in ["L", "R"]:
+		var pa: Dictionary = arm_pivots[side_name]
+		var pl: Dictionary = leg_pivots[side_name]
+		var extra_elbow: Array = [pa["wrist"]]
+		if pa["elbow"].has_node("KnightShield"):
+			extra_elbow.append(pa["elbow"].get_node("KnightShield"))
+		var extra_wrist: Array = []
+		if pa["wrist"].has_node("KnightSword"):
+			extra_wrist.append(pa["wrist"].get_node("KnightSword"))
+		MeshMerge.bake(pa["wrist"], "kn_wrist_%s_%s" % [color_name, side_name], extra_wrist)
+		MeshMerge.bake(pa["elbow"], "kn_elbow_%s_%s" % [color_name, side_name], extra_elbow)
+		MeshMerge.bake(pa["shoulder"], "kn_shoulder_%s_%s" % [color_name, side_name], [pa["elbow"]])
+		MeshMerge.bake(pl["ankle"], "kn_ankle_%s_%s" % [color_name, side_name])
+		MeshMerge.bake(pl["knee"], "kn_knee_%s_%s" % [color_name, side_name], [pl["ankle"]])
+		MeshMerge.bake(pl["hip"], "kn_hip_%s_%s" % [color_name, side_name], [pl["knee"]])
 
 
 static func _emblem(shield: Node3D, color_name: String, z: float) -> void:
@@ -639,7 +684,9 @@ static func apply_design(token: Node3D, id: String) -> void:
 	for m in token.body_node.find_children("*", "MeshInstance3D", true, false):
 		if not String(token.get_path_to(m)).contains("DesignGear"):
 			meshes.append(m)
-	for m in meshes:   # back to the plain knight first
+	for m in meshes:   # back to the plain knight first (surface overrides are per instance)
+		for i in range(m.mesh.get_surface_count()):
+			m.set_surface_override_material(i, null)
 		if m.has_meta("kd_orig"):
 			m.material_override = m.get_meta("kd_orig")
 			m.remove_meta("kd_orig")
@@ -648,21 +695,24 @@ static func apply_design(token: Node3D, id: String) -> void:
 	var team_glow: Color = GLOW.get(team, Color.WHITE)
 	var new_glow: Color = FINISH[id][4]
 	var shades := [gunmetal(0), gunmetal(1), gunmetal(2)]
+	var team_stripe := stripe(team)
 	for m in meshes:
-		var mat: Material = m.material_override
-		var repl: Material = null
-		var k := shades.find(mat)
-		if k >= 0:
-			repl = _finish_mat(id, k)
-		elif mat == stripe(team):
-			repl = _finish_stripe(id)
-		elif mat is StandardMaterial3D and (mat as StandardMaterial3D).emission_enabled \
-				and (mat as StandardMaterial3D).shading_mode == BaseMaterial3D.SHADING_MODE_UNSHADED \
-				and (mat as StandardMaterial3D).emission.is_equal_approx(team_glow):
-			repl = RoboPawn.glow(new_glow, float(mat.get_meta("base_energy", 4.0)))
-		if repl:
-			m.set_meta("kd_orig", mat)
-			m.material_override = repl
+		for i in range(m.mesh.get_surface_count()):
+			var mat: Material = m.mesh.surface_get_material(i)
+			if mat == null:
+				continue
+			var repl: Material = null
+			var k := shades.find(mat)
+			if k >= 0:
+				repl = _finish_mat(id, k)
+			elif mat == team_stripe:
+				repl = _finish_stripe(id)
+			elif mat is StandardMaterial3D and (mat as StandardMaterial3D).emission_enabled \
+					and (mat as StandardMaterial3D).shading_mode == BaseMaterial3D.SHADING_MODE_UNSHADED \
+					and (mat as StandardMaterial3D).emission.is_equal_approx(team_glow):
+				repl = RoboPawn.glow(new_glow, float(mat.get_meta("base_energy", 4.0)))
+			if repl:
+				m.set_surface_override_material(i, repl)
 	if id == "design_ghost":
 		_ghost_wisps(token)
 

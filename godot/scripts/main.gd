@@ -175,6 +175,8 @@ func _ready() -> void:
 	elif _is_test_launch(args):
 		menu.visible = false
 		_start_new_game_test()
+		if "--perf-test" in args:
+			_run_perf_test()
 	elif "--menu-play" in args:
 		audio.start_music()
 		_start_from_menu({"mode": "ai", "players": 4, "difficulty": 1, "rules": GameSettings.get_rules()})
@@ -254,11 +256,69 @@ func _ready() -> void:
 		_screenshot_and_quit(menu_shot)
 
 
+## 4-player game in real time with the human auto-playing: reports how heavy the scene
+## is (draw calls, triangles) and how many turns went by, so a slow or stuck 4-player
+## game shows up as numbers.
+func _run_perf_test() -> void:
+	for i in range(8):
+		await get_tree().process_frame
+	var seconds := float(_arg_value(OS.get_cmdline_user_args(), "--perf-seconds")) if _has_arg("--perf-seconds=") else 40.0
+	var start := Time.get_ticks_msec()
+	var turns := 0
+	var last_color := ""
+	var worst_idle := 0.0
+	var idle_since := Time.get_ticks_msec()
+	var draw_calls := 0
+	var prims := 0
+	var frames := 0
+	while Time.get_ticks_msec() - start < seconds * 1000.0:
+		var c := game.current_color()
+		if c != last_color:
+			last_color = c
+			turns += 1
+		if game.is_human_turn() and not game.busy:
+			if game.engine.phase == RulesEngine.PHASE_ROLL and game.dice.rollable:
+				game._on_roll_requested()
+			elif game.awaiting_pick:
+				game.tap_token(c, game._legal[0])
+		if game.busy or not game.is_human_turn():
+			idle_since = Time.get_ticks_msec()
+		worst_idle = maxf(worst_idle, (Time.get_ticks_msec() - idle_since) / 1000.0)
+		await get_tree().process_frame
+		frames += 1
+		if frames == 6:   # sample the renderer once the scene has settled
+			draw_calls = int(RenderingServer.get_rendering_info(RenderingServer.RENDERING_INFO_TOTAL_DRAW_CALLS_IN_FRAME))
+			prims = int(RenderingServer.get_rendering_info(RenderingServer.RENDERING_INFO_TOTAL_PRIMITIVES_IN_FRAME))
+	if "--perf-breakdown" in OS.get_cmdline_user_args():
+		var rows := []
+		for c in get_children():
+			var inst := 0
+			var surf := 0
+			var tris := 0
+			var list: Array = c.find_children("*", "MeshInstance3D", true, false)
+			if c is MeshInstance3D:
+				list.append(c)
+			for n in list:
+				var mesh: Mesh = (n as MeshInstance3D).mesh
+				if mesh == null or not (n as MeshInstance3D).is_visible_in_tree():
+					continue
+				inst += 1
+				surf += mesh.get_surface_count()
+				tris += mesh.get_faces().size() / 3
+			rows.append([tris, surf, inst, String(c.name), c.get_class()])
+		rows.sort_custom(func(a: Array, b: Array) -> bool: return a[1] > b[1])
+		for r in rows.slice(0, 14):
+			print("  BREAKDOWN %-28s %-14s instances=%5d surfaces=%5d triangles=%8d" % [r[3], r[4], r[2], r[1], r[0]])
+	print("PERF: players=%d tokens=%d draw_calls=%d triangles=%d frames=%d fps=%.1f turn_changes=%d worst_human_wait=%.1fs" % [
+		game.engine.seats.size(), game.tokens.size() * 4, draw_calls, prims, frames, frames / seconds, turns, worst_idle])
+	get_tree().quit()
+
+
 func _is_test_launch(args: PackedStringArray) -> bool:
 	for arg in args:
 		if arg.begins_with("--screenshot=") or arg.begins_with("--seed="):
 			return true
-	return "--click-test" in args or "--ui-test" in args or "--showcase" in args or "--net-host-test" in args or "--net-join-test" in args or _has_arg("--preview-shot=") or _has_arg("--result-shot=") or "--capture-test" in args or "--capture-kick" in args or "--fx-shot" in args or "--dice-face" in args
+	return "--click-test" in args or "--ui-test" in args or "--showcase" in args or "--net-host-test" in args or "--net-join-test" in args or _has_arg("--preview-shot=") or _has_arg("--result-shot=") or "--perf-test" in args or "--capture-test" in args or "--capture-kick" in args or "--fx-shot" in args or "--dice-face" in args
 
 
 ## Main menu, settings and pause overlays. The menu sits above the 3D scene.
@@ -326,6 +386,7 @@ func _start_from_menu(config: Dictionary) -> void:
 	game.fast_mode = false
 	game.new_game(colors, humans, config["rules"], config["difficulty"])
 	_last_config = config
+	_perf_guard(colors.size())
 
 
 var _last_config: Dictionary = {}
@@ -636,6 +697,11 @@ func _apply_settings() -> void:
 					(fx as GPUParticles3D).visible = quality != "low"
 		elif child is ReflectionProbe:
 			(child as ReflectionProbe).visible = high
+	## Decoration (plants, statues, lamps, the fountain) does not cast shadows below High:
+	## nobody sees them, and each one is drawn again in every shadow pass.
+	for child in get_children():
+		if child.name in ["Garden", "Peacock", "Elephant", "Statue", "Fountain", "Lamp", "DiceHolder"] or String(child.name).begins_with("@Node3D@"):
+			_set_shadows(child, high)
 	get_viewport().msaa_3d = Viewport.MSAA_4X if high else Viewport.MSAA_DISABLED
 	_camera_tilt = GameSettings.get_option("camera_tilt")
 	game.anim_scale = [1.6, 1.0, 0.6][int(GameSettings.get_option("anim_speed"))]
@@ -650,9 +716,59 @@ func _apply_settings() -> void:
 	_fit_camera()
 
 
+## Slow phone? If the game stays below ~26 fps for a few seconds, drop one graphics level
+## (Settings shows the change) so the match stays playable. Games with more players are
+## heavier, so they are checked too.
+var _guard_id := 0
+
+
+func _perf_guard(player_count: int) -> void:
+	if _demo or _is_test_launch(OS.get_cmdline_user_args()):
+		return
+	_guard_id += 1
+	var my_id := _guard_id
+	await get_tree().create_timer(8.0).timeout    # let the opening camera move and loading settle
+	for round in range(3):                        # up to three drops, a check every ~6 s
+		if my_id != _guard_id or get_tree().paused or not hud.visible:
+			return
+		var frames := 0
+		var t0 := Time.get_ticks_msec()
+		while Time.get_ticks_msec() - t0 < 3000:
+			await get_tree().process_frame
+			frames += 1
+		var fps := frames / 3.0
+		var quality: String = GameSettings.get_option("graphics")
+		if fps >= 26.0 or quality == "low":
+			return
+		var lower := "low" if quality == "medium" else "medium"
+		GameSettings.set_option("graphics", lower)
+		_apply_settings()
+		hud.show_caption(tr("Graphics lowered for smooth play. You can change this in Settings."), 4.0)
+		print("perf guard: %.0f fps with %d players, graphics %s -> %s" % [fps, player_count, quality, lower])
+		await get_tree().create_timer(3.0).timeout
+
+
+func _set_shadows(node: Node, on: bool) -> void:
+	if node is GeometryInstance3D:
+		var g := node as GeometryInstance3D
+		if on:
+			if g.has_meta("shadow_orig"):   # back to what it was before it was switched off
+				g.cast_shadow = g.get_meta("shadow_orig")
+				g.remove_meta("shadow_orig")
+		elif not g.has_meta("shadow_orig"):
+			g.set_meta("shadow_orig", g.cast_shadow)
+			g.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	for c in node.get_children():
+		_set_shadows(c, on)
+
+
 func _start_new_game_test() -> void:
 	game.fast_mode = _demo
-	_start_new_game_with(["blue"], ["blue", "yellow", "green", "red"])
+	var seat_list := ["blue", "yellow", "green", "red"]
+	if _has_arg("--seats-n="):   # tests: fewer seats (2 = blue and green)
+		var n := int(_arg_value(OS.get_cmdline_user_args(), "--seats-n"))
+		seat_list = ["blue", "green"] if n == 2 else (["blue", "yellow", "green"] if n == 3 else seat_list)
+	_start_new_game_with(["blue"], seat_list)
 	if game.specials:
 		game.specials.sync_powerups(game.engine.powerups)
 
