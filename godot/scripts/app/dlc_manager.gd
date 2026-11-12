@@ -7,7 +7,7 @@
 ##   {"schema": 1, "packs": [{"id": "ultra_textures", "name": "Ultra HD Texture Pack",
 ##     "version": "1.0.0", "size": 123456, "sha256": "<hex>", "url": "https://.../x.pck",
 ##     "min_game_version": "1.9.0", "description": "..."}]}
-## Defaults to GitHub Releases; switching to Cloudflare R2 or another CDN only needs a
+## Defaults to the dlc/ folder of the game repository on GitHub; switching to Cloudflare R2 or another CDN only needs a
 ## different URL (Settings key dlc/manifest_url, or edit DEFAULT_MANIFEST_URL).
 class_name DLCManager
 extends Node
@@ -17,7 +17,7 @@ signal progress(id: String, received: int, total: int)
 signal pack_finished(id: String, ok: bool, message: String)
 signal installed_changed
 
-const DEFAULT_MANIFEST_URL := "https://github.com/ajay34230/RoyalIndiaLudo-DLC/releases/latest/download/manifest.json"
+const DEFAULT_MANIFEST_URL := "https://raw.githubusercontent.com/ajay34230/asingh/ccr-1a31b667-aqu8jk/dlc/manifest.json"
 const DIR := "user://dlc"
 const MAX_ATTEMPTS := 4
 
