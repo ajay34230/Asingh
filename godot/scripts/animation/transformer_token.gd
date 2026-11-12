@@ -32,6 +32,8 @@ var _layout: Dictionary = PAWN_LAYOUT
 static func current_style() -> String:
     if style_override != "":
         return style_override
+    if String(GameSettings.get_option("graphics_style")) == "classic":
+        return "original"   # Classic Graphics: the original token models, exactly as before
     return String(GameSettings.get_option("token_style"))
 
 

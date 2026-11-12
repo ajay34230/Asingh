@@ -55,7 +55,10 @@ var _difficulty: OptionButton
 var _rule_boxes: Dictionary = {}
 var _graphics: OptionButton
 var _tokens: OptionButton
+var _gstyle: OptionButton
+var _fpscap: OptionButton
 const TOKEN_STYLES := ["knight", "robot", "royal", "original"]
+const GRAPHICS_STYLES := ["classic", "enhanced", "ultra"]
 var _camera: CheckButton
 var _anim: OptionButton
 var _fps: CheckButton
@@ -439,7 +442,9 @@ func _build_setup() -> void:
 func _build_settings() -> void:
 	var box := _scroll_page("settings", "Settings")
 	var page_box: VBoxContainer = _frame_of(box)
-	_graphics = _option(box, "Graphics", ["Low", "Medium", "High"])
+	_gstyle = _option(box, "Graphics style", ["Classic", "Enhanced", "Ultra Realistic"])
+	_graphics = _option(box, "Graphics quality", ["Low", "High", "Ultra"])
+	_fpscap = _option(box, "Frame rate", ["30 FPS (cooler)", "60 FPS (smoother)"])
 	_tokens = _option(box, "Token model", ["Robot knight", "Robot", "Royal pawn", "Original"])
 	_tokens.item_selected.connect(func(i: int) -> void:
 		var style: String = TOKEN_STYLES[i]
@@ -462,7 +467,8 @@ func _build_settings() -> void:
 	for l in I18n.LANGUAGES:
 		names.append(l[1])
 	_language = _option(box, "Language", names)
-	for c in [_graphics, _anim, _language]:
+	_button(box, "Resource Centre (graphics packs)", func() -> void: _open_resources())
+	for c in [_graphics, _anim, _language, _gstyle, _fpscap]:
 		(c as OptionButton).item_selected.connect(func(_i: int) -> void: _save_settings())
 	for c in [_camera, _fps, _mute, _haptics, _voice, _timer, _cb, _big, _relax]:
 		(c as CheckButton).toggled.connect(func(_b: bool) -> void: _save_settings())
@@ -594,6 +600,100 @@ func _refresh_themes() -> void:
 
 
 ## Rewards: daily reward, achievements and lifetime stats.
+# --- Resource Centre: optional downloadable graphics packs ----------------------------------
+
+static func _mb(bytes: int) -> String:
+	return "%.1f MB" % (bytes / 1048576.0)
+
+
+func build_resources() -> void:
+	_res_box = _scroll_page("resources", "Resource Centre")
+	var page_box: VBoxContainer = _frame_of(_res_box)
+	_button(page_box, "Back", func() -> void: _back())
+	dlc.installed_changed.connect(func() -> void: if _page == "resources": _refresh_resources())
+	dlc.manifest_changed.connect(func(_c: bool) -> void: if _page == "resources": _refresh_resources())
+	dlc.progress.connect(func(id: String, got: int, total: int) -> void:
+		if _res_bars.has(id) and is_instance_valid(_res_bars[id]):
+			var bar: ProgressBar = _res_bars[id]
+			bar.max_value = maxf(total, 1)
+			bar.value = got
+			(bar.get_meta("label") as Label).text = "%s / %s" % [_mb(got), _mb(total)])
+	dlc.pack_finished.connect(func(_id: String, ok: bool, msg: String) -> void:
+		if _page == "resources":
+			_refresh_resources()
+			_res_note.text = tr(msg) if not ok or msg != "Installed." else tr("Installed."))
+
+
+var _res_note: Label
+
+
+func _open_resources() -> void:
+	_refresh_resources()
+	show_page("resources")
+	dlc.refresh()
+
+
+func _refresh_resources() -> void:
+	for c in _res_box.get_children():
+		c.queue_free()
+	_res_bars.clear()
+	var head := Label.new()
+	head.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	head.text = tr("Optional graphics packs. The original graphics always stay in the game, and downloaded packs work offline.")
+	head.add_theme_font_size_override("font_size", 18)
+	_res_box.add_child(head)
+	var storage := Label.new()
+	storage.text = tr("Storage used: %s") % _mb(dlc.storage_used()) + ("   ·   " + tr("Offline: showing saved list") if dlc.offline else "")
+	storage.add_theme_color_override("font_color", RoyalTheme.GOLD_LIGHT)
+	_res_box.add_child(storage)
+	_res_note = Label.new()
+	_res_note.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	_res_note.add_theme_font_size_override("font_size", 18)
+	_res_box.add_child(_res_note)
+	var list: Array = dlc.entries()
+	if list.is_empty():
+		var none := Label.new()
+		none.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		none.text = tr("No packs available yet. Check your connection and try again later.")
+		_res_box.add_child(none)
+	for e in list:
+		var id := String(e["id"])
+		var status := String(e["status"])
+		var row := VBoxContainer.new()
+		row.add_theme_constant_override("separation", 4)
+		_res_box.add_child(row)
+		var title := Label.new()
+		title.text = "%s   v%s   ·   %s" % [e.get("name", id), e.get("version", "?"), _mb(int(e.get("size", 0)))]
+		title.add_theme_font_size_override("font_size", 24)
+		row.add_child(title)
+		if String(e.get("description", "")) != "":
+			var d := Label.new()
+			d.text = String(e["description"])
+			d.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+			d.add_theme_font_size_override("font_size", 16)
+			row.add_child(d)
+		var state := Label.new()
+		state.add_theme_font_size_override("font_size", 18)
+		state.text = {"available": tr("Not installed"), "installed": tr("Installed (works offline)"), "update": tr("Update available"),
+			"incompatible": tr("Needs a newer version of the game"), "downloading": tr("Downloading...")}.get(status, status)
+		row.add_child(state)
+		if status == "downloading":
+			var bar := ProgressBar.new()
+			bar.show_percentage = false
+			bar.custom_minimum_size = Vector2(0, 20)
+			var lab := Label.new()
+			lab.add_theme_font_size_override("font_size", 16)
+			bar.set_meta("label", lab)
+			_res_bars[id] = bar
+			row.add_child(bar)
+			row.add_child(lab)
+			_button(row, "Cancel", func() -> void: dlc.cancel(id))
+		elif status == "available" or status == "update":
+			_button(row, "Download" if status == "available" else "Update", func() -> void: dlc.download(id))
+		if status == "installed" or status == "update":
+			_button(row, "Remove", func() -> void: dlc.remove(id))
+
+
 func _build_rewards() -> void:
 	_rewards_box = _scroll_page("rewards", "Rewards")
 	var page_box: VBoxContainer = _frame_of(_rewards_box)
@@ -695,6 +795,9 @@ func _build_modes() -> void:
 
 
 var net: NetPlay
+var dlc: DLCManager
+var _res_box: VBoxContainer
+var _res_bars := {}   ## pack id -> ProgressBar while it downloads
 var _lan_box: VBoxContainer
 var _lan_hosts: VBoxContainer
 var _lan_lobby: Label
@@ -985,6 +1088,8 @@ func _quick_play() -> void:
 
 func _load_settings_into_controls() -> void:
 	_graphics.select(["low", "medium", "high"].find(GameSettings.get_option("graphics")))
+	_gstyle.select(maxi(0, GRAPHICS_STYLES.find(String(GameSettings.get_option("graphics_style")))))
+	_fpscap.select(0 if int(GameSettings.get_option("fps_cap")) == 30 else 1)
 	_tokens.select(maxi(0, TOKEN_STYLES.find(String(GameSettings.get_option("token_style")))))
 	_camera.button_pressed = GameSettings.get_option("camera_tilt")
 	_anim.select(GameSettings.get_option("anim_speed"))
@@ -1006,6 +1111,12 @@ func _load_settings_into_controls() -> void:
 
 func _save_settings() -> void:
 	GameSettings.set_option("graphics", ["low", "medium", "high"][_graphics.selected])
+	var new_style: String = GRAPHICS_STYLES[maxi(_gstyle.selected, 0)]
+	var style_changed := new_style != String(GameSettings.get_option("graphics_style"))
+	GameSettings.set_option("graphics_style", new_style)
+	GameSettings.set_option("fps_cap", 30 if _fpscap.selected == 0 else 60)
+	if style_changed:
+		board_theme_changed.emit()   # rebuild the scene so the tokens change
 	GameSettings.set_option("camera_tilt", _camera.button_pressed)
 	GameSettings.set_option("anim_speed", _anim.selected)
 	GameSettings.set_option("show_fps", _fps.button_pressed)

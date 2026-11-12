@@ -22,6 +22,7 @@ func _init() -> void:
 	_test_every_colour_reaches_home()
 	_test_ai_full_games_finish()
 	_test_house_rules()
+	_test_ai_tactics()
 	_test_each_colour_owns_its_arm()
 	_test_ai_difficulties_finish()
 	_test_team_mode()
@@ -223,6 +224,44 @@ func _test_ai_full_games_finish() -> void:
 			turns += 1
 		check(e.phase == RulesEngine.PHASE_OVER, "AI game %d finishes" % seed_value)
 		check(e.rankings.size() == 4, "AI game %d ranks all four seats" % seed_value)
+
+
+## The AI should use all its tokens: capture with whichever token can, and rescue a
+## threatened token instead of always running its leader.
+func _test_ai_tactics() -> void:
+	for difficulty in [1, 2, 3]:
+		# Find an unsafe stretch of the ring for the scenarios.
+		var spot := 14
+		while BoardPath.is_safe_ring(BoardPath.ring_index_for_progress("blue", spot)) \
+				or BoardPath.is_safe_ring(BoardPath.ring_index_for_progress("blue", spot - 3)) \
+				or BoardPath.is_safe_ring(BoardPath.ring_index_for_progress("blue", spot + 5)):
+			spot += 1
+		var green_at := func(blue_progress: int) -> int:
+			var ring := BoardPath.ring_index_for_progress("blue", blue_progress)
+			return ((ring - BoardPath.start_of("green") + 52) % 52) + 1
+		# 1. A four captures with the REAR token (10 -> 14); the leader (40) has no victim.
+		var e := RulesEngine.new()
+		e.setup([{"color": "blue", "human": false}, {"color": "green", "human": false}], 5, {})
+		e.seats[0]["tokens"] = [40, spot - 4, 0, 0]
+		e.seats[1]["tokens"] = [green_at.call(spot), 0, 0, 0]
+		e.roll_with_value(4)
+		check(AiController.choose_move(e, e.legal_moves(), difficulty) == 1, "AI (level %d) captures with the rear token when a four hits an enemy" % difficulty)
+		# 2. An enemy sits 3 behind the rear token; a five carries it out of reach. The
+		# leader is safe (nobody near), so a plain racer would run the leader.
+		e = RulesEngine.new()
+		e.setup([{"color": "blue", "human": false}, {"color": "green", "human": false}], 5, {})
+		e.seats[0]["tokens"] = [45, spot, 0, 0]
+		e.seats[1]["tokens"] = [green_at.call(spot - 3), 0, 0, 0]
+		e.roll_with_value(5)
+		check(AiController.choose_move(e, e.legal_moves(), difficulty) == 1, "AI (level %d) rescues a threatened token instead of running the leader" % difficulty)
+		# 3. Capturing the attacker is better than running: the enemy 3 behind token 1
+		# can be hit by token 0 sitting 6 behind it, with a three.
+		e = RulesEngine.new()
+		e.setup([{"color": "blue", "human": false}, {"color": "green", "human": false}], 5, {})
+		e.seats[0]["tokens"] = [spot - 6, spot, 0, 0]
+		e.seats[1]["tokens"] = [green_at.call(spot - 3), 0, 0, 0]
+		e.roll_with_value(3)
+		check(AiController.choose_move(e, e.legal_moves(), difficulty) == 0, "AI (level %d) knocks out the enemy that threatens its other token" % difficulty)
 
 
 func _test_house_rules() -> void:

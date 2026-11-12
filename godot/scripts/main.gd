@@ -19,6 +19,7 @@ var camera: Camera3D
 var board: RoyalBoard
 var loading: LoadingScreen
 var voice: VoiceManager
+var dlc: DLCManager
 var tutorial: Tutorial
 var net: NetPlay
 var bubbles: SpeechBubbles
@@ -162,6 +163,11 @@ func _ready() -> void:
 	_build_menu()
 	menu.net = net
 	menu._build_lan()
+	dlc = DLCManager.new()
+	dlc.name = "DLC"
+	add_child(dlc)
+	menu.dlc = dlc
+	menu.build_resources()
 	if _demo:
 		Engine.time_scale = 40.0  ## demo only: run the whole game quickly
 		game.fast_mode = true
@@ -251,6 +257,8 @@ func _ready() -> void:
 			menu._refresh_journey()
 		elif page == "lan":
 			menu._open_lan()
+		elif page == "resources":
+			menu._refresh_resources()
 		if page != "":
 			menu.show_page(page)
 		_screenshot_and_quit(menu_shot)
@@ -671,9 +679,39 @@ func _load_settings_page() -> void:
 
 
 ## Applies graphics, camera and animation settings. Called at start and after changes.
+## First launch: pick a quality that suits the device (the player can change it later).
+func _detect_quality() -> void:
+	if bool(GameSettings.get_option("graphics_auto")):
+		return
+	GameSettings.set_option("graphics_auto", true)
+	var gpu := RenderingServer.get_video_adapter_name().to_lower()
+	var cores := OS.get_processor_count()
+	var strong_gpu := false
+	for key in ["adreno (tm) 7", "adreno (tm) 8", "mali-g7", "mali-g9", "apple", "nvidia", "radeon"]:
+		if gpu.contains(key):
+			strong_gpu = true
+	var weak_gpu := gpu.contains("llvmpipe") or gpu.contains("mali-t") or gpu.contains("adreno (tm) 3") or gpu.contains("adreno (tm) 4") or gpu.contains("powervr")
+	var quality := "medium"
+	if cores <= 4 or weak_gpu:
+		quality = "low"
+	elif strong_gpu and cores >= 8:
+		quality = "high"
+	GameSettings.set_option("graphics", quality)
+	GameSettings.set_option("fps_cap", 30 if quality == "low" else 60)
+	print("device check: gpu='%s' cores=%d -> %s" % [gpu, cores, quality])
+
+
+## Dynamic resolution: the perf guard lowers this first, before it drops a quality level.
+var _res_scale := 1.0
+
+
 func _apply_settings() -> void:
+	if not _is_test_launch(OS.get_cmdline_user_args()) and not _demo:
+		_detect_quality()
 	var quality: String = GameSettings.get_option("graphics")
-	var high := quality == "high"
+	## Ultra Realistic Graphics always gets the full effects, whatever the quality level.
+	var high := quality == "high" or String(GameSettings.get_option("graphics_style")) == "ultra"
+	Engine.max_fps = int(GameSettings.get_option("fps_cap")) if not _is_test_launch(OS.get_cmdline_user_args()) else 0
 	var medium := quality != "low"
 	var env: Environment = null
 	for child in get_children():
@@ -683,7 +721,7 @@ func _apply_settings() -> void:
 			(child as DirectionalLight3D).shadow_enabled = medium
 	if env:
 		env.glow_enabled = medium
-	get_viewport().scaling_3d_scale = 0.75 if quality == "low" else 1.0
+	get_viewport().scaling_3d_scale = minf(0.75 if quality == "low" else 1.0, _res_scale)
 	## Budget phones: Low drops the garden, drifting petals and reflections, and uses
 	## simpler distant meshes; Medium keeps everything but the reflection probe.
 	get_viewport().mesh_lod_threshold = 4.0 if quality == "low" else (2.0 if medium and not high else 1.0)
@@ -738,8 +776,14 @@ func _perf_guard(player_count: int) -> void:
 			frames += 1
 		var fps := frames / 3.0
 		var quality: String = GameSettings.get_option("graphics")
-		if fps >= 26.0 or quality == "low":
+		if fps >= 26.0 or (quality == "low" and _res_scale <= 0.72):
 			return
+		if _res_scale > 0.72:   # first lower the resolution a step, which costs the least
+			_res_scale = maxf(0.7, _res_scale - 0.15)
+			_apply_settings()
+			print("perf guard: %.0f fps, resolution scale -> %.2f" % [fps, _res_scale])
+			await get_tree().create_timer(3.0).timeout
+			continue
 		var lower := "low" if quality == "medium" else "medium"
 		GameSettings.set_option("graphics", lower)
 		_apply_settings()

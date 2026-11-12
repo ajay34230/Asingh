@@ -26,19 +26,33 @@ static func choose_move(engine: RulesEngine, moves: Array[int], difficulty: int 
 	var attack: float = p["attack"]
 	var safety: float = p["safety"]
 	var race: float = p["race"]
+	## How careful: Normal looks at threats a little, Hard and Expert fully.
+	var care := 0.5 if difficulty <= Difficulty.NORMAL else 1.0
+	var loss_now := _expected_loss(engine, engine.current, {})
 	var best: int = moves[0]
 	var best_score := -INF
 	for token in moves:
 		var preview := engine.preview_move(token)
-		var score: float = float(preview["to"]) * 0.5 * race
+		## Pretend the move happened (my token moved, victims sent home) and see what
+		## the position is worth: tokens saved from danger, enemies in reach.
+		var after := {engine.current: {token: int(preview["to"])}}
+		for cap in preview["captures"]:
+			if not after.has(cap["seat"]):
+				after[cap["seat"]] = {}
+			after[cap["seat"]][cap["token"]] = 0
+		var saved := loss_now - _expected_loss(engine, engine.current, after)   # > 0: the move protects tokens
+		var score: float = float(int(preview["to"]) - int(preview["from"])) * 0.5 * race
+		score += saved * 1.4 * safety * care
+		## Capturing: the further the victim got, the more it hurts them.
+		score += float(preview["captures"].size()) * 100.0 * attack
+		for cap in preview["captures"]:
+			score += float(engine.seats[cap["seat"]]["tokens"][cap["token"]]) * 0.9 * attack
+		## Hunting: end within one throw of an enemy that cannot hide on a safe square.
+		score += _prey_in_reach(engine, seat, int(preview["to"]), after) * 9.0 * attack * care
 		if difficulty >= Difficulty.HARD:
 			score += _safety_bonus(engine, preview) * safety
 		if difficulty == Difficulty.EXPERT:
 			score -= _danger(engine, seat, preview) * 12.0 * safety
-		score += float(preview["captures"].size()) * 100.0 * attack
-		## Smarter: an advanced victim is worth more (it loses more ground).
-		for cap in preview["captures"]:
-			score += float(engine.seats[cap["seat"]]["tokens"][cap["token"]]) * 0.9 * attack
 		if preview["powerup"] != "":
 			score += 25.0
 		if int(preview["slide_from"]) >= 0:
@@ -46,7 +60,7 @@ static func choose_move(engine: RulesEngine, moves: Array[int], difficulty: int 
 		if preview["finishes"]:
 			score += 90.0 * race
 		if preview["from"] == 0:
-			score += 50.0
+			score += 40.0
 		if preview["to"] > BoardPath.COMMON_STEPS and not preview["finishes"]:
 			score += 30.0
 		if preview["to"] <= BoardPath.COMMON_STEPS \
@@ -58,6 +72,64 @@ static func choose_move(engine: RulesEngine, moves: Array[int], difficulty: int 
 			best_score = score
 			best = token
 	return best
+
+
+## Progress of every token as it would be after `changes` ({seat: {token: progress}}).
+static func _progress(engine: RulesEngine, seat_index: int, token: int, changes: Dictionary) -> int:
+	if changes.has(seat_index) and changes[seat_index].has(token):
+		return int(changes[seat_index][token])
+	return int(engine.seats[seat_index]["tokens"][token])
+
+
+## What my tokens are expected to lose next turn: for each token on an unsafe square,
+## the chance an enemy lands on it (one throw away, about 1 in 6 each) times what it
+## would lose (its progress, plus the six needed to come out again).
+static func _expected_loss(engine: RulesEngine, me: int, changes: Dictionary) -> float:
+	var total := 0.0
+	var my_color: String = engine.seats[me]["color"]
+	for t in range(4):
+		var mine := _progress(engine, me, t, changes)
+		if mine < 1 or mine > BoardPath.COMMON_STEPS or int(engine.seats[me]["shields"][t]) > 0:
+			continue
+		var ring := BoardPath.ring_index_for_progress(my_color, mine)
+		if BoardPath.is_safe_ring(ring):
+			continue
+		var chance := 0.0
+		for o in range(engine.seats.size()):
+			if o == me or engine.team_of(o) == engine.team_of(me):
+				continue
+			for q in range(4):
+				var op := _progress(engine, o, q, changes)
+				if op < 1 or op > BoardPath.COMMON_STEPS:
+					continue
+				var behind := (ring - BoardPath.ring_index_for_progress(engine.seats[o]["color"], op) + BoardPath.RING_LENGTH) % BoardPath.RING_LENGTH
+				if behind >= 1 and behind <= 6:
+					chance += 1.0 / 6.0 + (0.03 if behind == 6 else 0.0)
+		total += minf(chance, 1.0) * (float(mine) + 8.0)
+	return total
+
+
+## Enemy tokens 1-6 squares ahead of this square that are not on a safe square.
+static func _prey_in_reach(engine: RulesEngine, seat: Dictionary, to: int, changes: Dictionary) -> int:
+	if to < 1 or to > BoardPath.COMMON_STEPS:
+		return 0
+	var ring := BoardPath.ring_index_for_progress(seat["color"], to)
+	var me := engine.seats.find(seat)
+	var count := 0
+	for o in range(engine.seats.size()):
+		if o == me or engine.team_of(o) == engine.team_of(me):
+			continue
+		for q in range(4):
+			var op := _progress(engine, o, q, changes)
+			if op < 1 or op > BoardPath.COMMON_STEPS or int(engine.seats[o]["shields"][q]) > 0:
+				continue
+			var their := BoardPath.ring_index_for_progress(engine.seats[o]["color"], op)
+			if BoardPath.is_safe_ring(their):
+				continue
+			var ahead := (their - ring + BoardPath.RING_LENGTH) % BoardPath.RING_LENGTH
+			if ahead >= 1 and ahead <= 6:
+				count += 1
+	return count
 
 
 ## +12 for leaving a safe square is not needed; reward ending on a safe square.
