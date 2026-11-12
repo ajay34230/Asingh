@@ -168,7 +168,12 @@ display (on a server: `xvfb-run -a -s "-screen 0 1560x720x24"` before the comman
 | Royal Journey starts from the menu | `godot --path godot -- --journey-test` | `JOURNEY TEST PASS` |
 | Wi-Fi game, two instances | `-- --net-host-test --seats=4 --rules=snakes,powerups` then `-- --net-join-test` (both `--headless`) | two identical `NET RESULT` lines |
 | Draw calls and triangles in a 4-player game | `godot --path godot -- --perf-test --seats-n=4 --token-style=knight --perf-breakdown` | a `PERF:` line |
+| Scenery merging (needs a display, not `--headless`) | `godot --rendering-driver opengl3 --path godot --script tests/merge_test.gd` | `MERGE TEST PASS` |
 | Graphics packs | `python3 godot/tests/dlc/server.py <pck> <port> <log>` then `DLC_PORT=<port> godot --headless --path godot --script tests/dlc/dlc_test.gd` | `DLC TEST PASS` |
+
+Measuring flags: `--quality=low|medium|high` and `--gfx-style=classic|enhanced|ultra` force a
+level for one run; `--no-bake` turns scenery and Robot merging off, to compare numbers or to
+rule the merge out when something looks wrong.
 
 All of these passed at the last commit. The progress and DLC tests use their own save
 data; set `XDG_DATA_HOME` to a scratch folder to keep test runs away from a real save.
@@ -206,22 +211,58 @@ godot --headless --path godot --export-debug   "Android Debug"       ../build/Ro
 
 ## Performance (measured on a development machine, not on a phone)
 
-A 4-player game puts 16 tokens on the board. Counted per frame with the knight model,
-including shadow passes:
+A 4-player game puts 16 tokens on the board. Counted per frame, including shadow passes,
+with `--perf-test --seats-n=4 --quality=<level>` on a server with a software renderer. The
+counts are exact; the frame rate of that machine means nothing for a phone.
+
+History of the default knight model at High quality (`medium`):
 
 | Stage | Draw calls | Triangles |
 |---|---|---|
 | Before optimisation (each knight about 270 meshes) | 21,500 | 9.0 million |
 | Knights merged to about 24 meshes each, decoration shadows off below Ultra | 8,600 | 6.1 million |
-| Plus a single far mesh per knight beyond 16 units and automatic mesh LODs | 5,600 | 4.9 million |
+| Plus a single far mesh per knight beyond 16 units and automatic mesh LODs | 5,582 | 4.92 million |
+| Plus the palace merged (board, statues, fountain, lamp, dice, dice holder) | 2,457 | 3.49 million |
 
-How it is done: `render/mesh_merge.gd` bakes groups of small meshes into one mesh with a
-surface per material, built once per colour and warrior type and shared. Designs recolour a
-token with per-instance surface overrides. `KnightPawn.add_lod` adds the far mesh.
+The palace merge at each quality level, knight model:
 
-What is still heavy: the palace itself. Breakdown of surfaces at the last measurement: board
-657, peacock statue 211, dice 119, garden 112, elephant 91. The board and the statues are
-the next thing to merge.
+| Quality (setting name) | Draw calls before | after | Triangles before | after |
+|---|---|---|---|---|
+| Low (`low`) | 1,445 | 762 | 1.26 million | 0.55 million |
+| High (`medium`) | 5,582 | 2,457 | 4.92 million | 3.49 million |
+| Ultra (`high`) | 6,788 | 3,030 | 6.81 million | 4.54 million |
+
+Other token models at High quality:
+
+| Token model | Draw calls before | after | Triangles before | after |
+|---|---|---|---|---|
+| Robot (parts merged per moving group) | 32,320 | 15,503 | 8.84 million | 4.80 million |
+| Royal pawn (palace merge only) | 9,053 | 5,894 | 7.47 million | 5.70 million |
+| Original (palace merge only) | 7,023 | 3,909 | 8.67 million | 7.26 million |
+
+How it is done:
+- `render/mesh_merge.gd`, `bake`: groups of small token meshes become one mesh with a surface
+  per material, built once per colour and warrior type and shared. Designs recolour a token
+  with per-instance surface overrides. `KnightPawn.add_lod` adds the far mesh.
+- `bake_static`: scenery that never moves becomes one mesh per object (two if some parts cast
+  no shadow). Supplied models get three detail levels (full, about half, about a fifth of the
+  triangles) and `MeshMerge.apply_detail` swaps them when the quality setting changes.
+  Classic and Ultra Realistic styles always use full detail. The board keeps its plaques
+  and lamp flames as separate nodes because they move.
+- `bake_split` and `RoboPawn.optimise`: the Robot model is merged per moving group (body,
+  head, each eye, each crest piece, each limb segment), with glowing parts kept in their own
+  mesh so designs do not repaint them.
+- Screenshots with and without the merge were compared and match.
+
+What is still heavy:
+- The garden: 112 plant meshes and about 0.7 million triangles at High and Ultra (hidden at
+  Low). Every plant has its own wind material, so merging gains little; it needs lighter
+  plant models or impostors.
+- The tokens: 16 knights are about 1,200 surfaces and 0.8 million triangles.
+- The Robot model is still about 15,500 draw calls with 16 tokens. It is much better than
+  it was, but the knight is the model to use on a phone.
+- The board is one merged mesh of 0.64 million triangles (round shapes built with many
+  segments). It has no reduced levels yet.
 
 **None of this has been run on a real phone.** The frame-rate numbers that matter do not
 exist yet.
@@ -237,7 +278,7 @@ exist yet.
 - **Real video ads are not connected.** Debug builds play a labelled 6-second test video;
   release builds hide the "Watch video" button until a provider is set
   (`RewardedAds.provider`, see `docs/RELEASE.md`).
-- **The "Robot" token model is not optimised** (about 400 meshes each).
+- **The "Robot" token model is only half optimised** (merged per moving group; see Performance).
 - **The graphics-pack link points at the work branch.** After merging to `main`, change the
   branch name in `DLCManager.DEFAULT_MANIFEST_URL` and in `tools/build_dlc.py`, or the
   Resource Centre stops finding packs. GitHub also refuses files over 100 MB.

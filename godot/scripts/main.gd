@@ -294,7 +294,7 @@ func _run_perf_test() -> void:
 		worst_idle = maxf(worst_idle, (Time.get_ticks_msec() - idle_since) / 1000.0)
 		await get_tree().process_frame
 		frames += 1
-		if frames == 6:   # sample the renderer once the scene has settled
+		if frames >= 3 and (frames == 6 or draw_calls == 0):   # sample once the scene has settled (slow machines may never reach frame 6)
 			draw_calls = int(RenderingServer.get_rendering_info(RenderingServer.RENDERING_INFO_TOTAL_DRAW_CALLS_IN_FRAME))
 			prims = int(RenderingServer.get_rendering_info(RenderingServer.RENDERING_INFO_TOTAL_PRIMITIVES_IN_FRAME))
 	if "--perf-breakdown" in OS.get_cmdline_user_args():
@@ -710,7 +710,14 @@ var _res_scale := 1.0
 func _apply_settings() -> void:
 	if not _is_test_launch(OS.get_cmdline_user_args()) and not _demo:
 		_detect_quality()
+	if _has_arg("--quality="):       # tests and measurements: force a level
+		GameSettings.set_option("graphics", _arg_value(OS.get_cmdline_user_args(), "--quality"))
+	if _has_arg("--gfx-style="):
+		GameSettings.set_option("graphics_style", _arg_value(OS.get_cmdline_user_args(), "--gfx-style"))
 	var quality: String = GameSettings.get_option("graphics")
+	## Scenery detail follows the quality level; Classic and Ultra Realistic keep every triangle.
+	var style := String(GameSettings.get_option("graphics_style"))
+	MeshMerge.apply_detail(get_tree(), "high" if style in ["ultra", "classic"] else quality)
 	## Ultra Realistic Graphics always gets the full effects, whatever the quality level.
 	var high := quality == "high" or String(GameSettings.get_option("graphics_style")) == "ultra"
 	Engine.max_fps = int(GameSettings.get_option("fps_cap")) if not _is_test_launch(OS.get_cmdline_user_args()) else 0
@@ -794,6 +801,12 @@ func _perf_guard(player_count: int) -> void:
 		await get_tree().create_timer(3.0).timeout
 
 
+## Static scenery is merged into a few meshes at start (see MeshMerge.bake_static).
+## `--no-bake` keeps every original part, to compare numbers or rule the merge out.
+func _bake_scenery() -> bool:
+	return not ("--no-bake" in OS.get_cmdline_user_args())
+
+
 func _set_shadows(node: Node, on: bool) -> void:
 	if node is GeometryInstance3D:
 		var g := node as GeometryInstance3D
@@ -855,6 +868,8 @@ func _place_decorations() -> void:
 		var model := (load(deco["path"]) as PackedScene).instantiate()
 		root.add_child(model)
 		_repair_meshes(model)
+		if _bake_scenery():
+			MeshMerge.bake_static(model, String(deco["path"]))
 		if not _decor.has(deco["type"]):
 			_decor[deco["type"]] = root
 		var animator := RoyalEnvironmentAnimator.new()
@@ -1497,6 +1512,8 @@ func _build_dice_holder() -> void:
 		gem.material_override = RoyalBoard.gem_material(Color("#c0182c"))
 		gem.position = Vector3(cos(a) * 0.5, 0.36, sin(a) * 0.5)
 		root.add_child(gem)
+	if _bake_scenery():
+		MeshMerge.bake_static(root, "", [], true)
 
 
 func _update_dice_holder(delta: float) -> void:
@@ -1517,6 +1534,8 @@ func _build_dice() -> DiceController:
 	## after some rolls).
 	var model := RoyalDice.build(Progress.equipped("dice"))
 	dice.add_child(model)
+	if _bake_scenery():
+		MeshMerge.bake_static(model, "dice_" + String(Progress.equipped("dice")))
 	var shape := CollisionShape3D.new()
 	var sphere := SphereShape3D.new()
 	sphere.radius = 0.8

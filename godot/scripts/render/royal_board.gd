@@ -82,6 +82,15 @@ func _ready() -> void:
 	_build_wings()
 	if theme.get("night", false):
 		_build_diyas()
+	## Everything built above except the plaques (they rise, spin and light up) and the
+	## lamp flames (they flicker) never moves: draw it as a handful of meshes, not ~600.
+	if not ("--no-bake" in OS.get_cmdline_user_args()):
+		var moving: Array = []
+		for c in get_children():
+			if String(c.name).begins_with("Plaque_"):
+				moving.append(c)
+		moving.append_array(_flames)
+		MeshMerge.bake_static(self, "", moving, false)
 
 
 func _process(delta: float) -> void:

@@ -709,6 +709,65 @@ static func dress_limbs(color_name: String, arm_pivots: Dictionary, leg_pivots: 
 		_mi(l["ankle"], _box(Vector3(0.07, 0.012, 0.06)), arm, Vector3(0, 0.012, 0.045))
 
 
+# --- optimisation ------------------------------------------------------------------------------
+
+## A robot is ~400 small meshes; 16 of them cost about 30,000 draw calls a frame. Parts that
+## move together are merged (see MeshMerge): the body, the head, each eye, each crest piece
+## and each limb segment. Everything that animates keeps its own node, so nothing changes
+## on screen. Skipped with --no-bake.
+static func optimise(token: Node3D, color_name: String, arm_pivots: Dictionary, leg_pivots: Dictionary) -> void:
+	if "--no-bake" in OS.get_cmdline_user_args():
+		return
+	var body: Node3D = token.body_node
+	var k := "rb_" + color_name
+	var head := body.get_node_or_null("RoboHead") as Node3D
+	var keep: Array = []
+	for n in ["PedestalSpin", "Reactor", "RoboHead", "RoboAnimator"]:
+		if body.has_node(n):
+			keep.append(body.get_node(n))
+	if body.has_node("PedestalSpin"):
+		MeshMerge.bake_split(body.get_node("PedestalSpin"), k + "_spin")
+	if body.has_node("Reactor"):
+		var reactor := body.get_node("Reactor") as Node3D
+		MeshMerge.bake_split(reactor, k + "_reactor", [reactor.get_node_or_null("ReactorCore")])
+	if head:
+		var moving: Array = []
+		var crest := head.get_node_or_null("HeadCrest") as Node3D
+		if crest:
+			moving.append(crest)
+			var i := 0
+			for piece in crest.find_children("*", "Node3D", true, false):
+				if not is_instance_valid(piece):   # merged into an earlier piece
+					continue
+				var nm := String(piece.name)
+				if piece is MeshInstance3D or not (nm.begins_with("Ear") or nm.begins_with("Feather") or nm.begins_with("Fin") or nm.begins_with("Antenna")):
+					continue
+				MeshMerge.bake_split(piece as Node3D, "%s_crest%d" % [k, i])
+				i += 1
+		var e := 0
+		for eye in head.find_children("Eye*", "Node3D", true, false):
+			moving.append(eye)
+			var parts: Array = []
+			for c in eye.get_children():
+				if String(c.name).begins_with("Iris") or String(c.name).begins_with("Lid"):
+					parts.append(c)
+			MeshMerge.bake_split(eye as Node3D, "%s_eye%d" % [k, e], parts)
+			e += 1
+		for lid in head.find_children("Lid*", "Node3D", true, false):
+			moving.append(lid)
+		MeshMerge.bake_split(head, k + "_head", moving)
+	MeshMerge.bake_split(body, k + "_body", keep)
+	for side_name in ["L", "R"]:
+		var a: Dictionary = arm_pivots[side_name]
+		var l: Dictionary = leg_pivots[side_name]
+		MeshMerge.bake_split(a["wrist"], "%s_wrist%s" % [k, side_name])
+		MeshMerge.bake_split(a["elbow"], "%s_elbow%s" % [k, side_name], [a["wrist"]])
+		MeshMerge.bake_split(a["shoulder"], "%s_shoulder%s" % [k, side_name], [a["elbow"]])
+		MeshMerge.bake_split(l["ankle"], "%s_ankle%s" % [k, side_name])
+		MeshMerge.bake_split(l["knee"], "%s_knee%s" % [k, side_name], [l["ankle"]])
+		MeshMerge.bake_split(l["hip"], "%s_hip%s" % [k, side_name], [l["knee"]])
+
+
 # --- reactions ---------------------------------------------------------------------------------
 
 static func is_robo(token: Node3D) -> bool:

@@ -94,6 +94,7 @@ func configure(team_colour: String) -> void:
         _build_pivots()
         if style == "robot":
             RoboPawn.dress_limbs(team, arm_pivots, leg_pivots)
+            RoboPawn.optimise(self, team, arm_pivots, leg_pivots)
         else:
             RoyalPawn.dress_limbs(self, team, arm_pivots, leg_pivots)
         _fold_pose()
