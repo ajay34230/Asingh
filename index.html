@@ -24,10 +24,10 @@
 }
 *{box-sizing:border-box}
 [hidden]{display:none!important}
-body{background:var(--ground);color:var(--ink);font-family:var(--body);font-size:15px;line-height:1.45;
+body{background:var(--ground);color:var(--ink);font-family:var(--body);font-size:15px;line-height:1.45;touch-action:manipulation;-webkit-tap-highlight-color:transparent;
   padding-block:20px 40px;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
 .wrap{max-width:1120px;margin:0 auto;display:grid;gap:18px;grid-template-columns:minmax(0,1fr);
-  grid-template-areas:"head" "console" "board" "side" "hangar"}
+  grid-template-areas:"head" "board" "console" "side" "hangar"}
 @media (min-width:900px){.wrap{grid-template-columns:minmax(0,1fr) 340px;grid-template-areas:"head head" "board console" "board side" "hangar hangar";grid-template-rows:auto auto 1fr auto}}
 header{grid-area:head;display:flex;flex-wrap:wrap;align-items:baseline;gap:6px 18px}
 h1{font-family:var(--display);font-weight:700;font-size:clamp(26px,4.4vw,38px);letter-spacing:.02em;margin:0;text-transform:uppercase;line-height:1}
@@ -39,18 +39,34 @@ h2{font-family:var(--display);font-weight:600;font-size:13px;letter-spacing:.14e
 .boardbox{grid-area:board;min-width:0}
 #board{display:block;width:100%;max-width:680px;aspect-ratio:1;margin:0 auto;border-radius:10px;background:var(--plate);box-shadow:0 0 0 3px var(--outline),0 0 0 5px var(--rule)}
 .plate{fill:var(--plate)}
-.cell{fill:var(--plate);stroke:var(--plate-line);stroke-width:.35}
-.yardin{fill:var(--plate)}
-.pad{fill:var(--plate-2);stroke-width:1}
+.cell{fill:url(#g-cell) #dbe3e8;stroke:var(--plate-line);stroke-width:.35}
+.yardin{fill:url(#g-cell) #dbe3e8}
+.yardrim{fill:rgba(0,0,0,.32)}
+.bgl{opacity:.42;pointer-events:none}
+.pad{fill:url(#g-pad) #c3ced6;stroke-width:1}
 .bay{fill:none;stroke:var(--plate-line);stroke-width:.7}
-.st{fill:var(--steel);stroke:var(--outline);stroke-width:1.2;stroke-linejoin:round}
-.dk{fill:var(--outline)}
-.tc{fill:var(--c)}
-.ln{stroke:var(--outline);stroke-width:1.4;fill:none;stroke-linecap:round;stroke-linejoin:round}
-.tok{transition:transform var(--step,110ms) linear;outline:none}
-.tok .base{fill:var(--c);stroke:var(--outline);stroke-width:.7}
-.tok .ring{fill:none;stroke:var(--outline);stroke-width:.9;stroke-dasharray:2.2 1.4;opacity:0}
-.tok.movable{cursor:pointer}
+.st{fill:url(#g-steel) #cfd8de;stroke:var(--outline);stroke-width:.7;stroke-linejoin:round}
+.dk{fill:url(#g-dark) #27343e;stroke:#0b1217;stroke-width:.5;stroke-linejoin:round}
+.tc{fill:var(--c);stroke:var(--outline);stroke-width:.7;stroke-linejoin:round}
+.gl{fill:url(#g-gloss) transparent;pointer-events:none}
+.lens{fill:url(#g-lens) transparent}
+.glow{fill:var(--c);opacity:.38}
+.lit{fill:#fff;opacity:.9}
+.core{fill:#e4f8ff}
+.rv{fill:#56646f;stroke:#0b1217;stroke-width:.25}
+.lnl{stroke:#8d9ba6;stroke-width:.6;fill:none;stroke-linecap:round;opacity:.8}
+.rod{stroke:var(--outline);stroke-width:1.3;fill:none;stroke-linecap:round}
+.zz{stroke:var(--c);stroke-width:.8;fill:none;stroke-linecap:round;stroke-linejoin:round}
+.arc{stroke:#e4f8ff;stroke-width:.9;fill:none;stroke-linejoin:round}
+.back{filter:brightness(.68)}
+.ln{stroke:#16232d;stroke-width:.55;fill:none;stroke-linecap:round;stroke-linejoin:round;opacity:.6}
+.tok{transition:transform var(--step,110ms) linear;outline:none;pointer-events:none}
+.tok .hit{fill:transparent}
+.tok .tsh{fill:rgba(0,0,0,.38)}
+.tok .rim{fill:url(#g-dark) #27343e;stroke:#0b1217;stroke-width:.4}
+.tok .base{fill:var(--c)}
+.tok .ring{fill:none;stroke:var(--outline);stroke-width:1;stroke-dasharray:2.2 1.4;opacity:0}
+.tok.movable{cursor:pointer;pointer-events:auto}
 .tok.movable .ring{opacity:1;animation:spin 2.4s linear infinite;transform-box:fill-box;transform-origin:center}
 .tok:focus-visible .ring{opacity:1;stroke:#fff}
 .tok .xh{fill:none;stroke:var(--bad);stroke-width:.8;opacity:0}
@@ -65,7 +81,7 @@ h2{font-family:var(--display);font-weight:600;font-size:13px;letter-spacing:.14e
 /* console */
 .console{grid-area:console;background:var(--bench);border:1px solid var(--rule);border-radius:10px;padding:14px;display:grid;gap:12px}
 .turn{display:flex;gap:14px;align-items:center}
-#die{flex:none;width:68px;height:68px;border-radius:14px;border:3px solid var(--c,var(--rule));background:var(--plate);padding:6px;cursor:pointer}
+#die{flex:none;width:72px;height:72px;border-radius:14px;border:3px solid var(--c,var(--rule));background:var(--plate);padding:6px;cursor:pointer}
 #die:disabled{cursor:default;opacity:.75}
 #die:not(:disabled){animation:nudge 1.2s ease-in-out infinite}
 #die:focus-visible,button:focus-visible,input:focus-visible{outline:2px solid var(--hazard);outline-offset:2px}
@@ -100,7 +116,7 @@ button:hover{border-color:var(--muted)}
 .cards{display:grid;gap:14px;grid-template-columns:repeat(auto-fit,minmax(230px,1fr))}
 .card{background:var(--bench);border:1px solid var(--rule);border-radius:10px;padding:14px;display:grid;gap:10px;align-content:start;min-width:0}
 .card-top{display:flex;gap:12px;align-items:center}
-.card svg{flex:none;width:84px;height:94px}
+.card svg{flex:none;width:104px;height:110px}
 .card h3{font-family:var(--display);font-size:20px;margin:0;text-transform:uppercase;letter-spacing:.04em;line-height:1.1}
 .card .role{color:var(--c);font:600 12px var(--display);letter-spacing:.14em;text-transform:uppercase}
 .card p{margin:4px 0 0;color:var(--muted);font-size:14px}
@@ -133,14 +149,35 @@ button:hover{border-color:var(--muted)}
 .chips{display:flex;flex-wrap:wrap;gap:4px;min-height:20px;margin-top:3px}
 .fs.r .chips{justify-content:flex-end}
 .chips span{font:600 11px var(--display);letter-spacing:.06em;text-transform:uppercase;padding:1px 6px;border-radius:4px;background:var(--bench-2);border:1px solid var(--rule);color:var(--ink)}
-#stage{display:block;width:100%;background:linear-gradient(var(--bench-2),var(--ground));border-radius:8px}
-#stage .off{opacity:.55}
+#stage{display:block;width:100%;background:var(--ground);border-radius:8px;border:1px solid var(--outline)}
+#stage .idle{animation:bob 1.9s ease-in-out infinite}
+#rd .idle{animation-delay:-.9s}
+#stage .core{animation:corep 1.1s ease-in-out infinite}
+#stage .arc{animation:flick .28s steps(2) infinite}
+@keyframes bob{50%{transform:translateY(1.3px)}}
+@keyframes corep{50%{opacity:.55}}
+@keyframes flick{50%{opacity:.15}}
+#stage .off{filter:grayscale(.8) brightness(.7)}
 #stage text{font-family:var(--display);font-weight:700;text-anchor:middle}
 #callout{font:700 15px var(--display);text-transform:uppercase;letter-spacing:.06em;text-align:center;min-height:22px;color:var(--hazard)}
 #flog{margin:0;padding:0;list-style:none;font-size:13px;color:var(--muted);height:58px;overflow:hidden;display:grid;align-content:start;gap:1px}
 #flog li:first-child{color:var(--ink)}
-@media (prefers-reduced-motion:reduce){.tok.movable .ring,#die:not(:disabled){animation:none}.tok{transition:none}}
+@media (prefers-reduced-motion:reduce){#stage .idle,#stage .core,#stage .arc{animation:none}.tok.movable .ring,#die:not(:disabled){animation:none}.tok{transition:none}}
 </style>
+
+<svg width="0" height="0" style="position:absolute" aria-hidden="true"><defs>
+  <linearGradient id="g-steel" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#f6f9fa"/><stop offset=".45" stop-color="#b8c4cc"/><stop offset="1" stop-color="#687783"/></linearGradient>
+  <linearGradient id="g-dark" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#566673"/><stop offset=".5" stop-color="#27343e"/><stop offset="1" stop-color="#10181f"/></linearGradient>
+  <linearGradient id="g-gloss" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#fff" stop-opacity=".55"/><stop offset=".42" stop-color="#fff" stop-opacity="0"/><stop offset="1" stop-color="#000" stop-opacity=".42"/></linearGradient>
+  <linearGradient id="g-cell" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#f1f5f7"/><stop offset="1" stop-color="#c9d3da"/></linearGradient>
+  <radialGradient id="g-pad"><stop offset="0" stop-color="#9eabb5"/><stop offset=".8" stop-color="#c4ced5"/><stop offset="1" stop-color="#dfe6ea"/></radialGradient>
+  <radialGradient id="g-lens" cx=".35" cy=".3" r=".8"><stop offset="0" stop-color="#fff" stop-opacity=".9"/><stop offset=".35" stop-color="#fff" stop-opacity=".1"/><stop offset="1" stop-color="#000" stop-opacity=".45"/></radialGradient>
+  <radialGradient id="g-shadow"><stop offset="0" stop-color="#000" stop-opacity=".6"/><stop offset="1" stop-color="#000" stop-opacity="0"/></radialGradient>
+  <radialGradient id="g-spot"><stop offset="0" stop-color="#cfe6f5" stop-opacity=".16"/><stop offset="1" stop-color="#cfe6f5" stop-opacity="0"/></radialGradient>
+  <linearGradient id="g-wall" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#18252e"/><stop offset="1" stop-color="#263743"/></linearGradient>
+  <linearGradient id="g-floor" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#1b2933"/><stop offset="1" stop-color="#33475a"/></linearGradient>
+  <pattern id="g-haz" width="12" height="12" patternUnits="userSpaceOnUse" patternTransform="rotate(-45)"><rect width="6" height="12" fill="#ffb300"/><rect x="6" width="6" height="12" fill="#16232d"/></pattern>
+</defs></svg>
 
 <div class="wrap">
   <header>
@@ -192,11 +229,17 @@ button:hover{border-color:var(--muted)}
         <div class="fs r" id="fsd"><div class="fname"></div><div class="fmeta"></div><div class="hp"><i></i><u></u></div><div class="hpnum"></div><div class="chips"></div></div>
       </div>
       <svg id="stage" viewBox="0 0 320 160" aria-hidden="true">
-        <line x1="10" y1="146" x2="310" y2="146" stroke="#2c4352" stroke-width="2"/>
+        <rect width="320" height="118" fill="url(#g-wall)"/>
+        <path d="M40 0v118M100 0v118M160 0v118M220 0v118M280 0v118M0 38h320M0 78h320" stroke="#0c141a" stroke-width="1" opacity=".55"/>
+        <rect y="106" width="320" height="6" fill="url(#g-haz)" opacity=".6"/>
+        <rect y="118" width="320" height="42" fill="url(#g-floor)"/>
+        <path d="M160 118V160M120 118L60 160M80 118L-60 160M200 118L260 160M240 118L380 160M40 118L-180 160M280 118L500 160M0 125h320M0 136h320M0 151h320" stroke="#42586a" stroke-width=".8" opacity=".6"/>
+        <ellipse cx="80" cy="70" rx="95" ry="105" fill="url(#g-spot)"/><ellipse cx="240" cy="70" rx="95" ry="105" fill="url(#g-spot)"/>
+        <ellipse cx="80" cy="145" rx="38" ry="5.5" fill="url(#g-shadow)"/><ellipse cx="240" cy="145" rx="38" ry="5.5" fill="url(#g-shadow)"/>
         <g id="ra" transform="translate(75,62) scale(1.3)"><g class="mover"></g></g>
         <g id="rd" transform="translate(245,62) scale(-1.3,1.3)"><g class="mover"></g></g>
-        <ellipse id="sha" cx="80" cy="96" rx="48" ry="58" fill="#9fd8ff" fill-opacity=".14" stroke="#9fd8ff" stroke-width="2" visibility="hidden"/>
-        <ellipse id="shd" cx="240" cy="96" rx="48" ry="58" fill="#9fd8ff" fill-opacity=".14" stroke="#9fd8ff" stroke-width="2" visibility="hidden"/>
+        <ellipse id="sha" cx="80" cy="96" rx="50" ry="60" fill="#9fd8ff" fill-opacity=".14" stroke="#9fd8ff" stroke-width="2" visibility="hidden"/>
+        <ellipse id="shd" cx="240" cy="96" rx="50" ry="60" fill="#9fd8ff" fill-opacity=".14" stroke="#9fd8ff" stroke-width="2" visibility="hidden"/>
         <g id="fx"></g>
       </svg>
       <div id="callout"></div>
@@ -338,22 +381,59 @@ function pickMove(toks,moves){
 /*END ENGINE*/
 
 // ---------- Robot artwork (SVG, drawn facing right around the head centre) ----------
+// Every part is a shaded metal shape: steel and gunmetal use gradients, team-coloured armour gets a gloss layer.
+const R=(c,x,y,w,h,r)=>`<rect class="${c}" x="${x}" y="${y}" width="${w}" height="${h}" rx="${r||0}"/>`;
+const C=(c,x,y,r)=>`<circle class="${c}" cx="${x}" cy="${y}" r="${r}"/>`;
+const Pa=(c,d)=>`<path class="${c}" d="${d}"/>`;
+const TR=(x,y,w,h,r)=>R('tc',x,y,w,h,r)+R('gl',x,y,w,h,r);
+const TC=(x,y,r)=>C('tc',x,y,r)+C('gl',x,y,r);
+const TP=d=>Pa('tc',d)+Pa('gl',d);
+const eye=(x,y,r)=>C('glow',x,y,r*1.9)+C('tc',x,y,r)+C('lit',x-r*.3,y-r*.3,r*.38);
+const rv=(x,y)=>C('rv',x,y,.7);
 function headArt(cls){
   switch(cls){
-    case'striker':return'<path class="tc" d="M-3.5-8L0-12.5 3.5-8z"/><rect class="tc" x="-11.5" y="-3" width="3" height="6"/><rect class="tc" x="8.5" y="-3" width="3" height="6"/><rect class="st" x="-9" y="-8" width="18" height="16" rx="3"/><rect class="dk" x="-7" y="-4.5" width="14" height="5.5" rx="1.5"/><rect class="tc" x="-5.5" y="-3.3" width="4" height="3" rx=".8"/><rect class="tc" x="1.5" y="-3.3" width="4" height="3" rx=".8"/><rect class="dk" x="-4" y="3.6" width="8" height="1.8" rx=".6"/>';
-    case'tank':return'<path class="st" d="M-10 8V-1a10 9 0 0 1 20 0V8z"/><rect class="dk" x="-10" y="-3" width="20" height="5"/><rect class="tc" x="-6.5" y="-1.6" width="13" height="2.2"/><circle class="dk" cx="-5" cy="5" r="1"/><circle class="dk" cx="5" cy="5" r="1"/><rect class="dk" x="-2.5" y="4.2" width="5" height="1.6"/>';
-    case'sniper':return'<path class="ln" d="M-5-9l-2.5-5.5"/><circle class="tc" cx="-7.5" cy="-14.5" r="1.5"/><path class="st" d="M-7 8l-1-12 5-5h8l3 5-1 12z"/><circle class="dk" cx="1" cy="-1" r="5.2"/><circle class="tc" cx="1" cy="-1" r="3.2"/><circle cx="2.2" cy="-2.2" r="1" fill="#fff"/>';
-    default:return'<path class="ln" d="M-5-6l-3-7M5-6l3-7"/><circle class="tc" cx="-8" cy="-13" r="1.5"/><circle class="tc" cx="8" cy="-13" r="1.5"/><rect class="st" x="-8.5" y="-7.5" width="17" height="15.5" rx="7"/><circle class="dk" cx="-3.5" cy="-1" r="2.8"/><circle class="dk" cx="3.5" cy="-1" r="2.8"/><circle class="tc" cx="-3.5" cy="-1" r="1.7"/><circle class="tc" cx="3.5" cy="-1" r="1.7"/><path class="ln" d="M-4 4.6l2-1.4 2 1.4 2-1.4 2 1.4" style="stroke-width:1"/>';
+    case'striker':return TP('M-2.5-8.5 0-13.5 2.5-8.5z')+C('st',-9.8,0,2.7)+C('dk',-9.8,0,1.3)+C('st',9.8,0,2.7)+C('dk',9.8,0,1.3)
+      +R('st',-9,-8.5,18,17,3.5)+Pa('ln','M-9-5.3H9M-3.2-8.5v3.2M3.2-8.5v3.2')+R('dk',-7.5,-4.5,15,6.2,2)+eye(-3.6,-1.4,1.7)+eye(3.6,-1.4,1.7)
+      +Pa('dk','M-6 3.2H6L4.5 8.5h-9z')+Pa('lnl','M-3 4.4v2.8M0 4.4v2.8M3 4.4v2.8')+rv(-7.6,6.3)+rv(7.6,6.3);
+    case'tank':return Pa('st','M-10.5 8.5V-1a10.5 9.5 0 0 1 21 0V8.5z')+TR(-1.7,-10.4,3.4,7.2,1)+Pa('ln','M-8-6.8Q-5-9.6-1.7-10.2M8-6.8Q5-9.6 1.7-10.2')
+      +R('dk',-10.5,-3.5,21,5.6,1)+R('glow',-7.6,-2.7,15.2,4,1.6)+R('tc',-6.5,-1.6,13,1.8,.6)+R('lit',-5.6,-1.35,4.2,.55,.2)
+      +Pa('st','M-8.6 2.8H8.6V8.5H-8.6z')+Pa('ln','M-5 3.6v4.2M-2.5 3.6v4.2M0 3.6v4.2M2.5 3.6v4.2M5 3.6v4.2')+C('rv',-9,-5.6,.8)+C('rv',9,-5.6,.8);
+    case'sniper':return Pa('rod','M-5-9l-2.5-6')+C('glow',-7.5,-15.5,2.4)+C('tc',-7.5,-15.5,1.3)
+      +Pa('st','M-7 8.5l-1.2-12.5 5-5.5h8.4l3.3 5.5-1.2 12.5z')+Pa('ln','M-8-3.4h3.4M-6.6 5h13.2M-3.2-9.4l-2 3')+R('dk',6.6,-3.6,4,4.6,1)+C('tc',9.2,-1.3,.8)
+      +C('dk',1,-1,5.9)+C('st',1,-1,4.9)+C('dk',1,-1,4)+C('glow',1,-1,4.6)+C('tc',1,-1,3.2)+C('lens',1,-1,3.2)+Pa('lnl','M1-3.4v1.3M1 .1v1.3M-1.4-1h1.3M2.1-1h1.3')+R('dk',-3,5.8,6,1.6,.6);
+    default:return Pa('rod','M-5-6.5l-3-7M5-6.5l3-7')+eye(-8,-13.8,1.2)+eye(8,-13.8,1.2)
+      +[-3.6,-1.3,1].map(y=>R('dk',-10.7,y,2.6,1.6,.5)+R('dk',8.1,y,2.6,1.6,.5)).join('')
+      +R('st',-8.5,-8,17,16.5,7.5)+Pa('ln','M-6.2-4.9Q0-7.6 6.2-4.9')+R('dk',-7.4,-4,14.8,6.4,3.2)+eye(-3.4,-.8,1.9)+eye(3.4,-.8,1.9)
+      +R('dk',-4.2,4.1,8.4,2.6,1)+Pa('zz','M-3.2 5.7l1.3-1 1.3 1 1.2-1 1.3 1 1.3-1');
   }
 }
+const leg=(cx,lw)=>R('dk',cx-lw/2+.7,38,lw-1.4,12,2)+R('st',cx-lw/2,48.5,lw,10.5,2)+TR(cx-lw/2+1,52,lw-2,2.2,.6)+C('st',cx,48.5,lw*.46)+C('rv',cx,48.5,lw*.18)
+  +Pa('st',`M${cx-lw/2-1} 63v-3l2-2.5h${lw-1}l4.5 2.5v3z`)+R('dk',cx-lw/2-1,62,lw+5.5,1.4,.5);
 function bodyArt(cls){
-  const tw={striker:26,tank:34,sniper:20,hacker:22}[cls],h=tw/2;
-  let s=`<rect class="dk" x="-9" y="38" width="7" height="21" rx="2"/><rect class="dk" x="2" y="38" width="7" height="21" rx="2"/><rect class="st" x="-12" y="57" width="12" height="6" rx="2"/><rect class="st" x="1" y="57" width="12" height="6" rx="2"/><rect class="dk" x="${-h-5}" y="14" width="7" height="20" rx="3"/><rect class="dk" x="-3" y="7" width="6" height="6"/><rect class="st" x="${-h}" y="11" width="${tw}" height="29" rx="5"/><rect class="tc" x="${-h+4}" y="16" width="${tw-8}" height="7" rx="2"/><circle class="dk" cx="0" cy="31" r="3"/><circle class="tc" cx="0" cy="31" r="1.5"/><rect class="st" x="${h-3}" y="13" width="9" height="14" rx="4"/>`;
-  if(cls==='striker')s+=`<rect class="dk" x="${h+2}" y="24" width="8" height="5"/><rect class="tc" x="${h+8}" y="19" width="17" height="15" rx="4" style="stroke:var(--outline);stroke-width:1.2"/><path class="ln" d="M${h+14} 20v13M${h+19} 20v13"/>`;
-  else if(cls==='tank')s+=`<path class="tc" style="stroke:var(--outline);stroke-width:1.2" d="M${h+5} 5h10v34l-5 7-5-7z"/><path class="ln" d="M${h+10} 11v24"/>`;
-  else if(cls==='sniper')s+=`<rect class="dk" x="${h+8}" y="18" width="10" height="4" rx="1.5"/><rect class="dk" x="${h}" y="23" width="30" height="5" rx="1.5"/><rect class="tc" x="${h+28}" y="22" width="5" height="7" rx="1"/>`;
-  else s+=`<path class="ln" style="stroke-width:2.4" d="M${h+4} 26h8l8-6M${h+12} 26l8 6"/><circle class="tc" cx="${h+21}" cy="19.5" r="2.8"/><circle class="tc" cx="${h+21}" cy="32.5" r="2.8"/>`;
-  return s+headArt(cls);
+  const[tw,sp,lw]={striker:[26,6.5,7],tank:[34,8,9],sniper:[20,5,5.5],hacker:[22,5.5,6]}[cls],h=tw/2;
+  let back=leg(-h*.42-1,lw)+R('dk',-h-4,16,6,12,3)+R('st',-h-4.5,26,7,11,3)+C('dk',-h-1,38.5,2.6)+TC(-h-1,15,sp*.85);
+  if(cls==='striker')back+=R('dk',-h+1,3,3.2,9,1.2)+R('dk',-h+5.5,4.5,3.2,8,1.2);
+  else if(cls==='tank')back+=R('dk',-h+1,4,7,8,1.5)+R('st',-h+2,1.5,5,4,1);
+  else if(cls==='sniper')back+=R('dk',-h-3.5,9,5,16,1.5)+Pa('rod',`M${-h-1} 9V-2`)+C('tc',-h-1,-2.5,1.1);
+  else back+=Pa('rod',`M${-h} 11l-4-9M${-h+3} 11l-1-10`)+C('tc',-h-4,1.5,1.2)+C('tc',-h+2,.5,1.2);
+  let s=`<g class="back">${back}</g>`+leg(h*.42+1,lw)
+    +Pa('dk',`M${-h*.66} 35.5H${h*.66}L${h*.5} 42H${-h*.5}z`)+R('dk',-h*.5,30,h,6.5,1.5)+Pa('lnl',`M${-h*.5} 32.2h${h}M${-h*.5} 34.4h${h}`)
+    +R('dk',-3,6,6,6,1)+Pa('lnl','M-3 8h6M-3 10h6')
+    +Pa('st',`M${-h} 13.5q0-3 3-3H${h-3}q3 0 3 3V26l${-h*.3} 6.5H${-h*.7}L${-h} 26z`)
+    +TP(`M${-h+3} 14H${h-3}V20.5l-3 3H${-h+6}l-3-3z`)
+    +Pa('ln',`M0 23.5V32M${-h+1.5} 26.5h${h*.5}M${h-1.5} 26.5h${-h*.5}`)
+    +[0,1,2].map(i=>R('dk',h-9.5,15.6+i*2.2,5,1.1,.4)).join('')
+    +C('dk',-h*.38,18.6,3.5)+C('glow',-h*.38,18.6,3.9)+C('core',-h*.38,18.6,2.3)+C('lens',-h*.38,18.6,2.3)+rv(-h+2,28.5)+rv(h-2,28.5);
+  if(cls==='tank')s+=TR(-3.5,36,7,6.5,1.5);
+  s+=R('dk',h-1.5,17,5.5,10,2.7)+TC(h+1,15,sp)+C('rv',h+1,15,1.1);
+  if(cls==='striker')s+=R('st',h+2,23.5,10,8,2.5)+C('st',h+2.5,27.5,3.2)+C('rv',h+2.5,27.5,1.1)+R('st',h+11,24.6,6,1.6,.5)+R('st',h+11,28.8,6,1.6,.5)
+    +TR(h+15,20,13.5,15,3.5)+R('dk',h+17.5,22.5,2,10,.8)+R('dk',h+21,22.5,2,10,.8)+[0,1,2,3].map(i=>R('st',h+26.5,21+i*3.4,3.4,2.8,1)).join('');
+  else if(cls==='tank')s+=R('st',h+1,25,8,7,2)+TP(`M${h+7} 3h11q2 0 2 2v32l-7.5 9-7.5-9V5q0-2 2-2z`)+Pa('st',`M${h+10.5} 9h4v21l-2 3.5-2-3.5z`)+rv(h+7.5,6.5)+rv(h+17.5,6.5)+rv(h+7.5,33)+rv(h+17.5,33);
+  else if(cls==='sniper')s+=R('st',h+1,22.5,8,5.5,2)+Pa('dk',`M${h-2} 22.5h7v6h-4l-3 4z`)+R('dk',h+4,21.5,13.5,7,1.5)+R('st',h+17,23,19,1.5,.5)+R('st',h+17,26,19,1.5,.5)
+    +[20,25,30].map(o=>TR(h+o,22.2,2.2,6.1,.6)).join('')+R('dk',h+35.5,22,3,6.5,1)+C('glow',h+39,25.2,2)+R('dk',h+9,20.3,2,1.6)+R('dk',h+5.5,17,12,3.6,1.6)+C('tc',h+17,18.8,1.3)+C('lens',h+17,18.8,1.3);
+  else s+=R('st',h+1,23,9.5,6.5,2)+[3,5.6,8.2].map(o=>TR(h+o,22.2,1.6,8.1,.5)).join('')+Pa('st',`M${h+10} 24h4l7.5-5.5v2.6l-6.5 4.6z`)+Pa('st',`M${h+10} 28.5h4l7.5 5.5v-2.6l-6.5-4.6z`)
+    +eye(h+21.5,18.6,1.7)+eye(h+21.5,33.9,1.7)+Pa('arc',`M${h+21.5} 20.6l-2.2 2.6 3.2 2.2-3.2 2.4 2.2 4`);
+  return`<g class="idle">${s}${headArt(cls)}</g>`;
 }
 
 // ---------- UI ----------
@@ -368,20 +448,23 @@ const wait=ms=>{const e=epoch;return new Promise(r=>setTimeout(()=>{if(e===epoch
 const YARD=[[0,0],[90,0],[90,90],[0,90]],PADS=[[20,20],[40,20],[20,40],[40,40]];
 const HCOL=[p=>[p+1,7],p=>[7,p+1],p=>[13-p,7],p=>[7,13-p]];
 function buildBoard(){
+  const gl=(x,y,w,h)=>`<rect class="gl bgl" x="${x}" y="${y}" width="${w}" height="${h}"/>`;
   let s='<rect class="plate" width="150" height="150"/>';
-  YARD.forEach(([x,y],i)=>{s+=`<rect x="${x}" y="${y}" width="60" height="60" style="fill:${col(i)}"/><rect class="yardin" x="${x+9}" y="${y+9}" width="42" height="42" rx="6"/>`;
+  YARD.forEach(([x,y],i)=>{s+=`<rect x="${x}" y="${y}" width="60" height="60" style="fill:${col(i)}"/>${gl(x,y,60,60)}<rect class="yardrim" x="${x+8}" y="${y+8}" width="44" height="44" rx="7"/><rect class="yardin" x="${x+9}" y="${y+9}" width="42" height="42" rx="6"/>`;
+    [[12.5,12.5],[47.5,12.5],[12.5,47.5],[47.5,47.5]].forEach(([bx,by])=>s+=`<circle class="rv" cx="${x+bx}" cy="${y+by}" r="1"/>`);
     PADS.forEach(([px,py])=>s+=`<circle class="pad" cx="${x+px}" cy="${y+py}" r="5.6" style="stroke:${col(i)}"/>`)});
   LOOP.forEach(([c,r],i)=>{const st=START.indexOf(i);s+=`<rect class="cell" x="${c*10}" y="${r*10}" width="10" height="10"${st>=0?` style="fill:${col(st)}"`:''}/>`;
+    if(st>=0)s+=gl(c*10,r*10,10,10);
     if(SAFE.has(i)&&st<0){const x=c*10+5,y=r*10+5;s+=`<path class="bay" d="M${x-3} ${y}l1.5-2.6h3l1.5 2.6-1.5 2.6h-3z"/><circle class="bay" cx="${x}" cy="${y}" r=".9"/>`}});
-  for(let i=0;i<4;i++)for(let p=0;p<5;p++){const[c,r]=HCOL[i](p);s+=`<rect class="cell" x="${c*10}" y="${r*10}" width="10" height="10" style="fill:${col(i)}"/>`}
-  s+=`<path d="M60 60L75 75 60 90z" style="fill:${col(0)}"/><path d="M60 60H90L75 75z" style="fill:${col(1)}"/><path d="M90 60V90L75 75z" style="fill:${col(2)}"/><path d="M60 90H90L75 75z" style="fill:${col(3)}"/><rect x="60" y="60" width="30" height="30" fill="none" stroke="#16232d" stroke-width=".6"/><g id="toks"></g>`;
+  for(let i=0;i<4;i++)for(let p=0;p<5;p++){const[c,r]=HCOL[i](p);s+=`<rect class="cell" x="${c*10}" y="${r*10}" width="10" height="10" style="fill:${col(i)}"/>${gl(c*10,r*10,10,10)}`}
+  s+=`<path d="M60 60L75 75 60 90z" style="fill:${col(0)}"/><path d="M60 60H90L75 75z" style="fill:${col(1)}"/><path d="M90 60V90L75 75z" style="fill:${col(2)}"/><path d="M60 90H90L75 75z" style="fill:${col(3)}"/>${gl(60,60,30,30)}<path d="M60 60L90 90M90 60L60 90" stroke="#16232d" stroke-width=".5"/><rect x="60" y="60" width="30" height="30" fill="none" stroke="#16232d" stroke-width=".7"/><circle class="st" cx="75" cy="75" r="2.6"/><circle class="rv" cx="75" cy="75" r="1.1"/><g id="toks"></g>`;
   $('board').innerHTML=s;
 }
 function buildTokens(){
   $('toks').innerHTML=state.toks.map(t=>`<g class="tok" data-id="${t.id}" style="--c:${col(t.team)}" role="button" aria-label="${TEAMS[t.team].name} ${CLASSES[t.cls].name}">
-    <circle class="ring" r="5.2"/><circle class="base" r="4.2"/><g transform="translate(0,-.2) scale(.3)">${headArt(t.cls)}</g>
+    <circle class="hit" r="7.5"/><circle class="ring" r="5.5"/><ellipse class="tsh" cx=".5" cy="1" rx="4.7" ry="4.5"/><circle class="rim" r="4.5"/><circle class="base" r="3.8"/><circle class="gl" r="3.8"/><g transform="translate(0,-.3) scale(.3)">${headArt(t.cls)}</g>
     <rect class="hpb" x="-3.6" y="3.3" width="7.2" height="1.3" rx=".5"/><rect class="hpf" x="-3.3" y="3.55" width="6.6" height=".8"/>
-    <g class="pips"></g><circle class="xh" r="5.4"/><g class="fc" hidden><rect x="-4.6" y="-9" width="9.2" height="4.2" rx="1"/><text y="-5.9"></text></g></g>`).join('');
+    <g class="pips"></g><circle class="xh" r="5.6"/><g class="fc" hidden><rect x="-4.6" y="-9.4" width="9.2" height="4.2" rx="1"/><text y="-6.3"></text></g></g>`).join('');
   state.toks.forEach(t=>t.el=$('toks').querySelector(`[data-id="${t.id}"]`));
 }
 function basePos(t){
@@ -419,25 +502,29 @@ function clearMarks(){for(const t of state.toks){t.el.classList.remove('movable'
 
 function buildCards(){
   $('cards').innerHTML=ORDER.map((c,i)=>{const k=CLASSES[c],bar=(l,v,m)=>`<span>${l}</span><span class="bar"><i style="width:${v/m*100}%"></i></span><span>${v}</span>`;
-    return`<article class="card" style="--c:${col(i)}"><div class="card-top"><svg viewBox="-27 -18 76 84" aria-hidden="true">${bodyArt(c)}</svg><div><div class="role">${k.role}</div><h3>${k.name}</h3><p>${k.blurb}</p></div></div>
+    return`<article class="card" style="--c:${col(i)}"><div class="card-top"><svg viewBox="-28 -19 82 87" aria-hidden="true"><ellipse cx="6" cy="63.5" rx="26" ry="3" fill="url(#g-shadow)"/>${bodyArt(c)}</svg><div><div class="role">${k.role}</div><h3>${k.name}</h3><p>${k.blurb}</p></div></div>
     <div class="stats">${bar('HP',k.hp,160)}${bar('ATK',k.atk,26)}${bar('DEF',k.def,13)}${bar('SPD',k.spd,15)}</div>
     <ul class="skills">${k.skills.map(id=>{const s=SKILLS[id];return`<li><b>${s.name}</b><small>${s.cd?'every '+s.cd+' actions':'always ready'}</small><span>${s.desc}</span></li>`}).join('')}</ul></article>`}).join('');
 }
 
 // ---------- Fight playback ----------
-const P={a:{x:75,wx:124,dir:1},d:{x:245,wx:196,dir:-1}},NS='http://www.w3.org/2000/svg';
+const P={a:{x:75,wx:128,dir:1},d:{x:245,wx:192,dir:-1}},NS='http://www.w3.org/2000/svg';
 function fx(html,kf,dur,delay){const g=document.createElementNS(NS,'g');g.innerHTML=html;g.style.transformBox='fill-box';g.style.transformOrigin='center';$('fx').appendChild(g);
   const a=g.animate(kf,{duration:dur/speed,delay:(delay||0)/speed,fill:'both',easing:'ease-out'});a.onfinish=()=>g.remove();setTimeout(()=>g.remove(),(dur+(delay||0))/speed+200)}
 const mover=k=>$('r'+k).firstElementChild;
 function floatTxt(k,txt,color){fx(`<text x="${P[k].x}" y="38" font-size="15" fill="${color}" stroke="#16232d" stroke-width=".6">${txt}</text>`,[{transform:'translateY(0)',opacity:1},{transform:'translateY(-22px)',opacity:0}],850)}
 function attackFx(kind,from,to,color,miss){
-  const A=P[from],B=P[to],y=98;
+  const A=P[from],B=P[to],y=96;
+  if(kind==='beam'||kind==='rocket')fx(`<circle cx="${A.wx}" cy="${y}" r="8" fill="#fff"/><circle cx="${A.wx}" cy="${y}" r="13" fill="${color}" opacity=".5"/>`,[{transform:'scale(.4)',opacity:1},{transform:'scale(1.2)',opacity:0}],160);
   if(kind==='melee'){if(!RM)mover(from).animate([{transform:'translate(0,0)'},{transform:'translate(52px,0)'},{transform:'translate(0,0)'}],{duration:360/speed,easing:'ease-in-out'})}
   else if(kind==='beam')fx(`<line x1="${A.wx}" y1="${y}" x2="${B.x}" y2="${miss?y-46:y}" stroke="${color}" stroke-width="6" stroke-linecap="round"/><line x1="${A.wx}" y1="${y}" x2="${B.x}" y2="${miss?y-46:y}" stroke="#fff" stroke-width="2"/>`,[{opacity:1},{opacity:0}],380);
   else if(kind==='rocket'){const dx=B.x-A.wx;fx(`<circle cx="${A.wx}" cy="${y-6}" r="4" fill="${color}" stroke="#16232d"/>`,[{transform:'translate(0,0)'},{transform:`translate(${dx/2}px,${miss?-50:-26}px)`},{transform:`translate(${dx}px,${miss?-60:0}px)`,opacity:1},{transform:`translate(${dx}px,${miss?-60:0}px)`,opacity:0}],300)}
   else if(kind==='emp')fx(`<circle cx="${A.x}" cy="${y}" r="12" fill="none" stroke="${color}" stroke-width="3"/>`,[{transform:'scale(.3)',opacity:1},{transform:'scale(16)',opacity:0}],520);
 }
-function impact(k){fx(`<path d="M0-14 4-4 14-6 6 2 12 12 0 6-12 12-6 2-14-6-4-4z" transform="translate(${P[k].x},98)" fill="#fff" stroke="#ffb300" stroke-width="2"/>`,[{transform:'scale(.4)',opacity:1},{transform:'scale(1.5)',opacity:0}],320);
+function impact(k,crit){fx(`<path d="M0-14 4-4 14-6 6 2 12 12 0 6-12 12-6 2-14-6-4-4z" transform="translate(${P[k].x},98)" fill="#fff" stroke="#ffb300" stroke-width="2"/>`,[{transform:'scale(.4)',opacity:1},{transform:'scale(1.5)',opacity:0}],320);
+  fx(`<path d="M0-9V-20M7-6l8-8M10 1h12M7 8l8 7M-7 8l-8 7M-10 1h-12M-7-6l-8-8M0 10v9" transform="translate(${P[k].x},98)" stroke="#ffd36b" stroke-width="2" stroke-linecap="round" fill="none"/>`,[{transform:'scale(.3)',opacity:1},{transform:'scale(1.7)',opacity:0}],420);
+  try{navigator.vibrate&&navigator.vibrate(crit?45:15)}catch(e){}
+  if(crit&&!RM)$('stage').animate([{transform:'translate(0,0)'},{transform:'translate(-4px,2px)'},{transform:'translate(4px,-2px)'},{transform:'translate(0,0)'}],{duration:220/speed});
   if(!RM)mover(k).animate([{transform:'translate(0,0)'},{transform:'translate(-5px,0)'},{transform:'translate(3px,0)'},{transform:'translate(0,0)'}],{duration:240/speed})}
 function sideUI(k,t,s){
   const el=$('fs'+k);el.style.setProperty('--c',col(t.team));
@@ -460,14 +547,15 @@ async function playFight(A,D,rec,res){
     if(skipFight)break;
     const who=T[e.who];let pause=380;
     if(e.t==='act'){const sk=SKILLS[e.id];$('callout').textContent=`${nm(who)}: ${sk.name}`;flog(`${tag(who)} uses ${sk.name}.`);if(sk.fx==='emp')attackFx('emp',e.who,e.who==='a'?'d':'a',col(who.team));pause=sk.type==='atk'?260:200}
-    else if(e.t==='hit'){if(e.fx!=='emp')attackFx(e.fx,e.from,e.who,col(T[e.from].team));await wait(e.fx==='melee'?170:e.fx==='rocket'?230:60);impact(e.who);
+    else if(e.t==='hit'){if(e.fx!=='emp')attackFx(e.fx,e.from,e.who,col(T[e.from].team));await wait(e.fx==='melee'?170:e.fx==='rocket'?230:60);impact(e.who,e.crit);
       floatTxt(e.who,(e.crit?'CRIT ':'')+'-'+e.dmg,e.crit?'#ffb300':'#ff6b6b');flog(`${tag(who)} takes ${e.dmg}${e.crit?' (critical)':''}${e.ab?`, shield absorbs ${e.ab}`:''}.`)}
     else if(e.t==='miss'){if(e.fx!=='emp')attackFx(e.fx,e.from,e.who,col(T[e.from].team),true);floatTxt(e.who,'MISS','#eaf1f4');flog(`${tag(who)} dodges.`)}
     else if(e.t==='burn'){floatTxt(e.who,'-'+e.dmg,'#ffb300');flog(`${tag(who)} sparks for ${e.dmg}.`);pause=300}
     else if(e.t==='stunned'){floatTxt(e.who,'OFFLINE','#9fd8ff');flog(`${tag(who)} is offline and loses its action.`)}
     else if(e.t==='heal'){floatTxt(e.who,'+'+e.amt,'#4fd18b');flog(`${tag(who)} repairs ${e.amt} HP.`)}
     else if(e.t==='buff'){floatTxt(e.who,{shield:'SHIELD',oc:'OVERCLOCK',lock:'LOCKED ON'}[e.kind],'#9fd8ff')}
-    else if(e.t==='ko'){const m=mover(e.who);m.style.transformBox='fill-box';m.style.transformOrigin='50% 100%';m.animate([{transform:'rotate(0)',opacity:1},{transform:'rotate(-80deg)',opacity:.45}],{duration:RM?1:450/speed,fill:'forwards',easing:'ease-in'});pause=200}
+    else if(e.t==='ko'){const m=mover(e.who);m.style.transformBox='fill-box';m.style.transformOrigin='50% 100%';m.animate([{transform:'rotate(0)',opacity:1},{transform:'rotate(-80deg)',opacity:.45}],{duration:RM?1:450/speed,fill:'forwards',easing:'ease-in'});
+      for(let i=0;i<5;i++)fx(`<circle cx="${P[e.who].x-12+i*6}" cy="${118-i%2*10}" r="${6+i%3*2}" fill="#8a97a1"/>`,[{transform:'translateY(0) scale(.5)',opacity:.7},{transform:'translateY(-46px) scale(1.8)',opacity:0}],1100,i*120);pause=200}
     sideUI('a',A,e.s.a);sideUI('d',D,e.s.d);
     await wait(pause);
   }
