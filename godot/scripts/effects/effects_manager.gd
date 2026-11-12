@@ -86,6 +86,15 @@ func hit_spark(at: Vector3, big := false) -> void:
 
 
 ## Low puff of dust where something crashes onto the board.
+## A heavy metal hit: a puff of dark smoke and flying metal fragments (fewer on Low).
+func metal_hit(at: Vector3, big := false) -> void:
+	var lite := String(GameSettings.get_option("graphics")) == "low"
+	burst(at, Color("#4a4a50"), 6 if lite else (16 if big else 10), 0.7, 1.3, -0.5)             # smoke
+	burst(at, Color("#cfd6de"), 6 if lite else (18 if big else 10), 3.4 if big else 2.6, 0.8, 9.0)   # debris
+	if big and not lite:
+		burst(at, Color("#ff9a3a"), 14, 4.0, 0.5, 6.0)                                               # hot sparks
+
+
 func dust(at: Vector3) -> void:
 	burst(at + Vector3(0, 0.08, 0), Color(0.85, 0.75, 0.6, 0.8), 22, 1.2, 0.6, 1.5)
 

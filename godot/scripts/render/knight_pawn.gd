@@ -19,6 +19,22 @@ const LAYOUT := {
 }
 const HEAD_CENTER := Vector3(0, 0.735, 0.0)
 const HEAD_SCALE := 0.9
+## Which of the four warriors of each colour is built (0 = the master). Set by the game
+## before the tokens are made; see variants in GameController.
+static var variants := {}
+
+const WARRIORS := {"blue": "Thunder Titan", "green": "Venom Striker", "red": "Inferno Destroyer", "yellow": "Solar Guardian"}
+const VARIANT_NAMES := ["Master", "Heavy", "Striker", "Commander"]
+
+
+## Key part for the merged-mesh cache: colour and warrior type.
+static func _ck(color_name: String) -> String:
+	return "%s%d" % [color_name, int(variants.get(color_name, 0))]
+
+
+## "Thunder Titan Striker" and so on: 4 colours x 4 types = 16 warriors.
+static func warrior_name(color_name: String, variant: int) -> String:
+	return "%s %s" % [WARRIORS.get(color_name, "Warrior"), VARIANT_NAMES[clampi(variant, 0, 3)]]
 const HEAD_MOUNT_Y := 0.885   ## where token-design head gear sits on the knight
 const GLOW := {"blue": Color("#2f9dff"), "red": Color("#ff5a4a"), "green": Color("#5dff9a"), "yellow": Color("#ffc94a")}
 
@@ -189,11 +205,64 @@ static func build_body(color_name: String) -> Node3D:
 	_base(body, color_name)
 	_torso(body, color_name)
 	_head(body, color_name)
+	_variant_body(body, color_name)
 	_bake_body(body, color_name)
 	var anim := KnightAnimator.new()
 	anim.name = "KnightAnimator"
 	body.add_child(anim)
 	return body
+
+
+## The four types of each colour. 0 = the master; the others change the silhouette so
+## they read at a glance: Heavy (back cannons, armoured shoulders), Striker (forearm blades,
+## helmet and back fins), Commander (a cape, a gold crown ring and a chest plate).
+static func _variant_body(body: Node3D, color_name: String) -> void:
+	var v := int(variants.get(color_name, 0))
+	if v == 0:
+		return
+	var head: Node3D = body.get_node("KnightHead")
+	var g0 := gunmetal(0)
+	var g1 := gunmetal(1)
+	var g2 := gunmetal(2)
+	var st := stripe(color_name)
+	match v:
+		1:   # Heavy
+			for side in [-1.0, 1.0]:
+				var pod := _mi(body, _cyl(0.05, 0.06, 0.26, 16), g1, Vector3(side * 0.1, 0.56, -0.2), Vector3(-0.35, 0, side * 0.12))
+				_mi(pod, _torus(0.055, 0.01, 20), st, Vector3(0, 0.1, 0))
+				_glow_mi(pod, _cyl(0.035, 0.035, 0.012, 14), glow(color_name, 4.0), Vector3(0, 0.133, 0))
+			_mi(body, _box(Vector3(0.3, 0.09, 0.1)), g0, Vector3(0, 0.6, -0.15))
+			_mi(body, _box(Vector3(0.2, 0.025, 0.02)), st, Vector3(0, 0.44, 0.17))   # chest bar
+		2:   # Striker
+			for side in [-1.0, 1.0]:
+				var fin := _mi(head, _box(Vector3(0.012, 0.15, 0.1)), g0, Vector3(side * 0.205, 0.04, -0.03), Vector3(0.2, 0, side * -0.35))
+				_mi(fin, _box(Vector3(0.014, 0.03, 0.1)), st, Vector3(0, 0.07, 0))
+				_mi(body, _box(Vector3(0.012, 0.3, 0.16)), g0, Vector3(side * 0.07, 0.72, -0.23), Vector3(-0.25, 0, side * -0.5))
+		3:   # Commander
+			var cape := _mi(body, _box(Vector3(0.34, 0.46, 0.014)), g2, Vector3(0, 0.4, -0.2), Vector3(0.1, 0, 0))
+			_mi(cape, _box(Vector3(0.34, 0.025, 0.018)), st, Vector3(0, -0.22, 0))
+			_mi(body, _torus(0.17, 0.014, 32), gold(), Vector3(0, 0.665, 0), Vector3(0, 0, 0))   # gold collar ring
+			var ring := _mi(head, _torus(0.12, 0.012, 28), gold(), Vector3(0, 0.15, 0), Vector3.ZERO)
+			ring.set_meta("crown", true)
+			_mi(body, _cyl(0.05, 0.05, 0.012, 6), gold(), Vector3(0, 0.44, 0.17), Vector3(PI * 0.5, 0, 0))   # chest plate
+
+
+static func _variant_limbs(color_name: String, arm_pivots: Dictionary, _leg_pivots: Dictionary) -> void:
+	var v := int(variants.get(color_name, 0))
+	if v == 0:
+		return
+	for side_name in ["L", "R"]:
+		var side := -1.0 if side_name == "L" else 1.0
+		var a: Dictionary = arm_pivots[side_name]
+		match v:
+			1:   # Heavy: a second layer of shoulder armour and a thicker forearm guard
+				_mi(a["shoulder"], _sphere(0.11, 24), gunmetal(1), Vector3(side * 0.025, 0.035, 0), Vector3.ZERO, Vector3(1.0, 0.7, 1.0))
+				_mi(a["elbow"], _cyl(0.07, 0.07, 0.07, 18), gunmetal(0), Vector3(0, -0.05, 0.02))
+			2:   # Striker: a blade along each forearm, past the fist
+				var blade := _mi(a["wrist"], _box(Vector3(0.02, 0.012, 0.2)), RoboPawn.chrome(), Vector3(0, -0.03, 0.12))
+				_mi(blade, _box(Vector3(0.022, 0.014, 0.04)), stripe(color_name), Vector3(0, 0, -0.08))
+			3:   # Commander: gold shoulder tips
+				_mi(a["shoulder"], _cyl(0.0, 0.03, 0.09, 10), gold(), Vector3(side * 0.12, 0.07, 0.0), Vector3(0, 0, side * -1.1))
 
 
 ## Merges the knight's hundreds of parts into a few meshes (see MeshMerge): the body, the
@@ -204,13 +273,13 @@ static func _bake_body(body: Node3D, color_name: String) -> void:
 	var sparks: Node3D = body.get_node("Sparks")
 	var core: Node3D = body.get_node("ChestCore")
 	var bolts: Array = sparks.get_children().filter(func(n: Node) -> bool: return n.get_class() == "Node3D")
-	MeshMerge.bake(crest, "kn_crest_" + color_name, [], false)
-	MeshMerge.bake(head, "kn_head_" + color_name, [crest])
-	MeshMerge.bake(core, "kn_core_" + color_name, [], false)
-	MeshMerge.bake(sparks, "kn_cracks_" + color_name, bolts, false)
+	MeshMerge.bake(crest, "kn_crest_" + _ck(color_name), [], false)
+	MeshMerge.bake(head, "kn_head_" + _ck(color_name), [crest])
+	MeshMerge.bake(core, "kn_core_" + _ck(color_name), [], false)
+	MeshMerge.bake(sparks, "kn_cracks_" + _ck(color_name), bolts, false)
 	for i in range(bolts.size()):
-		MeshMerge.bake(bolts[i], "kn_bolt%d_%s" % [i, color_name], [], false)
-	MeshMerge.bake(body, "kn_body_" + color_name, [head, sparks, core])
+		MeshMerge.bake(bolts[i], "kn_bolt%d_%s" % [i, _ck(color_name)], [], false)
+	MeshMerge.bake(body, "kn_body_" + _ck(color_name), [head, sparks, core])
 
 
 static func _base(body: Node3D, color_name: String) -> void:
@@ -492,11 +561,12 @@ static func dress_limbs(color_name: String, arm_pivots: Dictionary, leg_pivots: 
 			_round_shield(shield, color_name, true)
 		_:
 			_kite_shield(shield, color_name)
+	_variant_limbs(color_name, arm_pivots, leg_pivots)
 	## Merge each limb segment (and the shield and sword) into one mesh.
-	MeshMerge.bake(shield, "kn_shield_" + color_name, [], false)
+	MeshMerge.bake(shield, "kn_shield_" + _ck(color_name), [], false)
 	var sword: Node3D = arm_pivots["L"]["wrist"].get_node_or_null("KnightSword")
 	if sword:
-		MeshMerge.bake(sword, "kn_sword_" + color_name, [], false)
+		MeshMerge.bake(sword, "kn_sword_" + _ck(color_name), [], false)
 	for side_name in ["L", "R"]:
 		var pa: Dictionary = arm_pivots[side_name]
 		var pl: Dictionary = leg_pivots[side_name]
@@ -506,12 +576,12 @@ static func dress_limbs(color_name: String, arm_pivots: Dictionary, leg_pivots: 
 		var extra_wrist: Array = []
 		if pa["wrist"].has_node("KnightSword"):
 			extra_wrist.append(pa["wrist"].get_node("KnightSword"))
-		MeshMerge.bake(pa["wrist"], "kn_wrist_%s_%s" % [color_name, side_name], extra_wrist)
-		MeshMerge.bake(pa["elbow"], "kn_elbow_%s_%s" % [color_name, side_name], extra_elbow)
-		MeshMerge.bake(pa["shoulder"], "kn_shoulder_%s_%s" % [color_name, side_name], [pa["elbow"]])
-		MeshMerge.bake(pl["ankle"], "kn_ankle_%s_%s" % [color_name, side_name])
-		MeshMerge.bake(pl["knee"], "kn_knee_%s_%s" % [color_name, side_name], [pl["ankle"]])
-		MeshMerge.bake(pl["hip"], "kn_hip_%s_%s" % [color_name, side_name], [pl["knee"]])
+		MeshMerge.bake(pa["wrist"], "kn_wrist_%s_%s" % [_ck(color_name), side_name], extra_wrist)
+		MeshMerge.bake(pa["elbow"], "kn_elbow_%s_%s" % [_ck(color_name), side_name], extra_elbow)
+		MeshMerge.bake(pa["shoulder"], "kn_shoulder_%s_%s" % [_ck(color_name), side_name], [pa["elbow"]])
+		MeshMerge.bake(pl["ankle"], "kn_ankle_%s_%s" % [_ck(color_name), side_name])
+		MeshMerge.bake(pl["knee"], "kn_knee_%s_%s" % [_ck(color_name), side_name], [pl["ankle"]])
+		MeshMerge.bake(pl["hip"], "kn_hip_%s_%s" % [_ck(color_name), side_name], [pl["knee"]])
 
 
 static func _emblem(shield: Node3D, color_name: String, z: float) -> void:
@@ -746,6 +816,42 @@ static func _ghost_wisps(token: Node3D) -> void:
 	p.mesh = mesh
 	p.position = Vector3(0, 0.35, 0)
 	token.body_node.add_child(p)
+
+
+## Far level of detail: beyond LOD_DISTANCE the ~20 detailed meshes of a knight are swapped
+## for ONE merged copy (~8 surfaces), which is what most tokens look like from the normal
+## board camera. Close-ups (fights, the shop) keep the full detail. The crest, sparks and
+## chest core stay as they are; limbs are frozen in the rest pose at a distance.
+const LOD_DISTANCE := 16.0   # the board camera is ~34 away; fights and close-ups are under 10
+
+
+static func add_lod(token: Node3D, color_name: String) -> void:
+	var body: Node3D = token.body_node
+	var keep: Array = []
+	for path in ["KnightHead/HeadCrest", "Sparks", "ChestCore"]:
+		var n := body.get_node_or_null(path)
+		if n:
+			keep.append(n)
+	var detail: Array[MeshInstance3D] = []
+	for m in body.find_children("*", "MeshInstance3D", true, false):
+		var inside_keep := false
+		for k in keep:
+			if k.is_ancestor_of(m):
+				inside_keep = true
+		if inside_keep:
+			continue
+		detail.append(m)
+	var far := MeshMerge.bake(body, "kn_lod_%s_%d" % [color_name, int(variants.get(color_name, 0))], keep, true, false)
+	if far == null:
+		return
+	far.visibility_range_begin = LOD_DISTANCE
+	far.visibility_range_begin_margin = 1.0
+	far.visibility_range_fade_mode = GeometryInstance3D.VISIBILITY_RANGE_FADE_DISABLED
+	for m in detail:
+		if m != far:
+			m.visibility_range_end = LOD_DISTANCE
+			m.visibility_range_end_margin = 1.0
+			m.visibility_range_fade_mode = GeometryInstance3D.VISIBILITY_RANGE_FADE_DISABLED
 
 
 static func is_knight(token: Node3D) -> bool:

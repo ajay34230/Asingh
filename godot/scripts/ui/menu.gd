@@ -56,6 +56,7 @@ var _rule_boxes: Dictionary = {}
 var _graphics: OptionButton
 var _tokens: OptionButton
 var _gstyle: OptionButton
+var _variant: OptionButton
 var _fpscap: OptionButton
 const TOKEN_STYLES := ["knight", "robot", "royal", "original"]
 const GRAPHICS_STYLES := ["classic", "enhanced", "ultra"]
@@ -445,6 +446,8 @@ func _build_settings() -> void:
 	_gstyle = _option(box, "Graphics style", ["Classic", "Enhanced", "Ultra Realistic"])
 	_graphics = _option(box, "Graphics quality", ["Low", "High", "Ultra"])
 	_fpscap = _option(box, "Frame rate", ["30 FPS (cooler)", "60 FPS (smoother)"])
+	_variant = _option(box, "Warrior type", ["Master", "Heavy", "Striker", "Commander"])
+	_variant.item_selected.connect(func(i: int) -> void: GameSettings.set_option("warrior_variant", i))
 	_tokens = _option(box, "Token model", ["Robot knight", "Robot", "Royal pawn", "Original"])
 	_tokens.item_selected.connect(func(i: int) -> void:
 		var style: String = TOKEN_STYLES[i]
@@ -1088,6 +1091,7 @@ func _quick_play() -> void:
 
 func _load_settings_into_controls() -> void:
 	_graphics.select(["low", "medium", "high"].find(GameSettings.get_option("graphics")))
+	_variant.select(clampi(int(GameSettings.get_option("warrior_variant")), 0, 3))
 	_gstyle.select(maxi(0, GRAPHICS_STYLES.find(String(GameSettings.get_option("graphics_style")))))
 	_fpscap.select(0 if int(GameSettings.get_option("fps_cap")) == 30 else 1)
 	_tokens.select(maxi(0, TOKEN_STYLES.find(String(GameSettings.get_option("token_style")))))

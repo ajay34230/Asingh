@@ -93,6 +93,10 @@ func _spawn_tokens(seat_colors: Array[String]) -> void:
 		if child is TransformerToken:
 			child.queue_free()
 	tokens.clear()
+	## Which of the four warriors each colour fields: yours by choice, the others by lot.
+	KnightPawn.variants = {}
+	for c in seat_colors:
+		KnightPawn.variants[c] = int(GameSettings.get_option("warrior_variant")) if humans_skin(c) else randi() % 4
 	for color in seat_colors:
 		var list: Array = []
 		for i in range(BoardPath.TOKENS_PER_PLAYER):

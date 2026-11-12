@@ -80,6 +80,7 @@ func configure(team_colour: String) -> void:
         set_meta("head_y", KnightPawn.HEAD_MOUNT_Y)   # design gear sits on the taller helmet
         _build_pivots()
         KnightPawn.dress_limbs(team, arm_pivots, leg_pivots)
+        KnightPawn.add_lod(self, team)
         _fold_pose()
         return
     if style == "robot" or style == "royal":

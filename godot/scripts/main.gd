@@ -317,6 +317,8 @@ func _run_perf_test() -> void:
 		rows.sort_custom(func(a: Array, b: Array) -> bool: return a[1] > b[1])
 		for r in rows.slice(0, 14):
 			print("  BREAKDOWN %-28s %-14s instances=%5d surfaces=%5d triangles=%8d" % [r[3], r[4], r[2], r[1], r[0]])
+	var any_token: Node3D = game.tokens[game.tokens.keys()[0]][0]
+	print("camera to token distance: %.1f" % camera.global_position.distance_to(any_token.global_position))
 	print("PERF: players=%d tokens=%d draw_calls=%d triangles=%d frames=%d fps=%.1f turn_changes=%d worst_human_wait=%.1fs" % [
 		game.engine.seats.size(), game.tokens.size() * 4, draw_calls, prims, frames, frames / seconds, turns, worst_idle])
 	get_tree().quit()
@@ -965,6 +967,7 @@ func _on_game_event(event_name: String, data: Dictionary) -> void:
 			audio.play("impact", 0.06, -4.0)  ## low boom under the recorded hit
 			effects.hit_spark(pos, true)
 			effects.burst(pos, EffectsManager.TEAM.get(data.get("color", "red"), EffectsManager.GOLD), 18, 2.2, 0.7)
+			effects.metal_hit(pos, data.get("big", false))
 			audio.vibrate(60)
 			hud.flash_banner(["KNOCKOUT!", "BOOM!", "SMASH!"].pick_random(), Color("#ffd24a"))
 			_token_says(data.get("victim_token"), "hurt", data.get("color", ""))
@@ -990,6 +993,7 @@ func _on_game_event(event_name: String, data: Dictionary) -> void:
 		"crash":
 			audio.play("thud", 0.05, -2.0)
 			effects.dust(pos)
+			effects.metal_hit(pos, false)
 		"spin":
 			audio.play("swish", 0.0, -2.0)
 		"throw":
@@ -1883,6 +1887,9 @@ func _screenshot_and_quit(path: String) -> void:
 		game.visible = false
 		game.dice.visible = false
 		var cols := ["green", "red", "blue", "yellow"]
+		if _has_arg("--variant="):
+			for c in cols:
+				KnightPawn.variants[c] = int(_arg_value(OS.get_cmdline_user_args(), "--variant"))
 		for i in range(cols.size()):
 			var t := TransformerToken.new()
 			add_child(t)

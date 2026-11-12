@@ -16,7 +16,7 @@ static var _cache := {}
 ## MeshInstance3D named `name`. `key` identifies the result in the shared cache, so the
 ## geometry is only merged the first time ("" disables caching). `shadows` false stops the
 ## result casting shadows.
-static func bake(root: Node3D, key: String, skip: Array = [], shadows := true) -> MeshInstance3D:
+static func bake(root: Node3D, key: String, skip: Array = [], shadows := true, free_parts := true) -> MeshInstance3D:
 	var cached: Mesh = _cache.get(key) if key != "" else null
 	var parts: Array[MeshInstance3D] = []
 	_collect(root, skip, parts)
@@ -25,14 +25,14 @@ static func bake(root: Node3D, key: String, skip: Array = [], shadows := true) -
 		mesh = _merge(root, parts)
 		if key != "" and mesh != null:
 			_cache[key] = mesh
-	for p in parts:   # the originals are no longer needed
-		if is_instance_valid(p) and p.get_parent() != null:
+	for p in parts:   # the originals are no longer needed (unless this is only a copy for LOD)
+		if free_parts and is_instance_valid(p) and p.get_parent() != null:
 			p.get_parent().remove_child(p)
 			p.free()
 	if mesh == null:
 		return null
 	var mi := MeshInstance3D.new()
-	mi.name = "Baked"
+	mi.name = "Baked" if free_parts else "FarLOD"
 	mi.mesh = mesh
 	if not shadows:   # small details: not worth a draw call in every shadow pass
 		mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
@@ -115,7 +115,10 @@ static func _merge(root: Node3D, parts: Array[MeshInstance3D]) -> Mesh:
 			g["i"] = gi
 	if order.is_empty():
 		return null
-	var out := ArrayMesh.new()
+	## ImporterMesh builds automatic simplified levels (meshoptimizer); the renderer picks
+	## one by on-screen size (viewport mesh_lod_threshold), so a token far away costs a
+	## fraction of the triangles.
+	var im := ImporterMesh.new()
 	for mat in order:
 		var g: Dictionary = groups[mat]
 		var arr := []
@@ -124,6 +127,6 @@ static func _merge(root: Node3D, parts: Array[MeshInstance3D]) -> Mesh:
 		arr[Mesh.ARRAY_NORMAL] = g["n"]
 		arr[Mesh.ARRAY_TEX_UV] = g["uv"]
 		arr[Mesh.ARRAY_INDEX] = g["i"]
-		out.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, arr)
-		out.surface_set_material(out.get_surface_count() - 1, mat)
-	return out
+		im.add_surface(Mesh.PRIMITIVE_TRIANGLES, arr, [], {}, mat, "s%d" % im.get_surface_count())
+	im.generate_lods(25.0, 60.0, [])
+	return im.get_mesh()
