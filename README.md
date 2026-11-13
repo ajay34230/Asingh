@@ -7,7 +7,7 @@ voice lines, a shop of collectible token designs, a story campaign, and Wi-Fi mu
 This file is the handover document: what exists, where it is, how to run, test and build it,
 what has been measured, what is not done, and the prompt for the next piece of work.
 
-- **Current version:** 1.11.0 (version code 15), debug build only (see "Known problems"). Release 1.10.1 (code 14) is the last signed build. Old note: the branch was one commit
+- **Current version:** 1.11.1 (version code 16), debug build only (see "Known problems"). Release 1.10.1 (code 14) is the last signed build. Old note: the branch was one commit
   ahead of that build (token LOD, warrior types, metal-hit effects); the next build should be 1.11.0.
 - **Work branch:** `ccr-1a31b667-aqu8jk` (default branch is `main`; the work is not merged).
 - **Package name:** `com.royalindia.ludo`
@@ -232,7 +232,19 @@ The palace merge at each quality level, knight model:
 | High (`medium`) | 5,582 | 2,457 | 4.92 million | 3.49 million |
 | Ultra (`high`) | 6,788 | 3,030 | 6.81 million | 4.54 million |
 
-Other token models at High quality:
+Shadow passes (version 1.11.1). The settings code used to switch shadows on for the fill
+light as well as the sun, and both used four cascades, so the scene was drawn into eight
+shadow maps a frame. Now only the sun casts shadows; phones use two cascades, a cheaper
+shadow filter, 2x anti-aliasing on Ultra (4x before) and no plant shadows. A desktop on
+Ultra keeps four cascades and 4x. `--as-phone` applies the phone rules on a desktop run.
+
+| Quality, knight model | Draw calls before | after | Triangles before | after |
+|---|---|---|---|---|
+| High (`medium`) | 2,457 | 1,194 | 3.49 million | 1.65 million |
+| Ultra (`high`), phone rules | 3,030 | 1,267 | 4.54 million | 1.65 million |
+| Ultra (`high`), desktop | 3,030 | 1,834 | 4.54 million | 2.95 million |
+
+Other token models at High quality (measured before the shadow change):
 
 | Token model | Draw calls before | after | Triangles before | after |
 |---|---|---|---|---|

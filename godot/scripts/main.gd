@@ -727,7 +727,12 @@ func _apply_settings() -> void:
 		if child is WorldEnvironment:
 			env = (child as WorldEnvironment).environment
 		if child is DirectionalLight3D:
-			(child as DirectionalLight3D).shadow_enabled = medium
+			## Only the sun casts shadows. (The fill light used to be switched on here too,
+			## which drew the whole scene into four more shadow maps for no visible gain.)
+			var is_sun := child.name == "Sun"
+			(child as DirectionalLight3D).shadow_enabled = medium and is_sun
+			if is_sun:
+				_tune_sun(child as DirectionalLight3D, high)
 	if env:
 		env.glow_enabled = medium
 	get_viewport().scaling_3d_scale = minf(0.75 if quality == "low" else 1.0, _res_scale)
@@ -749,7 +754,13 @@ func _apply_settings() -> void:
 	for child in get_children():
 		if child.name in ["Garden", "Peacock", "Elephant", "Statue", "Fountain", "Lamp", "DiceHolder"] or String(child.name).begins_with("@Node3D@"):
 			_set_shadows(child, high)
-	get_viewport().msaa_3d = Viewport.MSAA_4X if high else Viewport.MSAA_DISABLED
+	## 4x anti-aliasing on a 1080p phone screen costs more than anything else on Ultra;
+	## 2x is hard to tell apart at phone pixel density.
+	get_viewport().msaa_3d = (Viewport.MSAA_2X if _is_phone() else Viewport.MSAA_4X) if high else Viewport.MSAA_DISABLED
+	if high and _is_phone():   # plants are drawn again in every shadow map; statues keep theirs
+		for child in get_children():
+			if child.name == "Garden":
+				_set_shadows(child, false)
 	_camera_tilt = GameSettings.get_option("camera_tilt")
 	game.anim_scale = [1.6, 1.0, 0.6][int(GameSettings.get_option("anim_speed"))]
 	hud.set_fps_visible(GameSettings.get_option("show_fps"))
@@ -799,6 +810,23 @@ func _perf_guard(player_count: int) -> void:
 		hud.show_caption(tr("Graphics lowered for smooth play. You can change this in Settings."), 4.0)
 		print("perf guard: %.0f fps with %d players, graphics %s -> %s" % [fps, player_count, quality, lower])
 		await get_tree().create_timer(3.0).timeout
+
+
+func _is_phone() -> bool:
+	return OS.has_feature("mobile") or "--as-phone" in OS.get_cmdline_user_args()
+
+
+## Shadow cost follows the quality level. Every shadow cascade draws the whole scene again,
+## so phones get two cascades (the board camera hardly moves, two are enough) and a
+## smaller, cheaper-filtered shadow map; a desktop on Ultra keeps the full four.
+func _tune_sun(sun: DirectionalLight3D, high: bool) -> void:
+	var full := high and not _is_phone()
+	sun.directional_shadow_mode = DirectionalLight3D.SHADOW_PARALLEL_4_SPLITS if full else DirectionalLight3D.SHADOW_PARALLEL_2_SPLITS
+	sun.directional_shadow_max_distance = 60.0
+	sun.light_angular_distance = 1.5 if full else 0.0   # the soft penumbra needs many extra samples
+	RenderingServer.directional_shadow_atlas_set_size(4096 if high else 2048, true)
+	RenderingServer.directional_soft_shadow_filter_set_quality(
+		RenderingServer.SHADOW_QUALITY_SOFT_MEDIUM if full else RenderingServer.SHADOW_QUALITY_SOFT_LOW)
 
 
 ## Static scenery is merged into a few meshes at start (see MeshMerge.bake_static).
@@ -1619,6 +1647,7 @@ func _build_environment() -> void:
 	sun.shadow_bias = 0.03
 	sun.shadow_normal_bias = 1.2
 	sun.light_angular_distance = 1.5   ## soft penumbra like a real sun disc
+	sun.name = "Sun"
 	add_child(sun)
 	## Cool fill from the opposite side, so shadows are not black.
 	var fill := DirectionalLight3D.new()
