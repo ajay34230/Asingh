@@ -7,7 +7,7 @@ voice lines, a shop of collectible token designs, a story campaign, and Wi-Fi mu
 This file is the handover document: what exists, where it is, how to run, test and build it,
 what has been measured, what is not done, and the prompt for the next piece of work.
 
-- **Current version:** 1.11.2 (version code 17), debug build only (see "Known problems"). Release 1.10.1 (code 14) is the last signed build. Old note: the branch was one commit
+- **Current version:** 1.11.3 (version code 18), debug build only (see "Known problems"). Release 1.10.1 (code 14) is the last signed build. Old note: the branch was one commit
   ahead of that build (token LOD, warrior types, metal-hit effects); the next build should be 1.11.0.
 - **Work branch:** `ccr-1a31b667-aqu8jk` (default branch is `main`; the work is not merged).
 - **Package name:** `com.royalindia.ludo`
@@ -249,7 +249,7 @@ Version 1.11.2, for phones:
   810 on High, 1080 on Ultra); the interface stays sharp. `--screen-short=<px>` with
   `--as-phone` simulates a screen size.
 - The performance guard now steps in under 45 fps when the cap is 60 (it used to wait for 26).
-- `Settings > Show FPS` now works (the label used to sit above the top of the screen) and
+- `Settings > Show FPS` now works (the label used to sit above the top of the screen); it is at the top centre and
   shows draw calls, triangles, game-code time, render CPU and GPU time, the 3D resolution
   and the quality level. `--show-fps` turns it on for one run. Ask a tester for a
   screenshot of this line: it says whether the game code, the draw calls or the pixels

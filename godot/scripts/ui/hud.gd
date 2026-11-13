@@ -63,15 +63,27 @@ func _ready() -> void:
 	_turn.add_theme_stylebox_override("normal", RoyalTheme.badge(RoyalTheme.GOLD))
 	_roll = _label(root, 18, Vector2(20, 64))
 	_fps = _label(root, 14, Vector2(16, 0))
-	## Bottom-left corner, growing upwards. (It used to be positioned 28 px above the top
-	## of the screen, so it was never seen.)
-	_fps.set_anchors_preset(Control.PRESET_BOTTOM_LEFT)
-	_fps.grow_vertical = Control.GROW_DIRECTION_BEGIN
-	_fps.offset_left = 16
-	_fps.offset_top = -52
-	_fps.offset_bottom = -8
-	_fps.add_theme_color_override("font_outline_color", Color.BLACK)
-	_fps.add_theme_constant_override("outline_size", 6)
+	## Top centre, in the gap between the turn badge and the buttons, on a dark plate so it
+	## never sits on top of the message bar or the board. (It was once placed above the
+	## top of the screen, then in the bottom-left corner where it ran into the message.)
+	_fps.anchor_left = 0.5
+	_fps.anchor_right = 0.5
+	_fps.anchor_top = 0.0
+	_fps.anchor_bottom = 0.0
+	_fps.offset_left = 0
+	_fps.offset_right = 0
+	_fps.offset_top = 6
+	_fps.offset_bottom = 6
+	_fps.grow_horizontal = Control.GROW_DIRECTION_BOTH
+	_fps.grow_vertical = Control.GROW_DIRECTION_END
+	_fps.add_theme_font_size_override("font_size", 12)
+	_fps.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_fps.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	var plate := StyleBoxFlat.new()
+	plate.bg_color = Color(0, 0, 0, 0.6)
+	plate.set_corner_radius_all(6)
+	plate.set_content_margin_all(6)
+	_fps.add_theme_stylebox_override("normal", plate)
 	_fps.visible = false
 
 	_message = Label.new()
@@ -376,14 +388,15 @@ func _process(_delta: float) -> void:
 		var rid := vp.get_viewport_rid()
 		RenderingServer.viewport_set_measure_render_time(rid, true)
 		var size := vp.get_visible_rect().size * vp.get_screen_transform().get_scale() * vp.scaling_3d_scale
-		_fps.text = "%d fps | %d draws | %dk tris\ncode %.1f ms | cpu %.1f ms | gpu %.1f ms | 3D %dx%d | %s" % [
+		_fps.text = "%d fps  ·  %s\n%d draws  ·  %dk tris\ncode %.1f  ·  cpu %.1f  ·  gpu %.1f ms  ·  3D %dx%d" % [
 			Engine.get_frames_per_second(),
+			{"low": "Low", "medium": "High", "high": "Ultra"}.get(String(GameSettings.get_option("graphics")), "?"),
 			int(Performance.get_monitor(Performance.RENDER_TOTAL_DRAW_CALLS_IN_FRAME)),
 			int(Performance.get_monitor(Performance.RENDER_TOTAL_PRIMITIVES_IN_FRAME) / 1000.0),
 			Performance.get_monitor(Performance.TIME_PROCESS) * 1000.0,
 			RenderingServer.viewport_get_measured_render_time_cpu(rid) + RenderingServer.get_frame_setup_time_cpu(),
 			RenderingServer.viewport_get_measured_render_time_gpu(rid),
-			int(size.x), int(size.y), String(GameSettings.get_option("graphics"))]
+			int(size.x), int(size.y)]
 
 
 ## Results: a title, one podium row per player with a medal, then the coin reward
