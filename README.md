@@ -7,7 +7,7 @@ voice lines, a shop of collectible token designs, a story campaign, and Wi-Fi mu
 This file is the handover document: what exists, where it is, how to run, test and build it,
 what has been measured, what is not done, and the prompt for the next piece of work.
 
-- **Current version:** 1.11.1 (version code 16), debug build only (see "Known problems"). Release 1.10.1 (code 14) is the last signed build. Old note: the branch was one commit
+- **Current version:** 1.11.2 (version code 17), debug build only (see "Known problems"). Release 1.10.1 (code 14) is the last signed build. Old note: the branch was one commit
   ahead of that build (token LOD, warrior types, metal-hit effects); the next build should be 1.11.0.
 - **Work branch:** `ccr-1a31b667-aqu8jk` (default branch is `main`; the work is not merged).
 - **Package name:** `com.royalindia.ludo`
@@ -243,6 +243,17 @@ Ultra keeps four cascades and 4x. `--as-phone` applies the phone rules on a desk
 | High (`medium`) | 2,457 | 1,194 | 3.49 million | 1.65 million |
 | Ultra (`high`), phone rules | 3,030 | 1,267 | 4.54 million | 1.65 million |
 | Ultra (`high`), desktop | 3,030 | 1,834 | 4.54 million | 2.95 million |
+
+Version 1.11.2, for phones:
+- The 3D image is rendered below the screen resolution (short side capped at 600 px on Low,
+  810 on High, 1080 on Ultra); the interface stays sharp. `--screen-short=<px>` with
+  `--as-phone` simulates a screen size.
+- The performance guard now steps in under 45 fps when the cap is 60 (it used to wait for 26).
+- `Settings > Show FPS` now works (the label used to sit above the top of the screen) and
+  shows draw calls, triangles, game-code time, render CPU and GPU time, the 3D resolution
+  and the quality level. `--show-fps` turns it on for one run. Ask a tester for a
+  screenshot of this line: it says whether the game code, the draw calls or the pixels
+  are the limit on that phone.
 
 Other token models at High quality (measured before the shadow change):
 

@@ -712,6 +712,8 @@ func _apply_settings() -> void:
 		_detect_quality()
 	if _has_arg("--quality="):       # tests and measurements: force a level
 		GameSettings.set_option("graphics", _arg_value(OS.get_cmdline_user_args(), "--quality"))
+	if "--show-fps" in OS.get_cmdline_user_args():
+		GameSettings.set_option("show_fps", true)
 	if _has_arg("--gfx-style="):
 		GameSettings.set_option("graphics_style", _arg_value(OS.get_cmdline_user_args(), "--gfx-style"))
 	var quality: String = GameSettings.get_option("graphics")
@@ -735,7 +737,7 @@ func _apply_settings() -> void:
 				_tune_sun(child as DirectionalLight3D, high)
 	if env:
 		env.glow_enabled = medium
-	get_viewport().scaling_3d_scale = minf(0.75 if quality == "low" else 1.0, _res_scale)
+	get_viewport().scaling_3d_scale = minf(minf(0.75 if quality == "low" else 1.0, _res_scale), _phone_res_cap(quality, high))
 	## Budget phones: Low drops the garden, drifting petals and reflections, and uses
 	## simpler distant meshes; Medium keeps everything but the reflection probe.
 	get_viewport().mesh_lod_threshold = 4.0 if quality == "low" else (2.0 if medium and not high else 1.0)
@@ -796,7 +798,9 @@ func _perf_guard(player_count: int) -> void:
 			frames += 1
 		var fps := frames / 3.0
 		var quality: String = GameSettings.get_option("graphics")
-		if fps >= 26.0 or (quality == "low" and _res_scale <= 0.72):
+		## "Slow" depends on the target: under 45 at a 60 fps cap already feels rough.
+		var floor_fps := 45.0 if int(GameSettings.get_option("fps_cap")) >= 60 else 26.0
+		if fps >= floor_fps or (quality == "low" and _res_scale <= 0.72):
 			return
 		if _res_scale > 0.72:   # first lower the resolution a step, which costs the least
 			_res_scale = maxf(0.7, _res_scale - 0.15)
@@ -810,6 +814,21 @@ func _perf_guard(player_count: int) -> void:
 		hud.show_caption(tr("Graphics lowered for smooth play. You can change this in Settings."), 4.0)
 		print("perf guard: %.0f fps with %d players, graphics %s -> %s" % [fps, player_count, quality, lower])
 		await get_tree().create_timer(3.0).timeout
+
+
+## Phone screens are 1080p or more, and every 3D pixel is shaded with full materials. Big
+## mobile games render the 3D scene below the screen resolution and keep the interface
+## sharp; this does the same. The short side of the 3D image is capped per quality level
+## (Low 600, High 810, Ultra 1080 pixels). The interface is not affected.
+func _phone_res_cap(quality: String, high: bool) -> float:
+	if not _is_phone():
+		return 1.0
+	var size := get_window().size
+	var short_side := float(mini(size.x, size.y))
+	if _has_arg("--screen-short="):
+		short_side = float(_arg_value(OS.get_cmdline_user_args(), "--screen-short"))
+	var cap := 1080.0 if high else (600.0 if quality == "low" else 810.0)
+	return clampf(cap / maxf(short_side, 1.0), 0.5, 1.0)
 
 
 func _is_phone() -> bool:
