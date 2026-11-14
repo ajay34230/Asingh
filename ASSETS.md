@@ -63,3 +63,9 @@ Credit: monsters and weapons by Quaternius, graveyard by Kenney (CC0; credit not
 | Path | Source | Licence |
 |---|---|---|
 | `assets/outfits/KnightCharacter.glb`, `Helmet1-3.glb`, `ShoulderPads.glb` | Quaternius *Knight Character* pack, from public GitHub repo `trebeljahr/quaternius-showcase` (`public/glb/single_knight_pack`) | CC0 1.0 |
+
+## Motion-captured animations (Mixamo)
+
+| Asset | Source | Licence |
+|---|---|---|
+| `assets/anims/mocap.res` (53 clips: Walking, Fast Run, Jumping Down, Dying, and the Sword and Shield pack) | Adobe Mixamo (https://www.mixamo.com), downloaded by Ajay on the X Bot character and converted to this game's skeleton by `tools/bake_mixamo.gd`. The original FBX files are not in the repo. | Mixamo terms (Adobe): royalty-free for use in games and other projects, but not CC0, and not to be redistributed as stand-alone animation files. Ajay chose to keep the converted library in this public repo (2026-11-14); it is the one exception to the CC0-or-own-work rule. |

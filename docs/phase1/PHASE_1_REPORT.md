@@ -863,4 +863,4 @@ They are transferred onto our skeletons. **Not tested on a device.** The selftes
 - Bench, 30 walking characters on the build machine: about 0.1 ms more per walking character without fingers.
 - A tunic skeleton now copies the body skeleton's pose by bone name instead of computing it again, which cut the code-made animation's cost by about 20% for every robed character.
 
-**Licence:** Mixamo content is not CC0. Adobe allows it in games, but not shared as raw files. The baked library is kept out of the public repo until Ajay decides (make the repo private, or not). Without the library, the game falls back to the code-made animation.
+**Licence:** Mixamo content is not CC0. Adobe allows it in games, but not shared as raw files. Ajay chose to keep the converted library (`assets/anims/mocap.res`) in this public repo; the original FBX files stay out of git. This is recorded in `ASSETS.md` as the one exception to the CC0-or-own-work rule. Without the library, the game falls back to the code-made animation.

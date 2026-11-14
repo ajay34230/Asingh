@@ -28,4 +28,3 @@ __pycache__/
 
 # Mixamo source files (Adobe licence; not CC0) - kept out of git
 mixamo_src/
-assets/anims/mocap.res
