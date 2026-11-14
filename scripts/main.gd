@@ -2320,6 +2320,11 @@ func _run_capture_mocap(dir: String) -> void:
 	cam.current = true
 	var rows := (OS.get_environment("MOCAP_ROWS") if OS.get_environment("MOCAP_ROWS") != "" else "walk,run,act,swordwalk,villager").split(",")
 	var acts := [["ss_slash", "hit"], ["ss_attack_4", "hit"], ["ss_impact", 0.25], ["ss_block_idle", 0.3], ["ss_power_up", 1.1], ["jump_down", "low"], ["ss_death", "end"]]
+	if OS.get_environment("MOCAP_ACTS") != "":
+		acts = []
+		for it in OS.get_environment("MOCAP_ACTS").split(","):
+			var kv := it.split(":")
+			acts.append([kv[0], (kv[1] if kv[1] in ["hit", "low", "end"] else float(kv[1])) if kv.size() > 1 else 0.5])
 	for row in rows:
 		var rigs: Array[RealHuman] = []
 		for i in 7:
@@ -2329,7 +2334,7 @@ func _run_capture_mocap(dir: String) -> void:
 			var r := RealHuman.new().setup(pr, "Mc%d" % i)
 			add_child(r)
 			r.global_position = Vector3(pp.x - 4.8 + i * 1.6, terrain.sample_height(pp.x - 4.8 + i * 1.6, pp.z), pp.z)
-			r.rotation.y = -PI * 0.5 if row != "act" else -PI * 0.25
+			r.rotation.y = -PI * 0.5 if not row.begins_with("act") else -PI * 0.25
 			r.set_process(false)
 			if row == "swordwalk":
 				r.set_weapon("sword")
@@ -2341,8 +2346,8 @@ func _run_capture_mocap(dir: String) -> void:
 			r.mode = "locomotion"
 			r._air = 0.0
 			r._mc_check = 0.0
-			if row == "act":
-				var a: Array = acts[i]
+			if row.begins_with("act"):
+				var a: Array = acts[(int(row.trim_prefix("act")) if row != "act" else 0) * 7 + i]
 				var c: Dictionary = lib.clips[a[0]]
 				r._speed_smooth = 0.0
 				r._locomotion(0.0)
