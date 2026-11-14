@@ -69,3 +69,11 @@ Credit: monsters and weapons by Quaternius, graveyard by Kenney (CC0; credit not
 | Asset | Source | Licence |
 |---|---|---|
 | `assets/anims/mocap.res` (71 clips: Walking, Fast Run, Jumping Down, Dying, the Sword and Shield pack, the Lite Longbow pack and the Creature NPC (mutant) pack) | Adobe Mixamo (https://www.mixamo.com), downloaded by Ajay on the X Bot character and converted to this game's skeleton by `tools/bake_mixamo.gd`. The original FBX files are not in the repo. | Mixamo terms (Adobe): royalty-free for use in games and other projects, but not CC0, and not to be redistributed as stand-alone animation files. Ajay chose to keep the converted library in this public repo (2026-11-14); it is the one exception to the CC0-or-own-work rule. |
+
+## New monsters (2026-11-15)
+
+| Asset | Source | Licence |
+|---|---|---|
+| `assets/monsters/Zombie_Basic.gltf`, `Zombie_Arm.gltf`, `Zombie_Chubby.gltf` (animated) | Quaternius *Zombie Apocalypse Kit* (https://quaternius.com/packs/zombieapocalypsekit.html). Files from public GitHub repo `Edw11n/zombie-rush` (commit 7a901cc, `assets/Characters/glTF`), checked byte-identical (SHA-256) to the copies in `series-ai/jam-ready-assets` (`quaternius-zombie-apocalypse`), whose licence file (copied as `assets/monsters/LICENSE_Quaternius_ZombieApocalypse.txt`) states CC0 1.0 | CC0 1.0 |
+| `assets/monsters/Wolf.glb` (animated) | Quaternius *Ultimate Animated Animals*, from public GitHub repo `trebeljahr/quaternius-showcase` (commit 0128ca5, `public/glb/animals_pack`), same source as the other animals | CC0 1.0 |
+| `assets/monsters/Cobra.glb` (the *Snake_angry* model, tinted in game), `assets/monsters/Spider.glb` (animated) | Quaternius *Easy Enemies* pack, same repo (`public/glb/easy_enemies_pack`) | CC0 1.0 |

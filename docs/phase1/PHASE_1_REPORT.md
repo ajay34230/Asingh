@@ -888,3 +888,26 @@ Ajay's Lite Longbow pack and Creature NPC (mutant) pack contain movement only. T
 - **Other enemies:** the mutant fall joins the captured death styles.
 
 **Not used yet:** the turn-in-place clips (the game has no turn-in-place step), mutant jumping, the "draw arrow" clip (aiming stays the code's for accuracy), and the duplicate Jumping Down.
+
+## Addendum: New monsters and three new missions (2026-11-15)
+
+Ajay asked for new 3D models. No CC0 tiger exists in the sources reachable from the build machine, which can only reach GitHub; the cat pack there has only house cats. The King model was already in the game (Maharaja's Robes). Six free (CC0) Quaternius models were added as monsters; sources and checks are in `ASSETS.md`.
+
+**Checks:** the selftest passes, with a new `beasts` check: each new monster loads its model, plays its walk and attack, and is sent by a mission. A `--capture-beasts` capture shows them in the game. **Not tested on a device.**
+
+**The monsters:**
+- **zombie:** 55 hp, slow.
+- **zombie (arm):** 48 hp, faster, hits harder.
+- **fat zombie:** a boss, 240 hp.
+- **wolf:** fast, low; arrows aim at its real head and chest height.
+- **cobra:** the angry snake, tinted to a dark cobra.
+- **giant spider.**
+
+The zombies are tinted greyer for an undead look. The wolf, cobra and spider name their animations differently, so `Monster` gained an animation-name map (`"anims"` in `KINDS`) and loads `.glb` as well as `.gltf`.
+
+**New missions** (`MonsterMissions.MISSIONS`, unlocked in order). Saves record missions by name, so inserting them keeps existing progress.
+- **Wolves of the Pass** (night, on the pass), after Bones of the Old Road: wolf packs, then wolves with a skeleton.
+- **The Hungry Dead** (night, protect the farm), after Skulls over Kesar Sarai: zombies, then arm zombies, then the fat zombie boss.
+- **The Cobra Pit** (day, a dry well in the dunes), after the Mushroom King: cobras, then cobras with spiders, then a spider swarm.
+
+All mission text is translated into Hindi.

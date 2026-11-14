@@ -137,6 +137,8 @@ func _ready() -> void:
 			_run_capture_pickups.call_deferred(a.trim_prefix("--capture-pickups="))
 		if a.begins_with("--capture-fight="):
 			_run_capture_fight.call_deferred(a.trim_prefix("--capture-fight="))
+		elif a.begins_with("--capture-beasts="):
+			_run_capture_beasts.call_deferred(a.trim_prefix("--capture-beasts="))
 		elif a == "--bench-mocap":
 			_run_bench_mocap.call_deferred()
 		elif a.begins_with("--capture-mocap="):
@@ -1730,6 +1732,7 @@ func _run_selftest() -> void:
 	await _selftest_horse(fails)
 	await _selftest_seat(fails)
 	await _selftest_mocap(fails)
+	await _selftest_beasts(fails)
 	await _selftest_pubg_aim(fails)
 	await _selftest_dog(fails)
 	await _selftest_crafting(fails)
@@ -2289,6 +2292,49 @@ func _run_bench_mocap() -> void:
 				r.animate(1.0 / 60.0, 1.5 + 4.0 * float(f % 60) / 60.0, true)
 		var us := float(Time.get_ticks_usec() - t0) / 120.0
 		print("[bench] mocap %s: %.2f ms per frame for 30 characters (%.3f ms each), near %s" % [str(on), us / 1000.0, us / 30000.0, str(rigs[0]._mc_near)])
+	get_tree().quit()
+
+
+## The new monsters in a row (zombies, wolf, cobra, spider), with the hero for scale; ANIM picks the animation.
+func _run_capture_beasts(dir: String) -> void:
+	DirAccess.make_dir_recursive_absolute(dir)
+	touch.visible = false
+	for c in get_children():
+		if c is TitleScreen:
+			c.queue_free()
+		elif c is CanvasLayer:
+			(c as CanvasLayer).visible = false
+	atmosphere.time_of_day = 0.42
+	atmosphere.apply_time()
+	var base := _flat_spot()
+	_teleport(base.x - 6.0, base.y)
+	for i in 30:
+		await get_tree().physics_frame
+	player.set_physics_process(false)
+	var pp := Vector3(base.x, terrain.sample_height(base.x, base.y), base.y)
+	var kinds := ["zombie", "zombie_arm", "zombie_fat", "wolf", "cobra", "spider"]
+	var mons: Array = []
+	for i in kinds.size():
+		var x := pp.x - 5.5 + i * 2.2
+		var m := Monster.new().setup_monster(kinds[i], Vector3(x, terrain.sample_height(x, pp.z), pp.z), "Beast%d" % i)
+		add_child(m)
+		m.set_physics_process(false)
+		m.rotation.y = -PI * 0.3
+		mons.append(m)
+	var cam := Camera3D.new()
+	add_child(cam)
+	cam.fov = 40.0
+	cam.global_position = pp + Vector3(0.0, 1.6, 10.5)
+	cam.look_at(pp + Vector3(0, 0.9, 0))
+	cam.current = true
+	for an in (OS.get_environment("ANIM") if OS.get_environment("ANIM") != "" else "Walk,Punch").split(","):
+		for m in mons:
+			(m as Monster)._cur = ""
+			(m as Monster)._play(an, 0.0)
+		for i in 24:
+			await get_tree().process_frame
+		await RenderingServer.frame_post_draw
+		print("[capture] beasts ", an, " -> ", get_viewport().get_texture().get_image().save_png("%s/beasts_%s.png" % [dir, an]))
 	get_tree().quit()
 
 
@@ -4339,6 +4385,32 @@ func _selftest_mocap(fails: PackedStringArray) -> void:
 	if foe.rig.weapon != "bow":
 		fails.append("mocap: an enemy archer does not carry a bow")
 	foe.queue_free()
+
+
+## The new monsters (zombies, wolf, cobra, spider): each loads its model, plays its walk and attack, and has a
+## mission that sends it.
+func _selftest_beasts(fails: PackedStringArray) -> void:
+	for k in ["zombie", "zombie_arm", "zombie_fat", "wolf", "cobra", "spider"]:
+		var m := Monster.new().setup_monster(k, player.global_position + Vector3(40, 0, 0), "BT_" + k)
+		add_child(m)
+		m.set_physics_process(false)
+		if m._anim == null:
+			fails.append("beasts: the %s has no animations (model not loaded?)" % k)
+		else:
+			for an in ["Walk", "Punch"]:
+				m._cur = ""
+				m._play(an, 0.0)
+				if m._cur != an:
+					fails.append("beasts: the %s cannot play %s" % [k, an])
+		var sent := false
+		for ms in MonsterMissions.MISSIONS:
+			for wave in ms["waves"]:
+				for grp in wave:
+					sent = sent or String(grp[0]) == k
+		if not sent:
+			fails.append("beasts: no mission sends the " + k)
+		m.queue_free()
+	await get_tree().process_frame
 
 
 func _selftest_boss(fails: PackedStringArray) -> void:

@@ -13,6 +13,19 @@ const KINDS := {
 	"yeti": {"file": "Yeti", "height": 2.7, "hp": 230.0, "dmg": 17.0, "speed": 3.3, "fly": 0.0, "reach": 2.6, "spectral": false, "boss": true},
 	"mushroom_king": {"file": "MushroomKing", "height": 2.5, "hp": 260.0, "dmg": 15.0, "speed": 2.4, "fly": 0.0, "reach": 2.5, "spectral": false, "boss": true},
 	"demon": {"file": "Demon", "height": 2.9, "hp": 320.0, "dmg": 20.0, "speed": 3.6, "fly": 0.0, "reach": 2.8, "spectral": false, "boss": true},
+	# undead, beasts and vermin (Quaternius Zombie Apocalypse / Animals / Easy Enemies, CC0); "anims" maps our
+	# animation names to the model's own
+	"zombie": {"file": "Zombie_Basic", "height": 1.85, "hp": 55.0, "dmg": 9.0, "speed": 2.2, "fly": 0.0, "reach": 1.9, "spectral": false, "tint": Color(0.72, 0.78, 0.64)},
+	"zombie_arm": {"file": "Zombie_Arm", "height": 1.8, "hp": 48.0, "dmg": 11.0, "speed": 3.0, "fly": 0.0, "reach": 1.9, "spectral": false, "tint": Color(0.62, 0.66, 0.55)},
+	"zombie_fat": {"file": "Zombie_Chubby", "height": 2.3, "hp": 240.0, "dmg": 16.0, "speed": 2.0, "fly": 0.0, "reach": 2.3, "spectral": false, "boss": true, "tint": Color(0.7, 0.72, 0.62)},
+	"wolf": {"file": "Wolf", "height": 1.05, "hp": 40.0, "dmg": 8.0, "speed": 5.2, "fly": 0.0, "reach": 1.7, "spectral": false, "head": 0.8, "chest": 0.55,
+		"anims": {"Idle": "AnimalArmature|Idle", "Walk": "AnimalArmature|Walk", "Run": "AnimalArmature|Gallop", "Punch": "AnimalArmature|Attack",
+			"HitReact": "AnimalArmature|Idle_HitReact_Left", "Death": "AnimalArmature|Death"}},
+	"cobra": {"file": "Cobra", "height": 0.9, "hp": 30.0, "dmg": 10.0, "speed": 2.6, "fly": 0.0, "reach": 1.6, "spectral": false, "head": 0.75, "chest": 0.35, "tint": Color(0.62, 0.5, 0.36),
+		"anims": {"Idle": "SnakeArmature|Snake_Idle", "Walk": "SnakeArmature|Snake_Walk", "Run": "SnakeArmature|Snake_Walk", "Punch": "SnakeArmature|Snake_Attack"}},
+	"spider": {"file": "Spider", "height": 0.9, "hp": 45.0, "dmg": 9.0, "speed": 3.6, "fly": 0.0, "reach": 1.8, "spectral": false, "head": 0.6, "chest": 0.45,
+		"anims": {"Idle": "SpiderArmature|Spider_Idle", "Walk": "SpiderArmature|Spider_Walk", "Run": "SpiderArmature|Spider_Walk", "Punch": "SpiderArmature|Spider_Attack",
+			"Death": "SpiderArmature|Spider_Death"}},
 	"dragon": {"file": "Dragon_Evolved", "height": 3.0, "hp": 380.0, "dmg": 18.0, "speed": 5.0, "fly": 3.2, "reach": 3.0, "spectral": false, "boss": true},
 }
 
@@ -26,6 +39,7 @@ var last_hit_at: Variant = null     # where the last arrow struck (set by Arrow)
 var spectral := false
 var reach := 2.0
 var _model: Node3D
+var _aliases := {}                  # our animation name -> the model's (beasts and vermin name theirs differently)
 var _anim: AnimationPlayer
 var _cur := ""
 var _atk_t := -1.0
@@ -54,13 +68,14 @@ func setup_monster(k: String, at: Vector3, label: String) -> Monster:
 	flier = hover > 0.0
 	spectral = bool(d["spectral"])
 	reach = float(d["reach"])
-	head_h = float(d["height"]) * 0.86
-	chest_h = float(d["height"]) * 0.56
+	head_h = float(d["height"]) * float(d.get("head", 0.86))
+	chest_h = float(d["height"]) * float(d.get("chest", 0.56))
 	is_boss = bool(d.get("boss", false))
 	aggro = 40.0
 	leash = 120.0
 	drop_chance = 0.35
 	attack_cd = 1.4 if not is_boss else 1.8
+	_aliases = d.get("anims", {})
 	_model = _load_model(String(d["file"]), float(d["height"]), d.get("tint", Color.WHITE))
 	add_child(_model)
 	var cs := CollisionShape3D.new()
@@ -94,6 +109,8 @@ func setup_monster(k: String, at: Vector3, label: String) -> Monster:
 
 func _load_model(file: String, height: float, tint: Color) -> Node3D:
 	var path := "res://assets/monsters/%s.gltf" % file
+	if not ResourceLoader.exists(path) and ResourceLoader.exists("res://assets/monsters/%s.glb" % file):
+		path = "res://assets/monsters/%s.glb" % file
 	var holder := Node3D.new()
 	holder.name = "Model"
 	var ps: PackedScene = _cache.get(path) as PackedScene
@@ -166,16 +183,18 @@ func _load_model(file: String, height: float, tint: Color) -> Node3D:
 	_anim = inst.find_child("AnimationPlayer", true, false) as AnimationPlayer
 	if _anim != null:
 		for an in ["Idle", "Walk", "Run", "Flying_Idle", "Fast_Flying"]:
-			if _anim.has_animation(an):
-				_anim.get_animation(an).loop_mode = Animation.LOOP_LINEAR
+			var real := String(_aliases.get(an, an))
+			if _anim.has_animation(real):
+				_anim.get_animation(real).loop_mode = Animation.LOOP_LINEAR
 	return holder
 
 
 func _play(n: String, blend: float = 0.15, spd: float = 1.0) -> void:
-	if _anim == null or _cur == n or not _anim.has_animation(n):
+	var real := String(_aliases.get(n, n))
+	if _anim == null or _cur == n or not _anim.has_animation(real):
 		return
 	_cur = n
-	_anim.play(n, blend, spd)
+	_anim.play(real, blend, spd)
 
 
 func _refresh_bar() -> void:
