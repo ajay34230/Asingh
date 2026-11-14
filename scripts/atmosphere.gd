@@ -632,9 +632,11 @@ func _show_rainbow() -> void:
 
 
 func get_tree_free_later(n: Node, secs: float) -> void:
+	var nid := n.get_instance_id()          # by id: a node freed early must not be a dead capture
 	n.get_tree().create_timer(secs).timeout.connect(func() -> void:
-		if is_instance_valid(n):
-			n.queue_free())
+		var o := instance_from_id(nid)
+		if o != null:
+			(o as Node).queue_free())
 
 
 func apply_time() -> void:

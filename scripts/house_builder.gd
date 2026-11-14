@@ -120,7 +120,7 @@ const HOUSE_COLS := [
 
 func _shell(h: Node3D, w: float, d: float, door_x: float, partition_x: float, variant: int) -> void:
 	_hc += 1
-	var wall_mat := PropFactory.aged_wall(0.6, HOUSE_COLS[(_hc * 3 + variant) % HOUSE_COLS.size()]) if variant != 2 else PropFactory.mud_brick()
+	var wall_mat := PropFactory.aged_wall(0.6, (HOUSE_COLS[(_hc * 3 + variant) % HOUSE_COLS.size()] as Color).lerp(Color(1.05, 0.96, 0.84), 0.42)) if variant != 2 else PropFactory.mud_brick()
 	var trim := PropFactory.sandstone_dark()
 	var wood := PropFactory.wood()
 	var hw := w * 0.5

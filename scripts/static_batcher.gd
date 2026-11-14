@@ -29,6 +29,8 @@ static func _ancestor_ok(mi: Node, root: Node) -> bool:
 
 
 static func _flat_key(m: BaseMaterial3D) -> String:
+	if OS.get_environment("NOFLAT") != "":
+		return ""                      # diagnostics: compare against the unmerged look
 	if m.albedo_texture != null or m.normal_enabled or m.emission_enabled or m.uv1_triplanar or m.roughness_texture != null \
 			or m.metallic_texture != null or m.detail_enabled or m.albedo_color.a < 0.999:
 		return ""

@@ -53,6 +53,172 @@ var _hop := ""                   # rear or pounce
 var _gjump := ""                 # leap while running
 var back_y := 1.2                # height of the saddle point above the ground (measured from the model)
 static var _back_cache := {}
+static var _seat_cache := {}       # kind -> [bone name, offset from the bone to the top of the back, half-width]
+var seat_w := 0.23               # half the width of the body where a rider sits (metres)
+var _seat_skel: Skeleton3D
+var _seat_bone := -1
+var _seat_off := Vector3.ZERO
+
+
+## This node's transform relative to the animal (works before the animal is in the tree).
+func _rel_xf(n: Node) -> Transform3D:
+	var xf := Transform3D.IDENTITY
+	while n != null and n != self:
+		if n is Node3D:
+			xf = (n as Node3D).transform * xf
+		n = n.get_parent()
+	return xf
+
+
+## Where a rider sits: on top of the back above the mid-spine bone, measured from the model, with the width of
+## the body there (so the legs can wrap round it). The bone is animated, so the seat rises and falls with the gait.
+func _measure_seat(inst: Node3D, kind: String) -> void:
+	for sk0 in inst.find_children("*", "Skeleton3D", true, false):
+		var sk := sk0 as Skeleton3D
+		for bn in ["Torso2", "Torso", "Body"]:
+			if sk.find_bone(bn) >= 0:
+				_seat_skel = sk
+				_seat_bone = sk.find_bone(bn)
+				break
+		if _seat_bone >= 0:
+			break
+	if _seat_bone < 0:
+		return
+	if _seat_cache.has(kind):
+		_seat_off = _seat_cache[kind][0]
+		seat_w = float(_seat_cache[kind][1])
+		return
+	var bone := _rel_xf(_seat_skel) * _seat_skel.get_bone_global_rest(_seat_bone).origin
+	var top := -INF
+	var pts: Array[Vector3] = []
+	for m in inst.find_children("*", "MeshInstance3D", true, false):
+		var mi := m as MeshInstance3D
+		if mi.mesh == null:
+			continue
+		var xf := _rel_xf(mi)
+		for s in mi.mesh.get_surface_count():
+			var vs: PackedVector3Array = mi.mesh.surface_get_arrays(s)[Mesh.ARRAY_VERTEX]
+			for v in vs:
+				var pv := xf * v
+				if absf(pv.z - bone.z) < 0.3:
+					pts.append(pv)
+					if absf(pv.x) < 0.12 and absf(pv.z - bone.z) < 0.2:
+						top = maxf(top, pv.y)
+	if top == -INF:
+		top = back_y
+	var w := 0.0
+	for pv in pts:
+		if pv.y > top - 0.6 and pv.y <= top:
+			w = maxf(w, absf(pv.x))
+	seat_w = clampf(w, 0.15, 0.5)
+	_seat_off = Vector3(0.0, top - bone.y, 0.0)
+	_seat_cache[kind] = [_seat_off, seat_w]
+
+
+# --- tack: a saddle cloth and reins, shown while someone rides ------------------------------------
+var _tack: Node3D
+var _pad: MeshInstance3D
+var _reins: Array[MeshInstance3D] = []
+var _head_bone := -1
+static var _tack_mats := {}
+
+
+static func _tack_mat(key: String, col: Color, rough: float) -> StandardMaterial3D:
+	if not _tack_mats.has(key):
+		var m := StandardMaterial3D.new()
+		m.albedo_color = col
+		m.roughness = rough
+		_tack_mats[key] = m
+	return _tack_mats[key]
+
+
+## Put the saddle cloth and reins on (or take them off).
+func set_tack(on: bool) -> void:
+	if not on:
+		if _tack != null:
+			_tack.queue_free()
+			_tack = null
+			_reins.clear()
+		return
+	if _tack != null or _seat_bone < 0:
+		return
+	_head_bone = _seat_skel.find_bone("Head")
+	_tack = Node3D.new()
+	_tack.name = "Tack"
+	_tack.top_level = true
+	add_child(_tack)
+	_pad = MeshInstance3D.new()
+	var cloth := SphereMesh.new()
+	cloth.radius = 1.0
+	cloth.height = 2.0
+	cloth.radial_segments = 16
+	cloth.rings = 8
+	_pad.mesh = cloth
+	_pad.scale = Vector3(seat_w + 0.04, 0.2, 0.4)
+	_pad.material_override = _tack_mat("cloth", Color(0.58, 0.1, 0.09), 0.92)
+	_tack.add_child(_pad)
+	var trim := MeshInstance3D.new()          # a gold border: a slightly longer, thinner cloth under the red
+	trim.mesh = cloth
+	trim.scale = Vector3(1.0, 0.82, 1.09)
+	trim.position = Vector3(0, -0.12, 0)
+	trim.material_override = _tack_mat("trim", Color(0.85, 0.62, 0.15), 0.6)
+	_pad.add_child(trim)
+	var seat := MeshInstance3D.new()          # the leather seat on top
+	seat.mesh = cloth
+	seat.scale = Vector3(0.62, 0.42, 0.62)
+	seat.position = Vector3(0, 0.72, 0.05)
+	seat.material_override = _tack_mat("leather", Color(0.3, 0.17, 0.09), 0.7)
+	_pad.add_child(seat)
+	for i in 4:
+		var r := MeshInstance3D.new()
+		var bm := BoxMesh.new()
+		bm.size = Vector3(0.018, 0.012, 1.0)
+		r.mesh = bm
+		r.material_override = _tack_mat("leather", Color(0.3, 0.17, 0.09), 0.7)
+		r.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		_tack.add_child(r)
+		_reins.append(r)
+
+
+## Each frame while ridden: the cloth sits on the moving back, the reins run from the bit to the rider's hands
+## (held = false: the hands are busy, so the reins lie knotted on the neck in front of the saddle).
+func update_tack(hand_l: Vector3, hand_r: Vector3, held: bool, taut: float = 0.0) -> void:
+	if _tack == null:
+		return
+	var up := global_transform.basis.y.normalized()
+	var right := global_transform.basis.x.normalized()
+	var fwd := -global_transform.basis.z.normalized()
+	var seat := seat_point()
+	_pad.global_transform = Transform3D(global_transform.basis.orthonormalized() * Basis.from_scale(_pad.scale), seat - up * 0.13)
+	if _head_bone < 0:
+		return
+	var head := global_transform * (_rel_xf(_seat_skel) * _seat_skel.get_bone_global_pose(_head_bone).origin)
+	var rest := seat + fwd * 0.42 + up * 0.03
+	for side in 2:
+		var sg := -1.0 if side == 0 else 1.0
+		var bit := head + fwd * 0.16 - up * 0.1 + right * sg * 0.07
+		var hand := (hand_l if side == 0 else hand_r) if held else rest + right * sg * 0.03
+		# a slack rein hangs in a curve; pulled, it runs straight from the fist to the bit
+		var mid := (bit + hand) * 0.5 - (up * (0.05 + 0.05 * bit.distance_to(hand)) - right * sg * 0.05) * (1.0 - taut)
+		_stretch(_reins[side * 2], bit, mid)
+		_stretch(_reins[side * 2 + 1], mid, hand)
+
+
+static func _stretch(m: MeshInstance3D, a: Vector3, b: Vector3) -> void:
+	var d := b - a
+	var l := d.length()
+	if l < 0.001:
+		return
+	var z := d / l
+	var x := (Vector3.UP.cross(z) if absf(z.y) < 0.99 else Vector3.RIGHT.cross(z)).normalized()
+	m.global_transform = Transform3D(Basis(x, z.cross(x), z * l), (a + b) * 0.5)
+
+
+## The saddle point now, in world space (follows the animated back). Falls back to the measured back height.
+func seat_point() -> Vector3:
+	if _seat_bone < 0 or not is_instance_valid(_seat_skel):
+		return global_transform * Vector3(0, back_y, 0)
+	return global_transform * (_rel_xf(_seat_skel) * _seat_skel.get_bone_global_pose(_seat_bone).origin + _seat_off)
 var _act := {}                   # the current species activity (see _start_act)
 var _spd := 1.0                  # animation speed of the current activity
 var _fur: Array = []             # shell-fur materials (FurLook), drawn only near the player
@@ -139,6 +305,7 @@ func setup(kind: String, ter: TerrainBuilder, ply: Node3D, at: Vector3, wander_r
 	_inner.position.y = -lo * k
 	length = (zhi - zlo) * k
 	_inner.rotation.y = PI            # models face +Z, we face -Z
+	_measure_seat(inst, kind)
 	var t: Color = sp.get("tint", Color(1, 1, 1)) * tint
 	if t != Color(1, 1, 1):
 		for m in inst.find_children("*", "MeshInstance3D", true, false):

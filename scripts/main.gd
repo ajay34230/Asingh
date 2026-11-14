@@ -137,6 +137,8 @@ func _ready() -> void:
 			_run_capture_pickups.call_deferred(a.trim_prefix("--capture-pickups="))
 		if a.begins_with("--capture-fight="):
 			_run_capture_fight.call_deferred(a.trim_prefix("--capture-fight="))
+		elif a.begins_with("--capture-seat="):
+			_run_capture_seat.call_deferred(a.trim_prefix("--capture-seat="))
 		elif a.begins_with("--capture-gait="):
 			_run_capture_gait.call_deferred(a.trim_prefix("--capture-gait="))
 		elif a.begins_with("--capture-lab="):
@@ -1722,6 +1724,7 @@ func _run_selftest() -> void:
 		bt2.queue_free()
 	await _selftest_boss(fails)
 	await _selftest_horse(fails)
+	await _selftest_seat(fails)
 	await _selftest_pubg_aim(fails)
 	await _selftest_dog(fails)
 	await _selftest_crafting(fails)
@@ -3996,6 +3999,105 @@ func _selftest_horse(fails: PackedStringArray) -> void:
 
 
 ## Boss fight: phases, summoned minions, stomp shockwave, weak spot, charge, the boss bar and the kill.
+## The rider's seat on every rideable animal: on top of the back (not sunk in), legs down the flanks, fists low
+## on reins that reach them; heels-and-reins when urging on, sitting back when reining in. Also: on Medium and
+## Low graphics a painted body keeps its skin colour (only the tunic is dyed).
+func _selftest_seat(fails: PackedStringArray) -> void:
+	var base := _flat_spot()
+	var rig: RealHuman = player._rig
+	for kind in ["horse", "camel", "donkey", "bull"]:
+		var an: Animal = null
+		for c in life:
+			if c is Animal and (c as Animal).species == kind and not (c as Animal).driven:
+				an = c
+				break
+		if an == null:
+			continue
+		var was := an.global_position
+		an.global_position = Vector3(base.x, terrain.sample_height(base.x, base.y), base.y)
+		_teleport(base.x + 2.5, base.y)
+		for i in 4:
+			await get_tree().physics_frame
+		mounts.mount_animal(an)
+		if mounts.mount != an:
+			fails.append("seat: could not mount the " + kind)
+			an.global_position = was
+			continue
+		mounts._heading = 0.0
+		player.move_input = Vector2.ZERO
+		for i in 25:
+			await get_tree().physics_frame
+		await get_tree().process_frame
+		var seat := an.seat_point()
+		var hips := rig._bone_pos("hips")
+		var rt := an.global_transform.basis.x.normalized()
+		var sink := hips.y - seat.y
+		if sink < 0.04 or sink > 0.2:
+			fails.append("seat: on the %s the hips are %.2f m above the back (want about 0.10)" % [kind, sink])
+		var hand_h := maxf(rig.grip_pos("L").y, rig.grip_pos("R").y) - hips.y
+		if hand_h > 0.3:
+			fails.append("seat: on the %s the hands are %.2f m above the hips (in the air)" % [kind, hand_h])
+		if rig.grip_pos("L").distance_to(rig.grip_pos("R")) > 0.4:
+			fails.append("seat: on the %s the hands are apart, not together on the reins" % kind)
+		for tg in ["L", "R"]:
+			var knee_out := absf((rig._bone_pos("kn_" + tg) - seat).dot(rt))
+			var foot_out := absf((rig._bone_pos("an_" + tg) - seat).dot(rt))
+			if knee_out < an.seat_w - 0.03:
+				fails.append("seat: on the %s the %s knee is inside the body (%.2f, body %.2f)" % [kind, tg, knee_out, an.seat_w])
+			if foot_out > knee_out + 0.1 or rig._bone_pos("an_" + tg).y > seat.y - 0.25:
+				fails.append("seat: on the %s the %s leg does not hang down the flank" % [kind, tg])
+		if an._reins.size() != 4:
+			fails.append("seat: the %s has no reins" % kind)
+		else:
+			var end: Vector3 = (an._reins[1] as MeshInstance3D).global_transform * Vector3(0, 0, 0.5)
+			if end.distance_to(rig.grip_pos("L")) > 0.08:
+				fails.append("seat: the %s's rein ends %.2f m from the fist" % [kind, end.distance_to(rig.grip_pos("L"))])
+		if kind == "horse":
+			# urging on from a standstill, then reining in from a gallop
+			player.set_look(0.0, -0.1)
+			player.sprint = true
+			var urged := false
+			for i in 90:
+				player.move_input = Vector2(0, 1)
+				await get_tree().physics_frame
+				urged = urged or rig.ride_urge > 0.5
+			var top_speed := mounts._speed
+			player.move_input = Vector2.ZERO
+			player.sprint = false
+			var reined := false
+			var lean_back := 0.0
+			for i in 30:
+				await get_tree().physics_frame
+				reined = reined or rig.ride_rein > 0.5
+				lean_back = maxf(lean_back, (rig._pose["spine"] as Vector3).x)
+			if not urged:
+				fails.append("seat: the rider did not urge the horse on when asked to gallop")
+			if top_speed < 8.0:
+				fails.append("seat: the horse did not reach a gallop (%.1f m/s)" % top_speed)
+			if not reined or lean_back < 0.05:
+				fails.append("seat: the rider did not sit back on the reins to stop (reined %s, lean %.2f)" % [str(reined), lean_back])
+		mounts.dismount()
+		if an._tack != null and not an._tack.is_queued_for_deletion():
+			fails.append("seat: the %s kept its saddle cloth and reins after dismounting" % kind)
+		an.global_position = was
+		an.home = was
+		for i in 2:
+			await get_tree().physics_frame
+	# a painted body on Low graphics: only the tunic may be recoloured
+	var q0: int = int(GameSettings.v.get("quality", 0))
+	GameSettings.v["quality"] = 2
+	var t := RealHuman.new().setup({"body": "veteran", "tint": Color(0.2, 0.8, 0.3)}, "SkinCheck")
+	add_child(t)
+	for m in t._inner.find_children("*", "MeshInstance3D", true, false):
+		var mi := m as MeshInstance3D
+		for sx in mi.mesh.get_surface_count():
+			var ov := mi.get_surface_override_material(sx) as StandardMaterial3D
+			if ov != null and ov.albedo_texture != null and not ClothLook._from_robe(mi):
+				fails.append("seat: on Low graphics the painted body (skin) of a villager is dyed")
+	t.queue_free()
+	GameSettings.v["quality"] = q0
+
+
 func _selftest_boss(fails: PackedStringArray) -> void:
 	var mm := get_tree().get_first_node_in_group("monster_missions")
 	if mm == null:
@@ -4102,7 +4204,7 @@ func _run_probe_perf() -> void:
 	apply_quality(tier)
 	atmosphere.time_of_day = 0.45
 	atmosphere.apply_time()
-	var spots := [["village", -80.0, 4.0, 0.6], ["bazaar", 22.0, -30.0, 0.0], ["graveyard", -122.0, 56.0, 2.4], ["road", 18.0, 300.0, PI], ["farm", 60.0, 60.0, 1.0]]
+	var spots := [["village", -80.0, 4.0, 0.6], ["hut", -86.0, -8.0, 0.75], ["bazaar", 22.0, -30.0, 0.0], ["graveyard", -122.0, 56.0, 2.4], ["road", 18.0, 300.0, PI], ["farm", 60.0, 60.0, 1.0]]
 	for sp in spots:
 		_teleport(float(sp[1]), float(sp[2]))
 		player.set_look(float(sp[3]), -0.12)
@@ -4549,6 +4651,145 @@ func _run_capture_horse(dir: String) -> void:
 			f += 1
 		await RenderingServer.frame_post_draw
 		get_viewport().get_texture().get_image().save_png("%s/%s.png" % [dir, String(sh[1])])
+	get_tree().quit()
+
+
+## The rider's seat on every rideable animal: side and front views, standing and at a gallop, plus the measured
+## height of the rider's hips and hands against the animal's back.
+func _run_capture_seat(dir: String) -> void:
+	DirAccess.make_dir_recursive_absolute(dir)
+	touch.visible = false
+	for c in get_children():
+		if c is TitleScreen:
+			c.queue_free()
+		elif c is CanvasLayer:
+			(c as CanvasLayer).visible = false
+	atmosphere.time_of_day = 0.42
+	atmosphere.apply_time()
+	var cam := Camera3D.new()
+	add_child(cam)
+	cam.fov = 38.0
+	var base := _flat_spot()
+	if OS.get_environment("SEAT_PROBE") != "":
+		var r0: RealHuman = player._rig
+		player.set_physics_process(false)
+		player.set_process(false)
+		r0.set_process(false)
+		var right := r0.global_transform.basis.x
+		for test in [["sh_L", Vector3(0, 0, 0.4), "wr_L"], ["sh_R", Vector3(0, 0, 0.4), "wr_R"], ["hip_L", Vector3(0, 0, 0.4), "an_L"], ["hip_R", Vector3(0, 0, 0.4), "an_R"], ["hip_L", Vector3(0.8, 0, 0.4), "kn_L"], ["sh_L", Vector3(0, 0.4, 0), "wr_L"]]:
+			for k in RealHuman.BONES:
+				r0._pose[k] = Vector3.ZERO
+			r0._hips_dy = 0.0
+			r0._apply()
+			var a0: Vector3 = r0._bone_pos(test[2]) - r0._bone_pos("hips")
+			r0._pose[test[0]] = test[1]
+			r0._apply()
+			var a1: Vector3 = r0._bone_pos(test[2]) - r0._bone_pos("hips")
+			print("[ride] %s %s -> %s moves right %.2f up %.2f fwd %.2f" % [test[0], str(test[1]), test[2], (a1 - a0).dot(right), a1.y - a0.y, (a1 - a0).dot(-r0.global_transform.basis.z)])
+		for k in RealHuman.BONES:
+			r0._pose[k] = Vector3.ZERO
+		r0._apply()
+		print("[ride] lengths: thigh %.2f shin %.2f upper arm %.2f forearm %.2f hip half-gap %.2f hips h %.2f" % [r0._bone_pos("hip_L").distance_to(r0._bone_pos("kn_L")), r0._bone_pos("kn_L").distance_to(r0._bone_pos("an_L")), r0._bone_pos("sh_L").distance_to(r0._bone_pos("el_L")), r0._bone_pos("el_L").distance_to(r0._bone_pos("wr_L")), r0._bone_pos("hip_L").distance_to(r0._bone_pos("hip_R")) * 0.5, r0._bone_pos("hips").y - player.global_position.y])
+	wardrobe.wear(OS.get_environment("WEAR") if OS.get_environment("WEAR") != "" else "explorer", false)
+	print("[ride] worn ", wardrobe.worn(), " dye flags ", story.get_flag("dye_" + wardrobe.worn() + "_main", null))
+	for m in player._rig._inner.find_children("*", "MeshInstance3D", true, false):
+		var mi := m as MeshInstance3D
+		for sx in mi.mesh.get_surface_count():
+			var sm := mi.get_surface_override_material(sx) as ShaderMaterial
+			if sm != null:
+				print("[ride]   mesh %s/%s s%d kind %s all_garment %s dye_on %s shrink %s tex %s" % [mi.get_parent().name, mi.name, sx, str(sm.get_shader_parameter("kind")), str(sm.get_shader_parameter("all_garment")), str(sm.get_shader_parameter("dye_on")), str(sm.get_shader_parameter("shrink")), (sm.get_shader_parameter("tex") as Texture2D).resource_path.get_file() if sm.get_shader_parameter("tex") != null else "-"])
+	if OS.get_environment("RIDE_SHIN") != "":
+		player._rig.ride_shin = float(OS.get_environment("RIDE_SHIN"))
+	if OS.get_environment("RIDE_ARM_Y") != "":
+		player._rig.ride_arm_y = float(OS.get_environment("RIDE_ARM_Y"))
+	var kinds: PackedStringArray = (OS.get_environment("RIDE_KINDS") if OS.get_environment("RIDE_KINDS") != "" else "horse,camel,donkey,bull").split(",")
+	for kind in kinds:
+		var an: Animal = null
+		for c in life:
+			if c is Animal and (c as Animal).species == kind and not (c as Animal).driven:
+				an = c
+				break
+		if an == null:
+			print("[ride] no ", kind)
+			continue
+		an.global_position = Vector3(base.x, terrain.sample_height(base.x, base.y), base.y)
+		an.home = an.global_position
+		_teleport(base.x + 2.5, base.y)
+		for i in 6:
+			await get_tree().physics_frame
+		if OS.get_environment("SEAT_PROBE") != "":
+			var names: PackedStringArray = []
+			for sk0 in an.find_children("*", "Skeleton3D", true, false):
+				var skl := sk0 as Skeleton3D
+				for bi in skl.get_bone_count():
+					var bp := an.global_transform.affine_inverse() * (skl.global_transform * skl.get_bone_global_pose(bi).origin)
+					names.append("%s(%.2f,%.2f,%.2f)" % [skl.get_bone_name(bi), bp.x, bp.y, bp.z])
+			print("[ride] ", kind, " bones: ", " ".join(names))
+			# body cross-section at the saddle: half-width at several heights, from the mesh
+			var prof := {}
+			var inv := an.global_transform.affine_inverse()
+			for m2 in an.find_children("*", "MeshInstance3D", true, false):
+				var mi2 := m2 as MeshInstance3D
+				if mi2.mesh == null or mi2.get_parent() is BoneAttachment3D:
+					continue
+				for s2 in mi2.mesh.get_surface_count():
+					var vs: PackedVector3Array = mi2.mesh.surface_get_arrays(s2)[Mesh.ARRAY_VERTEX]
+					for v in vs:
+						var pv := inv * (mi2.global_transform * v)
+						var zb := snappedf(pv.z, 0.2)
+						if not prof.has(zb):
+							prof[zb] = [0.0, -INF]
+						if pv.y > an.back_y * 0.45:
+							prof[zb][0] = maxf(float(prof[zb][0]), absf(pv.x))
+						if absf(pv.x) < 0.12:
+							prof[zb][1] = maxf(float(prof[zb][1]), pv.y)
+			var zk := prof.keys()
+			zk.sort()
+			var pl: PackedStringArray = []
+			for z in zk:
+				pl.append("z%.1f:w%.2f,top%.2f" % [z, prof[z][0], prof[z][1]])
+			print("[ride] ", kind, " profile (rest mesh, -z is forward): ", " ".join(pl))
+			continue
+		mounts.mount_animal(an)
+		mounts._heading = 0.0
+		for phase in ["idle", "urge", "gallop", "turn", "rein"]:
+			var stick := Vector2.ZERO
+			if phase == "urge" or phase == "gallop":
+				stick = Vector2(0, 1)
+			elif phase == "turn":
+				stick = Vector2(-1, 0.2)
+			player.sprint = stick != Vector2.ZERO
+			if phase != "turn":
+				player.set_look(mounts._heading, -0.1)
+			for i in {"idle": 30, "urge": 14, "gallop": 70, "turn": 16, "rein": 9}[phase]:
+				player.move_input = stick
+				await get_tree().physics_frame
+			await get_tree().process_frame
+			var ap := an.global_position
+			var rig: RealHuman = player._rig
+			var hips := rig._bone_pos("hips")
+			var rt := an.global_transform.basis.x.normalized()
+			print("[ride] %s %s: seat %.2f w %.2f | hips above seat %.2f | knee out %.2f foot out %.2f foot below seat %.2f | hands above hips %.2f fwd %.2f gap %.2f" % [kind, phase, an.seat_point().y - ap.y, an.seat_w, hips.y - an.seat_point().y, absf((rig._bone_pos("kn_L") - ap).dot(rt)), absf((rig._bone_pos("an_L") - ap).dot(rt)), an.seat_point().y - rig._bone_pos("an_L").y, rig._bone_pos("wr_L").y - hips.y, (hips.z - rig._bone_pos("wr_L").z), rig._bone_pos("wr_L").distance_to(rig._bone_pos("wr_R"))])
+			if an._reins.size() == 4:
+				var r1: MeshInstance3D = an._reins[1]
+				print("[ride] rein end %s  hand %s  rein centre %s  rein z-axis %s" % [str((r1.global_transform * Vector3(0, 0, 0.5)) - ap), str(rig._bone_pos("wr_L") - ap), str(r1.global_position - ap), str(r1.global_transform.basis.z)])
+			if OS.get_environment("RIDE_SHIN") != "":
+				rig.ride_shin = float(OS.get_environment("RIDE_SHIN"))
+			if OS.get_environment("RIDE_ARM_Y") != "":
+				rig.ride_arm_y = float(OS.get_environment("RIDE_ARM_Y"))
+			print("[ride-old] %s %s: back_y %.2f  hips above ground %.2f  feet %.2f  hand L %.2f R %.2f  hands fwd of hips %.2f  shoulder h %.2f" % [kind, phase, an.back_y, hips.y - ap.y, rig._bone_pos("an_L").y - ap.y, rig._bone_pos("wr_L").y - ap.y, rig._bone_pos("wr_R").y - ap.y, (hips.z - rig._bone_pos("wr_L").z), rig._bone_pos("sh_L").y - ap.y])
+			for view in [["side", Vector3(5.2, 1.5, 0.0)], ["front", Vector3(1.6, 1.7, -5.0)]]:
+				cam.global_position = ap + Basis(Vector3.UP, mounts._heading) * (view[1] as Vector3)
+				cam.look_at(ap + Vector3(0, 1.35, 0))
+				cam.current = true
+				await RenderingServer.frame_post_draw
+				get_viewport().get_texture().get_image().save_png("%s/%s_%s_%s.png" % [dir, kind, phase, view[0]])
+		player.move_input = Vector2.ZERO
+		player.sprint = false
+		mounts.dismount()
+		an.global_position = Vector3(base.x + 30.0, 0, base.y + 30.0)
+		for i in 4:
+			await get_tree().physics_frame
 	get_tree().quit()
 
 

@@ -858,7 +858,7 @@ func mount_tractor() -> void:
 	player.jump_requested = false
 	_t_heading = tractor.rotation.y
 	_t_speed = 0.0
-	player._rig.set_react("ride")
+	player._rig.set_react("drive")
 	player.set_distance(7.0)
 	_dismount_cd = 0.6
 	Sfx.ui("powerup", -6.0)

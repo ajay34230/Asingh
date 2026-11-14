@@ -235,8 +235,13 @@ func _dye(main_c: Color, trim_c: Color) -> int:
 			var nm := mat.resource_name.to_lower()
 			if nm in KEEP or mi.name.to_lower().contains("head"):
 				continue                     # skin, eyes and hair (the head mesh) keep their own colours
+			var textured := (mat as StandardMaterial3D).albedo_texture != null
+			if textured and not ClothLook._from_robe(mi):
+				continue                     # a painted body (skin and underclothes in one texture) is not cloth
 			var d := (mat as StandardMaterial3D).duplicate() as StandardMaterial3D
 			d.albedo_color = main_c if n % 2 == 0 else trim_c
+			if textured:
+				d.albedo_color = main_c.lerp(Color(1, 1, 1), 0.45) * 1.6      # tints the tunic's dark weave, kept bright
 			d.roughness = 0.85
 			mi.set_surface_override_material(sidx, d)
 			n += 1
@@ -600,7 +605,7 @@ func animate(delta: float, speed: float, grounded: bool) -> void:
 	_t += delta
 	# hands: a tight fist in the boxing guard, while striking or blocking; loosely curled otherwise
 	var striking := move != "" and move != "roll" and move != "lift"
-	fist_target = 1.0 if (guard or striking or react == "block") else 0.3
+	fist_target = 1.0 if (guard or striking or react == "block" or react == "ride") else 0.3
 	fist = move_toward(fist, fist_target, delta * 7.0)
 	for cm in _cape_mats:
 		cm.set_shader_parameter("swing", clampf(_speed_smooth / 7.0, 0.0, 1.0) + 0.6 * clampf(-air_vy / 8.0, 0.0, 1.0))
@@ -621,7 +626,7 @@ func animate(delta: float, speed: float, grounded: bool) -> void:
 	if move != "":
 		if not (hold_draw and move == "bow_shot" and move_t >= 0.6) and not (move_hold >= 0.0 and move_t >= move_hold):
 			move_t += delta * move_rate
-		if react == "ride":
+		if react == "ride" or react == "drive":
 			react_t += delta
 			_react_pose()                 # in the saddle: the legs keep riding, the move only drives the upper body
 		_move_pose()
@@ -674,6 +679,14 @@ var _nocked: Node3D
 const BOW_HALF := 0.6             # grip to tip along the bow, metres
 const BOW_TIP_TOP := Vector3(0.129, 0.6, 0.0)    # string nocks of Bow_Wooden in its holder's space (measured)
 const BOW_TIP_BOT := Vector3(0.127, -0.6, 0.0)
+
+
+## Where this hand grips (the middle of the fist, a little beyond the wrist), in world space.
+func grip_pos(side: String) -> Vector3:
+	var w := _bone_pos("wr_" + side)
+	var e := _bone_pos("el_" + side)
+	var d := w - e
+	return w + (d.normalized() * 0.075 * _inner.scale.y if d.length() > 0.001 else Vector3.ZERO)
 
 
 func _bone_pos(key: String) -> Vector3:
@@ -982,7 +995,7 @@ func _kf_pose(name_: String, t: float) -> bool:
 	var span := maxf(float(fb[0]) - float(fa[0]), 0.0001)
 	var u := clampf((t - float(fa[0])) / span, 0.0, 1.0)
 	u = u * u * (3.0 - 2.0 * u)
-	var seated := react == "ride"
+	var seated := react == "ride" or react == "drive"
 	for k in GUARD:
 		if seated and (k == "dy" or k == "hips" or k.begins_with("hip_") or k.begins_with("kn_")):
 			continue
@@ -1220,23 +1233,57 @@ func _react_pose() -> void:
 			_pz("hip_L", Vector3(-0.4, 0, 0)); _pz("hip_R", Vector3(-0.4, 0, 0))
 			_pz("kn_L", Vector3(-0.8, 0, 0)); _pz("kn_R", Vector3(-0.8, 0, 0))
 		"ride":
-			# Seated astride: thighs open to the sides, knees bent with the heels drawn up, upright back that
-			# leans forward at speed, hands low and forward on the reins, hips bouncing with the gait; the rider
-			# leans into turns and rises out of the saddle when the animal leaps.
+			# Seated astride an animal, riding it like a rider does. The legs wrap round a body of half-width
+			# ride_w: thighs forward and out over the barrel, shins down the flanks, heels a little down; the
+			# fists hold the reins low in front of the belt.
+			#   urging on (ride_urge): leans forward, gives the reins with a shake, heels kick the flanks
+			#   reining in (ride_rein): sits back, both fists drawn to the belly, feet braced forward
+			#   turning (ride_turn): the inside fist draws back and out, the outside one gives; leans in
+			#   galloping (ride_k): forward seat, risen a little off the saddle, hands following the stride
+			#   in the air (ride_air): up out of the saddle, hands forward, folding over the neck
 			var k := ride_k
+			_ride_urge = lerpf(_ride_urge, ride_urge, 0.2)
+			_ride_rein = lerpf(_ride_rein, ride_rein, 0.2)
+			var ug := _ride_urge
+			var rn := _ride_rein
 			var gait := sin(t * (7.0 + 6.0 * k))
-			var lean := 0.06 + 0.32 * k
-			_hips_dy = -0.5 + gait * (0.012 + 0.03 * k) + 0.16 * ride_air + 0.05 * k
+			var kick := maxf(0.0, sin(t * 11.0)) * ug
+			var lean := 0.04 + 0.26 * k + 0.12 * ug - 0.22 * rn + 0.1 * ride_air
+			_hips_dy = RIDE_DY + gait * 0.008 * k + 0.035 * k * (1.0 - rn) + 0.14 * ride_air - 0.02 * rn
+			# on a broad back (a bull) the thighs go more out than forward
+			var flex := 0.78 - clampf((ride_w - 0.25) * 1.6, 0.0, 0.3) + 0.08 * k + 0.15 * ride_air + 0.16 * rn
+			var spread := asin(clampf((ride_w + 0.07 - 0.11) / (0.41 * cos(flex)), 0.0, 0.9))
 			for tg in ["L", "R"]:
 				var sg := 1.0 if tg == "L" else -1.0
-				# thighs forward and only slightly apart (a rider's legs hug the animal), shins hanging back
-				_pz("hip_" + tg, Vector3(0.5 + 0.2 * k + 0.2 * ride_air, 0, 0.22 * sg))
-				_pz("kn_" + tg, Vector3(-1.25 - 0.3 * k - 0.3 * ride_air, 0, 0))
-				_pz("sh_" + tg, Vector3(-0.8 - 0.35 * k - 0.15 * gait * k, 0, 0.14 * sg))
-				_pz("el_" + tg, Vector3(1.15 + 0.2 * k, 0, 0))
-			_pose["spine"] = Vector3(-lean + 0.025 * gait, -0.1 * ride_turn, 0.16 * ride_turn)
+				var pull := maxf(0.0, ride_turn * sg)          # this is the inside hand of the turn
+				var give := maxf(0.0, -ride_turn * sg)
+				_pz("hip_" + tg, Vector3(flex, 0, spread * sg))
+				_pz("kn_" + tg, Vector3(-(flex + 0.3 + 0.25 * k + 0.2 * ride_air + 0.4 * kick - 0.5 * rn), ride_shin * (spread + 0.15 + 0.2 * kick) * sg, 0))
+				_pz("an_" + tg, Vector3(0.18 + 0.2 * rn - 0.25 * kick, 0, 0))
+				var sh_x := -0.22 - 0.2 * k - 0.05 * gait * k + lean * 0.5      # hands stay low as the body leans
+				sh_x += -0.22 * ug - 0.1 * ug * sin(t * 11.0) - 0.3 * ride_air  # giving and shaking the reins
+				sh_x += 0.45 * rn + 0.3 * pull - 0.15 * give                    # drawing them back
+				_pz("sh_" + tg, Vector3(sh_x, 0, 0.06 + 0.12 * pull))
+				_pz("el_" + tg, Vector3(1.2 + 0.1 * k + 0.06 * gait * k - 0.25 * ug + 0.5 * rn + 0.3 * pull - 0.2 * give - 0.3 * ride_air, ride_arm_y * sg * (1.0 - 0.5 * pull), 0))
+				_pz("wr_" + tg, Vector3.ZERO)
+			_pose["spine"] = Vector3(-lean + 0.02 * gait * k, -0.1 * ride_turn, 0.16 * ride_turn)
+			_pose["chest"] = Vector3.ZERO
 			_pose["hips"] = Vector3(0.0, 0.0, -0.05 * ride_turn)
 			_pose["head"] = Vector3(lean * 0.75 - 0.02, 0.1 * ride_turn, -0.08 * ride_turn)
+		"drive":
+			# Sitting on the tractor: knees forward, hands up on the steering wheel, bouncing with the engine.
+			var kd := ride_k
+			var gd := sin(t * (7.0 + 6.0 * kd))
+			_hips_dy = -0.5 + gd * (0.012 + 0.03 * kd) + 0.05 * kd
+			for tg in ["L", "R"]:
+				var sg2 := 1.0 if tg == "L" else -1.0
+				_pz("hip_" + tg, Vector3(0.5 + 0.2 * kd, 0, 0.22 * sg2))
+				_pz("kn_" + tg, Vector3(-1.25 - 0.3 * kd, 0, 0))
+				_pz("sh_" + tg, Vector3(-0.8 - 0.2 * kd, 0, 0.14))
+				_pz("el_" + tg, Vector3(1.15 + 0.2 * kd, 0, 0))
+			_pose["spine"] = Vector3(-0.06 - 0.1 * kd + 0.025 * gd, -0.1 * ride_turn, 0.16 * ride_turn)
+			_pose["hips"] = Vector3(0.0, 0.0, -0.05 * ride_turn)
+			_pose["head"] = Vector3(0.03, 0.1 * ride_turn, -0.08 * ride_turn)
 		"block":
 			# guard up: forearms in front of the face, knees soft, weight sunk
 			_hips_dy = -0.16
@@ -1557,6 +1604,15 @@ func _add_prop(kind: String) -> void:
 var _beat_prev := false
 var crouch := 0.0                # 0 standing .. 1 crouched (smoothed toward crouch_target)
 var crouch_target := 0.0
+const RIDE_DY := -0.45           # how far the hips are lowered in the riding pose
+const RIDE_SEAT := 0.36          # the rider's origin sits this far below the saddle point (hips ~0.1 above it)
+var ride_w := 0.23               # half-width of the animal's body under the rider (set by whoever seats them)
+var ride_shin := 1.0             # knee twist that brings the shins back in against the flanks (x the thigh spread)
+var ride_arm_y := -0.7           # elbow twist that brings the hands together on the reins
+var ride_urge := 0.0             # 1 while the rider urges the animal faster (heels and reins)
+var ride_rein := 0.0             # 1 while the rider reins it in (slowing, stopping)
+var _ride_urge := 0.0
+var _ride_rein := 0.0
 var ride_k := 0.0                # 0 walking .. 1 galloping (set by the mount system)
 var ride_turn := 0.0             # -1..1 how hard the animal is turning
 var air_vy := 0.0                # player's vertical speed, shapes the jump pose

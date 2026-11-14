@@ -343,9 +343,11 @@ func _speak(voice: String, text: String, pos_node: Node3D, db: float) -> void:
 		var vi := (h + i * 7) % 6
 		var pitch := 0.88 + float((h >> (i % 12)) % 25) * 0.011
 		var delay := float(i) * 0.135
+		var pn_id := pos_node.get_instance_id()
 		get_tree().create_timer(delay).timeout.connect(func() -> void:
-			if is_instance_valid(pos_node) and pos_node.is_inside_tree():
-				_play3d("voice_%s_%d" % [voice, vi], pos_node.global_position + Vector3(0, 1.6, 0), db, pitch))
+			var pn := instance_from_id(pn_id) as Node3D
+			if pn != null and pn.is_inside_tree():
+				_play3d("voice_%s_%d" % [voice, vi], pn.global_position + Vector3(0, 1.6, 0), db, pitch))
 
 
 ## --- emotional music --------------------------------------------------------------------------

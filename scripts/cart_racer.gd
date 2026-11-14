@@ -349,9 +349,11 @@ func _puff(at: Vector3, n: int) -> void:
 	get_parent().add_child(p)
 	p.global_position = at + Vector3(0, 0.3, 0)
 	p.emitting = true
+	var pid := p.get_instance_id()
 	get_tree().create_timer(2.0).timeout.connect(func() -> void:
-		if is_instance_valid(p):
-			p.queue_free())
+		var o := instance_from_id(pid)
+		if o != null:
+			(o as Node).queue_free())
 
 
 func _update_bar() -> void:
@@ -466,9 +468,11 @@ func _sparks(at: Vector3, col: Color) -> void:
 	get_parent().add_child(p)
 	p.global_position = at
 	p.emitting = true
+	var pid2 := p.get_instance_id()
 	get_tree().create_timer(1.2).timeout.connect(func() -> void:
-		if is_instance_valid(p):
-			p.queue_free())
+		var o := instance_from_id(pid2)
+		if o != null:
+			(o as Node).queue_free())
 
 
 ## Destruction: the cart bursts into planks and wheels, flames and smoke; the bulls bolt free.

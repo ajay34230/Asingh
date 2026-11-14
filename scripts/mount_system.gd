@@ -21,6 +21,9 @@ var last_block := ""             # what stopped the animal last (diagnostics)
 var called: Animal = null        # your horse, galloping over after a whistle
 var _call_t := 0.0
 var _h_was := false
+var _urged := false
+var _reined := false
+var _skid := 0.0                 # seconds of nose-up, haunches-down after being pulled up from a gallop
 
 
 func _init(m: Node3D, p: Player, t: TerrainBuilder) -> void:
@@ -75,6 +78,8 @@ func mount_animal(a: Animal) -> void:
 	_dist_saved = player._target_distance
 	player.set_distance(5.6)
 	player._rig.set_react("ride")
+	player._rig.ride_w = a.seat_w
+	a.set_tack(true)
 	Sfx.at(Animal.CALLS.get(a.species, ["cow_moo"])[0], a.global_position + Vector3(0, 1.2, 0), -3.0)
 	player.say(Loc.tf("You swing onto the %s. Stick to ride, JUMP to leap, GET OFF to dismount.", [a.species.replace("_", " ")]))
 
@@ -95,16 +100,26 @@ func dismount() -> void:
 	player._rig.set_react("")
 	player._rig.ride_air = 0.0
 	player._rig.ride_k = 0.0
+	player._rig.ride_urge = 0.0
+	player._rig.ride_rein = 0.0
 	player.locked = false
 	player.mounted = false
 	player.set_distance(_dist_saved)
 	a.driven = false
+	a.set_tack(false)
 	a.home = a.global_position
 	a.play_walk(false)
 	a.rotation.x = 0.0
 	_air = 0.0
 	a.global_position.y = terrain.sample_height(a.global_position.x, a.global_position.z)
 	mount = null
+
+
+## Reins and saddle cloth follow the finished pose of the frame being drawn.
+func _process(_delta: float) -> void:
+	if mount != null and is_instance_valid(mount):
+		var rg := player._rig
+		mount.update_tack(rg.grip_pos("L"), rg.grip_pos("R"), rg.move == "" and rg.attack_t < 0.0, maxf(rg._ride_rein, absf(rg.ride_turn) * 0.7))
 
 
 const JUMP_SPEED := 7.0
@@ -227,6 +242,19 @@ func _physics_process(delta: float) -> void:
 		_heading = lerp_angle(_heading, want_h, 1.0 - exp(-4.5 * delta))
 		var run := player.sprint or inp.length() > 0.85
 		want_speed = float(sp[1]) if run else float(sp[0])
+	# the rider's aids: heels and a shake of the reins to go faster, sitting back on the reins to slow
+	var rig := player._rig
+	rig.ride_urge = 1.0 if want_speed > _speed + 0.6 else 0.0
+	rig.ride_rein = 1.0 if (want_speed < _speed - 0.6 and _speed > 0.4) else 0.0
+	if rig.ride_urge > 0.5 and not _urged:
+		Sfx.at("swing", a.global_position + Vector3(0, a.back_y, 0), -12.0, 1.5)        # the reins slap
+		if want_speed > float(sp[0]) * 1.5 and _speed < float(sp[0]) * 1.2:
+			Sfx.at(Animal.CALLS.get(a.species, ["horse_whinny"])[0], a.global_position + Vector3(0, 1.2, 0), -9.0, 1.1)
+	if rig.ride_rein > 0.5 and not _reined and _speed > float(sp[0]) * 1.6:
+		Sfx.at(Animal.CALLS.get(a.species, ["horse_whinny"])[0], a.global_position + Vector3(0, 1.2, 0), -7.0, 0.92)   # pulled up hard
+		_skid = 0.5
+	_urged = rig.ride_urge > 0.5
+	_reined = rig.ride_rein > 0.5
 	_speed = move_toward(_speed, want_speed, (7.0 if want_speed > _speed else 12.0) * delta)
 	a.rotation.y = _heading
 	var fwd := Vector3(-sin(_heading), 0.0, -cos(_heading))
@@ -273,6 +301,8 @@ func _physics_process(delta: float) -> void:
 	var ahead := terrain.sample_height(np.x + fwd.x * 1.2, np.z + fwd.z * 1.2)
 	var behind := terrain.sample_height(np.x - fwd.x * 1.2, np.z - fwd.z * 1.2)
 	var air_pitch := clampf(_vy * 0.04, -0.3, 0.3) if _air > 0.0 else 0.0
+	_skid = maxf(0.0, _skid - delta)
+	air_pitch += 0.16 * sin(minf(_skid, 0.5) / 0.5 * PI)          # sits back on its haunches when reined in hard
 	a.rotation.x = lerpf(a.rotation.x, clampf(atan2(ahead - behind, 2.4), -0.5, 0.5) + air_pitch, 1.0 - exp(-8.0 * delta))
 	# gait
 	if a._anim != null and _air <= 0.0:
@@ -294,7 +324,8 @@ func _physics_process(delta: float) -> void:
 			(main.get("footprints") as Footprints).put(a.global_position + fwd * 0.9 + sd * 0.35, _heading, 1.4)
 			(main.get("footprints") as Footprints).put(a.global_position - fwd * 0.9 - sd * 0.35, _heading, 1.4)
 	# the rider sits on the saddle point measured from the model, and the pose follows the gait
-	player.global_position = a.global_position + Basis(Vector3(1, 0, 0), a.rotation.x) * Vector3(0, a.back_y - 0.55, 0.0)
+	player._rig.ride_w = a.seat_w
+	player.global_position = a.seat_point() - a.global_transform.basis.y.normalized() * RealHuman.RIDE_SEAT
 	player.velocity = Vector3.ZERO
 	player._model.rotation.y = _heading
 	player.saddle_aim(_heading)                             # horseback archery turns the rider in the saddle

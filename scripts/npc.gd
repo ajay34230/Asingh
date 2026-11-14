@@ -334,10 +334,14 @@ func _companion_step(delta: float) -> void:
 		if _atk_cd <= 0.0:
 			_atk_cd = 1.5
 			rig.start_attack()
+			var foe_id := foe.get_instance_id()
+			var me_id := get_instance_id()
 			get_tree().create_timer(0.36).timeout.connect(func() -> void:
-				if is_instance_valid(foe) and not (foe as Enemy).dead:
-					(foe as Enemy).take_damage(companion_damage, foe.global_position - global_position)
-					Sfx.at("hit_thud", foe.global_position + Vector3(0, 1.0, 0), -5.0))
+				var f := instance_from_id(foe_id) as Enemy
+				var me := instance_from_id(me_id) as Node3D
+				if f != null and me != null and not f.dead:
+					f.take_damage(companion_damage, f.global_position - me.global_position)
+					Sfx.at("hit_thud", f.global_position + Vector3(0, 1.0, 0), -5.0))
 	rig.mode = "locomotion"
 	rig.animate(delta, spd, true)
 

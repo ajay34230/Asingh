@@ -18,6 +18,9 @@ var _bell_t := 0.0
 var _call_t := 8.0
 
 
+var _was_blocked := false
+
+
 func _init(ter: TerrainBuilder, ply: Node3D, kind: String, pts: Array[Vector2], spd: float, preset: Dictionary) -> void:
 	terrain = ter
 	player = ply
@@ -37,9 +40,18 @@ func _init(ter: TerrainBuilder, ply: Node3D, kind: String, pts: Array[Vector2], 
 	animal.add_child(rider)
 	rider.position = Vector3(0, h * 0.8 - 0.42, 0)
 	rider.rig.set_react("ride")
+	rider.rig.ride_w = animal.seat_w
+	rider.rig.ride_k = 0.15
+	animal.set_tack(true)
 	animal.play_walk(true)
 	_s = randf() * _len
 	_place(_s)
+
+
+## The rider sits on the animal's moving back, hands on the reins.
+func _seat() -> void:
+	rider.position = animal.to_local(animal.seat_point()) - Vector3(0, RealHuman.RIDE_SEAT, 0)
+	animal.update_tack(rider.rig.grip_pos("L"), rider.rig.grip_pos("R"), true)
 
 
 func _point_at(s: float) -> Vector2:
@@ -76,15 +88,19 @@ func _process(delta: float) -> void:
 	to.y = 0.0
 	blocked = to.length() < 5.5 and to.normalized().dot(fwd) > 0.5
 	_bell_t = maxf(0.0, _bell_t - delta)
+	rider.rig.ride_rein = 1.0 if blocked and not _was_blocked else (rider.rig.ride_rein * 0.97 if blocked else 0.0)
+	_was_blocked = blocked
 	if blocked:
 		animal.play_walk(false)
 		if _bell_t <= 0.0:
 			_bell_t = 6.0
 			Sfx.at("bicycle_bell", animal.global_position + Vector3(0, 2.0, 0), -3.0)
+		_seat()
 		return
 	animal.play_walk(true)
 	_s += speed * delta
 	_place(_s)
+	_seat()
 	_call_t -= delta
 	if _call_t <= 0.0:
 		_call_t = randf_range(14.0, 34.0)

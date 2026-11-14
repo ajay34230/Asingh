@@ -778,3 +778,48 @@ Verified by the selftest (PASS) and a new side-view filmstrip capture (`--captur
 - **Recovery:** while the centre is clear, the village heart recovers 0.5 a second.
 - **Warning:** a banner warns once when the heart drops below 35%.
 - **3-star time:** the fight-time limit for three stars went from 150 s to 240 s.
+
+## Addendum: A real rider's seat, reins in the hands, rider actions (2026-11-14)
+
+**Checks:** the selftest passes, including a new `seat` check. It covers all four rideable animals. **Not tested on a device.**
+
+The seat check verifies:
+- the hips sit about 0.1 m above the back;
+- the knees are outside the body and the legs hang down the flanks;
+- the fists are together and below hip+0.3 m;
+- the rein ends are within 8 cm of the fist;
+- the rider urges the horse on to a gallop and sits back on the reins to stop;
+- the tack is removed on dismount;
+- on Low, a villager's painted skin is not dyed.
+
+A new `--capture-seat` capture shows side and front views of each animal (idle, urge, gallop, turn, rein), with measurements.
+
+**Problems found:**
+- The riding pose lifted the upper arms 45–65° forward, so the hands sat 40 cm above the hips, at shoulder height.
+- The seat height came from one overall back height, so the rider floated or sank and did not follow the back's motion.
+- There were no reins at all.
+
+**Seat:**
+- Each animal measures its own saddle point from its model: the top of the back above the mid-spine bone, and the body's half-width there. The seat follows that bone, so the rider rises and falls with the gait.
+- The thighs spread exactly enough to clear the body, then a knee twist brings the shins back in against the flanks, heels slightly down.
+- Broad backs (the bull) get thighs more out than forward.
+
+**Hands:** the fists are closed, low in front of the belt and together on the reins.
+
+**Tack, while ridden:**
+- a red saddle cloth with a gold border and a leather seat;
+- two reins from the bit to the rider's fists, following them every frame. A slack rein hangs in a curve; a pulled one runs straight.
+- When the hands are busy (bow, sword), the reins rest on the neck.
+- Travellers on the road get the same.
+
+**Rider actions:**
+- **Urging on:** the rider leans forward, gives and shakes the reins and kicks the flanks with the heels, with a rein slap and a whinny from a standstill.
+- **Reining in:** the rider sits back, draws both fists to the belly and braces the feet. The rein goes taut, and after a hard stop from a gallop the horse sits back on its haunches with a snort.
+- **Turning:** the inside hand draws the rein back and out while the outside hand gives, and the rider leans in.
+- **Galloping:** a forward seat, risen slightly, with the hands following the stride. In jumps the rider rises and folds forward.
+
+**Other fixes:**
+- **Tractor:** it got its own "drive" pose (hands on the wheel), so it no longer uses the riding pose.
+- **Skin colour:** on Medium and Low graphics, the outfit dye no longer recolours a villager's or hero's painted skin (it was turning skin green or blue). Only the tunic is tinted.
+- **Callbacks:** five delayed callbacks could fire after their object was freed (the "Lambda capture was freed" error). They now look the object up by ID.
+- **House walls:** toned toward limewash, so they are no longer neon yellow.
