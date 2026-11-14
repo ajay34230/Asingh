@@ -357,6 +357,11 @@ static func arrow_model() -> Node3D:
 
 
 func set_weapon(id: String) -> void:
+	if _started and id != weapon and react == "":
+		if id == "bow":
+			play_clip("bow_equip_bow", 0.0, 1.3, false, 0.0, 0.1)        # takes the bow off the shoulder
+		elif weapon == "bow":
+			play_clip("bow_disarm_bow", 0.0, 1.3, false, 0.0, 0.1)       # slings it back
 	weapon = id
 	if id != "bow":
 		clear_archery()
@@ -586,6 +591,9 @@ const MC_NEXT := {
 }
 enum { MC_LOWER, MC_UPPER, MC_HEAD, MC_FINGER }
 var mocap_on := true               # false: always the code-made animation
+var clip_set := ""                 # "brute": the heavy creature moves (walk, run, breathing stance, swipe)
+var _mc_idle_near := true          # close enough for the standing idle clip (it plays on many people at once)
+var _started := false              # has animated at least once (weapon changes before that are setup)
 static var mocap_all := true       # diagnostics: switch captured animation off everywhere
 var _mc_bone: Array = []           # per skin: Array (by bone index) of [our name, align Basis (model space)] or null
 var _mc_region: Array = []         # per skin: PackedInt32Array region per bone (from the nearest mapped ancestor)
@@ -596,7 +604,7 @@ var _mc_check := 0.0
 var _loco_w := 0.0                 # weight of the mocap locomotion layer
 var _loco_u := 0.0                 # stride phase 0..1
 var _loco_b := 0.0                 # 0 walk .. 1 run
-var _loco_idle_t := 0.0
+var _loco_idle_t := randf() * 5.0
 var _loco_idle_w := 0.0            # the sword-and-shield idle (blade drawn, in a fight, standing)
 var _clip := ""                    # the action clip playing
 var _clip_t := 0.0
@@ -709,20 +717,25 @@ func _mocap_update(delta: float) -> void:
 		var d := cam.global_position.distance_to(global_position) if cam != null else 0.0
 		var low := int(GameSettings.v.get("quality", 0)) >= 2
 		_mc_near = d < (18.0 if low else 28.0)
+		_mc_idle_near = d < (9.0 if low else 14.0)
 		_mc_fingers = d < (5.0 if low else 8.0)
-	# locomotion
-	var blade := weapon in BLADES
-	var sword_idle := blade and guard and _speed_smooth < 0.6
+	# locomotion: walk / run blended by speed, and a standing idle clip when still
+	_started = true
+	var cs := _loco_set()
+	var free := _mc_near and mode == "locomotion" and (react == "" or react == "block") and climb_kind == "" and photo_pose.is_empty() and jump_prep <= 0.0
+	var standing := _speed_smooth < 0.6 and _air < 0.1 and String(cs[2]) != "" and lib.clips.has(cs[2]) \
+			and move == "" and action == "" and attack_t < 0.0 and react == "" and (not guard or weapon in BLADES or clip_set == "brute") \
+			and (_mc_idle_near or guard or clip_set != "")
 	var want := 0.0
-	if _mc_near and mode == "locomotion" and (react == "" or react == "block") and climb_kind == "" and photo_pose.is_empty() and jump_prep <= 0.0:
+	if free:
 		want = smoothstep(0.12, 0.45, _speed_smooth) * (1.0 - smoothstep(0.15, 0.5, _air))
-		if sword_idle and _air < 0.1:
+		if standing:
 			want = 1.0
 	_loco_w = move_toward(_loco_w, want, delta * 6.0)
-	_loco_idle_w = move_toward(_loco_idle_w, 1.0 if sword_idle else 0.0, delta * 4.0)
+	_loco_idle_w = move_toward(_loco_idle_w, 1.0 if standing else 0.0, delta * 4.0)
 	_loco_idle_t += delta
-	var cw: Dictionary = lib.clips.get("ss_walk" if blade else "walk", {})
-	var cr: Dictionary = lib.clips.get("ss_run" if blade else "run_fast", {})
+	var cw: Dictionary = lib.clips.get(cs[0], {})
+	var cr: Dictionary = lib.clips.get(cs[1], {})
 	if not cw.is_empty() and not cr.is_empty():
 		var hh := _mc_hip_m()
 		var vw := float(cw["speed"]) * hh
@@ -753,6 +766,18 @@ func _mocap_update(delta: float) -> void:
 		_prev["w"] = float(_prev["w"]) - delta / _clip_fade
 		if float(_prev["w"]) <= 0.0:
 			_prev = {}
+
+
+## The clips this character walks, runs and stands with: [walk, run, idle]. The idle is "" when the code's own
+## standing pose should stay (busy, or nothing fitting).
+func _loco_set() -> Array:
+	if clip_set == "brute":
+		return ["mutant_walking", "mutant_run", "mutant_breathing_idle"]
+	if weapon in BLADES:
+		return ["ss_walk", "ss_run", "ss_idle" if guard else "bow_unarmed_idle_01"]
+	if weapon == "bow":
+		return ["bow_walk_forward", "bow_run_forward", "bow_idle_01"]
+	return ["walk", "run_fast", "bow_unarmed_idle_01"]
 
 
 func _mc_hip_m() -> float:
@@ -800,20 +825,22 @@ func _mc_layers() -> Array:
 		return out
 	if _loco_w > 0.001:
 		var blade := weapon in BLADES
+		var cs := _loco_set()
 		var q := {}
 		var h := Vector3.ZERO
-		var cw: Dictionary = lib.clips.get("ss_walk" if blade else "walk", {})
-		var cr: Dictionary = lib.clips.get("ss_run" if blade else "run_fast", {})
+		var cw: Dictionary = lib.clips.get(cs[0], {})
+		var cr: Dictionary = lib.clips.get(cs[1], {})
 		if not cw.is_empty():
 			h = _mc_sample(cw, fposmod(_loco_u + float(cw["phase0"]), 1.0) * float(cw["len"]), q, 1.0, h)
 			if _loco_b > 0.001 and not cr.is_empty():
 				h = _mc_sample(cr, fposmod(_loco_u + float(cr["phase0"]), 1.0) * float(cr["len"]), q, _loco_b, h)
-		if _loco_idle_w > 0.001 and lib.clips.has("ss_idle"):
-			var ci: Dictionary = lib.clips["ss_idle"]
+		if _loco_idle_w > 0.001 and lib.clips.has(cs[2]):
+			var ci: Dictionary = lib.clips[cs[2]]
 			h = _mc_sample(ci, fposmod(_loco_idle_t, float(ci["len"])), q, _loco_idle_w, h)
 		# the arms and body stay the code's while it does something with them (punches, the bow, a gesture...)
-		var busy_up := move != "" or attack_t >= 0.0 or action != "" or (guard and not blade) or react == "block"
-		var busy_low := (move != "" and move != "bow_shot") or (guard and not blade and _speed_smooth < 2.5) or react == "block"
+		var brute := clip_set == "brute"
+		var busy_up := move != "" or attack_t >= 0.0 or action != "" or (guard and not blade and not brute) or react == "block"
+		var busy_low := (move != "" and move != "bow_shot") or (guard and not blade and not brute and _speed_smooth < 2.5) or react == "block"
 		var land := clampf(_land_t / 0.42, 0.0, 1.0) * _land_k
 		var wl := _loco_w * (0.0 if busy_low else 1.0) * (1.0 - land) * (1.0 - crouch)
 		var wu := _loco_w * (0.0 if busy_up else 1.0)
@@ -984,7 +1011,7 @@ func animate(delta: float, speed: float, grounded: bool) -> void:
 			attack_hit.emit()
 		if attack_t > 0.75:
 			attack_t = -1.0
-	if guard and move == "" and react == "" and _speed_smooth < 2.5 and _air < 0.1 and climb_kind == "" and not (weapon in BLADES and _loco_w > 0.5):
+	if guard and move == "" and react == "" and _speed_smooth < 2.5 and _air < 0.1 and climb_kind == "" and not ((weapon in BLADES or clip_set == "brute") and _loco_w > 0.5):
 		_guard_pose()
 	if climb_kind != "":
 		_climb_pose()
@@ -1662,10 +1689,10 @@ func start_attack() -> void:
 		attack_t = 0.0
 		_attack_hit_sent = false
 		# with a blade, a captured sword strike: its fastest moment lands on the hit (0.34 s), legs only when standing
-		if weapon in BLADES and react != "ride" and react != "drive":
+		if (weapon in BLADES or clip_set == "brute") and react != "ride" and react != "drive":
 			var lib := MocapLibrary.get_lib()
 			if lib != null:
-				var nm: String = SLASHES[_slash_i % SLASHES.size()]
+				var nm: String = SLASHES[_slash_i % SLASHES.size()] if clip_set != "brute" else "mutant_swiping"
 				_slash_i += 1
 				if lib.clips.has(nm):
 					var hit := float(lib.clips[nm]["hit"])

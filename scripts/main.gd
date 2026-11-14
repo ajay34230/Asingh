@@ -2338,6 +2338,10 @@ func _run_capture_mocap(dir: String) -> void:
 			r.set_process(false)
 			if row == "swordwalk":
 				r.set_weapon("sword")
+			if row.begins_with("bow"):
+				r.set_weapon("bow")
+			if row.begins_with("brute"):
+				r.clip_set = "brute"
 			rigs.append(r)
 		await get_tree().process_frame
 		var lib := MocapLibrary.get_lib()
@@ -2364,8 +2368,16 @@ func _run_capture_mocap(dir: String) -> void:
 				r._clip_lower = 1.0
 				r._clip_hold = true
 				r._clip_keep_travel = a[0] == "ss_death"
+			elif row.ends_with("idle"):
+				r._speed_smooth = 0.0
+				r._locomotion(0.0)
+				r._idle(0.0)
+				r._mocap_update(0.0)
+				r._loco_w = 1.0
+				r._loco_idle_w = 1.0
+				r._loco_idle_t = float(i) * 0.7
 			else:
-				r._speed_smooth = 1.5 if row in ["walk", "villager", "swordwalk"] else 6.5
+				r._speed_smooth = 1.5 if row in ["walk", "villager", "swordwalk", "bowwalk", "brutewalk"] else (3.2 if row.begins_with("brute") else 6.5)
 				r._locomotion(0.0)
 				r._mocap_update(0.0)
 				r._loco_w = 1.0
@@ -4300,6 +4312,33 @@ func _selftest_mocap(fails: PackedStringArray) -> void:
 				fails.append("mocap: after a captured death the hips are still %.2f m up" % lying)
 		print("[selftest] mocap %s: %d bones, stride swing %.2f m" % [body["body"], mapped, zmax - zmin])
 		r.queue_free()
+	# standing still: the captured idle; a brute walks with the creature's moves; an archer enemy carries a bow
+	var st := RealHuman.new().setup(player._rig.preset.duplicate(), "McIdle")
+	add_child(st)
+	st.global_position = at
+	st.set_process(false)
+	await get_tree().process_frame
+	for f in 60:
+		st._mc_check = 99.0
+		st._mc_near = true
+		st._mc_idle_near = true
+		st.animate(1.0 / 60.0, 0.0, true)
+	if st._loco_idle_w < 0.9:
+		fails.append("mocap: a hero standing still does not use the captured idle (%.2f)" % st._loco_idle_w)
+	st.clip_set = "brute"
+	for f in 40:
+		st._mc_check = 99.0
+		st.animate(1.0 / 60.0, 2.0, true)
+	if st._loco_set()[0] != "mutant_walking" or st._loco_w < 0.9:
+		fails.append("mocap: a brute does not walk with the creature's moves")
+	st.queue_free()
+	var foe := Enemy.new().setup(player._rig.preset.duplicate(), at + Vector3(0, 0, 40), "McArcher")
+	foe.player = player
+	add_child(foe)
+	foe.apply_role("archer")
+	if foe.rig.weapon != "bow":
+		fails.append("mocap: an enemy archer does not carry a bow")
+	foe.queue_free()
 
 
 func _selftest_boss(fails: PackedStringArray) -> void:

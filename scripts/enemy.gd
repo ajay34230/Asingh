@@ -47,6 +47,8 @@ var enraged := false                 # X14: boss second phase
 var _shot_cd := 1.5
 var _stomp_cd := 4.0
 var shots_fired := 0
+var _was_chasing := false
+var _taunt_t := 0.0
 
 
 ## X11: give this man a fighting style. Safe to call once, right after setup.
@@ -59,11 +61,13 @@ func apply_role(r: String) -> void:
 			speed *= 0.9
 			_hp_bar.modulate = Color(0.55, 0.7, 1.0)
 		"archer":
+			rig.set_weapon("bow")                   # carries a bow (walks, stands and draws with it)
 			hp *= 0.7
 			max_hp = hp
 			aggro = maxf(aggro, 18.0)
 			_hp_bar.modulate = Color(1.0, 0.85, 0.3)
 		"brute":
+			rig.clip_set = "brute"                  # the heavy creature's walk, stance, swipe and taunt
 			hp *= 1.8
 			max_hp = hp
 			damage *= 1.5
@@ -84,6 +88,11 @@ func shoot() -> void:
 	if player == null or dead:
 		return
 	shots_fired += 1
+	# draws and looses: the arrow leaves at the release of the draw
+	rig.play_move("bow_shot")
+	await get_tree().create_timer(maxf(0.2, rig._move_hit_at)).timeout
+	if player == null or dead or not is_inside_tree():
+		return
 	var from := global_position + Vector3(0, 1.5, 0)
 	var target := player.global_position + Vector3(0, 1.1, 0)
 	var arrow := MeshInstance3D.new()
@@ -385,7 +394,9 @@ func _die(kind: String, dir: Vector3) -> void:
 	collision_mask = 1
 	held = false
 	# a different way of dying each time
-	_death_style = _rng.randi() % 8          # 5..7: captured falls (near the camera)
+	_death_style = _rng.randi() % 9          # 5..8: captured falls (near the camera)
+	if role == "brute" and _rng.randf() < 0.6:
+		_death_style = 8                      # the heavy creature's fall
 	if kind == "slam" or kind == "round":
 		_death_style = 4
 	var back := dir
@@ -421,11 +432,11 @@ func _die(kind: String, dir: Vector3) -> void:
 			tw.tween_callback(func() -> void:
 				rig.set_react("dead")
 				Sfx.at("body_fall", global_position, -2.0))
-		5, 6, 7:   # a captured fall: crumples, and stays down
-			var clipn: String = ["ss_death", "ss_death_2", "dying"][_death_style - 5]
+		5, 6, 7, 8:   # a captured fall: crumples, and stays down
+			var clipn: String = ["ss_death", "ss_death_2", "dying", "mutant_dying"][_death_style - 5]
 			if rig.play_clip(clipn, 1.0, 1.15, true, 0.0, 0.1, true):
 				rig.set_react("dead")
-				Sfx.at("death_%d" % (_death_style - 5), global_position + Vector3(0, 1.3, 0), 0.0)
+				Sfx.at("death_%d" % mini(_death_style - 5, 2), global_position + Vector3(0, 1.3, 0), 0.0)
 				tw.tween_interval(0.9)
 				tw.tween_callback(func() -> void: Sfx.at("body_fall", global_position, -2.0))
 			else:
@@ -530,6 +541,16 @@ func _physics_process(delta: float) -> void:
 	var dist := to_p.length()
 	var want := Vector3.ZERO
 	var chasing := player != null and not player.dead and dist < aggro and global_position.distance_to(home) < leash + aggro
+	if chasing and not _was_chasing and role == "brute" and dist > 4.0 and _rng.randf() < 0.75:
+		if rig.play_clip("mutant_flexing_muscles", 1.0, 1.6, false, 0.5, 0.15):
+			_taunt_t = 1.9                          # beats his chest before he comes
+			Sfx.at("grunt_%d" % (_rng.randi() % 2), global_position + Vector3(0, 1.8, 0), -1.0, 0.7)
+	_was_chasing = chasing
+	_taunt_t -= delta
+	if chasing and _taunt_t > 0.0:
+		rotation.y = lerp_angle(rotation.y, atan2(-to_p.x, -to_p.z), minf(1.0, 6.0 * delta))
+		chasing = false
+		_patrol_t = 1.0
 	if chasing:
 		rotation.y = lerp_angle(rotation.y, atan2(-to_p.x, -to_p.z), minf(1.0, 8.0 * delta))
 		if _winding >= 0.0:

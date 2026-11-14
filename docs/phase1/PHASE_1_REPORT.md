@@ -864,3 +864,27 @@ They are transferred onto our skeletons. **Not tested on a device.** The selftes
 - A tunic skeleton now copies the body skeleton's pose by bone name instead of computing it again, which cut the code-made animation's cost by about 20% for every robed character.
 
 **Licence:** Mixamo content is not CC0. Adobe allows it in games, but not shared as raw files. Ajay chose to keep the converted library (`assets/anims/mocap.res`) in this public repo; the original FBX files stay out of git. This is recorded in `ASSETS.md` as the one exception to the CC0-or-own-work rule. Without the library, the game falls back to the code-made animation.
+
+## Addendum: Longbow and creature animations on our characters (2026-11-14)
+
+Ajay's Lite Longbow pack and Creature NPC (mutant) pack contain movement only. Their only body is Mixamo's X Bot. As Ajay asked, they are used on the game's own characters. The selftest passes, with new checks: standing still uses the captured idle, a brute walks with the creature set, and an enemy archer carries a bow. **Not tested on a device.**
+
+**Movement sets** (`RealHuman._loco_set`): walk and run blended by speed, plus a standing idle.
+- **Unarmed:** walk, fast run, and the relaxed unarmed idle (new). The idle plays within 9 m of the camera on Low (14 m otherwise), so crowds stay cheap. Each character starts it at a random point, so crowds don't sway in unison.
+- **Bow in hand:** the longbow walk, run and idle.
+- **Blade in hand:** the sword-and-shield walk and run; the fight idle in combat, otherwise the unarmed idle.
+- **Brutes** (`clip_set = "brute"`): the mutant walk, run and breathing stance.
+
+**Bow:**
+- Switching to the bow plays "equip bow"; switching away plays "disarm bow" (upper body only).
+- Aiming and release are unchanged.
+
+**Enemies:**
+- **Archers:** they now carry a bow and draw before each shot. The arrow leaves at the release of the draw, not instantly.
+- **Brutes:**
+  - On first sight, they usually beat their chest (mutant flexing) for about 2 s before charging.
+  - Their heavy attack is the mutant claw swipe, timed to the existing hit.
+  - They often die with the mutant's heavy fall.
+- **Other enemies:** the mutant fall joins the captured death styles.
+
+**Not used yet:** the turn-in-place clips (the game has no turn-in-place step), mutant jumping, the "draw arrow" clip (aiming stays the code's for accuracy), and the duplicate Jumping Down.
