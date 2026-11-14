@@ -80,18 +80,104 @@ const OUCH := ["Ow! Stop that!", "What are you doing?!", "Help! Leave me alone!"
 
 
 ## A punch or kick from the player: stagger, a shout, then the villager runs for a few seconds.
+# --- injury: villagers are never killed outright. Out of health they fall unconscious (each with their own
+# captured fall), a stretcher team comes after RESCUE_DELAY seconds and carries them to the Vaidya, who heals
+# them. Strike someone who is down, or the stretcher team, and they die for good (start from the last mission).
+const RESCUE_DELAY := 30.0
+var hp := 60.0
+var max_hp := 60.0
+var ko := false                  # unconscious
+var ko_t := 0.0
+var dead_forever := false
+var in_care := false             # handed to the Vaidya: safe
+var death_clip := ""             # this person's own fall (picked at random, once)
+var rescue: Node = null
+var _spawn_pos := Vector3.ZERO
+
+
 func take_hit(dmg: float, dir: Vector3) -> void:
-	if companion or _home_state == 2:
+	if companion or _home_state == 2 or dead_forever or in_care:
+		return
+	if ko:
+		die_forever("struck while unconscious")
+		return
+	hp -= dmg
+	if hp <= 0.0:
+		knock_out(dir)
 		return
 	_stun_t = 0.45
 	_scared_t = 0.0 if role == "guard" else (7.0 if dmg < 15.0 else 10.0)
 	_knock = Vector3(dir.x, 0.0, dir.z).normalized() * (2.5 + dmg * 0.12)
 	rig.mode = "idle"
+	rig.play_hit("head" if dmg < 12.0 else "body", _rng.randf_range(-1.0, 1.0))     # captured reaction first
 	rig.set_react("flinch")
-	rig.play_hit("head" if dmg < 12.0 else "body", _rng.randf_range(-1.0, 1.0))
 	say(OUCH[_rng.randi() % OUCH.size()], 2.0)
 	Sfx.ui_at("kick_hit", -8.0)
 	_restore_t = 0.0
+
+
+## Out of health: falls (their own captured fall) and lies unconscious until the stretcher team comes.
+func knock_out(dir: Vector3) -> void:
+	ko = true
+	ko_t = 0.0
+	hp = 0.0
+	_stun_t = 0.0
+	_scared_t = 0.0
+	rotation.y = atan2(dir.x, dir.z) if dir.length() > 0.1 else rotation.y      # falls away from the blow
+	rig.mode = "idle"
+	rig.set_react("")
+	if death_clip == "" or not rig.play_clip(death_clip, 1.0, 1.0, true, 0.0, 0.08, true):
+		rig.set_react("dead")
+	else:
+		rig.set_react("dead")
+	_set_talkable(false)
+	say("...", 3.0)
+	Sfx.at("pain_%d" % _rng.randi_range(0, 2), global_position + Vector3(0, 1.0, 0), -2.0)
+	LogCollector.event("villager %s knocked out" % name)
+	var hud = get_tree().get_first_node_in_group("quest_hud")
+	if hud != null and not get_tree().has_meta("ko_hint"):
+		get_tree().set_meta("ko_hint", true)
+		hud.call("banner", Loc.t("%s is unconscious.") % Loc.t(String(name)) + "\n" + Loc.t("A stretcher team will come. Do not hit them!"), "")
+
+
+func _set_talkable(on: bool) -> void:
+	for c in find_children("*", "Interactable", true, false):
+		(c as Interactable).enabled = on
+
+
+## Struck while down, or the rescue stopped: they die, and the game must go back to the last mission.
+func die_forever(why: String) -> void:
+	if dead_forever:
+		return
+	dead_forever = true
+	ko = true
+	LogCollector.event("villager %s died: %s" % [name, why])
+	if rescue != null and is_instance_valid(rescue):
+		rescue.call("abort")
+	FailScreen.show_for(self, Loc.t(String(name)))
+
+
+## Lying unconscious: count down to the stretcher team.
+func _ko_step(delta: float) -> void:
+	ko_t += delta
+	rig.animate(delta, 0.0, true)
+	if not dead_forever and not in_care and rescue == null and ko_t >= RESCUE_DELAY:
+		rescue = RescueTeam.send(self)
+
+
+## The Vaidya has healed them: up again, back home, as good as new.
+func healed() -> void:
+	ko = false
+	in_care = false
+	rescue = null
+	hp = max_hp
+	rig.stop_clip(0.1)
+	rig.set_react("")
+	rig.mode = _base_mode
+	global_position = _start_pos if _start_pos != Vector3.ZERO else _spawn_pos
+	rotation.y = home_yaw
+	_set_talkable(true)
+	say("I feel better. Thank you, Vaidya-ji!", 3.0)
 
 
 ## After the player has beaten villagers, the town guards chase and strike him for a couple of minutes.
@@ -154,6 +240,9 @@ func setup(preset: Dictionary, mode: String, label: String) -> Npc:
 	rig = RealHuman.new().setup(preset, label)
 	rig.mode = mode
 	add_child(rig)
+	death_clip = RealHuman.random_death(_rng)          # this person's own fall, different from person to person
+	max_hp = 110.0 if role == "guard" else 60.0
+	hp = max_hp
 	rig.struck.connect(func() -> void:
 		var snd: String = WORK_SOUND.get(_base_mode, "anvil")
 		Sfx.at(snd, global_position + global_transform.basis * Vector3(0.0, 0.9, -0.9), -2.0 if snd == "anvil" else -7.0, _rng.randf_range(0.92, 1.08)))
@@ -359,10 +448,16 @@ var _far_t := 0.0
 func _step(delta: float) -> void:
 	if player == null or rig == null:
 		return
+	if _spawn_pos == Vector3.ZERO:
+		_spawn_pos = global_position
 	if not companion and global_position.distance_squared_to(player.global_position) > 8100.0:
 		# lag fix: people beyond 90 m are not simulated, but keep a standing pose (never the model's T-pose),
 		# refreshed twice a second
 		_far_t -= delta
+		if ko and (rescue == null or not is_instance_valid(rescue)):
+			ko_t += delta
+			if not dead_forever and not in_care and rescue == null and ko_t >= RESCUE_DELAY:
+				rescue = RescueTeam.send(self)
 		if _far_t <= 0.0:
 			_far_t = 0.5 + randf() * 0.2
 			rig.animate(0.5, 0.0, true)
@@ -370,6 +465,10 @@ func _step(delta: float) -> void:
 	if companion:
 		_companion_step(delta)
 		return
+	if ko:
+		if rescue == null or not is_instance_valid(rescue):
+			_ko_step(delta)
+		return                                   # the stretcher team moves and poses them
 	if _stun_t > 0.0 or _scared_t > 0.0:
 		_scared_step(delta)
 		return

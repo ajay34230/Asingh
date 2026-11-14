@@ -68,7 +68,7 @@ Credit: monsters and weapons by Quaternius, graveyard by Kenney (CC0; credit not
 
 | Asset | Source | Licence |
 |---|---|---|
-| `assets/anims/mocap.res` (71 clips: Walking, Fast Run, Jumping Down, Dying, the Sword and Shield pack, the Lite Longbow pack and the Creature NPC (mutant) pack) | Adobe Mixamo (https://www.mixamo.com), downloaded by Ajay on the X Bot character and converted to this game's skeleton by `tools/bake_mixamo.gd`. The original FBX files are not in the repo. | Mixamo terms (Adobe): royalty-free for use in games and other projects, but not CC0, and not to be redistributed as stand-alone animation files. Ajay chose to keep the converted library in this public repo (2026-11-14); it is the one exception to the CC0-or-own-work rule. |
+| `assets/anims/mocap.res` (91 clips, including 20 fighting, blocking and death clips named `mx_`; earlier: Walking, Fast Run, Jumping Down, Dying, the Sword and Shield pack, the Lite Longbow pack and the Creature NPC (mutant) pack) | Adobe Mixamo (https://www.mixamo.com), downloaded by Ajay on the X Bot character and converted to this game's skeleton by `tools/bake_mixamo.gd`. The original FBX files are not in the repo. | Mixamo terms (Adobe): royalty-free for use in games and other projects, but not CC0, and not to be redistributed as stand-alone animation files. Ajay chose to keep the converted library in this public repo (2026-11-14); it is the one exception to the CC0-or-own-work rule. |
 
 ## New monsters (2026-11-15)
 
@@ -83,3 +83,9 @@ Credit: monsters and weapons by Quaternius, graveyard by Kenney (CC0; credit not
 | Asset | Source | Licence |
 |---|---|---|
 | 84 clips in `assets/anims/mocap.res` (names starting `ual_`: punches, sword combos, sword block, hit reactions, roll, dance, sitting, farming and more) | Quaternius *Universal Animation Library* 1 and 2 (https://quaternius.com/packs/universalanimationlibrary.html). `UAL1_Standard.glb` and `UAL2_Standard.glb` from public GitHub repo `washingtonquan13/combat_test` (commit d3a0237), checked byte-identical (SHA-256) to the copies in `series-ai/jam-ready-assets`, whose licence file (copied as `assets/anims/LICENSE_Quaternius_UAL.txt`) states CC0 1.0. Converted by `tools/bake_mixamo.gd`; the source files are not in the repo. | CC0 1.0 |
+
+## Downloadable characters (Mixamo)
+
+| Asset | Source | Licence |
+|---|---|---|
+| 14 characters: Remy, Rohan (Ch22), Akai, Medea, Bhola (Peasant Man), Champa (Peasant Girl), Rishi (Ch39), Pehlwan (Ch43), Billu the Cat (Ch14), Kaidi (Prisoner), Chudail (Girl Scout), Vampire, Nightshade, Demon King (Demon). The models are **not in the APK**: they live on the `dlc` branch (`heroes/<id>.glb`) and the game downloads each one when it is first chosen or when a mission needs it. The 256 px portraits in `assets/heroes/` are bundled. | Adobe Mixamo characters downloaded by Ajay as FBX (originals kept out of git in `mixamo_src/heroes/`), converted to GLB by `tools/convert_heroes.gd` (animations stripped, textures shrunk). Portraits rendered by `tools/render_portraits.gd`. | Mixamo terms (Adobe): royalty-free for use in games, not CC0. Ajay chose to host the converted models in this public repo, the same exception as the Mixamo animations above. |

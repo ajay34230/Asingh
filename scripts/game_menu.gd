@@ -107,8 +107,13 @@ func _ready() -> void:
 	var sp := Control.new()
 	sp.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	nav.add_child(sp)
+	nav.add_child(_button("Characters", func() -> void:
+		toggle()
+		var cm := get_tree().get_first_node_in_group("character_menu") as CharacterMenu
+		if cm != null:
+			cm.open()))
 	nav.add_child(_button("Stuck? Fix me", unstick))
-	nav.add_child(_button("Restart mission", restart_mission))
+	nav.add_child(_button("Start from last mission", restart_mission))
 	nav.add_child(_button("New game", func() -> void: _show_page("Confirm")))
 	nav.add_child(_button("Quit", func() -> void:
 		save()

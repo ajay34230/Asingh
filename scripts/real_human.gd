@@ -30,6 +30,14 @@ const BONES_MOD := {
 	"hip_L": "UpperLeg.L", "kn_L": "LowerLeg.L", "an_L": "Foot.L",
 	"hip_R": "UpperLeg.R", "kn_R": "LowerLeg.R", "an_R": "Foot.R",
 }
+# Mixamo characters (downloaded heroes and monsters)
+const BONES_MIX := {
+	"hips": "mixamorig_Hips", "spine": "mixamorig_Spine", "chest": "mixamorig_Spine1", "neck": "mixamorig_Neck", "head": "mixamorig_Head",
+	"clav_L": "mixamorig_LeftShoulder", "sh_L": "mixamorig_LeftArm", "el_L": "mixamorig_LeftForeArm", "wr_L": "mixamorig_LeftHand",
+	"clav_R": "mixamorig_RightShoulder", "sh_R": "mixamorig_RightArm", "el_R": "mixamorig_RightForeArm", "wr_R": "mixamorig_RightHand",
+	"hip_L": "mixamorig_LeftUpLeg", "kn_L": "mixamorig_LeftLeg", "an_L": "mixamorig_LeftFoot",
+	"hip_R": "mixamorig_RightUpLeg", "kn_R": "mixamorig_RightLeg", "an_R": "mixamorig_RightFoot",
+}
 const BONES := BONES_UBC
 
 var preset: Dictionary = {}
@@ -74,7 +82,16 @@ func setup(p: Dictionary, name_: String = "Human") -> RealHuman:
 	_inner.rotation.y = PI          # the models face +Z; we face -Z
 	add_child(_inner)
 	var body: String = p.get("body", "veteran")
-	if body == "knight":
+	if body.begins_with("dl:"):
+		# a downloaded Mixamo character; the default body stands in if it is not on this phone
+		var node: Node3D = HeroStore.load_scene(body.trim_prefix("dl:"))
+		if node != null:
+			_add_model(node)
+		else:
+			body = "veteran"
+			_load(DIR + "veteran.glb")
+			_load(DIR + "robe_veteran.glb")
+	elif body == "knight":
 		_load("res://assets/outfits/KnightCharacter.glb")      # Quaternius Knight (CC0)
 	elif body.begins_with("m_") or body.begins_with("w_"):
 		_load("res://assets/people/" + body + ".glb")
@@ -103,14 +120,19 @@ func _load(path: String) -> void:
 	if ps == null:
 		push_warning("RealHuman: cannot load " + path)
 		return
-	var inst := ps.instantiate() as Node3D
+	_add_model(ps.instantiate() as Node3D)
+
+
+func _add_model(inst: Node3D) -> void:
+	for ap in inst.find_children("*", "AnimationPlayer", true, false):
+		(ap as AnimationPlayer).stop()
 	_inner.add_child(inst)
 	for sk in inst.find_children("*", "Skeleton3D", true, false):
 		_register(sk as Skeleton3D)
 
 
 func _register(sk: Skeleton3D) -> void:
-	var map: Dictionary = BONES_MOD if sk.find_bone("Hips") >= 0 else BONES_UBC
+	var map: Dictionary = BONES_MOD if sk.find_bone("Hips") >= 0 else (BONES_MIX if sk.find_bone("mixamorig_Hips") >= 0 else BONES_UBC)
 	var idx := {}
 	for k in BONES:
 		idx[k] = sk.find_bone(map[k])
@@ -122,8 +144,8 @@ func _register(sk: Skeleton3D) -> void:
 	_bone_idx.append(idx)
 	var fl: Array = []
 	for i in sk.get_bone_count():
-		var bn := sk.get_bone_name(i).to_lower()
-		if bn.ends_with("_end") or bn.contains("leaf") or bn.contains("metacarpal"):
+		var bn := sk.get_bone_name(i).to_lower().replace("mixamorig_lefthand", "").replace("mixamorig_righthand", "")
+		if bn.ends_with("_end") or bn.contains("leaf") or bn.contains("metacarpal") or bn.ends_with("4"):
 			continue
 		var thumb := bn.begins_with("thumb")
 		if thumb or bn.begins_with("index") or bn.begins_with("middle") or bn.begins_with("ring") or bn.begins_with("pinky"):
@@ -155,7 +177,7 @@ func _register(sk: Skeleton3D) -> void:
 			a *= 0.93
 		rot[side] = a
 	_arm_rot.append(rot)
-	_mc_register(sk, fb, map == BONES_MOD)
+	_mc_register(sk, fb, 1 if map == BONES_MOD else (2 if map == BONES_MIX else 0))
 	# a second skeleton that is the first one's bones (the tunic over the body, often without fingers) just copies
 	# their poses each frame, by name, instead of working everything out again
 	var link := PackedInt32Array()
@@ -194,7 +216,7 @@ func _fit() -> void:
 			lo = minf(lo, wp.y)
 			hi = maxf(hi, wp.y)
 	var h := hi - lo
-	if h < 0.3 or h > 6.0:
+	if h < 0.05 or h > 6.0:
 		h = 1.8
 		lo = 0.0
 	var s := TARGET_HEIGHT * float(preset.get("scale", 1.0)) / h
@@ -620,7 +642,23 @@ var _mc_q: Dictionary = {}         # scratch: bone -> Quaternion
 var _copy0: Array = []             # per skin: its bones' matching bone in skin 0 (empty: work it out itself)
 
 
-func _mc_register(sk: Skeleton3D, fb: Basis, mod: bool) -> void:
+## Our bone name -> the Mixamo rig's.
+static func _mix_name(ours: String) -> String:
+	const M := {"hips": "Hips", "spine": "Spine", "chest": "Spine1", "spine_03": "Spine2", "neck": "Neck", "head": "Head",
+		"clavicle_l": "LeftShoulder", "upper_arm_l": "LeftArm", "forearm_l": "LeftForeArm", "hand_l": "LeftHand",
+		"clavicle_r": "RightShoulder", "upper_arm_r": "RightArm", "forearm_r": "RightForeArm", "hand_r": "RightHand",
+		"thigh_l": "LeftUpLeg", "shin_l": "LeftLeg", "foot_l": "LeftFoot", "toe_l": "LeftToeBase",
+		"thigh_r": "RightUpLeg", "shin_r": "RightLeg", "foot_r": "RightFoot", "toe_r": "RightToeBase"}
+	if M.has(ours):
+		return "mixamorig_" + String(M[ours])
+	var parts := ours.split("_")              # index_02_l -> mixamorig_LeftHandIndex2
+	if parts.size() == 3:
+		return "mixamorig_%sHand%s%d" % ["Left" if parts[2] == "l" else "Right", parts[0].capitalize(), int(parts[1])]
+	return ""
+
+
+func _mc_register(sk: Skeleton3D, fb: Basis, rig_kind: int) -> void:
+	var mod := rig_kind == 1
 	var lib := MocapLibrary.get_lib()
 	var n := sk.get_bone_count()
 	var by_index: Array = []
@@ -631,7 +669,7 @@ func _mc_register(sk: Skeleton3D, fb: Basis, mod: bool) -> void:
 	if lib != null:
 		var some: Dictionary = lib.clips.values()[0]["bones"] if not lib.clips.is_empty() else {}
 		for ours in some:
-			var bn: String = (MOD_NAMES.get(ours, "") if mod else ours)
+			var bn: String = (MOD_NAMES.get(ours, "") if mod else (_mix_name(ours) if rig_kind == 2 else ours))
 			var bi := sk.find_bone(bn) if bn != "" else -1
 			if bi < 0 and mod and ours.begins_with("hand_"):
 				bi = sk.find_bone(bn.replace("Hand.", "Palm."))
@@ -640,7 +678,7 @@ func _mc_register(sk: Skeleton3D, fb: Basis, mod: bool) -> void:
 			var align := Basis.IDENTITY
 			if lib.rest_dirs.has(ours) and MC_NEXT.has(ours):
 				var nx: String = MC_NEXT[ours]
-				var nb := sk.find_bone(MOD_NAMES.get(nx, "") if mod else nx)
+				var nb := sk.find_bone(MOD_NAMES.get(nx, "") if mod else (_mix_name(nx) if rig_kind == 2 else nx))
 				if nb >= 0:
 					var dt := (fbo * (sk.get_bone_global_rest(nb).origin - sk.get_bone_global_rest(bi).origin)).normalized()
 					var dx: Vector3 = lib.rest_dirs[ours]
@@ -664,7 +702,7 @@ func _mc_register(sk: Skeleton3D, fb: Basis, mod: bool) -> void:
 		region[i] = r
 	_mc_bone.append(by_index)
 	_mc_region.append(region)
-	var hp: int = sk.find_bone("Hips" if mod else "hips")
+	var hp: int = sk.find_bone("Hips" if mod else ("mixamorig_Hips" if rig_kind == 2 else "hips"))
 	_mc_hiph.append((fb * sk.get_bone_global_rest(hp).origin).y if hp >= 0 else 1.0)
 
 
@@ -724,7 +762,7 @@ func _mocap_update(delta: float) -> void:
 	var cs := _loco_set()
 	var free := _mc_near and mode == "locomotion" and (react == "" or react == "block") and climb_kind == "" and photo_pose.is_empty() and jump_prep <= 0.0
 	var standing := _speed_smooth < 0.6 and _air < 0.1 and String(cs[2]) != "" and lib.clips.has(cs[2]) \
-			and move == "" and action == "" and attack_t < 0.0 and react == "" and (not guard or weapon in BLADES or clip_set == "brute") \
+			and move == "" and action == "" and attack_t < 0.0 and react == "" and (not guard or weapon in BLADES or weapon == "fists" or clip_set == "brute") \
 			and (_mc_idle_near or guard or clip_set != "")
 	var want := 0.0
 	if free:
@@ -775,6 +813,8 @@ func _loco_set() -> Array:
 		return ["mutant_walking", "mutant_run", "mutant_breathing_idle"]
 	if weapon in BLADES:
 		return ["ss_walk", "ss_run", "ss_idle" if guard else "bow_unarmed_idle_01"]
+	if weapon == "fists" and guard:
+		return ["walk", "run_fast", "mx_boxing"]           # the captured boxing stance in a fight
 	if weapon == "bow":
 		return ["bow_walk_forward", "bow_run_forward", "bow_idle_01"]
 	return ["walk", "run_fast", "bow_unarmed_idle_01"]
@@ -839,8 +879,9 @@ func _mc_layers() -> Array:
 			h = _mc_sample(ci, fposmod(_loco_idle_t, float(ci["len"])), q, _loco_idle_w, h)
 		# the arms and body stay the code's while it does something with them (punches, the bow, a gesture...)
 		var brute := clip_set == "brute"
-		var busy_up := move != "" or attack_t >= 0.0 or action != "" or (guard and not blade and not brute) or react == "block"
-		var busy_low := (move != "" and move != "bow_shot") or (guard and not blade and not brute and _speed_smooth < 2.5) or react == "block"
+		var boxing := guard and weapon == "fists" and _loco_idle_w > 0.5
+		var busy_up := move != "" or attack_t >= 0.0 or action != "" or (guard and not blade and not brute and not boxing) or react == "block"
+		var busy_low := (move != "" and move != "bow_shot") or (guard and not blade and not brute and not boxing and _speed_smooth < 2.5) or react == "block"
 		var land := clampf(_land_t / 0.42, 0.0, 1.0) * _land_k
 		var wl := _loco_w * (0.0 if busy_low else 1.0) * (1.0 - land) * (1.0 - crouch)
 		var wu := _loco_w * (0.0 if busy_up else 1.0)
@@ -1011,7 +1052,7 @@ func animate(delta: float, speed: float, grounded: bool) -> void:
 			attack_hit.emit()
 		if attack_t > 0.75:
 			attack_t = -1.0
-	if guard and move == "" and react == "" and _speed_smooth < 2.5 and _air < 0.1 and climb_kind == "" and not ((weapon in BLADES or clip_set == "brute") and _loco_w > 0.5):
+	if guard and move == "" and react == "" and _speed_smooth < 2.5 and _air < 0.1 and climb_kind == "" and not ((weapon in BLADES or clip_set == "brute") and _loco_w > 0.5) and not (weapon == "fists" and _loco_idle_w > 0.5):
 		_guard_pose()
 	if climb_kind != "":
 		_climb_pose()
@@ -1230,21 +1271,30 @@ func play_move(n: String) -> float:
 
 ## Punches, the front kick and the roll as captured moves: the clip's striking moment lands on the move's hit
 ## (the code's timing still decides the damage).
-const MOVE_CLIPS := {"jab": "ual_punch_jab", "cross": "ual_punch_cross", "hook": "ual_melee_hook", "uppercut": "ual_punch_cross",
-	"kick_front": "ss_kick", "roll": "ual_roll"}
+const MOVE_CLIPS := {"jab": ["ual_punch_jab"], "cross": ["ual_punch_cross"], "hook": ["ual_melee_hook"],
+	"uppercut": ["ual_punch_cross", "ual_melee_hook"],
+	"kick_front": ["ss_kick", "mx_standing_melee_attack_kick_ver_2"], "kick_round": ["mx_inside_crescent_kick", "mx_pontera"],
+	"kick_side": ["mx_chapa_2", "mx_standing_melee_attack_kick_ver_2"], "roll": ["ual_roll"]}
 
 
 func _move_clip(n: String, lead: float) -> void:
-	if not MOVE_CLIPS.has(n) or react != "" or not MocapLibrary.has_clip(MOVE_CLIPS[n]):
+	if not MOVE_CLIPS.has(n) or react != "":
 		return
-	var c: Dictionary = MocapLibrary.get_lib().clips[MOVE_CLIPS[n]]
+	var choices: Array = []
+	for cn in MOVE_CLIPS[n]:
+		if MocapLibrary.has_clip(cn):
+			choices.append(cn)
+	if choices.is_empty():
+		return
+	var cname: String = choices[randi() % choices.size()]
+	var c: Dictionary = MocapLibrary.get_lib().clips[cname]
 	if n == "roll":
-		play_clip(MOVE_CLIPS[n], 1.0, clampf(float(c["len"]) / 0.6, 1.0, 2.6), false, 0.0, 0.05)
+		play_clip(cname, 1.0, clampf(float(c["len"]) / 0.6, 1.0, 2.6), false, 0.0, 0.05)
 		return
 	var hit_at := float(MOVES[n][1]) + lead
 	var ch := float(c["hit"])
 	var rate := clampf(ch / maxf(hit_at, 0.05), 0.7, 2.2)
-	play_clip(MOVE_CLIPS[n], 1.0 - smoothstep(0.5, 2.0, _speed_smooth), rate, false, maxf(0.0, ch - hit_at * rate), 0.06)
+	play_clip(cname, 1.0 - smoothstep(0.5, 2.0, _speed_smooth), rate, false, maxf(0.0, ch - hit_at * rate), 0.06)
 
 
 ## Boxing stance: fists up by the chin, lead hand forward, knees soft, a little bounce on the toes.
@@ -1407,7 +1457,7 @@ var _hit_kind := "body"
 var _hit_side := 1.0
 
 
-const IMPACTS := ["ss_impact", "ual_hit_chest", "ss_impact_2", "ual_hit_head", "ss_impact_3"]
+const IMPACTS := ["ss_impact", "ual_hit_chest", "ss_impact_2", "ual_hit_head", "ss_impact_3", "mx_hit_reaction"]
 
 
 func play_hit(kind: String = "body", side: float = 1.0) -> void:
@@ -1416,7 +1466,8 @@ func play_hit(kind: String = "body", side: float = 1.0) -> void:
 	_hit_side = 1.0 if side >= 0.0 else -1.0
 	# a captured hit reaction (the code-made flinch stays layered on top); not in the saddle or once dead
 	if react == "" and move == "" and not clip_playing("ss_death") and not clip_playing("ss_death_2") and not clip_playing("dying"):
-		play_clip(IMPACTS[randi() % IMPACTS.size()], 0.55, 1.15, false, 0.0, 0.08)
+		var imp: String = IMPACTS[randi() % IMPACTS.size()]
+		play_clip(imp, 0.55, 1.7 if imp == "mx_hit_reaction" else 1.15, false, 0.0, 0.08)
 
 
 func _hit_overlay(delta: float) -> void:
@@ -1700,9 +1751,39 @@ func _react_pose() -> void:
 			_pose["head"] = Vector3(-0.8, 0, 0)
 
 
-const SLASHES := ["ss_slash", "ual_sword_regular_a", "ss_attack_4", "ual_sword_regular_b", "ss_slash_3", "ual_sword_attack", "ss_attack_2"]
-const HEAVY_SWINGS := ["ual_sword_attack", "ual_sword_regular_c", "ss_attack_2", "ual_sword_regular_b"]      # hammer, spear
+# Every captured fall that ends lying down: the hero, enemies and knocked-out villagers fall with these.
+const DEATHS := ["ss_death", "ss_death_2", "dying", "mutant_dying", "ual_death01", "mx_dying_1", "mx_dying_2",
+	"mx_standing_death_right_02", "mx_death_crouching_headshot_front", "mx_death_from_the_back", "mx_standing_react_death_right"]
+
+
+## A random fall from DEATHS (only ones in this build's library).
+static func random_death(rng: RandomNumberGenerator = null) -> String:
+	var lib := MocapLibrary.get_lib()
+	var have: Array = []
+	for d in DEATHS:
+		if lib != null and lib.clips.has(d):
+			have.append(d)
+	if have.is_empty():
+		return ""
+	return have[(rng.randi() if rng != null else randi()) % have.size()]
+
+
+## Every captured weapon strike (sword-and-shield slashes and attacks, the library's sword strikes): every melee
+## weapon, the hammer included, swings with all of them, picked at random.
+static var _melee: Array = []
+
+
+static func melee_pool() -> Array:
+	if _melee.is_empty():
+		var lib := MocapLibrary.get_lib()
+		if lib != null:
+			for n in lib.clips:
+				var s := String(n)
+				if s.begins_with("ss_attack") or s.begins_with("ss_slash") or s in ["ual_sword_attack", "ual_sword_regular_a", "ual_sword_regular_b", "ual_sword_regular_c", "ual_sword_dash"]:
+					_melee.append(s)
+	return _melee
 var _slash_i := 0
+var _last_swing := ""
 
 
 func start_attack() -> void:
@@ -1713,7 +1794,11 @@ func start_attack() -> void:
 		if weapon != "fists" and weapon != "bow" and react != "ride" and react != "drive":
 			var lib := MocapLibrary.get_lib()
 			if lib != null:
-				var nm: String = (SLASHES if weapon in BLADES else HEAVY_SWINGS)[_slash_i % (SLASHES if weapon in BLADES else HEAVY_SWINGS).size()]
+				var pool := melee_pool()
+				var nm: String = pool[randi() % pool.size()] if not pool.is_empty() else "ss_slash"
+				if nm == _last_swing and pool.size() > 1:
+					nm = pool[(pool.find(nm) + 1 + randi() % (pool.size() - 1)) % pool.size()]
+				_last_swing = nm
 				if clip_set == "brute":
 					nm = "mutant_swiping"
 				_slash_i += 1

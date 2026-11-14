@@ -953,3 +953,34 @@ All new text is translated into Hindi.
 - touches under the menu don't reach the game.
 
 **Checks:** the selftest passes. It verifies that a jab plays the captured punch, a hammer swing plays a captured strike, and every menu tab has moves. **Not tested on a device.**
+
+## Addendum: Injuries and the Vaidya, every fighting clip, 14 downloadable characters (2026-11-15)
+
+**Fighting:**
+- Every melee weapon (sword, dagger, axe, hammer, spear and the rest) picks at random from all captured sword and shield attacks and slashes. The brute keeps its creature swipe.
+- Punches and kicks have more captured variants: round kicks, side kicks, boxing guard and a captured hit reaction.
+- Blocking uses captured block poses and jolts.
+- The hero and enemies die with one of 11 captured deaths, chosen at random. Each villager is given their own fall when they are made.
+
+**Villagers are injured, not killed:**
+- Weapons, punches, kicks and arrows all hurt villagers. Out of health, a villager falls unconscious.
+- After 30 seconds a two-man stretcher team arrives, lifts them and carries them to the Vaidya. The clinic is a canopy, charpai and herb shelf on open ground just south of the temple.
+- The Vaidya treats the patient for 10 seconds. They get up and go home healed.
+- Hitting an unconscious villager or a stretcher bearer kills the villager for good. A screen then says a life was lost, and its only button is **Start from last mission**. The main menu's restart button has the same name now.
+- Only mission enemies die.
+
+**Downloadable characters:**
+- 14 Mixamo characters (11 heroes, 3 monsters) are converted to GLB, 1.5 to 5.5 MB each, 48 MB in all. They are kept on the `dlc` branch, outside the APK, which only carries their portraits (0.9 MB).
+- **Characters** in the menu shows a card per character: portrait, name, and Download (with size), Use or In use. Monsters are playable too.
+- **Download all** fetches everything missing in one go, with a progress bar and an "n / total" count. **Remove** frees a character's space.
+- The Vampire, Nightshade and Demon King missions ask the player to download their monster before starting.
+- All 14 work with every animation through the Mixamo bone map. Captures show each one walking.
+- Fixes found while testing:
+  - Ch22's skin still bound to its numbered bones, so only the head showed. Its bind names are now renamed too.
+  - Medea is modelled 17 cm tall and was refused by a size guard. The guard now allows her.
+- The app now has the internet permission, used only for these downloads.
+
+**Checks:**
+- The selftest passes. It covers: knock-out instead of death; the stretcher team after 30 s; the Vaidya admitting and healing; a strike while down killing the villager and showing the failure screen; every death clip present; the melee pool; the vampire mission asking for its download; download counts, portraits and sizes for every character; the fallback body when a character is missing; and rigging every downloaded character.
+- The real download from GitHub could not be fetched here, because this workspace blocks that site. The files are confirmed on the branch through the GitHub API, at exactly the URLs the game uses.
+- **Not tested on a device.**

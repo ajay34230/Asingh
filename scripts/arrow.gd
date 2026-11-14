@@ -151,6 +151,29 @@ func _physics_process(delta: float) -> void:
 				else:
 					queue_free()
 				return
+	# villagers and stretcher bearers in the way (shot by the player): hurt, as any blow
+	if shooter != null and shooter is Player:
+		var segp := next - prev
+		for nn in get_tree().get_nodes_in_group("npcs"):
+			var np := nn as Npc
+			if np == null or np.companion or np.in_care or np.dead_forever:
+				continue
+			var cpos := np.global_position + Vector3(0, 0.9, 0)
+			var tp := clampf((cpos - prev).dot(segp) / maxf(segp.length_squared(), 0.0001), 0.0, 1.0)
+			var close := prev + segp * tp
+			if Vector2(close.x - cpos.x, close.z - cpos.z).length() < 0.4 and absf(close.y - cpos.y) < 0.95:
+				np.take_hit(dmg, vel.normalized())
+				queue_free()
+				return
+		for rt in get_tree().get_nodes_in_group("rescuers"):
+			for bp in (rt as RescueTeam).bearer_positions():
+				var bc: Vector3 = (bp as Vector3) + Vector3(0, 0.9, 0)
+				var tb := clampf((bc - prev).dot(segp) / maxf(segp.length_squared(), 0.0001), 0.0, 1.0)
+				var cb := prev + segp * tb
+				if Vector2(cb.x - bc.x, cb.z - bc.z).length() < 0.4 and absf(cb.y - bc.y) < 0.95:
+					(rt as RescueTeam).struck()
+					queue_free()
+					return
 	# enemies along this step (the chosen target first, then anyone else in the way)
 	var victims: Array = []
 	if is_instance_valid(foe) and not foe.dead:

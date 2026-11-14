@@ -794,7 +794,14 @@ func play_emote(n: String) -> String:
 	return ""
 
 
+var _reguard := false
+
+
 func _tick_emote(delta: float) -> void:
+	if _reguard and not _rig.clip_playing():
+		_reguard = false
+		if blocking:
+			_rig.play_clip(_block_idle(), 1.0, 1.0, false, 0.0, 0.1)
 	if _emote == "":
 		return
 	_emote_t -= delta
@@ -907,11 +914,23 @@ func set_block(on: bool) -> void:
 	if on:
 		_block_t = 0.0
 	_rig.set_react("block" if on else "")
-	# blade in hand: the captured sword-and-shield guard; it ends with the block
-	if on and _rig.weapon in RealHuman.BLADES:
-		_rig.play_clip("ss_block_idle", 1.0, 1.0, false, 0.0, 0.12)
-	elif not on and _rig.clip_playing("ss_block_idle"):
+	# a captured guard: the sword-and-shield block with a blade, the boxer's block otherwise; it ends with the block
+	if on:
+		_rig.play_clip(_block_idle(), 1.0, 1.0, false, 0.0, 0.12)
+	elif _rig.clip_playing("ss_block_idle") or _rig.clip_playing("mx_blocking") or _rig.clip_playing("mx_standing_block_react_large") or _rig.clip_playing("ss_block"):
 		_rig.stop_clip(0.15)
+
+
+func _block_idle() -> String:
+	return "ss_block_idle" if _rig.weapon in RealHuman.BLADES else "mx_blocking"
+
+
+## A hit taken on the block: the guard jolts back (sword-and-shield block, or the boxer's big block reaction),
+## then the guard is held again.
+func _block_jolt() -> void:
+	var big := "ss_block" if _rig.weapon in RealHuman.BLADES else "mx_standing_block_react_large"
+	_rig.play_clip(big, 1.0, 1.5, false, 0.0, 0.06)
+	_reguard = true
 
 
 ## Quick dodge roll with a short window of invulnerability (ROLL button / V).
@@ -947,6 +966,32 @@ func roll() -> void:
 		_model.position = Vector3.ZERO)
 
 
+## A weapon swing on villagers and stretcher bearers (punches and kicks do this in _on_move_hit).
+func _strike_people(fwd: Vector3, reach: float, dmg: float) -> bool:
+	var hit := false
+	for rt in get_tree().get_nodes_in_group("rescuers"):
+		for bp in (rt as RescueTeam).bearer_positions():
+			var tb: Vector3 = (bp as Vector3) - global_position
+			tb.y = 0.0
+			if tb.length() < reach and (tb.length() < 0.6 or fwd.dot(tb.normalized()) > 0.2):
+				(rt as RescueTeam).struck()
+				hit = true
+				break
+	for nn in get_tree().get_nodes_in_group("npcs"):
+		var np := nn as Npc
+		if np == null or np.companion:
+			continue
+		var tn: Vector3 = np.global_position - global_position
+		tn.y = 0.0
+		if tn.length() < reach and (tn.length() < 0.6 or fwd.dot(tn.normalized()) > 0.2):
+			np.take_hit(dmg, fwd)
+			assaults += 1
+			hit = true
+			if assaults >= 3 and np.role != "guard":
+				wanted_t = 120.0
+	return hit
+
+
 func _on_move_hit(mv: String) -> void:
 	if mv == "bow_shot":
 		_release_arrow()
@@ -968,7 +1013,16 @@ func _on_move_hit(mv: String) -> void:
 			hit = true
 			if MOVE_KIND[mv] != "punch":
 				kicks_landed += 1
-	# villagers and animals: they react (stagger, shout, run) but are never damaged
+	# stretcher bearers: a blow stops the rescue
+	for rt in get_tree().get_nodes_in_group("rescuers"):
+		for bp in (rt as RescueTeam).bearer_positions():
+			var tb: Vector3 = (bp as Vector3) - global_position
+			tb.y = 0.0
+			if tb.length() < reach - 0.2 and (tb.length() < 0.6 or fwd.dot(tb.normalized()) > 0.3):
+				(rt as RescueTeam).struck()
+				hit = true
+				break
+	# villagers: hurt by blows (out of health they fall unconscious; see Npc.take_hit)
 	for nn in get_tree().get_nodes_in_group("npcs"):
 		var np := nn as Npc
 		if np == null or np.companion:
@@ -1049,6 +1103,7 @@ func _on_attack_hit() -> void:
 		if to.length() < 3.0 + gear_reach and (to.length() < 0.6 or fwd.dot(to.normalized()) > 0.2):
 			(e as Enemy).take_hit("slam", dmg, fwd)
 			hit = true
+	hit = _strike_people(fwd, 3.0 + gear_reach, dmg) or hit
 	if has_knife:
 		for an in get_tree().get_nodes_in_group("animals"):
 			var ani := an as Animal
@@ -1083,6 +1138,7 @@ func take_damage(amount: float, from: Vector3) -> void:
 		Sfx.ui_at("hit_thud", -2.0)
 		HitFx.burst(get_parent(), global_position + Vector3(0, 1.3, 0) + Vector3(-sin(_model.rotation.y), 0, -cos(_model.rotation.y)) * 0.6, true, Color(0.7, 0.85, 1.0))
 		StoryFX.shake(self, 0.06, 0.15)
+		_block_jolt()
 		return
 	if blocking and not spend(10.0):
 		amount *= 0.6                  # guard broken by exhaustion
@@ -1094,6 +1150,7 @@ func take_damage(amount: float, from: Vector3) -> void:
 			amount *= 0.25
 			Sfx.ui_at("hit_thud", -8.0)
 			StoryFX.shake(self, 0.04, 0.12)
+			_block_jolt()
 	if haptics and OS.has_feature("mobile"):
 		if not _vib_logged:
 			_vib_logged = true
@@ -1139,7 +1196,7 @@ func _die() -> void:
 	locked = true
 	died_signal.emit()
 	if not mounted:
-		_rig.play_clip("ss_death", 1.0, 1.0, true, 0.0, 0.1, true)            # falls, and stays down
+		_rig.play_clip(RealHuman.random_death(), 1.0, 1.0, true, 0.0, 0.1, true)     # any of the captured falls
 	await get_tree().create_timer(2.6).timeout
 	_rig.stop_clip(0.05)
 	global_position = checkpoint + Vector3(0, 0.5, 0)

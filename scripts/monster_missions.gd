@@ -43,12 +43,32 @@ const MISSIONS := [
 	 "at": FrontierBuilder.DHOOP_C, "goal": FrontierBuilder.DHOOP_C, "night": true, "place": "Dhoopgarh",
 	 "waves": [[["skeleton", 4]], [["ghost", 4], ["ghost_skull", 2]], [["demon", 1]]],
 	 "gift": "axe", "coins": 250, "line": "Headman Ratan: Dhoopgarh will sing your name."},
+	{"id": "m_vampire", "title": "The Vampire of the Old Temple", "short": "Something drinks the blood of travellers by the temple at night.",
+	 "at": TerrainBuilder.TEMPLE_C + Vector2(0.0, -28.0), "goal": Vector2.ZERO, "night": true, "place": "the old temple",
+	 "waves": [[["skeleton", 3]], [["ghost_skull", 3]], [["dl:vampire", 1], ["ghost_skull", 2]]],
+	 "gift": "potion", "coins": 280, "line": "The priest: The temple bells can ring again!"},
+	{"id": "m_nightshade", "title": "Nightshade's Ambush", "short": "A deadly assassin waits on the Southern Road.",
+	 "at": Vector2(30.0, 340.0), "goal": Vector2.ZERO, "night": false, "place": "the Southern Road",
+	 "waves": [[["skeleton", 4]], [["dl:nightshade", 1], ["skeleton", 2]]],
+	 "gift": "potion", "coins": 290, "line": ""},
 	{"id": "m_dragon", "title": "Wings over the Dunes", "short": "A dragon nests on the plateau. End it.",
 	 "at": Vector2(40.0, 520.0), "goal": Vector2.ZERO, "night": false, "place": "the dragon's dune",
 	 "waves": [[["ghost_skull", 4]], [["dragon", 1]]],
 	 "gift": "potion", "coins": 300, "line": ""},
+	{"id": "m_demonking", "title": "The Demon King", "short": "The Demon King himself walks out of the desert.",
+	 "at": FrontierBuilder.DHOOP_C + Vector2(40.0, 40.0), "goal": Vector2.ZERO, "night": true, "place": "the edge of Dhoopgarh",
+	 "waves": [[["demon", 1]], [["dl:demon", 1], ["skeleton", 3]]],
+	 "gift": "potion", "coins": 400, "line": "Headman Ratan: The Demon King is no more!"},
 ]
 const START_RADIUS := 26.0
+# downloadable bosses ("dl:<id>" in a wave): a man-shaped enemy with every captured animation
+const DL_BOSSES := {
+	"vampire": {"role": "ambusher", "hp": 420.0, "dmg": 1.6},
+	"nightshade": {"role": "ambusher", "hp": 360.0, "dmg": 1.5},
+	"demon": {"role": "brute", "hp": 560.0, "dmg": 1.8},
+}
+var _asked := ""                  # the mission whose download was declined (asked again after you leave)
+var _asking := false
 const VILLAGE_DRAIN := 0.8        # village heart lost per second for each monster haunting the centre (was 2.2, uncapped)
 
 var main: Node3D
@@ -220,8 +240,38 @@ func _process(delta: float) -> void:
 	if m.is_empty():
 		return
 	var at: Vector2 = m["at"]
-	if Vector2(player.global_position.x - at.x, player.global_position.z - at.y).length() < START_RADIUS:
-		start(m)
+	var d := Vector2(player.global_position.x - at.x, player.global_position.z - at.y).length()
+	if d > START_RADIUS + 12.0 and _asked == String(m["id"]):
+		_asked = ""
+	if d < START_RADIUS:
+		var need := missing_downloads(m)
+		if need.is_empty():
+			start(m)
+		elif not _asking and _asked != String(m["id"]):
+			# the big monster of this mission is not on the phone yet: ask before the mission begins
+			_asking = true
+			var names: Array = []
+			var kb := 0
+			for id in need:
+				names.append(HeroStore.title(id))
+				kb += int(HeroStore.CATALOG.get(id, ["", "", 0])[2])
+			DlcDialog.ask(self, need, Loc.tf("%s needs the %s. Download now (%.1f MB)?", [Loc.t(String(m["title"])), ", ".join(names), kb / 1024.0]), func(ok: bool) -> void:
+				_asking = false
+				if ok:
+					start(m)
+				else:
+					_asked = String(m["id"]))
+
+
+## The downloadable monsters a mission needs that are not on the phone.
+static func missing_downloads(m: Dictionary) -> Array:
+	var out: Array = []
+	for w in m["waves"]:
+		for grp in w:
+			var k := String(grp[0])
+			if k.begins_with("dl:") and not HeroStore.is_downloaded(k.trim_prefix("dl:")) and not out.has(k.trim_prefix("dl:")):
+				out.append(k.trim_prefix("dl:"))
+	return out
 
 
 # --- night raids: after the first mission, some nights ghosts attack a settlement on their own ----------
@@ -318,6 +368,26 @@ func start(m: Dictionary, skip_intro: bool = false) -> void:
 	cin.play(shots, String(m["title"]).to_upper(), func() -> void: _announce())
 
 
+## A downloaded boss: a man-shaped enemy wearing the model, with a boss's health and every captured move.
+func _spawn_dl_boss(id: String, p: Vector2, n: int) -> void:
+	var cfg: Dictionary = DL_BOSSES.get(id, {"role": "brute", "hp": 400.0, "dmg": 1.5})
+	var en := Enemy.new().setup({"body": "dl:" + id, "natural": true, "scale": 1.08}, _ground(p), "%s_%s_%d" % [running, id, n])
+	en.player = player
+	main.add_child(en)
+	en.apply_role(String(cfg["role"]))
+	en.is_boss = true
+	en.hp = float(cfg["hp"])
+	en.max_hp = en.hp
+	en.damage *= float(cfg["dmg"])
+	en.aggro = maxf(en.aggro, 30.0)
+	en._refresh_bar()
+	if combat != null:
+		en._spawn_pickup = func(pp: Vector3, kk: String) -> void: combat.spawn_pickup(pp, kk)
+	en.died.connect(_on_kill)
+	alive.append(en)
+	Sfx.at("grunt_1", en.global_position + Vector3(0, 1.8, 0), 0.0, 0.6)
+
+
 func _announce() -> void:
 	if hud != null:
 		hud.call("banner", "%s\nWave 1/%d" % [Loc.t(String(_m["title"])), (_m["waves"] as Array).size()], "mission_new")
@@ -333,6 +403,10 @@ func _spawn_wave(rise: bool) -> void:
 			var a := TAU * float(n) / 7.0 + float(wave) * 0.7
 			var r := 6.0 + float(n % 3) * 2.5
 			var p := Vector2(at.x + cos(a) * r, at.y + sin(a) * r)
+			if String(grp[0]).begins_with("dl:"):
+				_spawn_dl_boss(String(grp[0]).trim_prefix("dl:"), p, n)
+				n += 1
+				continue
 			var mon := Monster.new()
 			mon.player = player
 			main.add_child(mon)

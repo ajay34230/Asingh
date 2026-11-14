@@ -394,7 +394,7 @@ func _die(kind: String, dir: Vector3) -> void:
 	collision_mask = 1
 	held = false
 	# a different way of dying each time
-	_death_style = _rng.randi() % 9          # 5..8: captured falls (near the camera)
+	_death_style = 5 + _rng.randi() % 4 if _rng.randf() < 0.8 else _rng.randi() % 5     # mostly captured falls
 	if role == "brute" and _rng.randf() < 0.6:
 		_death_style = 8                      # the heavy creature's fall
 	if kind == "slam" or kind == "round":
@@ -432,8 +432,8 @@ func _die(kind: String, dir: Vector3) -> void:
 			tw.tween_callback(func() -> void:
 				rig.set_react("dead")
 				Sfx.at("body_fall", global_position, -2.0))
-		5, 6, 7, 8:   # a captured fall: crumples, and stays down
-			var clipn: String = ["ss_death", "ss_death_2", "dying", "mutant_dying"][_death_style - 5]
+		5, 6, 7, 8:   # a captured fall: crumples, and stays down (any of the captured falls)
+			var clipn: String = RealHuman.random_death(_rng) if not (role == "brute" and _death_style == 8) else "mutant_dying"
 			if rig.play_clip(clipn, 1.0, 1.15, true, 0.0, 0.1, true):
 				rig.set_react("dead")
 				Sfx.at("death_%d" % mini(_death_style - 5, 2), global_position + Vector3(0, 1.3, 0), 0.0)

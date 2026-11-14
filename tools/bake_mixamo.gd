@@ -30,7 +30,7 @@ var NEXT := {
 	"thigh_l": "shin_l", "shin_l": "foot_l", "foot_l": "toe_l",
 	"thigh_r": "shin_r", "shin_r": "foot_r", "foot_r": "toe_r",
 }
-const LOOPS := ["walk", "run", "strafe", "idle", "crouching", "block_idle"]
+const LOOPS := ["walk", "run", "strafe", "idle", "crouching", "block_idle", "mx_boxing", "mx_blocking", "mx_punching_bag"]
 
 
 func _full_map() -> Dictionary:
@@ -171,6 +171,8 @@ func _bake_take(lib: MocapLibrary, sk: Skeleton3D, ap: AnimationPlayer, src_idx:
 				loop = true
 		if ual:
 			loop = anim.loop_mode != Animation.LOOP_NONE or an.ends_with("_Loop")
+		if name.contains("death") or name.contains("dying"):
+			loop = false
 		# take the travel out of looping clips (the game moves the character); keep its speed
 		var travel := Vector3(hips[(n - 1) * 3] - hips[0], 0.0, hips[(n - 1) * 3 + 2] - hips[2])
 		var speed := 0.0

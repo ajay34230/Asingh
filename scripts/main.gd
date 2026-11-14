@@ -58,6 +58,7 @@ var race: RaceBuilder
 var links: StoryLinks
 var forest: ForestBuilder
 var menu: GameMenu
+var clinic: VaidyaClinic
 var map_ui: MapUI
 var combat: CombatBuilder
 var combat_hud: CombatHUD
@@ -99,6 +100,8 @@ func _ready() -> void:
 	print("[LostKingdom] auto colliders added: %d" % auto_colliders)
 	_spawn_player()
 	npcs = NpcBuilder.build(self, terrain, houses, railway, player)
+	clinic = VaidyaClinic.build(self, terrain, player)       # the Vaidya heals people knocked unconscious
+	npcs.append(clinic.vaidya)
 	life = LifeBuilder.build(self, terrain, houses, railway, player)
 	frontier.build_places(self, terrain, player)
 	npcs.append_array(frontier.npcs)
@@ -137,6 +140,10 @@ func _ready() -> void:
 			_run_capture_pickups.call_deferred(a.trim_prefix("--capture-pickups="))
 		if a.begins_with("--capture-fight="):
 			_run_capture_fight.call_deferred(a.trim_prefix("--capture-fight="))
+		elif a.begins_with("--capture-top="):
+			_run_capture_top.call_deferred(a.trim_prefix("--capture-top="))
+		elif a.begins_with("--capture-rescue="):
+			_run_capture_rescue.call_deferred(a.trim_prefix("--capture-rescue="))
 		elif a.begins_with("--capture-movesmenu="):
 			_run_capture_movesmenu.call_deferred(a.trim_prefix("--capture-movesmenu="))
 		elif a.begins_with("--capture-ghosthorse="):
@@ -906,6 +913,10 @@ func _build_ui() -> void:
 	touch = TouchControls.new()
 	touch.player = player
 	layer.add_child(touch)
+	var chars := CharacterMenu.new()
+	chars.name = "CharacterMenu"
+	chars.player = player
+	add_child(chars)
 	var moves := MovesMenu.new()
 	moves.name = "MovesMenu"
 	moves.player = player
@@ -1113,6 +1124,7 @@ func _build_story() -> void:
 	add_child(bounty)
 	bounty.build()
 	wardrobe = Wardrobe.new()
+	(get_node("CharacterMenu") as CharacterMenu).wardrobe = wardrobe if has_node("CharacterMenu") else null
 	add_child(wardrobe)
 	wardrobe.setup(story, player, hud)
 	progression = Progression.new()
@@ -1179,6 +1191,8 @@ func _on_title_chosen(continue_game: bool) -> void:
 	else:
 		story_b.intro.call_deferred()
 	wardrobe.wear(wardrobe.worn())
+	if CharacterMenu.current() != "":
+		CharacterMenu.apply(player, wardrobe, CharacterMenu.current())       # the chosen downloaded character
 	progression.apply()
 	progression.check_login.call_deferred()
 
@@ -2070,6 +2084,7 @@ func _run_selftest() -> void:
 	await _selftest_traffic(fails, notes)
 	await _selftest_hunt(fails, notes)
 	await _selftest_fight(fails, notes)
+	await _selftest_rescue_heroes(fails, notes)
 
 	for s in notes:
 		print("[selftest] ", s)
@@ -2413,6 +2428,114 @@ func _run_capture_movesmenu(dir: String) -> void:
 	get_tree().quit()
 
 
+## A view straight down (TOP="x,z,height") with a 10 m grid of markers, for choosing places.
+func _run_capture_top(dir: String) -> void:
+	DirAccess.make_dir_recursive_absolute(dir)
+	touch.visible = false
+	for c in get_children():
+		if c is TitleScreen:
+			c.queue_free()
+		elif c is CanvasLayer:
+			(c as CanvasLayer).visible = false
+	atmosphere.time_of_day = 0.45
+	atmosphere.apply_time()
+	var v := OS.get_environment("TOP").split(",")
+	var cx := float(v[0])
+	var cz := float(v[1])
+	_teleport(cx, cz + 40.0)
+	for i in 30:
+		await get_tree().physics_frame
+	for gx in range(-4, 5):
+		for gz in range(-4, 5):
+			var l := Label3D.new()
+			l.text = "%d,%d" % [int(cx) + gx * 10, int(cz) + gz * 10]
+			l.font_size = 48
+			l.pixel_size = 0.02
+			l.no_depth_test = true
+			l.billboard = BaseMaterial3D.BILLBOARD_ENABLED
+			l.modulate = Color(1, 0.1, 0.1)
+			add_child(l)
+			l.global_position = Vector3(cx + gx * 10, terrain.sample_height(cx + gx * 10, cz + gz * 10) + 1.0, cz + gz * 10)
+	var cam := Camera3D.new()
+	add_child(cam)
+	cam.fov = 60.0
+	cam.global_position = Vector3(cx, terrain.sample_height(cx, cz) + float(v[2]), cz + 0.01)
+	cam.look_at(Vector3(cx, terrain.sample_height(cx, cz), cz))
+	cam.current = true
+	for i in 10:
+		await get_tree().process_frame
+	await RenderingServer.frame_post_draw
+	get_viewport().get_texture().get_image().save_png("%s/top.png" % dir)
+	get_tree().quit()
+
+
+## The rescue: a villager knocked out, the stretcher team lifting them, carrying them, the Vaidya treating them.
+func _run_capture_rescue(dir: String) -> void:
+	DirAccess.make_dir_recursive_absolute(dir)
+	touch.visible = false
+	for c in get_children():
+		if c is TitleScreen:
+			c.queue_free()
+		elif c is CanvasLayer:
+			(c as CanvasLayer).visible = false
+	atmosphere.time_of_day = 0.4
+	atmosphere.apply_time()
+	var vic: Npc = null
+	for n in npcs:
+		if n.name == "Shepherd":
+			vic = n
+	var vp := vic.global_position
+	_teleport(vp.x + 6.0, vp.z + 6.0)
+	for i in 30:
+		await get_tree().physics_frame
+	var cam := Camera3D.new()
+	add_child(cam)
+	cam.fov = 45.0
+	cam.current = true
+	var shots := [["1_down", 1.5], ["2_lift", 0.0], ["3_carry", 0.0], ["4_vaidya", 0.0]]
+	vic.take_hit(999.0, Vector3(1, 0, 0))
+	for i in 90:
+		await get_tree().process_frame
+	var aim := func(p: Vector3, off: Vector3) -> void:
+		cam.global_position = p + off
+		cam.look_at(p + Vector3(0, 0.6, 0))
+	aim.call(vic.global_position, Vector3(3.5, 2.2, 3.5))
+	await RenderingServer.frame_post_draw
+	get_viewport().get_texture().get_image().save_png("%s/rescue_1_down.png" % dir)
+	vic.ko_t = Npc.RESCUE_DELAY
+	for i in 400:
+		await get_tree().process_frame
+		var rt := vic.rescue as RescueTeam
+		if rt != null and is_instance_valid(rt) and rt.state == 1 and rt.t > 1.2:
+			break
+	aim.call(vic.global_position, Vector3(3.8, 2.0, 3.0))
+	await RenderingServer.frame_post_draw
+	get_viewport().get_texture().get_image().save_png("%s/rescue_2_lift.png" % dir)
+	for i in 120:
+		await get_tree().process_frame
+	var rt2 := vic.rescue as RescueTeam
+	if rt2 != null and is_instance_valid(rt2):
+		aim.call(rt2.centre, Vector3(4.5, 2.2, 2.5))
+		await RenderingServer.frame_post_draw
+		get_viewport().get_texture().get_image().save_png("%s/rescue_3_carry.png" % dir)
+	for i in 1200:
+		await get_tree().process_frame
+		if vic.in_care:
+			break
+	for i in 120:
+		await get_tree().process_frame
+	aim.call(clinic.global_position, Vector3(4.0, 2.6, 4.5))
+	await RenderingServer.frame_post_draw
+	get_viewport().get_texture().get_image().save_png("%s/rescue_4_vaidya.png" % dir)
+	print("[capture] rescue: in care %s, ko %s" % [str(vic.in_care), str(vic.ko)])
+	for i in 900:
+		await get_tree().process_frame
+		if not vic.ko:
+			break
+	print("[capture] rescue: healed %s at %s" % [str(not vic.ko), str(vic.global_position)])
+	get_tree().quit()
+
+
 ## Captured-animation check: the transferred walk and run at seven moments of a stride, then each action clip
 ## at its key moment (MOCAP_ROWS picks rows: walk, run, act, villager).
 func _run_capture_mocap(dir: String) -> void:
@@ -2457,6 +2580,20 @@ func _run_capture_mocap(dir: String) -> void:
 			r.global_position = Vector3(pp.x - 4.8 + i * 1.6, terrain.sample_height(pp.x - 4.8 + i * 1.6, pp.z), pp.z)
 			r.rotation.y = -PI * 0.5 if not row.begins_with("act") else -PI * 0.25
 			r.set_process(false)
+			if row.begins_with("heroes"):
+				var ids: Array = HeroStore.CATALOG.keys()
+				var hi := int(row.trim_prefix("heroes")) * 7 + i
+				if hi >= ids.size():
+					r.queue_free()
+					continue
+				pr = {"body": "dl:" + String(ids[hi]), "natural": true, "scale": 1.0}
+				r.queue_free()
+				r = RealHuman.new().setup(pr, "Hero%d" % hi)
+				add_child(r)
+				r.global_position = Vector3(pp.x - 4.8 + i * 1.6, terrain.sample_height(pp.x - 4.8 + i * 1.6, pp.z), pp.z)
+				r.rotation.y = -PI * 0.5
+				r.set_process(false)
+				print("[capture] hero %s: skins %d mapped %d" % [ids[hi], r._skins.size(), (r._mc_bone[0] as Array).filter(func(e) -> bool: return e != null).size() if not r._mc_bone.is_empty() else 0])
 			if row == "swordwalk":
 				r.set_weapon("sword")
 			if row.begins_with("bow"):
@@ -2498,7 +2635,7 @@ func _run_capture_mocap(dir: String) -> void:
 				r._loco_idle_w = 1.0
 				r._loco_idle_t = float(i) * 0.7
 			else:
-				r._speed_smooth = 1.5 if row in ["walk", "villager", "swordwalk", "bowwalk", "brutewalk"] else (3.2 if row.begins_with("brute") else 6.5)
+				r._speed_smooth = 1.5 if row in ["walk", "villager", "swordwalk", "bowwalk", "brutewalk", "heroes0", "heroes1"] else (3.2 if row.begins_with("brute") else 6.5)
 				r._locomotion(0.0)
 				r._mocap_update(0.0)
 				r._loco_w = 1.0
@@ -4413,7 +4550,7 @@ func _selftest_mocap(fails: PackedStringArray) -> void:
 			r.start_attack()
 			for f in 6:
 				r.animate(1.0 / 60.0, 0.0, true)
-			if not r.clip_playing() or not String(r._clip).begins_with("ss_"):
+			if not r.clip_playing() or not RealHuman.melee_pool().has(String(r._clip)):
 				fails.append("mocap: a sword swing does not play a captured strike (%s)" % r._clip)
 			r.set_weapon("bow")
 			r.stop_clip(0.01)
@@ -5887,3 +6024,107 @@ func _run_capture(dir: String) -> void:
 	model.visible = true
 	get_tree().quit(0)
 
+
+
+## Injury and rescue (villagers are knocked out, not killed; the Vaidya heals them; striking them while down is
+## fatal), the death and melee clip pools, and the downloadable characters (fallback, mapping, download gate).
+func _selftest_rescue_heroes(fails: PackedStringArray, notes: PackedStringArray) -> void:
+	for d in RealHuman.DEATHS:
+		if not MocapLibrary.has_clip(d):
+			fails.append("death clip missing: " + d)
+	var pool := RealHuman.melee_pool()
+	if pool.size() < 8:
+		fails.append("melee pool too small (%d)" % pool.size())
+	notes.append("melee pool %d clips, %d death clips" % [pool.size(), RealHuman.DEATHS.size()])
+	if clinic == null or clinic.vaidya == null:
+		fails.append("Vaidya clinic not built")
+		return
+	# knocked out, not dead
+	var vic: Npc = null
+	for n in npcs:
+		if n != clinic.vaidya and not n.companion and n.role != "guard" and n.visible:
+			vic = n
+			break
+	if vic == null:
+		fails.append("no villager to test the rescue on")
+		return
+	_teleport(vic.global_position.x + 4.0, vic.global_position.z + 4.0)
+	await get_tree().physics_frame
+	vic.take_hit(999.0, Vector3(1, 0, 0))
+	if not vic.ko or vic.dead_forever:
+		fails.append("a beaten villager should be unconscious, not dead (ko %s dead %s)" % [vic.ko, vic.dead_forever])
+	vic.ko_t = Npc.RESCUE_DELAY
+	await get_tree().process_frame
+	await get_tree().process_frame
+	var rt := vic.rescue as RescueTeam
+	if rt == null:
+		fails.append("no stretcher team came after %d s" % int(Npc.RESCUE_DELAY))
+	else:
+		rt._hand_over()          # skip the walk
+	if not vic.in_care:
+		fails.append("the Vaidya did not take the patient")
+	for i in 30:
+		clinic._process(0.5)     # ten seconds of treatment, then getting up
+		if not vic.ko:
+			break
+	if vic.ko or vic.in_care:
+		fails.append("the Vaidya did not heal the patient (ko %s, in care %s)" % [vic.ko, vic.in_care])
+	# struck while unconscious: dies, and the failure screen offers the last mission
+	var vic2: Npc = null
+	for n in npcs:
+		if n != clinic.vaidya and n != vic and not n.companion and n.role != "guard" and n.visible:
+			vic2 = n
+			break
+	if vic2 != null:
+		vic2.knock_out(Vector3.FORWARD)
+		vic2.take_hit(5.0, Vector3.FORWARD)
+		var fs: Node = null
+		for c in get_children():
+			if c is FailScreen:
+				fs = c
+		if not vic2.dead_forever or fs == null:
+			fails.append("hitting an unconscious villager should kill them and show the failure screen")
+		if fs != null:
+			fs.queue_free()
+		get_tree().paused = false
+		vic2.dead_forever = false
+		vic2.healed()
+	# downloadable characters
+	var miss_m: Dictionary = {}
+	for m in MonsterMissions.MISSIONS:
+		if m["id"] == "m_vampire":
+			miss_m = m
+	if miss_m.is_empty():
+		fails.append("vampire mission missing")
+	elif not HeroStore.is_downloaded("vampire") and not MonsterMissions.missing_downloads(miss_m).has("vampire"):
+		fails.append("vampire mission does not ask for its download")
+	if CharacterMenu.missing().size() + _count_downloaded() != HeroStore.CATALOG.size():
+		fails.append("character menu download count wrong")
+	for id in HeroStore.CATALOG:
+		if HeroStore.portrait(id) == null:
+			fails.append("no portrait for " + id)
+		if int(HeroStore.CATALOG[id][2]) <= 0:
+			fails.append("no size for " + id)
+	var fb := RealHuman.new().setup({"body": "dl:not_a_character", "natural": true})
+	add_child(fb)
+	if fb._skins.is_empty():
+		fails.append("missing download did not fall back to the default body")
+	fb.queue_free()
+	var tried := 0
+	for id in HeroStore.CATALOG:
+		if HeroStore.is_downloaded(id):
+			var h := RealHuman.new().setup({"body": "dl:" + id, "natural": true})
+			add_child(h)
+			tried += 1
+			if h._skins.is_empty() or h._mc_bone.is_empty():
+				fails.append("downloaded character %s did not rig" % id)
+			h.queue_free()
+	notes.append("downloaded characters rig-checked: %d" % tried)
+
+
+func _count_downloaded() -> int:
+	var n := 0
+	for id in HeroStore.CATALOG:
+		if HeroStore.is_downloaded(id):
+			n += 1
+	return n

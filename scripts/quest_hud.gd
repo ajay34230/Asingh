@@ -34,6 +34,7 @@ func set_tracker_visible(on: bool) -> void:
 
 func _ready() -> void:
 	layer = 5
+	add_to_group("quest_hud")
 	var root := Control.new()
 	root.set_anchors_preset(Control.PRESET_FULL_RECT)
 	root.mouse_filter = Control.MOUSE_FILTER_IGNORE
