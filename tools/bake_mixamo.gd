@@ -13,6 +13,14 @@ const MAP := {
 	"LeftUpLeg": "thigh_l", "LeftLeg": "shin_l", "LeftFoot": "foot_l", "LeftToeBase": "toe_l",
 	"RightUpLeg": "thigh_r", "RightLeg": "shin_r", "RightFoot": "foot_r", "RightToeBase": "toe_r",
 }
+# Quaternius Universal Animation Library (CC0; Unreal-style names) -> our bone
+const UAL_MAP := {
+	"pelvis": "hips", "spine_01": "spine", "spine_02": "chest", "spine_03": "spine_03", "neck_01": "neck", "Head": "head",
+	"clavicle_l": "clavicle_l", "upperarm_l": "upper_arm_l", "lowerarm_l": "forearm_l", "hand_l": "hand_l",
+	"clavicle_r": "clavicle_r", "upperarm_r": "upper_arm_r", "lowerarm_r": "forearm_r", "hand_r": "hand_r",
+	"thigh_l": "thigh_l", "calf_l": "shin_l", "foot_l": "foot_l", "ball_l": "toe_l",
+	"thigh_r": "thigh_r", "calf_r": "shin_r", "foot_r": "foot_r", "ball_r": "toe_r",
+}
 const FINGERS := {"Thumb": "thumb", "Index": "index", "Middle": "middle", "Ring": "ring", "Pinky": "pinky"}
 # next bone along each chain, for lining up the rest directions
 var NEXT := {
@@ -44,11 +52,10 @@ func _init() -> void:
 	var lib := MocapLibrary.new()
 	var files: PackedStringArray = []
 	for f in DirAccess.get_files_at(SRC):
-		if f.ends_with(".fbx") and f != "X_Bot.fbx":
+		if (f.ends_with(".fbx") and f != "X_Bot.fbx") or (f.begins_with("UAL") and f.ends_with(".glb")):
 			files.append(f)
 	files.sort()
 	for f in files:
-		var name := f.get_basename()
 		var ps := load(SRC + f) as PackedScene
 		if ps == null:
 			print("[bake] cannot load ", f)
@@ -57,24 +64,65 @@ func _init() -> void:
 		root.add_child(inst)
 		var sk: Skeleton3D = inst.find_children("*", "Skeleton3D", true, false)[0]
 		var ap: AnimationPlayer = inst.find_children("*", "AnimationPlayer", true, false)[0]
-		var an := "mixamo_com"
-		if not ap.has_animation(an):
-			var best := 0.0
+		var ual := f.begins_with("UAL")
+		var src_idx := {}
+		if ual:
+			for ub in UAL_MAP:
+				var bi := sk.find_bone(ub)
+				if bi >= 0:
+					src_idx[UAL_MAP[ub]] = bi
+			for fg in FINGERS.values():
+				for side in ["l", "r"]:
+					for j in 3:
+						var nm := "%s_%02d_%s" % [fg, j + 1, side]
+						if sk.find_bone(nm) >= 0:
+							src_idx[nm] = sk.find_bone(nm)
+		else:
+			for mb in map:
+				var bi := sk.find_bone("mixamorig_" + mb)
+				if bi >= 0:
+					src_idx[map[mb]] = bi
+		# which animations: Mixamo files hold one (mixamo_com); the library holds many (all but the T-pose)
+		var takes: Array = []
+		if ual:
 			for a in ap.get_animation_list():
-				if ap.get_animation(a).length > best:
-					best = ap.get_animation(a).length
-					an = a
+				if a != "A_TPose" and a != "RESET":
+					takes.append([a, "ual_" + String(a).to_lower()])
+		else:
+			var an0 := "mixamo_com"
+			if not ap.has_animation(an0):
+				var best := 0.0
+				for a in ap.get_animation_list():
+					if ap.get_animation(a).length > best:
+						best = ap.get_animation(a).length
+						an0 = a
+			takes.append([an0, f.get_basename()])
+		# this skeleton's rest directions against the X Bot's (the library's reference), so its clips line up
+		var src_align := {}
+		for take in takes:
+			_bake_take(lib, sk, ap, src_idx, String(take[0]), String(take[1]), src_align, ual)
+		inst.queue_free()
+		await process_frame
+	DirAccess.make_dir_recursive_absolute("res://assets/anims")
+	var err := ResourceSaver.save(lib, OUT, ResourceSaver.FLAG_COMPRESS)
+	print("[bake] saved %d clips -> %s (err %d)" % [lib.clips.size(), OUT, err])
+	quit()
+
+
+func _bake_take(lib: MocapLibrary, sk: Skeleton3D, ap: AnimationPlayer, src_idx: Dictionary, an: String, name: String, src_align: Dictionary, ual: bool) -> void:
+	if true:
 		var anim := ap.get_animation(an)
 		var length := anim.length
 		var n := int(ceil(length * FPS)) + 1
-		var src_idx := {}
-		for mb in map:
-			var bi := sk.find_bone("mixamorig_" + mb)
-			if bi >= 0:
-				src_idx[map[mb]] = bi
 		var hips_i: int = src_idx["hips"]
 		var hip_h := sk.get_bone_global_rest(hips_i).origin.y
-		if lib.rest_dirs.is_empty():
+		if ual and src_align.is_empty():
+			for b in NEXT:
+				if src_idx.has(b) and src_idx.has(NEXT[b]) and lib.rest_dirs.has(b):
+					var du := (sk.get_bone_global_rest(src_idx[NEXT[b]]).origin - sk.get_bone_global_rest(src_idx[b]).origin).normalized()
+					src_align[b] = Basis(Quaternion(lib.rest_dirs[b] as Vector3, du))     # X Bot rest dir -> this rest dir
+			src_align["_"] = true
+		if not ual and lib.rest_dirs.is_empty():
 			for b in NEXT:
 				if src_idx.has(b) and src_idx.has(NEXT[b]):
 					lib.rest_dirs[b] = (sk.get_bone_global_rest(src_idx[NEXT[b]]).origin - sk.get_bone_global_rest(src_idx[b]).origin).normalized()
@@ -99,7 +147,10 @@ func _init() -> void:
 			ap.seek(t, true)
 			for b in src_idx:
 				var g := sk.get_bone_global_pose(src_idx[b]).basis.orthonormalized()
-				var q := (g * (rest[b] as Basis).inverse()).get_rotation_quaternion()
+				var dq := g * (rest[b] as Basis).inverse()
+				if src_align.has(b):
+					dq = dq * (src_align[b] as Basis)
+				var q := dq.get_rotation_quaternion()
 				var arr: PackedFloat32Array = bones[b]
 				arr[fi * 4] = q.x
 				arr[fi * 4 + 1] = q.y
@@ -118,6 +169,8 @@ func _init() -> void:
 		for w in LOOPS:
 			if name.contains(w):
 				loop = true
+		if ual:
+			loop = anim.loop_mode != Animation.LOOP_NONE or an.ends_with("_Loop")
 		# take the travel out of looping clips (the game moves the character); keep its speed
 		var travel := Vector3(hips[(n - 1) * 3] - hips[0], 0.0, hips[(n - 1) * 3 + 2] - hips[2])
 		var speed := 0.0
@@ -155,9 +208,3 @@ func _init() -> void:
 			ymin = minf(ymin, hips[fi * 3 + 1])
 		print("[bake] %-22s %5.2fs %3d frames loop %-5s travel %5.2f hh (%4.2f hh/s) hit %4.2fs hips low %5.2f end %5.2f" % [name, length, n, str(loop), travel.length(), speed, hit, ymin, hips[(n - 1) * 3 + 1]])
 		print("[bake]    phase0 %.2f  low_t %.2f" % [lib.clips[name]["phase0"], lib.clips[name]["low_t"]])
-		inst.queue_free()
-		await process_frame
-	DirAccess.make_dir_recursive_absolute("res://assets/anims")
-	var err := ResourceSaver.save(lib, OUT, ResourceSaver.FLAG_COMPRESS)
-	print("[bake] saved %d clips -> %s (err %d)" % [lib.clips.size(), OUT, err])
-	quit()

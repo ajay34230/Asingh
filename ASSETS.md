@@ -77,3 +77,9 @@ Credit: monsters and weapons by Quaternius, graveyard by Kenney (CC0; credit not
 | `assets/monsters/Zombie_Basic.gltf`, `Zombie_Arm.gltf`, `Zombie_Chubby.gltf` (animated) | Quaternius *Zombie Apocalypse Kit* (https://quaternius.com/packs/zombieapocalypsekit.html). Files from public GitHub repo `Edw11n/zombie-rush` (commit 7a901cc, `assets/Characters/glTF`), checked byte-identical (SHA-256) to the copies in `series-ai/jam-ready-assets` (`quaternius-zombie-apocalypse`), whose licence file (copied as `assets/monsters/LICENSE_Quaternius_ZombieApocalypse.txt`) states CC0 1.0 | CC0 1.0 |
 | `assets/monsters/Wolf.glb` (animated) | Quaternius *Ultimate Animated Animals*, from public GitHub repo `trebeljahr/quaternius-showcase` (commit 0128ca5, `public/glb/animals_pack`), same source as the other animals | CC0 1.0 |
 | `assets/monsters/Cobra.glb` (the *Snake_angry* model, tinted in game), `assets/monsters/Spider.glb` (animated) | Quaternius *Easy Enemies* pack, same repo (`public/glb/easy_enemies_pack`) | CC0 1.0 |
+
+## Universal Animation Library (Quaternius, CC0)
+
+| Asset | Source | Licence |
+|---|---|---|
+| 84 clips in `assets/anims/mocap.res` (names starting `ual_`: punches, sword combos, sword block, hit reactions, roll, dance, sitting, farming and more) | Quaternius *Universal Animation Library* 1 and 2 (https://quaternius.com/packs/universalanimationlibrary.html). `UAL1_Standard.glb` and `UAL2_Standard.glb` from public GitHub repo `washingtonquan13/combat_test` (commit d3a0237), checked byte-identical (SHA-256) to the copies in `series-ai/jam-ready-assets`, whose licence file (copied as `assets/anims/LICENSE_Quaternius_UAL.txt`) states CC0 1.0. Converted by `tools/bake_mixamo.gd`; the source files are not in the repo. | CC0 1.0 |

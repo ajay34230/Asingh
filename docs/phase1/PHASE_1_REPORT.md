@@ -932,3 +932,24 @@ A new `--capture-ghosthorse` capture shows it standing and galloping with the he
 **Riding:** the fastest mount (walk 3.8, gallop 14.5 m/s, against the horse's 3.4 and 12). It has the same measured seat, reins and saddle cloth as the other mounts.
 
 All new text is translated into Hindi.
+
+## Addendum: Captured fighting for the hero, the MOVES menu (2026-11-15)
+
+**The question:** Ajay asked why the hero had no fighting animation. Until now, captured strikes played only with a sword, dagger or axe. Punches, kicks, the hammer and the spear still used the code-made moves.
+
+**New CC0 clips:** the 84 clips of the Quaternius Universal Animation Library are transferred into the animation library (155 clips). The library's skeleton is a T-pose with the same orientation, and its bone names are mapped to ours. Sources and checks are in `ASSETS.md`.
+
+**Hero fighting:**
+- **Fists:** jab, cross and hook are captured punches, the front kick is captured, and the roll is the captured roll. Each clip's striking moment lands on the move's existing hit.
+- **Hammer and spear:** captured heavy swings.
+- **Blades:** the sword-and-shield slashes rotate with the library's sword strikes.
+- **Hit reactions:** the library's chest and head hits are added.
+
+**MOVES menu** (`MovesMenu`, opened from the new MOVES button or the N key):
+- every animation, 148 of them, in tabs: Fight, Sword, Bow, Creature, Life, Moves;
+- pistol and phone clips are left out as anachronisms;
+- tapping one plays it on the hero: the whole body when standing, arms and body when walking;
+- looping moves stop after 4 s or when you move off;
+- touches under the menu don't reach the game.
+
+**Checks:** the selftest passes. It verifies that a jab plays the captured punch, a hammer swing plays a captured strike, and every menu tab has moves. **Not tested on a device.**

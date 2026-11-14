@@ -1224,7 +1224,27 @@ func play_move(n: String) -> float:
 	_move_sent = false
 	move_rate = 1.0
 	move_hold = -1.0
+	_move_clip(n, lead)
 	return lead
+
+
+## Punches, the front kick and the roll as captured moves: the clip's striking moment lands on the move's hit
+## (the code's timing still decides the damage).
+const MOVE_CLIPS := {"jab": "ual_punch_jab", "cross": "ual_punch_cross", "hook": "ual_melee_hook", "uppercut": "ual_punch_cross",
+	"kick_front": "ss_kick", "roll": "ual_roll"}
+
+
+func _move_clip(n: String, lead: float) -> void:
+	if not MOVE_CLIPS.has(n) or react != "" or not MocapLibrary.has_clip(MOVE_CLIPS[n]):
+		return
+	var c: Dictionary = MocapLibrary.get_lib().clips[MOVE_CLIPS[n]]
+	if n == "roll":
+		play_clip(MOVE_CLIPS[n], 1.0, clampf(float(c["len"]) / 0.6, 1.0, 2.6), false, 0.0, 0.05)
+		return
+	var hit_at := float(MOVES[n][1]) + lead
+	var ch := float(c["hit"])
+	var rate := clampf(ch / maxf(hit_at, 0.05), 0.7, 2.2)
+	play_clip(MOVE_CLIPS[n], 1.0 - smoothstep(0.5, 2.0, _speed_smooth), rate, false, maxf(0.0, ch - hit_at * rate), 0.06)
 
 
 ## Boxing stance: fists up by the chin, lead hand forward, knees soft, a little bounce on the toes.
@@ -1387,7 +1407,7 @@ var _hit_kind := "body"
 var _hit_side := 1.0
 
 
-const IMPACTS := ["ss_impact", "ss_impact_2", "ss_impact_3"]
+const IMPACTS := ["ss_impact", "ual_hit_chest", "ss_impact_2", "ual_hit_head", "ss_impact_3"]
 
 
 func play_hit(kind: String = "body", side: float = 1.0) -> void:
@@ -1680,7 +1700,8 @@ func _react_pose() -> void:
 			_pose["head"] = Vector3(-0.8, 0, 0)
 
 
-const SLASHES := ["ss_slash", "ss_attack_4", "ss_slash_3", "ss_attack_2"]
+const SLASHES := ["ss_slash", "ual_sword_regular_a", "ss_attack_4", "ual_sword_regular_b", "ss_slash_3", "ual_sword_attack", "ss_attack_2"]
+const HEAVY_SWINGS := ["ual_sword_attack", "ual_sword_regular_c", "ss_attack_2", "ual_sword_regular_b"]      # hammer, spear
 var _slash_i := 0
 
 
@@ -1689,10 +1710,12 @@ func start_attack() -> void:
 		attack_t = 0.0
 		_attack_hit_sent = false
 		# with a blade, a captured sword strike: its fastest moment lands on the hit (0.34 s), legs only when standing
-		if (weapon in BLADES or clip_set == "brute") and react != "ride" and react != "drive":
+		if weapon != "fists" and weapon != "bow" and react != "ride" and react != "drive":
 			var lib := MocapLibrary.get_lib()
 			if lib != null:
-				var nm: String = SLASHES[_slash_i % SLASHES.size()] if clip_set != "brute" else "mutant_swiping"
+				var nm: String = (SLASHES if weapon in BLADES else HEAVY_SWINGS)[_slash_i % (SLASHES if weapon in BLADES else HEAVY_SWINGS).size()]
+				if clip_set == "brute":
+					nm = "mutant_swiping"
 				_slash_i += 1
 				if lib.clips.has(nm):
 					var hit := float(lib.clips[nm]["hit"])

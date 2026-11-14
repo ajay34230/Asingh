@@ -768,6 +768,48 @@ func weapons_owned() -> Array:
 	return out
 
 
+## An animation picked from the MOVES menu. Standing: the whole body; walking: arms and body only. Looping
+## ones play for a few seconds, or until you move off. Returns "" or why it can't play now.
+var _emote := ""
+var _emote_t := 0.0
+
+
+func play_emote(n: String) -> String:
+	if dead or locked:
+		return "Not now"
+	if mounted:
+		return "Get off first"
+	if _rig.move != "" or _rig.attack_t >= 0.0 or blocking:
+		return "Not while fighting"
+	var lib := MocapLibrary.get_lib()
+	if lib == null or not lib.clips.has(n):
+		return "Not available"
+	var standing := Vector2(velocity.x, velocity.z).length() < 0.6
+	if not _rig.play_clip(n, 1.0 if standing else 0.0, 1.0, false, 0.0, 0.15, false):
+		return "Not now"
+	_emote = n
+	_emote_t = minf(float(lib.clips[n]["len"]), 4.0) if bool(lib.clips[n]["loop"]) else float(lib.clips[n]["len"]) + 0.2
+	if bool(lib.clips[n]["loop"]):
+		_emote_t = 4.0
+	return ""
+
+
+func _tick_emote(delta: float) -> void:
+	if _emote == "":
+		return
+	_emote_t -= delta
+	var moving := move_input.length() > 0.25
+	if not _rig.clip_playing(_emote):
+		_emote = ""
+	elif _emote_t <= 0.0 or (moving and _rig._clip_lower > 0.5) or attack_requested_any():
+		_rig.stop_clip(0.2)
+		_emote = ""
+
+
+func attack_requested_any() -> bool:
+	return _rig.move != "" or _rig.attack_t >= 0.0 or blocking
+
+
 func set_weapon(id: String) -> void:
 	if _rig != null and _rig.weapon in RealHuman.BLADES and not id in RealHuman.BLADES and not mounted:
 		_rig.play_clip("sheath_sword_2", 0.0, 1.2, false, 0.0, 0.1)          # puts the blade away
@@ -1466,6 +1508,7 @@ func _try_step_up(horizontal: Vector3, delta: float) -> void:
 
 func _physics_process(delta: float) -> void:
 	_tick_combat(delta)
+	_tick_emote(delta)
 	if _climb_t >= 0.0:
 		_tick_climb(delta)
 		return

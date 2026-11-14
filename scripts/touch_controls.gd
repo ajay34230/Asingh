@@ -135,6 +135,14 @@ func _horse_visible() -> bool:
 	return player != null and not player.mounted and has_ride.is_valid() and bool(has_ride.call())
 
 
+func _moves_button_centre() -> Vector2:
+	return _corner(650.0, 110.0)
+
+
+func _moves_menu() -> MovesMenu:
+	return get_tree().get_first_node_in_group("moves_menu") as MovesMenu
+
+
 func _crouch_button_centre() -> Vector2:
 	return _corner(380.0, 95.0)
 
@@ -170,7 +178,13 @@ func _input(event: InputEvent) -> void:
 
 
 func _on_press(idx: int, pos: Vector2) -> void:
+	var mm := _moves_menu()
+	if mm != null and mm.visible:
+		return                                      # the MOVES menu has the screen
 	if pos.y < 90.0 and pos.x > _vp.x - 350.0:      # Map / Pause / Journal buttons live here
+		return
+	if mm != null and player != null and not player.mounted and pos.distance_to(_moves_button_centre()) < 46.0 * btn_scale:
+		mm.toggle()
 		return
 	if pos.y < 330.0 and pos.x > _vp.x - 250.0:     # minimap
 		return
@@ -346,6 +360,8 @@ func _draw() -> void:
 		_draw_button(font, _block_button_centre(), 44.0 * btn_scale, "BLOCK", _block_id != -1)
 		_draw_button(font, _roll_button_centre(), 44.0 * btn_scale, "ROLL", _roll_id != -1)
 		_draw_button(font, _weapon_button_centre(), 40.0 * btn_scale, player.weapon.to_upper() if player != null else "FISTS", false)
+		if _moves_menu() != null:
+			_draw_button(font, _moves_button_centre(), 40.0 * btn_scale, Loc.t("MOVES"), _moves_menu().visible)
 		if _horse_visible():
 			_draw_button(font, _horse_button_centre(), 38.0 * btn_scale, Loc.t("HORSE"), mounts_called())
 

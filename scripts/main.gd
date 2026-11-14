@@ -137,6 +137,8 @@ func _ready() -> void:
 			_run_capture_pickups.call_deferred(a.trim_prefix("--capture-pickups="))
 		if a.begins_with("--capture-fight="):
 			_run_capture_fight.call_deferred(a.trim_prefix("--capture-fight="))
+		elif a.begins_with("--capture-movesmenu="):
+			_run_capture_movesmenu.call_deferred(a.trim_prefix("--capture-movesmenu="))
 		elif a.begins_with("--capture-ghosthorse="):
 			_run_capture_ghosthorse.call_deferred(a.trim_prefix("--capture-ghosthorse="))
 		elif a.begins_with("--capture-beasts="):
@@ -904,6 +906,10 @@ func _build_ui() -> void:
 	touch = TouchControls.new()
 	touch.player = player
 	layer.add_child(touch)
+	var moves := MovesMenu.new()
+	moves.name = "MovesMenu"
+	moves.player = player
+	add_child(moves)
 
 
 func _build_story() -> void:
@@ -2383,6 +2389,27 @@ func _run_capture_ghosthorse(dir: String) -> void:
 	cam.look_at(ap + Vector3(0, 1.3, 0))
 	await RenderingServer.frame_post_draw
 	print("[capture] ghosthorse ride -> ", get_viewport().get_texture().get_image().save_png("%s/ghosthorse_ride.png" % dir))
+	get_tree().quit()
+
+
+## The MOVES menu open on its first tab (a picture for checking the layout).
+func _run_capture_movesmenu(dir: String) -> void:
+	DirAccess.make_dir_recursive_absolute(dir)
+	for c in get_children():
+		if c is TitleScreen:
+			c.queue_free()
+	await get_tree().process_frame
+	var mm := get_node("MovesMenu") as MovesMenu
+	for t in (OS.get_environment("TABS") if OS.get_environment("TABS") != "" else "Fight,Life").split(","):
+		mm.visible = false
+		mm._tab = t
+		mm.toggle()
+		for i in 6:
+			await get_tree().process_frame
+		await RenderingServer.frame_post_draw
+		print("[capture] movesmenu ", t, " -> ", get_viewport().get_texture().get_image().save_png("%s/menu_%s.png" % [dir, t]))
+	for t in MovesMenu.TABS:
+		print("[capture] tab %s: %d moves" % [t, MovesMenu.entries(t).size()])
 	get_tree().quit()
 
 
@@ -4426,6 +4453,37 @@ func _selftest_mocap(fails: PackedStringArray) -> void:
 	if st._loco_set()[0] != "mutant_walking" or st._loco_w < 0.9:
 		fails.append("mocap: a brute does not walk with the creature's moves")
 	st.queue_free()
+	# punches and weapon swings use captured moves; the MOVES menu offers everything and plays it
+	var fr := RealHuman.new().setup(player._rig.preset.duplicate(), "McFight")
+	add_child(fr)
+	fr.global_position = at
+	fr.set_process(false)
+	await get_tree().process_frame
+	fr._mc_check = 99.0
+	fr._mc_near = true
+	fr.play_move("jab")
+	if fr._clip != "ual_punch_jab":
+		fails.append("mocap: a jab does not play the captured punch (%s)" % fr._clip)
+	fr.move = ""
+	fr.stop_clip(0.01)
+	fr.animate(0.05, 0.0, true)
+	fr.set_weapon("hammer")
+	fr.attack_t = -1.0
+	fr.start_attack()
+	if not String(fr._clip).begins_with("ual_sword") and not String(fr._clip).begins_with("ss_"):
+		fails.append("mocap: a hammer swing does not play a captured strike (%s)" % fr._clip)
+	fr.queue_free()
+	var total := 0
+	for t in MovesMenu.TABS:
+		var nt := MovesMenu.entries(t).size()
+		total += nt
+		if nt == 0:
+			fails.append("mocap: the MOVES menu tab %s is empty" % t)
+	if total < 100:
+		fails.append("mocap: the MOVES menu offers only %d moves" % total)
+	if get_node_or_null("MovesMenu") == null:
+		fails.append("mocap: no MOVES menu in the game")
+	print("[selftest] mocap: MOVES menu offers %d moves" % total)
 	var foe := Enemy.new().setup(player._rig.preset.duplicate(), at + Vector3(0, 0, 40), "McArcher")
 	foe.player = player
 	add_child(foe)
