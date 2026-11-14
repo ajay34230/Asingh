@@ -1,0 +1,86 @@
+{
+ "akai": {
+  "glb": "akai.glb",
+  "png": "akai.png",
+  "bytes": 1544264,
+  "sha256": "093a4e86b41cec43a38795835b086e81e1ffcd339adb2fb46fda110873f0471f"
+ },
+ "ch14": {
+  "glb": "ch14.glb",
+  "png": "ch14.png",
+  "bytes": 2012484,
+  "sha256": "7e592730109e136c552890f811753e2d18067a7781179190c2ae1d91e99ca10a"
+ },
+ "ch22": {
+  "glb": "ch22.glb",
+  "png": "ch22.png",
+  "bytes": 5679496,
+  "sha256": "7892ece0291cd67fb647a59e6fac12dfa0e2ffcc38533e027ac1d297725078ac"
+ },
+ "ch39": {
+  "glb": "ch39.glb",
+  "png": "ch39.png",
+  "bytes": 3598340,
+  "sha256": "c506ef8fee8318d3cb0c364bbb44595735da9a0495c2335f4e8eecbe3f9e3a33"
+ },
+ "ch43": {
+  "glb": "ch43.glb",
+  "png": "ch43.png",
+  "bytes": 4005728,
+  "sha256": "13e9c6dd975e557580e971e262ff45099765d2214f0abe5b5345b3b0da103f94"
+ },
+ "demon": {
+  "glb": "demon.glb",
+  "png": "demon.png",
+  "bytes": 3779464,
+  "sha256": "efc9526e9538e435b6fd540d3556aec3642c6c5cdeb366d6594755eb7ba91dab"
+ },
+ "girl_scout": {
+  "glb": "girl_scout.glb",
+  "png": "girl_scout.png",
+  "bytes": 5302096,
+  "sha256": "df8987d4a8923cd8e17f2782116fb311ae4abda8d7bcdb3eafd81367072f96c3"
+ },
+ "medea": {
+  "glb": "medea.glb",
+  "png": "medea.png",
+  "bytes": 3456112,
+  "sha256": "63fbb441872c4c7984199dd16eef2fa88f35a37c90113a4d8c2431f30192adc6"
+ },
+ "nightshade": {
+  "glb": "nightshade.glb",
+  "png": "nightshade.png",
+  "bytes": 2912164,
+  "sha256": "8e2441ec046d6bced430a2c71fa01bbb44f4acf8b3dfc5cbe85a9cb467cec253"
+ },
+ "peasant_girl": {
+  "glb": "peasant_girl.glb",
+  "png": "peasant_girl.png",
+  "bytes": 2748860,
+  "sha256": "7bf36e5b305a9d83f3460147bcb315d290492798099817cb73e88b43c00226b9"
+ },
+ "peasant_man": {
+  "glb": "peasant_man.glb",
+  "png": "peasant_man.png",
+  "bytes": 2402092,
+  "sha256": "ea44131904939a4b8286c5e6ce433bae61a1c79714694d50f5571d264134bf89"
+ },
+ "prisoner": {
+  "glb": "prisoner.glb",
+  "png": "prisoner.png",
+  "bytes": 2403532,
+  "sha256": "547a77ab4358387b2d8cffec55690956dbbb7652eace849e8847ffe082325d66"
+ },
+ "remy": {
+  "glb": "remy.glb",
+  "png": "remy.png",
+  "bytes": 4508980,
+  "sha256": "7a82c95a1f08a70675cf5f36c2136691ba94cc462dba17cb33818b699c33a99f"
+ },
+ "vampire": {
+  "glb": "vampire.glb",
+  "png": "vampire.png",
+  "bytes": 3892964,
+  "sha256": "c83ef5e726bf98c7d7ffecf04d1ad4078ed47e1cfff13be12841ff9e13e84df7"
+ }
+}
