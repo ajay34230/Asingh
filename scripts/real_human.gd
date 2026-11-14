@@ -155,6 +155,22 @@ func _register(sk: Skeleton3D) -> void:
 			a *= 0.93
 		rot[side] = a
 	_arm_rot.append(rot)
+	_mc_register(sk, fb, map == BONES_MOD)
+	# a second skeleton that is the first one's bones (the tunic over the body, often without fingers) just copies
+	# their poses each frame, by name, instead of working everything out again
+	var link := PackedInt32Array()
+	if _skins.size() > 1 and (_frame[0] as Basis).is_equal_approx(fb):
+		var s0: Skeleton3D = _skins[0]
+		for i in sk.get_bone_count():
+			var j := s0.find_bone(sk.get_bone_name(i))
+			var pi := sk.get_bone_parent(i)
+			var pj := s0.get_bone_parent(j) if j >= 0 else -1
+			if j < 0 or not s0.get_bone_rest(j).is_equal_approx(sk.get_bone_rest(i)) \
+					or (pi >= 0) != (pj >= 0) or (pi >= 0 and sk.get_bone_name(pi) != s0.get_bone_name(pj)):
+				link = PackedInt32Array()
+				break
+			link.append(j)
+	_copy0.append(link)
 
 
 ## Scale to the preset height and stand on y = 0.
@@ -538,9 +554,295 @@ static func _delta(r: Vector3) -> Basis:
 	return Basis(Vector3.UP, r.y) * Basis(Vector3.BACK, r.z) * Basis(Vector3.RIGHT, -r.x)
 
 
+# --- motion-captured clips (MocapLibrary) --------------------------------------------------------
+# Two layers over the code-made pose: locomotion (walk / run, or the sword-and-shield set with a blade), and one
+# action clip at a time (sword strikes, hit reactions, deaths, a landing, a block). Each bone gets the clip's
+# model-space rotation from the T-pose, lined up with this character's own rest pose; bones a clip has no
+# data for follow their parent. Only characters near the camera play clips (they cost more).
+const BLADES := ["sword", "dagger", "axe"]
+const MOD_NAMES := {
+	"hips": "Hips", "spine": "Abdomen", "chest": "Torso", "spine_03": "Chest", "neck": "Neck", "head": "Head",
+	"clavicle_l": "Shoulder.L", "upper_arm_l": "UpperArm.L", "forearm_l": "LowerArm.L", "hand_l": "Hand.L",
+	"clavicle_r": "Shoulder.R", "upper_arm_r": "UpperArm.R", "forearm_r": "LowerArm.R", "hand_r": "Hand.R",
+	"thigh_l": "UpperLeg.L", "shin_l": "LowerLeg.L", "foot_l": "Foot.L",
+	"thigh_r": "UpperLeg.R", "shin_r": "LowerLeg.R", "foot_r": "Foot.R",
+	"index_01_l": "Index2.L", "index_02_l": "Index3.L", "index_03_l": "Index4.L",
+	"middle_01_l": "Middle2.L", "middle_02_l": "Middle3.L", "middle_03_l": "Middle4.L",
+	"ring_01_l": "Ring2.L", "ring_02_l": "Ring3.L", "ring_03_l": "Ring4.L",
+	"pinky_01_l": "Pinky2.L", "pinky_02_l": "Pinky3.L", "pinky_03_l": "Pinky4.L",
+	"thumb_02_l": "Thumb2.L", "thumb_03_l": "Thumb3.L",
+	"index_01_r": "Index2.R", "index_02_r": "Index3.R", "index_03_r": "Index4.R",
+	"middle_01_r": "Middle2.R", "middle_02_r": "Middle3.R", "middle_03_r": "Middle4.R",
+	"ring_01_r": "Ring2.R", "ring_02_r": "Ring3.R", "ring_03_r": "Ring4.R",
+	"pinky_01_r": "Pinky2.R", "pinky_02_r": "Pinky3.R", "pinky_03_r": "Pinky4.R",
+	"thumb_02_r": "Thumb2.R", "thumb_03_r": "Thumb3.R",
+}
+const MC_NEXT := {
+	"spine": "chest", "chest": "spine_03", "spine_03": "neck", "neck": "head",
+	"clavicle_l": "upper_arm_l", "upper_arm_l": "forearm_l", "forearm_l": "hand_l", "hand_l": "middle_01_l",
+	"clavicle_r": "upper_arm_r", "upper_arm_r": "forearm_r", "forearm_r": "hand_r", "hand_r": "middle_01_r",
+	"thigh_l": "shin_l", "shin_l": "foot_l", "foot_l": "toe_l",
+	"thigh_r": "shin_r", "shin_r": "foot_r", "foot_r": "toe_r",
+}
+enum { MC_LOWER, MC_UPPER, MC_HEAD, MC_FINGER }
+var mocap_on := true               # false: always the code-made animation
+static var mocap_all := true       # diagnostics: switch captured animation off everywhere
+var _mc_bone: Array = []           # per skin: Array (by bone index) of [our name, align Basis (model space)] or null
+var _mc_region: Array = []         # per skin: PackedInt32Array region per bone (from the nearest mapped ancestor)
+var _mc_hiph: Array = []           # per skin: hips rest height (model units)
+var _mc_near := true
+var _mc_fingers := true
+var _mc_check := 0.0
+var _loco_w := 0.0                 # weight of the mocap locomotion layer
+var _loco_u := 0.0                 # stride phase 0..1
+var _loco_b := 0.0                 # 0 walk .. 1 run
+var _loco_idle_t := 0.0
+var _loco_idle_w := 0.0            # the sword-and-shield idle (blade drawn, in a fight, standing)
+var _clip := ""                    # the action clip playing
+var _clip_t := 0.0
+var _clip_rate := 1.0
+var _clip_w := 0.0
+var _clip_fade := 0.12
+var _clip_hold := false            # stays on the last frame (deaths)
+var _clip_lower := 1.0             # how much it drives the legs and hips
+var _clip_stop := false
+var _clip_keep_travel := false
+var _prev := {}                    # the clip being faded out when another starts
+var _mc_q: Dictionary = {}         # scratch: bone -> Quaternion
+var _copy0: Array = []             # per skin: its bones' matching bone in skin 0 (empty: work it out itself)
+
+
+func _mc_register(sk: Skeleton3D, fb: Basis, mod: bool) -> void:
+	var lib := MocapLibrary.get_lib()
+	var n := sk.get_bone_count()
+	var by_index: Array = []
+	by_index.resize(n)
+	var region := PackedInt32Array()
+	region.resize(n)
+	var fbo := fb.orthonormalized()
+	if lib != null:
+		var some: Dictionary = lib.clips.values()[0]["bones"] if not lib.clips.is_empty() else {}
+		for ours in some:
+			var bn: String = (MOD_NAMES.get(ours, "") if mod else ours)
+			var bi := sk.find_bone(bn) if bn != "" else -1
+			if bi < 0 and mod and ours.begins_with("hand_"):
+				bi = sk.find_bone(bn.replace("Hand.", "Palm."))
+			if bi < 0:
+				continue
+			var align := Basis.IDENTITY
+			if lib.rest_dirs.has(ours) and MC_NEXT.has(ours):
+				var nx: String = MC_NEXT[ours]
+				var nb := sk.find_bone(MOD_NAMES.get(nx, "") if mod else nx)
+				if nb >= 0:
+					var dt := (fbo * (sk.get_bone_global_rest(nb).origin - sk.get_bone_global_rest(bi).origin)).normalized()
+					var dx: Vector3 = lib.rest_dirs[ours]
+					if dt.length() > 0.5 and dt.dot(dx) > -0.99:
+						align = Basis(Quaternion(dt, dx))
+			by_index[bi] = [ours, align, not align.is_equal_approx(Basis.IDENTITY)]
+	for i in n:
+		var e: Variant = by_index[i]
+		var r := MC_UPPER
+		if e != null:
+			var nm: String = (e as Array)[0]
+			if nm == "hips" or nm.begins_with("thigh") or nm.begins_with("shin") or nm.begins_with("foot") or nm.begins_with("toe"):
+				r = MC_LOWER
+			elif nm == "neck" or nm == "head":
+				r = MC_HEAD
+			elif nm.contains("_0"):
+				r = MC_FINGER
+		else:
+			var p := sk.get_bone_parent(i)
+			r = region[p] if p >= 0 else MC_LOWER
+		region[i] = r
+	_mc_bone.append(by_index)
+	_mc_region.append(region)
+	var hp: int = sk.find_bone("Hips" if mod else "hips")
+	_mc_hiph.append((fb * sk.get_bone_global_rest(hp).origin).y if hp >= 0 else 1.0)
+
+
+## Play an action clip. lower: how much it drives the legs (0 = upper body only), rate: playback speed,
+## hold: stay on the last frame, start: seconds into the clip. Returns false when it cannot play here.
+func play_clip(n: String, lower: float = 1.0, rate: float = 1.0, hold: bool = false, start: float = 0.0, fade: float = 0.12, keep_travel: bool = false) -> bool:
+	if not mocap_on or not _mc_near or _mc_bone.is_empty() or not MocapLibrary.has_clip(n):
+		return false
+	if _clip != "" and _clip_w > 0.05:
+		_prev = {"n": _clip, "t": _clip_t, "rate": _clip_rate, "w": _clip_w, "lower": _clip_lower, "hold": _clip_hold, "travel": _clip_keep_travel}
+	_clip = n
+	_clip_t = start
+	_clip_rate = rate
+	_clip_hold = hold
+	_clip_lower = lower
+	_clip_fade = maxf(fade, 0.01)
+	_clip_stop = false
+	_clip_keep_travel = keep_travel
+	_clip_w = 0.0 if _prev.is_empty() else _clip_w
+	return true
+
+
+func stop_clip(fade: float = 0.2) -> void:
+	if _clip != "":
+		_clip_stop = true
+		_clip_fade = maxf(fade, 0.01)
+
+
+func clip_playing(n: String = "") -> bool:
+	return _clip != "" and not _clip_stop and (n == "" or _clip == n)
+
+
+## The current action clip's time in seconds (or -1).
+func clip_time() -> float:
+	return _clip_t if _clip != "" else -1.0
+
+
+func _mocap_update(delta: float) -> void:
+	var lib := MocapLibrary.get_lib()
+	if lib == null or _mc_bone.is_empty() or not mocap_on or not mocap_all:
+		_loco_w = 0.0
+		_clip = ""
+		_clip_w = 0.0
+		_prev = {}
+		return
+	_mc_check -= delta
+	if _mc_check <= 0.0:
+		_mc_check = 0.3 + randf() * 0.15
+		var cam := get_viewport().get_camera_3d() if is_inside_tree() else null
+		var d := cam.global_position.distance_to(global_position) if cam != null else 0.0
+		var low := int(GameSettings.v.get("quality", 0)) >= 2
+		_mc_near = d < (18.0 if low else 28.0)
+		_mc_fingers = d < (5.0 if low else 8.0)
+	# locomotion
+	var blade := weapon in BLADES
+	var sword_idle := blade and guard and _speed_smooth < 0.6
+	var want := 0.0
+	if _mc_near and mode == "locomotion" and (react == "" or react == "block") and climb_kind == "" and photo_pose.is_empty() and jump_prep <= 0.0:
+		want = smoothstep(0.12, 0.45, _speed_smooth) * (1.0 - smoothstep(0.15, 0.5, _air))
+		if sword_idle and _air < 0.1:
+			want = 1.0
+	_loco_w = move_toward(_loco_w, want, delta * 6.0)
+	_loco_idle_w = move_toward(_loco_idle_w, 1.0 if sword_idle else 0.0, delta * 4.0)
+	_loco_idle_t += delta
+	var cw: Dictionary = lib.clips.get("ss_walk" if blade else "walk", {})
+	var cr: Dictionary = lib.clips.get("ss_run" if blade else "run_fast", {})
+	if not cw.is_empty() and not cr.is_empty():
+		var hh := _mc_hip_m()
+		var vw := float(cw["speed"]) * hh
+		var vr := float(cr["speed"]) * hh
+		_loco_b = clampf((_speed_smooth - vw) / maxf(vr - vw, 0.1), 0.0, 1.0)
+		var v_nat := lerpf(vw, vr, _loco_b)
+		var freq := lerpf(1.0 / float(cw["len"]), 1.0 / float(cr["len"]), _loco_b) * clampf(_speed_smooth / maxf(v_nat, 0.1), 0.55, 1.6)
+		_loco_u = fposmod(_loco_u + freq * delta, 1.0)
+	# action clip
+	if _clip != "":
+		var c: Dictionary = lib.clips[_clip]
+		var ln := float(c["len"])
+		_clip_t += delta * _clip_rate
+		if bool(c["loop"]):
+			_clip_t = fposmod(_clip_t, ln)
+		elif _clip_t >= ln:
+			_clip_t = ln
+			if not _clip_hold:
+				_clip_stop = true
+		var remaining := (ln - _clip_t) / maxf(_clip_rate, 0.01) if not bool(c["loop"]) and not _clip_hold else 99.0
+		var target := 0.0 if _clip_stop or remaining < _clip_fade * 0.5 else 1.0
+		_clip_w = move_toward(_clip_w, target, delta / _clip_fade)
+		if _clip_stop and _clip_w <= 0.0:
+			_clip = ""
+	if not _prev.is_empty():
+		var pc: Dictionary = lib.clips[_prev["n"]]
+		_prev["t"] = minf(float(_prev["t"]) + delta * float(_prev["rate"]), float(pc["len"])) if not bool(pc["loop"]) else fposmod(float(_prev["t"]) + delta * float(_prev["rate"]), float(pc["len"]))
+		_prev["w"] = float(_prev["w"]) - delta / _clip_fade
+		if float(_prev["w"]) <= 0.0:
+			_prev = {}
+
+
+func _mc_hip_m() -> float:
+	return float(_mc_hiph[0]) * _inner.scale.y if not _mc_hiph.is_empty() else 0.95
+
+
+## Sample a clip at time t into out (bone -> Quaternion), blending with what is there by w. Returns the hips offset.
+func _mc_sample(c: Dictionary, t: float, out: Dictionary, w: float, hips_in: Vector3, keep_travel: bool = true) -> Vector3:
+	var n := int(c["n"])
+	var ln := float(c["len"])
+	var loop := bool(c["loop"])
+	var f := clampf(t, 0.0, ln) * float(c["fps"])
+	var i0 := int(floor(f))
+	var a := f - i0
+	var i1 := i0 + 1
+	if i1 >= n:
+		i1 = 1 if loop else n - 1
+	i0 = mini(i0, n - 1)
+	var bones: Dictionary = c["bones"]
+	for b in bones:
+		if not _mc_fingers and b.contains("_0"):
+			continue
+		var arr: PackedFloat32Array = bones[b]
+		var q0 := Quaternion(arr[i0 * 4], arr[i0 * 4 + 1], arr[i0 * 4 + 2], arr[i0 * 4 + 3])
+		var q1 := Quaternion(arr[i1 * 4], arr[i1 * 4 + 1], arr[i1 * 4 + 2], arr[i1 * 4 + 3])
+		var q := q0.slerp(q1, a)
+		if w >= 0.999 or not out.has(b):
+			out[b] = q
+		else:
+			out[b] = (out[b] as Quaternion).slerp(q, w)
+	var hp: PackedFloat32Array = c["hips"]
+	var h := Vector3(hp[i0 * 3], hp[i0 * 3 + 1], hp[i0 * 3 + 2]).lerp(Vector3(hp[i1 * 3], hp[i1 * 3 + 1], hp[i1 * 3 + 2]), a)
+	if not keep_travel and not loop:
+		# the character controller does the travelling: take the clip's own drift out
+		var e := Vector3(hp[(n - 1) * 3], 0.0, hp[(n - 1) * 3 + 2]) - Vector3(hp[0], 0.0, hp[2])
+		h -= e * clampf(t / maxf(ln, 0.01), 0.0, 1.0)
+	return h if w >= 0.999 else hips_in.lerp(h, w)
+
+
+## The layers to blend this frame: [quaternions, hips offset (hip-heights), w lower, w upper, w head, w fingers].
+func _mc_layers() -> Array:
+	var lib := MocapLibrary.get_lib()
+	var out: Array = []
+	if lib == null or _mc_bone.is_empty():
+		return out
+	if _loco_w > 0.001:
+		var blade := weapon in BLADES
+		var q := {}
+		var h := Vector3.ZERO
+		var cw: Dictionary = lib.clips.get("ss_walk" if blade else "walk", {})
+		var cr: Dictionary = lib.clips.get("ss_run" if blade else "run_fast", {})
+		if not cw.is_empty():
+			h = _mc_sample(cw, fposmod(_loco_u + float(cw["phase0"]), 1.0) * float(cw["len"]), q, 1.0, h)
+			if _loco_b > 0.001 and not cr.is_empty():
+				h = _mc_sample(cr, fposmod(_loco_u + float(cr["phase0"]), 1.0) * float(cr["len"]), q, _loco_b, h)
+		if _loco_idle_w > 0.001 and lib.clips.has("ss_idle"):
+			var ci: Dictionary = lib.clips["ss_idle"]
+			h = _mc_sample(ci, fposmod(_loco_idle_t, float(ci["len"])), q, _loco_idle_w, h)
+		# the arms and body stay the code's while it does something with them (punches, the bow, a gesture...)
+		var busy_up := move != "" or attack_t >= 0.0 or action != "" or (guard and not blade) or react == "block"
+		var busy_low := (move != "" and move != "bow_shot") or (guard and not blade and _speed_smooth < 2.5) or react == "block"
+		var land := clampf(_land_t / 0.42, 0.0, 1.0) * _land_k
+		var wl := _loco_w * (0.0 if busy_low else 1.0) * (1.0 - land) * (1.0 - crouch)
+		var wu := _loco_w * (0.0 if busy_up else 1.0)
+		out.append([q, h, wl, wu, 0.0, wu if _mc_fingers else 0.0])
+	for layer in [_prev, {"n": _clip, "t": _clip_t, "w": _clip_w, "lower": _clip_lower, "travel": _clip_keep_travel}]:
+		if (layer as Dictionary).is_empty() or String(layer["n"]) == "" or float(layer["w"]) <= 0.001:
+			continue
+		var c: Dictionary = lib.clips[layer["n"]]
+		var q2 := {}
+		var h2 := _mc_sample(c, float(layer["t"]), q2, 1.0, Vector3.ZERO, bool(layer.get("travel", false)))
+		var w := clampf(float(layer["w"]), 0.0, 1.0)
+		out.append([q2, h2, w * float(layer["lower"]), w, w, w if _mc_fingers else 0.0])
+	return out
+
+
 func _apply() -> void:
+	var layers := _mc_layers()
 	for si in _skins.size():
 		var sk := _skins[si]
+		if si > 0 and si < _copy0.size() and not (_copy0[si] as PackedInt32Array).is_empty():
+			var s0 := _skins[0]
+			var link: PackedInt32Array = _copy0[si]
+			for i in link.size():
+				sk.set_bone_pose_rotation(i, s0.get_bone_pose_rotation(link[i]))
+			var h0: int = _bone_idx[0]["hips"]
+			var h1: int = _bone_idx[si]["hips"]
+			if h0 >= 0 and h1 >= 0:
+				sk.set_bone_pose_position(h1, s0.get_bone_pose_position(h0))
+			continue
 		var idx: Dictionary = _bone_idx[si]
 		var rg: Array = _rest_g[si]
 		var n := sk.get_bone_count()
@@ -574,6 +876,42 @@ func _apply() -> void:
 				# express the elbow hinge in the lowered arm's frame, or the bend becomes a twist along the forearm
 				o = par.inverse() * o * par
 			dtot[i] = par * o
+		var hips_off := Vector3(0, _hips_dy / maxf(_inner.scale.y, 0.01), 0)
+		var finger_w := 0.0
+		if not layers.is_empty() and si < _mc_bone.size():
+			var fn2: Basis = (_frame[si] as Basis).orthonormalized()
+			var conj := not fn2.is_equal_approx(Basis.IDENTITY)
+			var fni := fn2.inverse()
+			var mb: Array = _mc_bone[si]
+			var reg: PackedInt32Array = _mc_region[si]
+			var dl: Array = []
+			dl.resize(n)
+			for layer in layers:
+				var q: Dictionary = layer[0]
+				var wr := PackedFloat32Array([float(layer[2]), float(layer[3]), float(layer[4]), float(layer[5])])
+				for i in n:
+					var w: float = wr[reg[i]]
+					var e: Variant = mb[i]
+					var d: Basis
+					if e != null and q.has(e[0]):
+						d = Basis(q[e[0]])
+						if e[2]:
+							d = d * (e[1] as Basis)
+						if conj:
+							d = fni * d * fn2
+					elif w <= 0.001:
+						dl[i] = dtot[i]              # not blended: its children follow the code's pose
+						continue
+					else:
+						var p := sk.get_bone_parent(i)
+						d = (dl[p] as Basis) if p >= 0 else Basis.IDENTITY
+					dl[i] = d
+					if w >= 0.999:
+						dtot[i] = d
+					elif w > 0.001:
+						dtot[i] = (dtot[i] as Basis).slerp(d, w)
+				hips_off = hips_off.lerp((layer[1] as Vector3) * float(_mc_hiph[si]), float(layer[2]))
+				finger_w = maxf(finger_w, float(layer[5]))
 		for i in n:
 			var p := sk.get_bone_parent(i)
 			var b_i: Basis = (dtot[i] as Basis) * (rg[i] as Basis)
@@ -588,11 +926,11 @@ func _apply() -> void:
 		if si < _fingers.size():
 			for f in _fingers[si]:
 				var fi: int = f[0]
-				var ang := fist * fist_sign * (0.45 if bool(f[1]) else 1.1)
+				var ang := fist * (1.0 - finger_w) * fist_sign * (0.45 if bool(f[1]) else 1.1)
 				var q := sk.get_bone_pose_rotation(fi) * Quaternion(fist_axis, ang)
 				sk.set_bone_pose_rotation(fi, q)
 		if idx["hips"] >= 0:
-			var off: Vector3 = (_frame[si] as Basis).inverse() * Vector3(0, _hips_dy / maxf(_inner.scale.y, 0.01), 0)
+			var off: Vector3 = (_frame[si] as Basis).inverse() * hips_off
 			var hp: int = idx["hips"]
 			var pp := sk.get_bone_parent(hp)
 			var pb: Basis = (rg[pp] as Basis) if pp >= 0 else Basis.IDENTITY
@@ -646,7 +984,7 @@ func animate(delta: float, speed: float, grounded: bool) -> void:
 			attack_hit.emit()
 		if attack_t > 0.75:
 			attack_t = -1.0
-	if guard and move == "" and react == "" and _speed_smooth < 2.5 and _air < 0.1 and climb_kind == "":
+	if guard and move == "" and react == "" and _speed_smooth < 2.5 and _air < 0.1 and climb_kind == "" and not (weapon in BLADES and _loco_w > 0.5):
 		_guard_pose()
 	if climb_kind != "":
 		_climb_pose()
@@ -663,6 +1001,7 @@ func animate(delta: float, speed: float, grounded: bool) -> void:
 				_pose[k] = photo_pose[k]
 			else:
 				_pz(k, photo_pose[k])
+	_mocap_update(delta)
 	_apply()
 	if weapon == "bow":
 		_archery()
@@ -1021,10 +1360,16 @@ var _hit_kind := "body"
 var _hit_side := 1.0
 
 
+const IMPACTS := ["ss_impact", "ss_impact_2", "ss_impact_3"]
+
+
 func play_hit(kind: String = "body", side: float = 1.0) -> void:
 	hit_t = 0.0
 	_hit_kind = kind
 	_hit_side = 1.0 if side >= 0.0 else -1.0
+	# a captured hit reaction (the code-made flinch stays layered on top); not in the saddle or once dead
+	if react == "" and move == "" and not clip_playing("ss_death") and not clip_playing("ss_death_2") and not clip_playing("dying"):
+		play_clip(IMPACTS[randi() % IMPACTS.size()], 0.55, 1.15, false, 0.0, 0.08)
 
 
 func _hit_overlay(delta: float) -> void:
@@ -1308,10 +1653,24 @@ func _react_pose() -> void:
 			_pose["head"] = Vector3(-0.8, 0, 0)
 
 
+const SLASHES := ["ss_slash", "ss_attack_4", "ss_slash_3", "ss_attack_2"]
+var _slash_i := 0
+
+
 func start_attack() -> void:
 	if attack_t < 0.0:
 		attack_t = 0.0
 		_attack_hit_sent = false
+		# with a blade, a captured sword strike: its fastest moment lands on the hit (0.34 s), legs only when standing
+		if weapon in BLADES and react != "ride" and react != "drive":
+			var lib := MocapLibrary.get_lib()
+			if lib != null:
+				var nm: String = SLASHES[_slash_i % SLASHES.size()]
+				_slash_i += 1
+				if lib.clips.has(nm):
+					var hit := float(lib.clips[nm]["hit"])
+					var rate := clampf(hit / 0.34, 1.0, 2.4)
+					play_clip(nm, 1.0 - smoothstep(0.5, 2.0, _speed_smooth), rate, false, maxf(0.0, hit - 0.34 * rate), 0.08)
 
 
 ## Overhead smash: wind up (0..0.3 s), fast strike (0.3..0.42), recover.
@@ -1629,6 +1988,11 @@ func land(impact: float) -> void:
 	if jump_kind == "run" and impact < 11.0:
 		_land_k *= 0.45            # a running landing rolls straight on into the next stride
 	_land_t = 0.42
+	# a long drop: the captured landing (from just before touch-down, through the deep crouch, to standing)
+	if impact >= 10.0 and react == "" and MocapLibrary.has_clip("jump_down"):
+		var c: Dictionary = MocapLibrary.get_lib().clips["jump_down"]
+		if play_clip("jump_down", 1.0, 1.15, false, maxf(0.0, float(c["low_t"]) - 0.22), 0.06):
+			_land_t = 0.0                  # the clip does the knees
 
 
 ## Crouch, lean into turns and landing recovery are layered over whatever the base animation wrote.

@@ -137,6 +137,10 @@ func _ready() -> void:
 			_run_capture_pickups.call_deferred(a.trim_prefix("--capture-pickups="))
 		if a.begins_with("--capture-fight="):
 			_run_capture_fight.call_deferred(a.trim_prefix("--capture-fight="))
+		elif a == "--bench-mocap":
+			_run_bench_mocap.call_deferred()
+		elif a.begins_with("--capture-mocap="):
+			_run_capture_mocap.call_deferred(a.trim_prefix("--capture-mocap="))
 		elif a.begins_with("--capture-seat="):
 			_run_capture_seat.call_deferred(a.trim_prefix("--capture-seat="))
 		elif a.begins_with("--capture-gait="):
@@ -1725,6 +1729,7 @@ func _run_selftest() -> void:
 	await _selftest_boss(fails)
 	await _selftest_horse(fails)
 	await _selftest_seat(fails)
+	await _selftest_mocap(fails)
 	await _selftest_pubg_aim(fails)
 	await _selftest_dog(fails)
 	await _selftest_crafting(fails)
@@ -2242,6 +2247,134 @@ func _run_capture_lab(dir: String) -> void:
 			await get_tree().process_frame
 		await RenderingServer.frame_post_draw
 		print("[capture] lab_", view, " -> ", get_viewport().get_texture().get_image().save_png("%s/lab_%s.png" % [dir, view]))
+	get_tree().quit()
+
+
+## Diagnostics: the cost of animating 30 walking characters, captured animation on and off (script time only).
+func _run_bench_mocap() -> void:
+	await get_tree().process_frame
+	var rigs: Array[RealHuman] = []
+	for i in 30:
+		var pr: Dictionary = player._rig.preset.duplicate() if i % 2 == 0 else {"body": "m_Farmer", "scale": 1.0, "natural": true}
+		var r := RealHuman.new().setup(pr, "Bench%d" % i)
+		add_child(r)
+		r.global_position = player.global_position + Vector3(i % 6, 0, i / 6)
+		r.set_process(false)
+		rigs.append(r)
+	await get_tree().process_frame
+	var h: RealHuman = rigs[0]
+	print("[bench] hero skins %d copy0 %s" % [h._skins.size(), str(h._copy0)])
+	if h._skins.size() > 1:
+		var s0: Skeleton3D = h._skins[0]
+		var s1: Skeleton3D = h._skins[1]
+		print("[bench] bones %d vs %d, frames equal %s" % [s0.get_bone_count(), s1.get_bone_count(), str((h._frame[0] as Basis).is_equal_approx(h._frame[1]))])
+		var bad := 0
+		for i in mini(s0.get_bone_count(), s1.get_bone_count()):
+			if s0.get_bone_name(i) != s1.get_bone_name(i) or not s0.get_bone_rest(i).is_equal_approx(s1.get_bone_rest(i)):
+				if bad < 4:
+					print("[bench]   differs at %d %s/%s: %s vs %s" % [i, s0.get_bone_name(i), s1.get_bone_name(i), str(s0.get_bone_rest(i).origin), str(s1.get_bone_rest(i).origin)])
+				bad += 1
+		print("[bench] differing bones ", bad)
+	for on in [true, false, true]:
+		RealHuman.mocap_all = on
+		for r in rigs:
+			r._mc_check = 0.0
+			r.animate(0.016, 1.5, true)
+		var t0 := Time.get_ticks_usec()
+		for f in 120:
+			for r in rigs:
+				if OS.get_environment("NOFINGERS") != "":
+					r._mc_check = 99.0
+					r._mc_fingers = false
+				r.animate(1.0 / 60.0, 1.5 + 4.0 * float(f % 60) / 60.0, true)
+		var us := float(Time.get_ticks_usec() - t0) / 120.0
+		print("[bench] mocap %s: %.2f ms per frame for 30 characters (%.3f ms each), near %s" % [str(on), us / 1000.0, us / 30000.0, str(rigs[0]._mc_near)])
+	get_tree().quit()
+
+
+## Captured-animation check: the transferred walk and run at seven moments of a stride, then each action clip
+## at its key moment (MOCAP_ROWS picks rows: walk, run, act, villager).
+func _run_capture_mocap(dir: String) -> void:
+	DirAccess.make_dir_recursive_absolute(dir)
+	touch.visible = false
+	for c in get_children():
+		if c is TitleScreen:
+			c.queue_free()
+		elif c is CanvasLayer:
+			(c as CanvasLayer).visible = false
+	atmosphere.time_of_day = 0.42
+	atmosphere.apply_time()
+	var base := _flat_spot()
+	_teleport(base.x, base.y)
+	for i in 30:
+		await get_tree().physics_frame
+	player._model.visible = false
+	player.set_physics_process(false)
+	player.set_process(false)
+	var pp := player.global_position
+	var cam := Camera3D.new()
+	add_child(cam)
+	cam.fov = 42.0
+	cam.global_position = pp + Vector3(0.0, 1.0, 12.0)
+	cam.look_at(pp + Vector3(0, 0.9, 0))
+	cam.current = true
+	var rows := (OS.get_environment("MOCAP_ROWS") if OS.get_environment("MOCAP_ROWS") != "" else "walk,run,act,swordwalk,villager").split(",")
+	var acts := [["ss_slash", "hit"], ["ss_attack_4", "hit"], ["ss_impact", 0.25], ["ss_block_idle", 0.3], ["ss_power_up", 1.1], ["jump_down", "low"], ["ss_death", "end"]]
+	for row in rows:
+		var rigs: Array[RealHuman] = []
+		for i in 7:
+			var pr: Dictionary = player._rig.preset.duplicate()
+			if row == "villager":
+				pr = {"body": ["m_Farmer", "m_Casual", "w_Peasant" if ResourceLoader.exists("res://assets/people/w_Peasant.glb") else "m_Adventurer"][i % 3], "scale": 1.0, "natural": true}
+			var r := RealHuman.new().setup(pr, "Mc%d" % i)
+			add_child(r)
+			r.global_position = Vector3(pp.x - 4.8 + i * 1.6, terrain.sample_height(pp.x - 4.8 + i * 1.6, pp.z), pp.z)
+			r.rotation.y = -PI * 0.5 if row != "act" else -PI * 0.25
+			r.set_process(false)
+			if row == "swordwalk":
+				r.set_weapon("sword")
+			rigs.append(r)
+		await get_tree().process_frame
+		var lib := MocapLibrary.get_lib()
+		for i in rigs.size():
+			var r: RealHuman = rigs[i]
+			r.mode = "locomotion"
+			r._air = 0.0
+			r._mc_check = 0.0
+			if row == "act":
+				var a: Array = acts[i]
+				var c: Dictionary = lib.clips[a[0]]
+				r._speed_smooth = 0.0
+				r._locomotion(0.0)
+				r._idle(0.0)
+				var t := 0.0
+				if a[1] is String:
+					t = float(c["hit"]) if a[1] == "hit" else (float(c["low_t"]) if a[1] == "low" else float(c["len"]))
+				else:
+					t = float(a[1])
+				r._mocap_update(0.0)
+				r._clip = a[0]
+				r._clip_t = t
+				r._clip_w = 1.0
+				r._clip_lower = 1.0
+				r._clip_hold = true
+				r._clip_keep_travel = a[0] == "ss_death"
+			else:
+				r._speed_smooth = 1.5 if row in ["walk", "villager", "swordwalk"] else 6.5
+				r._locomotion(0.0)
+				r._mocap_update(0.0)
+				r._loco_w = 1.0
+				r._loco_u = float(i) / 7.0
+			r._apply()
+			if r.weapon == "bow":
+				r._archery()
+		for i in 4:
+			await get_tree().process_frame
+		await RenderingServer.frame_post_draw
+		print("[capture] mocap ", row, " -> ", get_viewport().get_texture().get_image().save_png("%s/mocap_%s.png" % [dir, row]))
+		for r in rigs:
+			r.queue_free()
+		await get_tree().process_frame
 	get_tree().quit()
 
 
@@ -4098,6 +4231,72 @@ func _selftest_seat(fails: PackedStringArray) -> void:
 	GameSettings.v["quality"] = q0
 
 
+## Captured animation: the library loads; a walking hero and a villager stride with it (the feet really swing);
+## a blade swing plays a sword strike; the bow keeps the code's arms; a captured death ends lying down.
+func _selftest_mocap(fails: PackedStringArray) -> void:
+	var lib := MocapLibrary.get_lib()
+	if lib == null:
+		print("[selftest] mocap: no animation library in this build (assets/anims/mocap.res); code-made animation only")
+		return
+	if lib.clips.size() < 50:
+		fails.append("mocap: the animation library is incomplete (%d clips)" % lib.clips.size())
+		return
+	var cam := get_viewport().get_camera_3d()
+	var at := cam.global_position - cam.global_transform.basis.z * 4.0 if cam != null else player.global_position
+	for body in [player._rig.preset.duplicate(), {"body": "m_Farmer", "scale": 1.0, "natural": true}]:
+		var r := RealHuman.new().setup(body, "McTest")
+		add_child(r)
+		r.global_position = at
+		r.set_process(false)
+		await get_tree().process_frame
+		var mapped := 0
+		for e in r._mc_bone[0]:
+			if e != null:
+				mapped += 1
+		if mapped < 18:
+			fails.append("mocap: only %d bones of %s take captured animation" % [mapped, body["body"]])
+		var zmin := INF
+		var zmax := -INF
+		for f in 90:
+			r._mc_check = 99.0
+			r._mc_near = true
+			r.animate(1.0 / 60.0, 1.5, true)
+			if f > 30:
+				var fwd := -r.global_transform.basis.z
+				var z := (r._bone_pos("an_L") - r._bone_pos("hips")).dot(fwd)
+				zmin = minf(zmin, z)
+				zmax = maxf(zmax, z)
+		if r._loco_w < 0.95:
+			fails.append("mocap: %s walking does not use the captured walk (weight %.2f)" % [body["body"], r._loco_w])
+		if zmax - zmin < 0.35:
+			fails.append("mocap: %s's feet barely swing in the captured walk (%.2f m)" % [body["body"], zmax - zmin])
+		if body["body"] != "m_Farmer":
+			r.set_weapon("sword")
+			r.start_attack()
+			for f in 6:
+				r.animate(1.0 / 60.0, 0.0, true)
+			if not r.clip_playing() or not String(r._clip).begins_with("ss_"):
+				fails.append("mocap: a sword swing does not play a captured strike (%s)" % r._clip)
+			r.set_weapon("bow")
+			r.stop_clip(0.01)
+			r.play_move("bow_shot")
+			for f in 8:
+				r.animate(1.0 / 60.0, 1.5, true)
+			var layers := r._mc_layers()
+			if not layers.is_empty() and float(layers[0][3]) > 0.01:
+				fails.append("mocap: the captured walk takes the arms while drawing the bow")
+			r.move = ""
+			r.play_clip("ss_death", 1.0, 1.0, true, 0.0, 0.05, true)
+			for f in 170:
+				r._mc_check = 99.0
+				r.animate(1.0 / 60.0, 0.0, true)
+			var lying := r._bone_pos("hips").y - r.global_position.y
+			if lying > 0.45:
+				fails.append("mocap: after a captured death the hips are still %.2f m up" % lying)
+		print("[selftest] mocap %s: %d bones, stride swing %.2f m" % [body["body"], mapped, zmax - zmin])
+		r.queue_free()
+
+
 func _selftest_boss(fails: PackedStringArray) -> void:
 	var mm := get_tree().get_first_node_in_group("monster_missions")
 	if mm == null:
@@ -4193,6 +4392,7 @@ func _selftest_boss(fails: PackedStringArray) -> void:
 ## Diagnostics: draw calls and what makes them, at the places players spend time (Low quality).
 func _run_probe_perf() -> void:
 	var tier := int(OS.get_environment("TIER")) if OS.get_environment("TIER") != "" else 2
+	RealHuman.mocap_all = OS.get_environment("NOMOCAP") == ""
 	GameSettings.v["quality"] = tier
 	await get_tree().process_frame
 	for c in get_children():
@@ -4298,6 +4498,11 @@ func _run_probe_perf() -> void:
 				wl.append("%s=%d" % [k, why[k]])
 			print("[perf] bazaar unmerged: ", ", ".join(wl))
 			print("[perf] bazaar merged materials: ", mats)
+		var tp := 0.0
+		for i in 60:
+			await get_tree().process_frame
+			tp += Performance.get_monitor(Performance.TIME_PROCESS)
+		print("[perf] %s script/process time %.2f ms per frame (mocap %s)" % [sp[0], tp / 60.0 * 1000.0, str(RealHuman.mocap_all)])
 		if OS.get_environment("SHOT") != "":
 			get_viewport().get_texture().get_image().save_png("%s/%s_t%d.png" % [OS.get_environment("SHOT"), sp[0], tier])
 		print("[perf] %s draws=%d objects=%d prims=%dk  visible surfaces=%d  top: %s" % [sp[0], int(Performance.get_monitor(Performance.RENDER_TOTAL_DRAW_CALLS_IN_FRAME)), int(Performance.get_monitor(Performance.RENDER_TOTAL_OBJECTS_IN_FRAME)), int(Performance.get_monitor(Performance.RENDER_TOTAL_PRIMITIVES_IN_FRAME) / 1000), surf_total, ", ".join(top_list)])

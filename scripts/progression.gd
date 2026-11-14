@@ -118,6 +118,8 @@ func gain(amount: int, why: String = "") -> void:
 		if hud != null:
 			hud.call("banner", ("LEVEL %d!\n+%d skill point. Open II > Hero" if ups == 1 else "LEVEL %d!\n+%d skill points. Open II > Hero") % [lv, ups], "seal_found")
 		HitFx.burst(player.get_parent(), player.global_position + Vector3(0, 1.2, 0), true, Color(1.0, 0.85, 0.3))
+		if not player.mounted and not player.dead and player.velocity.length() < 1.0 and player._rig.move == "":
+			player._rig.play_clip("ss_power_up", 1.0, 1.1, false, 0.0, 0.15)      # gathers his strength
 		LogCollector.event("level up %d (%s)" % [lv, why])
 	story.changed.emit()
 	changed.emit()

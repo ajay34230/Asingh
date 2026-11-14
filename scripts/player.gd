@@ -769,6 +769,8 @@ func weapons_owned() -> Array:
 
 
 func set_weapon(id: String) -> void:
+	if _rig != null and _rig.weapon in RealHuman.BLADES and not id in RealHuman.BLADES and not mounted:
+		_rig.play_clip("sheath_sword_2", 0.0, 1.2, false, 0.0, 0.1)          # puts the blade away
 	weapon = id
 	var it := get_tree().get_first_node_in_group("items")
 	if it != null:
@@ -863,6 +865,11 @@ func set_block(on: bool) -> void:
 	if on:
 		_block_t = 0.0
 	_rig.set_react("block" if on else "")
+	# blade in hand: the captured sword-and-shield guard; it ends with the block
+	if on and _rig.weapon in RealHuman.BLADES:
+		_rig.play_clip("ss_block_idle", 1.0, 1.0, false, 0.0, 0.12)
+	elif not on and _rig.clip_playing("ss_block_idle"):
+		_rig.stop_clip(0.15)
 
 
 ## Quick dodge roll with a short window of invulnerability (ROLL button / V).
@@ -1089,7 +1096,10 @@ func _die() -> void:
 	dead = true
 	locked = true
 	died_signal.emit()
+	if not mounted:
+		_rig.play_clip("ss_death", 1.0, 1.0, true, 0.0, 0.1, true)            # falls, and stays down
 	await get_tree().create_timer(2.6).timeout
+	_rig.stop_clip(0.05)
 	global_position = checkpoint + Vector3(0, 0.5, 0)
 	velocity = Vector3.ZERO
 	hp = max_hp

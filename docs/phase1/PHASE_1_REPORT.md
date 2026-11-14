@@ -823,3 +823,44 @@ A new `--capture-seat` capture shows side and front views of each animal (idle, 
 - **Skin colour:** on Medium and Low graphics, the outfit dye no longer recolours a villager's or hero's painted skin (it was turning skin green or blue). Only the tunic is tinted.
 - **Callbacks:** five delayed callbacks could fire after their object was freed (the "Lambda capture was freed" error). They now look the object up by ID.
 - **House walls:** toned toward limewash, so they are no longer neon yellow.
+
+## Addendum: Motion-captured animations from Mixamo (2026-11-14)
+
+Ajay sent Mixamo animations made on Mixamo's X Bot:
+- Walking, Fast Run, Jumping Down and Dying;
+- the Sword and Shield pack (48 clips).
+
+They are transferred onto our skeletons. **Not tested on a device.** The selftest passes, including a new `mocap` check:
+- the hero and a villager stride with the captured walk, with 0.93–0.97 m of foot swing;
+- a sword swing plays a captured strike;
+- the bow keeps the code's arms;
+- a captured death ends lying down.
+
+**Pipeline:** `tools/bake_mixamo.gd` imports the FBX files (kept out of git in `mixamo_src/`) and writes `assets/anims/mocap.res` (53 clips, 2 MB).
+- Both rigs use the same model space (Y up, facing +Z, metres) and a T-pose rest. Each frame stores every bone's model-space rotation from the T-pose, and the hips offset in hip-heights.
+- Looping clips have their forward travel removed; their speed, stride start and strike moment are recorded.
+- At run time each character lines its own rest directions up with the X Bot's. So the hero, and the villagers' modular rig (different bone names, fewer spine and thumb bones), both play the clips. Bones a clip lacks follow their parent.
+
+**In the game:** `RealHuman` blends two captured layers over the code-made pose.
+- **Locomotion:**
+  - walk and fast run blended by speed, in step, with the stride rate matched to the ground speed;
+  - with a sword, dagger or axe: the sword-and-shield walk, run and fight idle;
+  - head and neck stay the code's, so look-at keeps working;
+  - punches, the bow, gestures, the boxing guard, landings and crouching keep the code's arms or legs.
+- **Action clips:**
+  - **blade swings:** four sword strikes in rotation, timed so the fastest moment lands on the existing hit (0.34 s);
+  - **hits:** captured hit reactions, legs at half strength;
+  - **long drops:** the captured landing crouch;
+  - **block with a blade:** the sword-and-shield block;
+  - **level up:** the power-up;
+  - **putting a blade away:** sheathing;
+  - **player death:** a captured fall (there was no death animation before);
+  - **enemy deaths:** three new captured death styles among the existing five.
+- **Riding, tractor, work, climbing, jumps and photo mode:** unchanged.
+
+**Cost:**
+- Captured clips play only within 18 m of the camera on Low (28 m otherwise), and fingers only within 5 m (8 m).
+- Bench, 30 walking characters on the build machine: about 0.1 ms more per walking character without fingers.
+- A tunic skeleton now copies the body skeleton's pose by bone name instead of computing it again, which cut the code-made animation's cost by about 20% for every robed character.
+
+**Licence:** Mixamo content is not CC0. Adobe allows it in games, but not shared as raw files. The baked library is kept out of the public repo until Ajay decides (make the repo private, or not). Without the library, the game falls back to the code-made animation.

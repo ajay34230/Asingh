@@ -385,7 +385,7 @@ func _die(kind: String, dir: Vector3) -> void:
 	collision_mask = 1
 	held = false
 	# a different way of dying each time
-	_death_style = _rng.randi() % 5
+	_death_style = _rng.randi() % 8          # 5..7: captured falls (near the camera)
 	if kind == "slam" or kind == "round":
 		_death_style = 4
 	var back := dir
@@ -421,6 +421,20 @@ func _die(kind: String, dir: Vector3) -> void:
 			tw.tween_callback(func() -> void:
 				rig.set_react("dead")
 				Sfx.at("body_fall", global_position, -2.0))
+		5, 6, 7:   # a captured fall: crumples, and stays down
+			var clipn: String = ["ss_death", "ss_death_2", "dying"][_death_style - 5]
+			if rig.play_clip(clipn, 1.0, 1.15, true, 0.0, 0.1, true):
+				rig.set_react("dead")
+				Sfx.at("death_%d" % (_death_style - 5), global_position + Vector3(0, 1.3, 0), 0.0)
+				tw.tween_interval(0.9)
+				tw.tween_callback(func() -> void: Sfx.at("body_fall", global_position, -2.0))
+			else:
+				rig.set_react("stagger")
+				velocity += back * 5.0
+				Sfx.at("death_0", global_position + Vector3(0, 1.4, 0), 0.0)
+				tw.tween_interval(0.45)
+				tw.tween_callback(func() -> void: rig.set_react("dead"))
+				tw.tween_property(rig, "rotation:x", -PI * 0.5, 0.35).set_trans(Tween.TRANS_BOUNCE).set_ease(Tween.EASE_OUT)
 		_:   # hurled backwards and rolls to a stop
 			velocity += back * 9.0 + Vector3(0, 3.0, 0)
 			rig.set_react("stagger")
