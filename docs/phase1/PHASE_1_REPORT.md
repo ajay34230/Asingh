@@ -911,3 +911,24 @@ The zombies are tinted greyer for an undead look. The wolf, cobra and spider nam
 - **The Cobra Pit** (day, a dry well in the dunes), after the Mushroom King: cobras, then cobras with spiders, then a spider swarm.
 
 All mission text is translated into Hindi.
+
+## Addendum: The ghost horse (2026-11-15)
+
+A rideable spirit horse. **Not tested on a device.** The selftest passes, with checks that it:
+- does not appear before The Restless Dead is won;
+- appears at night after it;
+- is made of ghost mist and can be ridden;
+- fades at dawn and is removed.
+
+A new `--capture-ghosthorse` capture shows it standing and galloping with the hero.
+
+**Look:** the white horse model with `GhostLook` on every surface: a see-through pale blue body with a glowing rim, no shadow, and a faint light of its own. Its legs thin away to mist toward the hooves; the fade starts below them, so they don't vanish. Mist wisps trail along the whole body.
+
+**Where and when** (`MountSystem._ghost_horse_tick`):
+- It appears by the old village graveyard at night, once The Restless Dead is won, forming out of glowing specks.
+- The first time, a banner says "A ghost horse waits by the old graveyard... Ride it while the night lasts."
+- At dawn, if nobody is riding it, it burns away. If you are riding it, it fades as soon as you dismount.
+
+**Riding:** the fastest mount (walk 3.8, gallop 14.5 m/s, against the horse's 3.4 and 12). It has the same measured seat, reins and saddle cloth as the other mounts.
+
+All new text is translated into Hindi.

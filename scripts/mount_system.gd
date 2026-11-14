@@ -4,7 +4,7 @@ extends Node
 ## stick (camera-relative), push far for a gallop, tap JUMP to dismount.
 
 const RIDEABLE := {
-	"horse": [3.4, 12.0], "horse_white": [3.4, 12.5], "camel": [2.8, 8.5], "donkey": [2.6, 7.0], "bull": [3.0, 9.5],
+	"horse": [3.4, 12.0], "horse_white": [3.4, 12.5], "horse_ghost": [3.8, 14.5], "camel": [2.8, 8.5], "donkey": [2.6, 7.0], "bull": [3.0, 9.5],
 }
 var main: Node3D
 var player: Player
@@ -48,7 +48,7 @@ func _attach(a: Animal) -> void:
 	var it := Interactable.new()
 	var h: float = float(Animal.SPECIES[a.species]["height"])
 	it.position = Vector3(0, a.back_y, 0)
-	it.prompt = "Ride the %s" % a.species.replace("_", " ")          # translated when drawn
+	it.prompt = "Ride the ghost horse" if a.species == "horse_ghost" else "Ride the %s" % a.species.replace("_", " ")          # translated when drawn
 	it.reach = 3.2
 	it.on_interact = func(_by: Node3D, _me: Interactable) -> void: mount_animal(a)
 	a.add_child(it)
@@ -115,8 +115,55 @@ func dismount() -> void:
 	mount = null
 
 
+# --- the ghost horse: by the old graveyard at night, once The Restless Dead is won -------------------
+const GHOST_HORSE_AT := Vector2(-116.0, 64.0)
+var ghost_horse: Animal = null
+var _ghost_check := 0.0
+
+
+func _ghost_horse_tick(delta: float) -> void:
+	_ghost_check -= delta
+	if _ghost_check > 0.0:
+		return
+	_ghost_check = 2.0
+	var st = main.get("story")
+	var atmo = main.get("atmosphere")
+	if st == null or atmo == null:
+		return
+	var night := float(atmo.night) > 0.5
+	var earned := bool(st.get_flag("m_ghost1_done", false))
+	if ghost_horse != null and not is_instance_valid(ghost_horse):
+		ghost_horse = null
+	if ghost_horse == null and night and earned:
+		spawn_ghost_horse()
+		if not bool(st.get_flag("ghost_horse_seen", false)):
+			st.set_flag("ghost_horse_seen", true)
+			var hud = main.get("hud")
+			if hud != null:
+				hud.call("banner", Loc.t("A ghost horse waits by the old graveyard...") + "\n" + Loc.t("Ride it while the night lasts."), "whoosh")
+	elif ghost_horse != null and not night and not ghost_horse.driven:
+		# dawn: it burns away into the morning light
+		var gh := ghost_horse
+		ghost_horse = null
+		main.life.erase(gh)
+		gh.ghost_fade("dissolve", 0.0, 1.0, 1.6).tween_callback(gh.queue_free)
+
+
+func spawn_ghost_horse(where: Vector2 = GHOST_HORSE_AT) -> Animal:
+	var ter: TerrainBuilder = main.get("terrain")
+	var at := Vector3(where.x, ter.sample_height(where.x, where.y), where.y)
+	ghost_horse = Animal.new().setup("horse_ghost", ter, player, at, 6.0)
+	main.add_child(ghost_horse)
+	main.life.append(ghost_horse)
+	_attach(ghost_horse)
+	ghost_horse.ghost_fade("rise", 1.0, 0.0, 1.6)            # forms out of glowing specks
+	Sfx.at("horse_whinny", at + Vector3(0, 1.4, 0), -4.0, 0.7)
+	return ghost_horse
+
+
 ## Reins and saddle cloth follow the finished pose of the frame being drawn.
 func _process(_delta: float) -> void:
+	_ghost_horse_tick(_delta)
 	if mount != null and is_instance_valid(mount):
 		var rg := player._rig
 		mount.update_tack(rg.grip_pos("L"), rg.grip_pos("R"), rg.move == "" and rg.attack_t < 0.0, maxf(rg._ride_rein, absf(rg.ride_turn) * 0.7))

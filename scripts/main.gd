@@ -137,6 +137,8 @@ func _ready() -> void:
 			_run_capture_pickups.call_deferred(a.trim_prefix("--capture-pickups="))
 		if a.begins_with("--capture-fight="):
 			_run_capture_fight.call_deferred(a.trim_prefix("--capture-fight="))
+		elif a.begins_with("--capture-ghosthorse="):
+			_run_capture_ghosthorse.call_deferred(a.trim_prefix("--capture-ghosthorse="))
 		elif a.begins_with("--capture-beasts="):
 			_run_capture_beasts.call_deferred(a.trim_prefix("--capture-beasts="))
 		elif a == "--bench-mocap":
@@ -2338,6 +2340,52 @@ func _run_capture_beasts(dir: String) -> void:
 	get_tree().quit()
 
 
+## The ghost horse at night: standing by the graveyard, then galloping with the hero on it.
+func _run_capture_ghosthorse(dir: String) -> void:
+	DirAccess.make_dir_recursive_absolute(dir)
+	touch.visible = false
+	for c in get_children():
+		if c is TitleScreen:
+			c.queue_free()
+		elif c is CanvasLayer:
+			(c as CanvasLayer).visible = false
+	atmosphere.time_of_day = float(OS.get_environment("TOD")) if OS.get_environment("TOD") != "" else 0.93
+	atmosphere.apply_time()
+	story.set_flag("ghost_horse_seen", true)
+	var gh := mounts.spawn_ghost_horse(_flat_spot())
+	var ap := gh.global_position
+	_teleport(ap.x + 8.0, ap.z + 8.0)
+	gh.set_physics_process(false)
+	for i in 120:
+		await get_tree().physics_frame
+	gh.set_physics_process(true)
+	var cam := Camera3D.new()
+	add_child(cam)
+	cam.fov = 40.0
+	for view in [["stand", Vector3(5.5, 1.6, 1.5)], ["stand_front", Vector3(2.0, 1.7, -5.5)]]:
+		ap = gh.global_position
+		cam.global_position = ap + (view[1] as Vector3)
+		cam.look_at(ap + Vector3(0, 1.1, 0))
+		cam.current = true
+		for i in 3:
+			await get_tree().process_frame
+		await RenderingServer.frame_post_draw
+		print("[capture] ghosthorse ", view[0], " -> ", get_viewport().get_texture().get_image().save_png("%s/ghosthorse_%s.png" % [dir, view[0]]))
+	mounts.mount_animal(gh)
+	mounts._heading = 0.0
+	player.sprint = true
+	for i in 80:
+		player.move_input = Vector2(0, 1)
+		await get_tree().physics_frame
+	await get_tree().process_frame
+	ap = gh.global_position
+	cam.global_position = ap + Basis(Vector3.UP, mounts._heading) * Vector3(5.5, 1.7, 0.5)
+	cam.look_at(ap + Vector3(0, 1.3, 0))
+	await RenderingServer.frame_post_draw
+	print("[capture] ghosthorse ride -> ", get_viewport().get_texture().get_image().save_png("%s/ghosthorse_ride.png" % dir))
+	get_tree().quit()
+
+
 ## Captured-animation check: the transferred walk and run at seven moments of a stride, then each action clip
 ## at its key moment (MOCAP_ROWS picks rows: walk, run, act, villager).
 func _run_capture_mocap(dir: String) -> void:
@@ -4411,6 +4459,49 @@ func _selftest_beasts(fails: PackedStringArray) -> void:
 			fails.append("beasts: no mission sends the " + k)
 		m.queue_free()
 	await get_tree().process_frame
+	# the ghost horse: only after The Restless Dead and only at night; rideable; fades at dawn
+	var was_done: bool = bool(story.get_flag("m_ghost1_done", false))
+	var tod0: float = atmosphere.time_of_day
+	var seen0: bool = bool(story.get_flag("ghost_horse_seen", false))
+	story.set_flag("ghost_horse_seen", true)
+	story.set_flag("m_ghost1_done", false)
+	atmosphere.time_of_day = 0.93
+	atmosphere.apply_time()
+	mounts._ghost_check = 0.0
+	mounts._ghost_horse_tick(0.1)
+	if mounts.ghost_horse != null:
+		fails.append("beasts: the ghost horse came before The Restless Dead was won")
+	story.set_flag("m_ghost1_done", true)
+	mounts._ghost_check = 0.0
+	mounts._ghost_horse_tick(0.1)
+	var gh: Animal = mounts.ghost_horse
+	if gh == null:
+		fails.append("beasts: no ghost horse at night after The Restless Dead")
+	else:
+		if gh.ghost_mats.is_empty():
+			fails.append("beasts: the ghost horse is not made of ghost mist")
+		var fs := _flat_spot()
+		gh.global_position = Vector3(fs.x, terrain.sample_height(fs.x, fs.y), fs.y)
+		_teleport(fs.x + 2.5, fs.y)
+		for i in 3:
+			await get_tree().physics_frame
+		mounts.mount_animal(gh)
+		if mounts.mount != gh:
+			fails.append("beasts: cannot ride the ghost horse")
+		mounts.dismount()
+		atmosphere.time_of_day = 0.45
+		atmosphere.apply_time()
+		mounts._ghost_check = 0.0
+		mounts._ghost_horse_tick(0.1)
+		if mounts.ghost_horse != null:
+			fails.append("beasts: the ghost horse did not fade at dawn")
+		await get_tree().create_timer(1.8).timeout
+		if is_instance_valid(gh):
+			fails.append("beasts: the ghost horse lingered after fading")
+	story.set_flag("m_ghost1_done", was_done)
+	story.set_flag("ghost_horse_seen", seen0)
+	atmosphere.time_of_day = tod0
+	atmosphere.apply_time()
 
 
 func _selftest_boss(fails: PackedStringArray) -> void:

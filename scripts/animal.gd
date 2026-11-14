@@ -12,6 +12,8 @@ const SPECIES := {
 	"donkey": {"file": "Donkey", "height": 1.45, "speed": 1.2},
 	"horse": {"file": "Horse", "height": 2.0, "speed": 1.5},
 	"horse_white": {"file": "Horse_White", "height": 2.0, "speed": 1.5},
+	# a spirit horse: the white horse made of glowing mist (GhostLook), seen at night by the old graveyard
+	"horse_ghost": {"file": "Horse_White", "height": 2.05, "speed": 1.6, "ghost": Color(0.55, 0.85, 1.0)},
 	"dog": {"file": "Husky", "height": 0.8, "speed": 1.6},
 	"shiba": {"file": "ShibaInu", "height": 0.6, "speed": 1.4},
 	"deer": {"file": "Deer", "height": 1.7, "speed": 1.8},
@@ -214,6 +216,58 @@ static func _stretch(m: MeshInstance3D, a: Vector3, b: Vector3) -> void:
 	m.global_transform = Transform3D(Basis(x, z.cross(x), z * l), (a + b) * 0.5)
 
 
+# --- the spirit horse ---------------------------------------------------------------------------
+var ghost_mats: Array = []       # GhostLook materials, for forming (rise) and fading away (dissolve)
+var ghost_glow := Color(0.55, 0.85, 1.0)
+
+
+## Turns this animal into glowing mist: GhostLook on every surface (the legs thin away to mist toward the
+## hooves), no shadow, wisps trailing off it, a faint light of its own.
+func _make_ghost(inst: Node3D, glow: Color) -> void:
+	ghost_glow = glow
+	for m in inst.find_children("*", "MeshInstance3D", true, false):
+		var mi := m as MeshInstance3D
+		if mi.mesh == null:
+			continue
+		mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		var ab := mi.mesh.get_aabb()
+		var sc := (_rel_xf(mi).basis.get_scale().y) * _inner.scale.y
+		for s in mi.mesh.get_surface_count():
+			var src := mi.mesh.surface_get_material(s) as StandardMaterial3D
+			if src == null:
+				continue
+			# fade measured from below the hooves, so the legs end in mist rather than vanish
+			var fade_box := AABB(ab.position - Vector3(0, ab.size.y * 0.25, 0), ab.size * Vector3(1, 1.25, 1))
+			var gm := GhostLook.material(src, glow, false, fade_box, sc)
+			gm.set_shader_parameter("body_alpha", 0.5)
+			mi.set_surface_override_material(s, gm)
+			ghost_mats.append(gm)
+	var w := GhostLook.wisps(glow, 1.8)
+	w.amount = 8
+	w.emission_shape = CPUParticles3D.EMISSION_SHAPE_BOX
+	w.emission_box_extents = Vector3(0.22, 0.45, length * 0.45)       # along the whole body, not one spot
+	w.position = Vector3(0, 0.9, 0)
+	var wm := (w.mesh as QuadMesh).material as StandardMaterial3D
+	wm.albedo_color.a = 0.22
+	add_child(w)
+	var lamp := OmniLight3D.new()
+	lamp.light_color = glow
+	lamp.light_energy = 0.9
+	lamp.omni_range = 5.0
+	lamp.position = Vector3(0, 1.4, 0)
+	lamp.shadow_enabled = false
+	add_child(lamp)
+
+
+## Forming out of glowing specks (1 -> 0) or burning away (0 -> 1).
+func ghost_fade(param: String, from: float, to: float, secs: float) -> Tween:
+	var tw := create_tween()
+	tw.tween_method(func(v: float) -> void:
+		for gm in ghost_mats:
+			(gm as ShaderMaterial).set_shader_parameter(param, v), from, to, secs)
+	return tw
+
+
 ## The saddle point now, in world space (follows the animated back). Falls back to the measured back height.
 func seat_point() -> Vector3:
 	if _seat_bone < 0 or not is_instance_valid(_seat_skel):
@@ -227,11 +281,11 @@ var _fur_near := true
 ## Behaviour: "prey" flees, "dog" befriends, "grazer" grazes and calls, "pack" = camels/horses (calm, curious).
 const BEHAVIOUR := {
 	"deer": "prey", "stag": "prey", "fox": "prey", "dog": "dog", "shiba": "dog",
-	"cow": "grazer", "bull": "grazer", "donkey": "grazer", "horse": "grazer", "horse_white": "grazer", "camel": "grazer",
+	"cow": "grazer", "bull": "grazer", "donkey": "grazer", "horse": "grazer", "horse_white": "grazer", "horse_ghost": "grazer", "camel": "grazer",
 }
 const CALLS := {
 	"cow": ["cow_moo"], "bull": ["bull_moo"], "donkey": ["donkey_bray"], "horse": ["horse_whinny"],
-	"horse_white": ["horse_whinny"], "camel": ["camel_grunt"], "fox": ["fox_yip"], "deer": ["deer_call"], "stag": ["deer_call"],
+	"horse_white": ["horse_whinny"], "horse_ghost": ["horse_whinny"], "camel": ["camel_grunt"], "fox": ["fox_yip"], "deer": ["deer_call"], "stag": ["deer_call"],
 	"dog": ["dog_bark_0", "dog_bark_1", "dog_bark_2"], "shiba": ["dog_bark_0", "dog_bark_1", "dog_bark_2"],
 }
 
@@ -318,8 +372,11 @@ func setup(kind: String, ter: TerrainBuilder, ply: Node3D, at: Vector3, wander_r
 					var d := (mat as StandardMaterial3D).duplicate() as StandardMaterial3D
 					d.albedo_color = d.albedo_color * t
 					mi.set_surface_override_material(s, d)
-	_texture_coat(inst)
-	_fur = FurLook.dress(inst, kind, maxf(length, float(sp["height"])))
+	if sp.has("ghost"):
+		_make_ghost(inst, sp["ghost"])
+	else:
+		_texture_coat(inst)
+		_fur = FurLook.dress(inst, kind, maxf(length, float(sp["height"])))
 	var aps := inst.find_children("*", "AnimationPlayer", true, false)
 	if not aps.is_empty():
 		_anim = aps[0] as AnimationPlayer
@@ -500,6 +557,7 @@ const ACTS := {
 	"donkey": [["graze", 3], ["bray", 1], ["swat", 2], ["doze", 1], ["drink", 1]],
 	"horse": [["graze", 3], ["canter", 3], ["paw", 1], ["rear", 1], ["drink", 1]],
 	"horse_white": [["graze", 3], ["canter", 3], ["paw", 1], ["rear", 1], ["drink", 1]],
+	"horse_ghost": [["paw", 3], ["canter", 2], ["rear", 2]],
 	"camel": [["chew", 4], ["rest", 3], ["groan", 1], ["drink", 1]],
 	"dog": [["sniff", 3], ["dig", 2], ["scratch", 1], ["tail_chase", 1], ["bark", 1], ["doze", 1]],
 	"shiba": [["sniff", 3], ["dig", 2], ["scratch", 1], ["tail_chase", 1], ["bark", 1], ["doze", 1]],
