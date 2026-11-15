@@ -39,7 +39,7 @@ jobs:
   validate:
     name: Import, self-test, screenshots
     runs-on: ubuntu-24.04
-    timeout-minutes: 20
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
 
@@ -76,6 +76,9 @@ jobs:
 
       - name: Capture screenshots (software OpenGL, not the phone GPU)
         continue-on-error: true
+        # on Godot 4.5.1 the software-GL capture ran past the job limit and cancelled the APK build (run 43732877240);
+        # a slow capture must never block the APK
+        timeout-minutes: 10
         run: |
           set -o pipefail
           mkdir -p captures
