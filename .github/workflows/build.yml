@@ -33,7 +33,7 @@ permissions:
 
 env:
   # Pinned engine version. Change it here only, then re-run: checksums are verified.
-  GODOT_VERSION: "4.4.1"
+  GODOT_VERSION: "4.5.1"
 
 jobs:
   validate:
@@ -153,11 +153,11 @@ jobs:
       - name: Configure Godot editor settings and a throwaway debug keystore
         run: |
           mkdir -p "$HOME/.config/godot" logs build
-          for f in editor_settings-4.4.tres editor_settings-4.tres; do
+          for f in editor_settings-4.5.tres editor_settings-4.tres; do
             printf '[gd_resource type="EditorSettings" format=3]\n\n[resource]\nexport/android/android_sdk_path = "%s"\nexport/android/java_sdk_path = "%s"\n' \
               "$ANDROID_HOME" "$JAVA_HOME" > "$HOME/.config/godot/$f"
           done
-          cat "$HOME/.config/godot/editor_settings-4.4.tres"
+          cat "$HOME/.config/godot/editor_settings-4.5.tres"
           # Standard Android debug keystore, generated fresh on every run. It is not stored
           # anywhere, is not a secret, and signs only the debug APK for personal testing.
           mkdir -p .ci

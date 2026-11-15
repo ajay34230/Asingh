@@ -4,7 +4,7 @@
 # Usage: ci/install_godot.sh [destination-dir]   (default: .ci/godot)
 set -euo pipefail
 
-VERSION="${GODOT_VERSION:-4.4.1}"
+VERSION="${GODOT_VERSION:-4.5.1}"
 TAG="${VERSION}-stable"
 DEST="${1:-.ci/godot}"
 BASE="https://github.com/godotengine/godot/releases/download/${TAG}"

@@ -3,7 +3,7 @@
 # verifies them against SHA512-SUMS, and installs them where the editor looks for them.
 set -euo pipefail
 
-VERSION="${GODOT_VERSION:-4.4.1}"
+VERSION="${GODOT_VERSION:-4.5.1}"
 TAG="${VERSION}-stable"
 BASE="https://github.com/godotengine/godot/releases/download/${TAG}"
 TPZ="Godot_v${TAG}_export_templates.tpz"

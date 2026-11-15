@@ -3,10 +3,10 @@
 Single-file brief for any new Claude Code (or other) session. Read this, then `docs/phase1/PHASE_1_REPORT.md` only for the section you need. Keep sessions short: point at files, don't re-explore the whole repo.
 
 ## 1. Project in one paragraph
-Android 3D adventure in **Godot 4.4.1 (GDScript, Mobile renderer)**. Owner develops from a phone; Android APKs are built by GitHub Actions. Repo `ajay34230/Asingh`. Working branch: `phase-1b-environment-demo` (CI runs on `phase-*` pushes or manual dispatch). Nearly all art is procedural code; characters are Mixamo / CC0 models baked into `assets/anims/mocap.res`.
+Android 3D adventure in **Godot 4.5.1 (GDScript, Mobile renderer)**. Owner develops from a phone; Android APKs are built by GitHub Actions. Repo `ajay34230/Asingh`. Working branch: `phase-1b-environment-demo` (CI runs on `phase-*` pushes or manual dispatch). Nearly all art is procedural code; characters are Mixamo / CC0 models baked into `assets/anims/mocap.res`.
 
 ## 2. Quick start (PC with Claude Code)
-1. Install Git, Godot 4.4.1 (https://godotengine.org/download/archive/4.4.1-stable/).
+1. Install Git, Godot 4.5.1 (https://godotengine.org/download/archive/4.5.1-stable/).
 2. `git clone -b phase-1b-environment-demo https://github.com/ajay34230/Asingh.git && cd Asingh`
 3. `godot --headless --path . --import` (required after adding any new `class_name`, and after new assets).
 4. Self-test: `GODOT=godot tools/dev/run_selftest.sh` → expect `[selftest] PASS`.
@@ -80,5 +80,5 @@ Android 3D adventure in **Godot 4.4.1 (GDScript, Mobile renderer)**. Owner devel
 ## 9. Links
 - Repo: https://github.com/ajay34230/Asingh
 - Actions: https://github.com/ajay34230/Asingh/actions
-- Godot 4.4.1 archive: https://godotengine.org/download/archive/4.4.1-stable/
+- Godot 4.5.1 archive: https://godotengine.org/download/archive/4.5.1-stable/
 - Claude Code docs: https://code.claude.com/docs/en/overview

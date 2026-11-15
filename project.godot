@@ -1,5 +1,5 @@
 ; Engine configuration file.
-; The Lost Kingdom - Phase 1: 3D environment prototype (Godot 4.4.1, Mobile renderer).
+; The Lost Kingdom - Phase 1: 3D environment prototype (Godot 4.5.1, Mobile renderer).
 
 config_version=5
 
@@ -8,7 +8,7 @@ config_version=5
 config/name="The Lost Kingdom"
 config/description="Phase 1 prototype: procedural desert valley with an ancient entrance."
 run/main_scene="res://scenes/main.tscn"
-config/features=PackedStringArray("4.4", "Mobile")
+config/features=PackedStringArray("4.5", "Mobile")
 config/icon="res://icon.png"
 
 [audio]

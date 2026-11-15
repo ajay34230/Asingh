@@ -2,7 +2,7 @@
 
 > Working on the code? Read [docs/HANDOFF.md](docs/HANDOFF.md) first (map, commands, current state, open tasks).
 
-Cinematic 3D archaeological adventure for Android, built with **Godot 4.4.1** (GDScript, Mobile renderer).
+Cinematic 3D archaeological adventure for Android, built with **Godot 4.5.1** (GDScript, Mobile renderer).
 
 ## Status: Phase 1 - 3D environment prototype only
 
@@ -45,7 +45,7 @@ Other artifacts from each run: **validation-logs** (import, self-test, export lo
 
 `.github/workflows/build.yml` (runs only on `phase-*` pushes that touch game files, or manually):
 
-1. Downloads Godot 4.4.1 and its export templates from the official release and verifies SHA-512 checksums.
+1. Downloads Godot 4.5.1 and its export templates from the official release and verifies SHA-512 checksums.
 2. Imports the project headless and fails on any script error.
 3. Runs `--selftest`: terrain height grid sanity, triangle winding, terrain collision vs. height grid, player settling on the ground, and a scripted run that must climb the staircase and be stopped by the sealed door.
 4. Captures five screenshots with a **software OpenGL renderer** (Compatibility renderer under Xvfb). These show composition and layout only. They are not what the Mobile renderer looks like on a Galaxy S10 and do not prove performance.

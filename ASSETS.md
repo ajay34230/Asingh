@@ -12,8 +12,8 @@ Phase 1 uses **no external assets**. Everything visible is generated in code fro
 
 | Tool | Version | Licence | Notes |
 | --- | --- | --- | --- |
-| Godot Engine | 4.4.1-stable | MIT (plus third-party component notices) | Downloaded in CI from the official GitHub release; SHA-512 verified. Godot's third-party licence list must be included in the final release credits. |
-| Godot export templates | 4.4.1-stable | MIT | Same release, same checksum verification. |
+| Godot Engine | 4.5.1-stable | MIT (plus third-party component notices) | Downloaded in CI from the official GitHub release; SHA-512 verified. Godot's third-party licence list must be included in the final release credits. |
+| Godot export templates | 4.5.1-stable | MIT | Same release, same checksum verification. |
 | GitHub Actions runners / Android SDK | ubuntu-24.04 image | Various (Google SDK terms) | Build-time only; nothing is committed to the repo. |
 
 ## Rules for future phases
