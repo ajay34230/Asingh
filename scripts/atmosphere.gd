@@ -229,8 +229,14 @@ func _update_sky_extras(delta: float, night_k: float, dusk_k: float, day_k: floa
 	_puffs.visible = night_k < 0.97
 
 
+## Global shader values. Remembered here (the engine's own list is editor-only and slow on phones), so a
+## restart of the scene sets them again instead of adding them twice.
+static var _gparams := {}
+
+
 static func _gparam(nm: String, type: int, v: Variant) -> void:
-	if not (nm in RenderingServer.global_shader_parameter_get_list()):
+	if not _gparams.has(nm):
+		_gparams[nm] = true
 		RenderingServer.global_shader_parameter_add(nm, type, v)
 	else:
 		RenderingServer.global_shader_parameter_set(nm, v)

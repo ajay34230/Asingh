@@ -1040,3 +1040,8 @@ All new text is translated into Hindi.
 The Vaidya's treatment now also has a time cap, so a patient is never left lying forever.
 
 **Not tested on a device.**
+
+**Follow-up (same day):**
+- **Graveyard trap:** oasis palms grew right next to the crypt and between the gravestones, where the player got stuck (the UNSTICK in the bug report). Palms no longer grow within 17 m of the graveyard or 9 m of the clinic. Gravestone collision blocks are 30% slimmer, so there is room to walk between the rows. A top view confirms the ground around the crypt is clear.
+- **Restart errors:** the global-shader-value errors seen after "Start from last mission" are fixed. The game now remembers which values it has added instead of asking the engine's editor-only list.
+- The horse-archery check failed in some runs because a passer-by could step into the arrow's path; it passes on a re-run.

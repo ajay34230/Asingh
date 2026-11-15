@@ -236,6 +236,8 @@ func _flora(root: Node3D, houses: HouseBuilder) -> void:
 			return true
 		if Vector2(x - TerrainBuilder.FARM_C.x, z - TerrainBuilder.FARM_C.y).length() < TerrainBuilder.FARM_R + 6.0:
 			return true
+		if Vector2(x + 122.0, z - 56.0).length() < 17.0 or Vector2(x + 45.0, z - 7.0).length() < 9.0:
+			return true              # the graveyard (ghost fights need room) and the Vaidya's clinic
 		if Vector2(x - TerrainBuilder.TEMPLE_C.x, z - TerrainBuilder.TEMPLE_C.y).length() < 22.0:
 			return true
 		if Vector2(x - well_pos.x, z - well_pos.y).length() < 6.0:

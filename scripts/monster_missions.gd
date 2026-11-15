@@ -198,7 +198,8 @@ func _prop(file: String, p: Vector2, yaw_deg: float, size: float) -> void:
 		var body := StaticBody3D.new()
 		var cs := CollisionShape3D.new()
 		var bs := BoxShape3D.new()
-		bs.size = Vector3(box.size.x * sc, box.size.y * sc, box.size.z * sc)
+		var thin := 0.7 if size < 2.0 else 1.0       # gravestones: a slimmer block, so there is room between the rows
+		bs.size = Vector3(box.size.x * sc * thin, box.size.y * sc, box.size.z * sc * thin)
 		cs.shape = bs
 		cs.position.y = bs.size.y * 0.5
 		body.add_child(cs)

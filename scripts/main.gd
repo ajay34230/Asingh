@@ -4314,7 +4314,7 @@ func _selftest_horse(fails: PackedStringArray) -> void:
 			seated = seated and player._rig._hips_dy < -0.3
 			twist = player._rig.aim_twist
 	await get_tree().create_timer(0.6).timeout
-	var note := "fired %s, seated %s, twist %.2f, target hp %.0f -> %.0f" % [fired, seated, twist, thp, tgt.hp]
+	var note := "fired %s, seated %s, twist %.2f, target hp %.0f -> %.0f, horse at %s" % [fired, seated, twist, thp, tgt.hp, str(horse.global_position.round())]
 	if not fired or not seated or tgt.hp >= thp:
 		fails.append("horse: archery from the saddle failed (" + note + ")")
 	if is_instance_valid(tgt):
@@ -6080,7 +6080,7 @@ func _selftest_rescue_heroes(fails: PackedStringArray, notes: PackedStringArray)
 		rt._hand_over()          # skip the walk
 	if not vic.in_care:
 		fails.append("the Vaidya did not take the patient")
-	for i in 50:
+	for i in 120:                # (others knocked out earlier in the test may be in the queue first)
 		clinic._process(0.5)     # ten seconds of treatment, then getting up
 		if not vic.ko:
 			break
