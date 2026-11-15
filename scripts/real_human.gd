@@ -967,8 +967,8 @@ func _mc_layers() -> Array:
 	return out
 
 
-func _apply() -> void:
-	var layers := _mc_layers()
+func _apply(forced: Array = []) -> void:
+	var layers := forced if not forced.is_empty() else _mc_layers()
 	for si in _skins.size():
 		var sk := _skins[si]
 		if si > 0 and si < _copy0.size() and not (_copy0[si] as PackedInt32Array).is_empty():
@@ -1102,6 +1102,12 @@ func animate(delta: float, speed: float, grounded: bool) -> void:
 			return
 		delta = _anim_acc
 		_anim_acc = 0.0
+	# step 6: a villager walking or standing plays a baked clip in the engine instead of posing in script
+	if _engine_tick(delta, speed):
+		return
+	elif _ap_on:
+		_ap_on = false
+		_ap.stop()
 	_t += delta
 	# hands: a tight fist in the boxing guard, while striking or blocking; loosely curled otherwise
 	var striking := move != "" and move != "roll" and move != "lift"
@@ -2605,3 +2611,117 @@ func _locomotion(delta: float) -> void:
 	_pose["spine"] = Vector3(-lean, counter * 0.6, 0.025 * sin(_phase) * stride)
 	_pose["chest"] = Vector3(-0.015 * run_k * cos(bob_ph), counter * 0.4, 0.0)
 	_pose["head"] = Vector3(lean * 0.8 - 0.02 + 0.02 * run_k * cos(bob_ph), -(twist + counter) * 0.85, 0.0)
+
+
+# --- performance plan step 6: engine-run crowd animation -------------------------------------------------
+# The first time a body type needs a walk, run or idle clip, the script pose code above runs once per frame of
+# that clip and the result is saved as a Godot Animation (shared by every character with that body). While a
+# villager only walks or stands, an AnimationPlayer (C++) plays it, advanced from animate() so the activity
+# manager and the distance throttle still apply. Anything else (work, fights, reactions) uses the script path.
+
+static var _anim_libs := {}          # body key -> AnimationLibrary of baked loop clips
+const BAKE_FPS := 15.0
+var engine_anim := false              # set by owners whose characters only walk and stand most of the time
+var _ap: AnimationPlayer
+var _ap_on := false
+
+
+func _body_key() -> String:
+	return "%s|%s|%d" % [str(preset.get("body", "veteran")), str(preset.get("natural", false)), _skins.size()]
+
+
+func _engine_clip(speed: float) -> String:
+	if not (mode == "locomotion" or mode == "idle") or move != "" or react != "" or attack_t >= 0.0 or action != "" \
+			or guard or climb_kind != "" or not photo_pose.is_empty() or jump_prep > 0.0 or _clip != "" or not _prev.is_empty():
+		return ""
+	var lib := MocapLibrary.get_lib()
+	if lib == null:
+		return ""
+	var cs := _loco_set()
+	var idle := String(cs[2])
+	if speed < 0.3 or mode == "idle":
+		return idle if idle != "" and lib.clips.has(idle) else ""
+	var walk := String(cs[0])
+	var run := String(cs[1])
+	if not lib.clips.has(walk):
+		return ""
+	if lib.clips.has(run):
+		var hh := _mc_hip_m()
+		var mid := (_clip_speed(lib.clips[walk]) + _clip_speed(lib.clips[run])) * 0.5 * hh
+		if speed > mid:
+			return run
+	return walk
+
+
+func _bake(clip: String) -> void:
+	var key := _body_key()
+	var al: AnimationLibrary = _anim_libs.get(key)
+	if al == null:
+		al = AnimationLibrary.new()
+		_anim_libs[key] = al
+	if al.has_animation(clip):
+		return
+	var c: Dictionary = MocapLibrary.get_lib().clips[clip]
+	var ln := float(c["len"])
+	var anim := Animation.new()
+	anim.length = ln
+	anim.loop_mode = Animation.LOOP_LINEAR
+	var tr: Array = []
+	for si in _skins.size():
+		var sk := _skins[si]
+		var base := String(get_path_to(sk)) + ":"
+		var ids := PackedInt32Array()
+		for b in sk.get_bone_count():
+			var t := anim.add_track(Animation.TYPE_ROTATION_3D)
+			anim.track_set_path(t, base + sk.get_bone_name(b))
+			ids.append(t)
+		var hb: int = (_bone_idx[si] as Dictionary).get("hips", -1)
+		var tp := -1
+		if hb >= 0:
+			tp = anim.add_track(Animation.TYPE_POSITION_3D)
+			anim.track_set_path(tp, base + sk.get_bone_name(hb))
+		tr.append([ids, tp, hb])
+	var fing := _mc_fingers
+	_mc_fingers = true
+	var frames := maxi(2, int(ceil(ln * BAKE_FPS)) + 1)
+	for k in frames:
+		var t := minf(float(k) / BAKE_FPS, ln)
+		var q := {}
+		var h := _mc_sample(c, t, q, 1.0, Vector3.ZERO, true)
+		_apply([[q, h, 1.0, 1.0, 1.0, 1.0]])
+		for si in _skins.size():
+			var sk := _skins[si]
+			var e: Array = tr[si]
+			var ids: PackedInt32Array = e[0]
+			for b in ids.size():
+				anim.rotation_track_insert_key(ids[b], t, sk.get_bone_pose_rotation(b))
+			if int(e[1]) >= 0:
+				anim.position_track_insert_key(int(e[1]), t, sk.get_bone_pose_position(int(e[2])))
+	_mc_fingers = fing
+	al.add_animation(clip, anim)
+
+
+func _engine_tick(delta: float, speed: float) -> bool:
+	if not engine_anim or _skins.is_empty() or _mc_bone.is_empty() or not mocap_on:
+		return false
+	var clip := _engine_clip(speed)
+	if clip == "":
+		return false
+	_bake(clip)
+	if _ap == null:
+		_ap = AnimationPlayer.new()
+		_ap.name = "EngineAnim"
+		add_child(_ap)
+		_ap.root_node = _ap.get_path_to(self)
+		_ap.callback_mode_process = AnimationMixer.ANIMATION_CALLBACK_MODE_PROCESS_MANUAL
+		_ap.add_animation_library("", _anim_libs[_body_key()])
+	if not _ap_on or _ap.current_animation != clip:
+		_ap.play(clip, 0.25 if _ap_on else 0.0)
+		_ap_on = true
+	var c: Dictionary = MocapLibrary.get_lib().clips[clip]
+	if clip == String(_loco_set()[2]):
+		_ap.speed_scale = 1.0
+	else:
+		_ap.speed_scale = clampf(speed / maxf(_clip_speed(c) * _mc_hip_m(), 0.1), 0.55, 1.6)
+	_ap.advance(delta)
+	return true

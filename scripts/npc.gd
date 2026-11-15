@@ -289,6 +289,7 @@ func setup(preset: Dictionary, mode: String, label: String) -> Npc:
 	_rng.seed = hash(label)
 	_cd["idle"] = _rng.randf_range(3.0, 12.0)
 	rig = RealHuman.new().setup(preset, label)
+	rig.engine_anim = true          # perf step 6: walking and standing play baked clips in the engine
 	rig.mode = mode
 	add_child(rig)
 	death_clip = RealHuman.random_death(_rng)          # this person's own fall, different from person to person

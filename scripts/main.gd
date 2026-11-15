@@ -6473,6 +6473,19 @@ func _selftest_perf(fails: PackedStringArray, notes: PackedStringArray) -> void:
 		fails.append("perf 4: occlusion culling %s, %d occluders" % [ProjectSettings.get_setting("rendering/occlusion_culling/use_occlusion_culling", false), occluder_count])
 	else:
 		ok.append("4 (%d occluders)" % occluder_count)
+	# 6 walking and standing villagers play baked clips in the engine (AnimationPlayer) instead of script posing
+	var on_engine := 0
+	for nv in npcs:
+		if is_instance_valid(nv) and nv.rig != null and nv.rig._ap_on:
+			on_engine += 1
+	if on_engine == 0:
+		fails.append("perf 6: no villager is on engine animation")
+	else:
+		var worst := _engine_pose_error()
+		if worst > 0.35:
+			fails.append("perf 6: engine pose differs from the script pose by %.2f rad" % worst)
+		else:
+			ok.append("6 (%d villagers on engine animation, pose error %.2f rad)" % [on_engine, worst])
 	notes.append("perf steps verified: " + ", ".join(ok))
 
 
@@ -6506,3 +6519,31 @@ func _touch_scroll_fix(n: Node) -> void:
 		p = p.get_parent()
 	if p != null:
 		c.mouse_filter = Control.MOUSE_FILTER_PASS
+
+
+## Step 6 check: the pose the AnimationPlayer shows must match what the script would pose at the same clip time
+## (catches wrong track paths or a T-pose). Returns the largest bone rotation difference in radians.
+func _engine_pose_error() -> float:
+	for nv in npcs:
+		if not is_instance_valid(nv) or nv.rig == null or not nv.rig._ap_on:
+			continue
+		var r: RealHuman = nv.rig
+		var sk: Skeleton3D = r._skins[0]
+		var clip := String(r._ap.current_animation)
+		var pos: float = r._ap.current_animation_position
+		r._ap.seek(pos, true)
+		var shown: Array = []
+		for b in sk.get_bone_count():
+			shown.append(sk.get_bone_pose_rotation(b))
+		var q := {}
+		var fg := r._mc_fingers
+		r._mc_fingers = true             # the bake samples the fingers too
+		var h := r._mc_sample(MocapLibrary.get_lib().clips[clip], pos, q, 1.0, Vector3.ZERO, true)
+		r._mc_fingers = fg
+		r._apply([[q, h, 1.0, 1.0, 1.0, 1.0]])
+		var worst := 0.0
+		for b in sk.get_bone_count():
+			worst = maxf(worst, (shown[b] as Quaternion).angle_to(sk.get_bone_pose_rotation(b)))
+		r._ap.seek(pos, true)
+		return worst
+	return 0.0

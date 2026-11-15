@@ -19,7 +19,7 @@ Rule: one small step at a time. After every step, re-check all earlier steps (se
 | 3 | Merge repeated objects | skipped: the game already merges static meshes by material and 24 m cell; the phone is CPU-bound, not draw-bound (about 420 draws on Low) |
 | 4 | Occlusion culling | done: 137 box occluders on large building and wall colliders, occlusion culling on |
 | 5 | Save the generated world (37 s start on the S10) | not started: a large rewrite (builders hold references gameplay uses); needs its own project |
-| 6 | Engine-run crowd animation | not started: rewrite of the 2,600-line rig; the biggest remaining CPU win (the bazaar, about 0.3 ms per active villager on the PC) |
+| 6 | Engine-run crowd animation | done: walking and standing villagers play clips baked from the script pose code through AnimationPlayer (C++); 48 villagers on it in the self-test, pose matches the script pose (0.00 rad) |
 
 ## How each step is checked
 1. Self-test: `--headless --fixed-fps 60 --path . -- --selftest` must print `[selftest] PASS` with no script errors.
@@ -42,3 +42,4 @@ Rule: one small step at a time. After every step, re-check all earlier steps (se
 - 2026-11-16 one combined check (`tools/dev/check_all.sh`): self-test PASS with 1.1, 1.2, 1.3 and 4 verified. Running the character (PC, ms per frame): farm 4.2, clinic 5.3, police post 8.1, centre 8.0, bazaar about 18 to 24 (55 characters active). One 132 s frame at the clinic was the PC pausing; a re-run there gave 5.3 ms.
 - Activity manager: off-screen safety radius cut from 12 m to 6 m; bazaar active characters 55 to 38.
 - Button layout editor (Settings > Controls) and finger-swipe scrolling for all menu lists added alongside.
+- 2026-11-16 step 6: bazaar 18 to 24 ms -> 11.2 ms per frame (PC, 35 active); all five places average 6.9 ms (was about 8 to 16).
