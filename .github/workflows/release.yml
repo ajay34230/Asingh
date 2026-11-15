@@ -71,6 +71,11 @@ jobs:
           sed -i -E 's/(compileSdk[^0-9]*)3[45]/\136/' android/build/config.gradle
           echo "android.suppressUnsupportedCompileSdk=36" >> android/build/gradle.properties
           grep -n "compileSdk" android/build/config.gradle
+      - name: Stamp release build id
+        run: |
+          # the on-screen label and crash reports must not say "dev" in a store build
+          printf 'class_name BuildInfo\nextends RefCounted\nconst BUILD := "%s"\nconst VERSION := "0.4"\n' "release-${GITHUB_SHA::7}" > scripts/build_info.gd
+          cat scripts/build_info.gd
       - name: Export signed AAB
         env:
           GODOT_ANDROID_KEYSTORE_RELEASE_PATH: ${{ runner.temp }}/release.jks
@@ -89,8 +94,25 @@ jobs:
           java -jar bundletool.jar dump manifest --bundle build/TheLostKingdom.aab | tee build/manifest.xml
           grep -q 'targetSdkVersion="36"' build/manifest.xml || { echo "::error::targetSdkVersion is not 36"; exit 1; }
           echo "--- permissions:"; grep -o 'uses-permission[^/]*' build/manifest.xml || echo none
+          extra=$(grep -o 'android\.permission\.[A-Z_]*' build/manifest.xml | sort -u | grep -v -x -e android.permission.INTERNET -e android.permission.VIBRATE || true)
+          if [ -n "$extra" ]; then echo "::warning::permissions beyond INTERNET and VIBRATE (update the privacy policy and Data safety form): $extra"; fi
           unzip -l build/TheLostKingdom.aab | grep -o 'lib/[a-z0-9_-]*' | sort -u
           ls -l build/TheLostKingdom.aab
+      - name: Check 16 KB page alignment of native libraries
+        run: |
+          # Play rejects apps targeting Android 15+ whose .so files are not aligned for 16 KB memory pages
+          mkdir -p build/so
+          unzip -q -o build/TheLostKingdom.aab 'base/lib/*' -d build/so
+          bad=0
+          for so in $(find build/so -name '*.so'); do
+            aligns=$(readelf -lW "$so" | awk '$1=="LOAD"{print $NF}' | tr '\n' ' ')
+            echo "$so LOAD align: $aligns"
+            for a in $aligns; do
+              if [ $((a)) -lt 16384 ]; then bad=1; fi
+            done
+          done
+          if [ "$bad" != "0" ]; then echo "::error::native libraries are not 16 KB aligned; Google Play will reject this bundle"; exit 1; fi
+          echo "all native libraries are 16 KB aligned"
       - uses: actions/upload-artifact@v4
         with:
           name: TheLostKingdom-release-aab${{ env.REAL_KEY == 'true' && '' || '-TEST-SIGNED' }}
