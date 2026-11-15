@@ -1077,7 +1077,31 @@ func _apply() -> void:
 
 # --- animation -----------------------------------------------------------------------------
 
+## Performance plan step 1.2: seconds between pose updates at a camera distance. Within 20 m every frame; at
+## 20-35 m 30 times a second; beyond 15 times a second (no visible difference at that size on a phone screen).
+static func anim_step_for(d: float) -> float:
+	return 0.0 if d < 20.0 else (1.0 / 30.0 if d < 35.0 else 1.0 / 15.0)
+
+
+var _anim_step := 0.0
+var _anim_acc := 0.0
+var _anim_check := 0.0
+
+
 func animate(delta: float, speed: float, grounded: bool) -> void:
+	# step 1.2: far characters are posed less often; the skipped time is carried into the next update, so clip
+	# timing, hits and signals still happen at the right moment
+	_anim_check -= delta
+	if _anim_check <= 0.0:
+		_anim_check = 0.4 + randf() * 0.2
+		var cam := get_viewport().get_camera_3d() if is_inside_tree() else null
+		_anim_step = anim_step_for(cam.global_position.distance_to(global_position)) if cam != null else 0.0
+	if _anim_step > 0.0:
+		_anim_acc += delta
+		if _anim_acc < _anim_step:
+			return
+		delta = _anim_acc
+		_anim_acc = 0.0
 	_t += delta
 	# hands: a tight fist in the boxing guard, while striking or blocking; loosely curled otherwise
 	var striking := move != "" and move != "roll" and move != "lift"

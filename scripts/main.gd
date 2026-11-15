@@ -2098,6 +2098,8 @@ func _run_selftest() -> void:
 	await _selftest_fight(fails, notes)
 	await _selftest_rescue_heroes(fails, notes)
 	await _selftest_activity(fails, notes)
+	_selftest_perf(fails, notes)
+	_selftest_hero_kept(fails)
 
 	for s in notes:
 		print("[selftest] ", s)
@@ -6381,3 +6383,43 @@ func _selftest_activity(fails: PackedStringArray, notes: PackedStringArray) -> v
 	notes.append("activity: " + counts)
 	if not far_paused or not near_active or not restored:
 		fails.append("activity: far villager paused+hidden %s, near villager active %s, restored %s (%s)" % [far_paused, near_active, restored, counts])
+
+
+## Performance plan (docs/PERFORMANCE_PLAN.md): one check per finished step, so every later step re-inspects
+## the earlier ones.
+func _selftest_perf(fails: PackedStringArray, notes: PackedStringArray) -> void:
+	var ok := PackedStringArray()
+	# 1.1 a slow frame may not run more than 4 physics steps (no snowballing lag)
+	if Engine.max_physics_steps_per_frame != 4:
+		fails.append("perf 1.1: max physics steps per frame is %d, expected 4" % Engine.max_physics_steps_per_frame)
+	else:
+		ok.append("1.1")
+	# 1.2 far characters are posed less often (every frame within 20 m, 30/s to 35 m, 15/s beyond)
+	if RealHuman.anim_step_for(10.0) != 0.0 or absf(RealHuman.anim_step_for(25.0) - 1.0 / 30.0) > 0.0001 or absf(RealHuman.anim_step_for(60.0) - 1.0 / 15.0) > 0.0001:
+		fails.append("perf 1.2: animation step by distance wrong (%.3f, %.3f, %.3f)" % [RealHuman.anim_step_for(10.0), RealHuman.anim_step_for(25.0), RealHuman.anim_step_for(60.0)])
+	elif player._rig._anim_step != 0.0:
+		fails.append("perf 1.2: the player's own rig is throttled (step %.3f)" % player._rig._anim_step)
+	else:
+		ok.append("1.2")
+	# 1.3 both Android presets pre-build shaders at export (Godot 4.5 shader baker): no first-time stutter
+	var ep := ConfigFile.new()
+	if ep.load("res://export_presets.cfg") == OK:
+		if not bool(ep.get_value("preset.0.options", "shader_baker/enabled", false)) or not bool(ep.get_value("preset.1.options", "shader_baker/enabled", false)):
+			fails.append("perf 1.3: shader baker not enabled in both Android export presets")
+		else:
+			ok.append("1.3")
+	notes.append("perf steps verified: " + ", ".join(ok))
+
+
+## The chosen downloaded character must survive a settings reload: every mission restart, checkpoint and
+## "Start from last mission" reloads the scene, which re-reads settings (it used to drop the choice).
+func _selftest_hero_kept(fails: PackedStringArray) -> void:
+	var before := String(GameSettings.v.get("hero", ""))
+	GameSettings.v["hero"] = "remy"
+	GameSettings.save_file()
+	GameSettings.load_file()
+	var kept := String(GameSettings.v.get("hero", ""))
+	GameSettings.v["hero"] = before
+	GameSettings.save_file()
+	if kept != "remy":
+		fails.append("chosen character lost on settings reload (got '%s')" % kept)

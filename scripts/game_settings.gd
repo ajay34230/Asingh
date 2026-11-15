@@ -74,6 +74,8 @@ static var main: Node3D = null
 const PRESET_SHADOWS := [2, 1, 1]
 ## Bumped when graphics defaults change; older settings files get the new preset shadows once.
 const GFX_REV := 2
+## Saved choices kept in `v` that are not in SPEC (so not on the Settings screen): the played character.
+const EXTRA_KEYS := ["hero"]
 
 
 static func defaults() -> Dictionary:
@@ -117,6 +119,11 @@ static func load_file() -> void:
 			var val: Variant = cfg.get_value("s", k, v[k])
 			if typeof(val) == typeof(v[k]) or (typeof(v[k]) == TYPE_FLOAT and typeof(val) == TYPE_INT):
 				v[k] = val
+	# remembered choices that are not on the Settings screen. Without this the chosen downloaded character was
+	# dropped on every scene reload (mission restart, checkpoint, "Start from last mission") and on every launch.
+	for k in EXTRA_KEYS:
+		if cfg.has_section_key("s", k):
+			v[k] = cfg.get_value("s", k)
 	# older saves stored "volume" for the master level
 	if cfg.has_section_key("s", "volume") and not cfg.has_section_key("s", "vol_master"):
 		v["vol_master"] = float(cfg.get_value("s", "volume", 1.0))
