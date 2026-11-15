@@ -738,6 +738,7 @@ func attack() -> void:
 			_grab_throw(grab)
 		else:
 			_attack_cd = 0.7
+			_face_enemy(4.0)
 			_rig.start_attack()
 			Sfx.ui_at("swing", -4.0)
 		return
@@ -751,6 +752,7 @@ func attack() -> void:
 	var nxt_kick: bool = _combo < COMBO.size() and MOVE_KIND[COMBO[_combo]] != "punch"
 	if (MOVE_KIND[mv] != "punch") != nxt_kick or MOVE_KIND[mv] != "punch":
 		_attack_cd = maxf(_attack_cd, float(RealHuman.MOVES[mv][0]) + GUARD_HOLD)
+	_face_enemy(4.0)                    # turn to the nearest enemy before the punch or kick
 	_attack_cd += _rig.play_move(mv)   # plus the time to close the fist when the hands were relaxed
 	Sfx.ui_at("whoosh_kick" if MOVE_KIND[mv] != "punch" else "whoosh_punch", -6.0)
 	if mv == "kick_round" or mv == "cross":
@@ -1004,7 +1006,7 @@ func _on_move_hit(mv: String) -> void:
 	if not MOVE_DMG.has(mv):
 		return
 	var fwd := Vector3(-sin(_model.rotation.y), 0.0, -cos(_model.rotation.y))
-	var reach := (2.9 if MOVE_KIND[mv] != "punch" else 2.3) + gear_reach
+	var reach := (1.9 if MOVE_KIND[mv] != "punch" else 1.6) + gear_reach      # contact distance (was 2.3 / 2.9: hit from too far)
 	var dmg: float = MOVE_DMG[mv] * _hit_mult * gear_dmg * melee_mult * wpn_up() * (2.0 if power.has("power") else 1.0)
 	var hit := false
 	for e in get_tree().get_nodes_in_group("enemies"):
@@ -1013,7 +1015,7 @@ func _on_move_hit(mv: String) -> void:
 			continue
 		var to := en.global_position - global_position
 		to.y = 0.0
-		if to.length() < reach and (to.length() < 0.6 or fwd.dot(to.normalized()) > 0.25):
+		if to.length() < reach and (to.length() < 0.6 or fwd.dot(to.normalized()) > 0.5):
 			en.take_hit(MOVE_KIND[mv], dmg, fwd)
 			hit = true
 			if MOVE_KIND[mv] != "punch":
@@ -1105,10 +1107,10 @@ func _on_attack_hit() -> void:
 	for e in get_tree().get_nodes_in_group("enemies"):
 		var to: Vector3 = (e as Node3D).global_position - global_position
 		to.y = 0.0
-		if to.length() < 3.0 + gear_reach and (to.length() < 0.6 or fwd.dot(to.normalized()) > 0.2):
+		if to.length() < 2.2 + gear_reach and (to.length() < 0.6 or fwd.dot(to.normalized()) > 0.45):
 			(e as Enemy).take_hit("slam", dmg, fwd)
 			hit = true
-	hit = _strike_people(fwd, 3.0 + gear_reach, dmg) or hit
+	hit = _strike_people(fwd, 2.2 + gear_reach, dmg) or hit
 	if has_knife:
 		for an in get_tree().get_nodes_in_group("animals"):
 			var ani := an as Animal
@@ -1795,3 +1797,13 @@ func _physics_process(delta: float) -> void:
 	if _focus_timer <= 0.0:
 		_focus_timer = 0.1
 		_update_focus()
+
+
+## Combat assist: an attack turns the hero to the nearest enemy within `max_d` metres (any direction).
+func _face_enemy(max_d: float) -> void:
+	if mounted:
+		return
+	var e := _nearest_enemy(max_d)
+	if e != null:
+		var to := e.global_position - global_position
+		_model.rotation.y = atan2(-to.x, -to.z)
