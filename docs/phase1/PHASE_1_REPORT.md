@@ -984,3 +984,59 @@ All new text is translated into Hindi.
 - The selftest passes. It covers: knock-out instead of death; the stretcher team after 30 s; the Vaidya admitting and healing; a strike while down killing the villager and showing the failure screen; every death clip present; the melee pool; the vampire mission asking for its download; download counts, portraits and sizes for every character; the fallback body when a character is missing; and rigging every downloaded character.
 - The real download from GitHub could not be fetched here, because this workspace blocks that site. The files are confirmed on the branch through the GitHub API, at exactly the URLs the game uses.
 - **Not tested on a device.**
+
+## Addendum: Sprint, jumps, fighting back, police, checkpoints, wider forest, climbing (2026-11-15, from Ajay's bug report)
+
+**From the bug report (build 0786086):**
+- There were no crashes on this build. All 4 stored crashes are from 8 November builds.
+- A villager died one second after being knocked out, because the player's own punch combo was still landing. Hits in the first 3 s after someone falls are now ignored.
+
+**RUN button:**
+- Before, a full stick push already ran at full speed, so RUN changed nothing.
+- A full push now jogs (4.3 m/s, captured UAL jog blended between walk and run).
+- RUN sprints (7.4 m/s, captured fast run). It drains stamina, widens the view fully (a jog only a little), and kicks up dust every other stride.
+
+**Jumps:**
+- Take-off plays a captured airborne pose: a tucked sword-and-shield leap when running, the UAL jump loop otherwise. The physics still does the height (the clip's hip height is ignored).
+- An ordinary landing plays the captured landing. A long drop keeps the captured jump-down.
+- Take-off and landing throw up soft dust puffs, bigger on harder landings.
+- A held jump pose is dropped on any landing, ledge grab or ride.
+
+**People fight back:**
+- About half of the adult men (villagers, workers, farmers, traders, the blacksmith, travellers) stand and fight when hit: punches, hooks, kicks and uppercuts, 5 damage each.
+- Brave men within 11 m join in ("Leave him alone!").
+- They never beat the player down. Near 15 hp they shout "And stay away!" and stop.
+- They calm down after about 14 s, faster if the player runs off.
+- Women, children, elders and priests still run away.
+
+**Police:**
+- Once the player is wanted (3 or more villagers hit), two constables in khaki with bamboo lathis come running from out of sight after 6 s, with a whistle.
+- More come at 7 or more assaults, and for every officer the player hits (up to 5).
+- They swing the lathi with captured strikes for 9 damage.
+- A player beaten down to about 22 hp is arrested instead of killed: fined 20% of coins (at least 25), taken to the chowki, and the wanted state is cleared.
+- When the wanted time runs out they give up and leave. Assault counts reset then too.
+
+**Monster mission checkpoints:** a failed monster mission now resumes from the wave it reached, with a "Checkpoint: wave n/N" banner. The checkpoint clears when the mission is won.
+
+**Climbing and ridges:**
+- Walkable slope raised from 52° to 60°.
+- Step-up height raised from 0.45 to 0.55 m.
+- Ledge detection accepts sloped rock and ridge tops.
+- Walking into a knee-to-waist-high ledge for a moment now climbs onto it without a jump.
+
+**Wider forest:**
+- The Sal forest grows from a 42 m to a ragged ~95 m radius, thinning towards the edge, with undergrowth and leaf-litter ground.
+- Trees skip buildings and rocks (physics probe), the river, the trail and the map edge.
+- 463 extra trees on Low quality, more on higher settings.
+- **Performance on the phone is not yet measured.**
+
+**Checks:** the selftest passes. New checks cover:
+- a brave villager fighting back and landing a blow
+- two constables arriving for a wanted player
+- an arrest clearing the wanted state and fining
+- the knock-out grace period
+- the mission checkpoint
+
+The Vaidya's treatment now also has a time cap, so a patient is never left lying forever.
+
+**Not tested on a device.**

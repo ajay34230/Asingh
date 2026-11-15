@@ -59,6 +59,7 @@ var links: StoryLinks
 var forest: ForestBuilder
 var menu: GameMenu
 var clinic: VaidyaClinic
+var police: PoliceForce
 var map_ui: MapUI
 var combat: CombatBuilder
 var combat_hud: CombatHUD
@@ -102,6 +103,8 @@ func _ready() -> void:
 	npcs = NpcBuilder.build(self, terrain, houses, railway, player)
 	clinic = VaidyaClinic.build(self, terrain, player)       # the Vaidya heals people knocked unconscious
 	npcs.append(clinic.vaidya)
+	police = PoliceForce.new().setup(self, player)
+	add_child(police)
 	life = LifeBuilder.build(self, terrain, houses, railway, player)
 	frontier.build_places(self, terrain, player)
 	npcs.append_array(frontier.npcs)
@@ -2442,6 +2445,19 @@ func _run_capture_top(dir: String) -> void:
 	var v := OS.get_environment("TOP").split(",")
 	var cx := float(v[0])
 	var cz := float(v[1])
+	if OS.get_environment("TOP_PROBE") != "":
+		# list what has collision around the spot (finding what traps the player)
+		for i in 20:
+			await get_tree().physics_frame
+		var q := PhysicsShapeQueryParameters3D.new()
+		var sph := SphereShape3D.new()
+		sph.radius = float(OS.get_environment("TOP_PROBE"))
+		q.shape = sph
+		q.transform = Transform3D(Basis(), Vector3(cx, terrain.sample_height(cx, cz) + 1.0, cz))
+		for h in get_world_3d().direct_space_state.intersect_shape(q, 64):
+			var o: Object = h["collider"]
+			if o is Node3D:
+				print("[probe] %s at %s  shape %s" % [(o as Node).get_path(), str((o as Node3D).global_position.round()), str(PhysicsServer3D.body_get_shape(h["rid"], h["shape"]))])
 	_teleport(cx, cz + 40.0)
 	for i in 30:
 		await get_tree().physics_frame
@@ -3045,9 +3061,10 @@ func _selftest_walls(fails: PackedStringArray) -> void:
 		fails.append("hits: no villager found")
 	else:
 		villager.take_hit(10.0, Vector3.FORWARD)
-		if villager._scared_t <= 0.0:
-			fails.append("hits: villager did not react")
+		if villager._scared_t <= 0.0 and villager.angry_t <= 0.0:
+			fails.append("hits: villager did not react (neither ran nor fought back)")
 		villager._scared_t = 0.0
+		villager.angry_t = 0.0
 		villager._stun_t = 0.0
 		villager.rig.set_react("")
 	var cow: Animal = null
@@ -6063,7 +6080,7 @@ func _selftest_rescue_heroes(fails: PackedStringArray, notes: PackedStringArray)
 		rt._hand_over()          # skip the walk
 	if not vic.in_care:
 		fails.append("the Vaidya did not take the patient")
-	for i in 30:
+	for i in 50:
 		clinic._process(0.5)     # ten seconds of treatment, then getting up
 		if not vic.ko:
 			break
@@ -6077,6 +6094,10 @@ func _selftest_rescue_heroes(fails: PackedStringArray, notes: PackedStringArray)
 			break
 	if vic2 != null:
 		vic2.knock_out(Vector3.FORWARD)
+		vic2.take_hit(5.0, Vector3.FORWARD)          # the same combo: ignored
+		if vic2.dead_forever:
+			fails.append("a hit right after the knock-out should not kill (grace period)")
+		vic2.ko_t = Npc.KO_GRACE + 0.1
 		vic2.take_hit(5.0, Vector3.FORWARD)
 		var fs: Node = null
 		for c in get_children():
@@ -6120,6 +6141,55 @@ func _selftest_rescue_heroes(fails: PackedStringArray, notes: PackedStringArray)
 				fails.append("downloaded character %s did not rig" % id)
 			h.queue_free()
 	notes.append("downloaded characters rig-checked: %d" % tried)
+	# brave villagers fight back; police come when wanted, and arrest instead of killing
+	var brave: Npc = null
+	for n in npcs:
+		if n.brave and n.role != "guard" and n.role != "police" and not n.ko and n.visible and not n.companion:
+			brave = n
+			break
+	if brave == null:
+		fails.append("no villager is brave enough to fight back")
+	else:
+		_teleport(brave.global_position.x + 2.5, brave.global_position.z)
+		await get_tree().physics_frame
+		player.hp = player.max_hp
+		brave.take_hit(4.0, Vector3.LEFT)
+		if brave.angry_t <= 0.0:
+			fails.append("a brave villager did not fight back")
+		var hp0 := player.hp
+		for i in 240:
+			await get_tree().process_frame
+			if player.hp < hp0:
+				break
+		notes.append("villager fought back: player hp %.0f -> %.0f" % [hp0, player.hp])
+		if player.hp >= hp0:
+			fails.append("the angry villager never landed a blow")
+		brave.angry_t = 0.0
+		brave.healed()
+	player.hp = player.max_hp
+	player.wanted_t = 60.0
+	player.assaults = 3
+	police._wanted_for = PoliceForce.FIRST_DELAY
+	for i in 120:
+		await get_tree().process_frame
+		if police.officers.size() >= 2:
+			break
+	if police.officers.size() < 2:
+		fails.append("the police did not come for a wanted player (%d)" % police.officers.size())
+	else:
+		notes.append("police: %d constables came" % police.officers.size())
+	var coins0 := coin_sys.balance()
+	PoliceForce.arrest(player)
+	if player.wanted_t > 0.0 or not police.officers.is_empty() or player.dead:
+		fails.append("arrest did not clear the wanted state")
+	notes.append("arrest fine: %d coins" % (coins0 - coin_sys.balance()))
+	# a failed monster mission resumes from its checkpoint wave
+	story.set_flag("m_ghost1_cp", 2)
+	var gm: Dictionary = MonsterMissions.MISSIONS[0]
+	var wv := clampi(int(story.get_flag("m_ghost1_cp", 0)), 0, (gm["waves"] as Array).size() - 1)
+	if wv != 2:
+		fails.append("monster mission checkpoint not kept")
+	story.set_flag("m_ghost1_cp", 0)
 
 
 func _count_downloaded() -> int:

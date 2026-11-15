@@ -23,7 +23,8 @@ signal died_signal
 signal damaged(amount: float)
 
 const WALK_SPEED := 2.4
-const RUN_SPEED := 6.5
+const RUN_SPEED := 7.4            # the RUN button: a flat-out sprint
+const JOG_SPEED := 4.3            # a full stick push without RUN: a jog
 const GRAVITY := 24.0
 const JUMP_SPEED := 7.2
 const ACCEL_GROUND := 45.0
@@ -31,13 +32,13 @@ const DECEL_GROUND := 55.0
 const ACCEL_AIR := 9.0
 const COYOTE_TIME := 0.12
 const JUMP_BUFFER := 0.12
-const STEP_HEIGHT := 0.45
+const STEP_HEIGHT := 0.55
 const LOOK_SENSITIVITY := 0.0045
 const MIN_DISTANCE := 1.6
 const MAX_DISTANCE := 10.0
 const DEFAULT_DISTANCE := 4.3
 const BASE_FOV := 70.0
-const RUN_FOV := 77.0
+const RUN_FOV := 79.0
 const FOCUS_ANGLE_DEG := 80.0
 
 ## Placeholder explorer look (downloaded CC0 model) (generic, not a story character).
@@ -51,7 +52,10 @@ var spawn_position := Vector3.ZERO
 var camera: Camera3D
 var focus: Interactable = null
 var look_sens_y := 1.0          # vertical look multiplier (settings)
-var auto_sprint := true         # a full stick push breaks into a run
+var auto_sprint := true         # a full stick push breaks into a jog
+var sprinting := false          # running flat out with the RUN button this frame
+var _sprint_step := 0
+var _push_t := 0.0             # how long the player has walked into a wall (auto-mantle)
 var haptics := true             # phone vibrates when hurt
 var _vib_logged := false
 var look_sens := 1.0             # multiplier on LOOK_SENSITIVITY (settings)
@@ -109,7 +113,7 @@ var _fall_speed := 0.0
 
 func _ready() -> void:
 	floor_snap_length = 0.7
-	floor_max_angle = deg_to_rad(52.0)
+	floor_max_angle = deg_to_rad(60.0)          # steep dune sides and ridges can be walked up
 	spawn_position = global_position
 
 	var cs := CollisionShape3D.new()
@@ -1213,6 +1217,8 @@ func hostile_to_guards() -> bool:
 
 
 func _tick_combat(delta: float) -> void:
+	if wanted_t > 0.0 and wanted_t - delta <= 0.0:
+		assaults = 0                  # the town forgets once the wanted time is over
 	wanted_t = maxf(0.0, wanted_t - delta)
 	_attack_cd = maxf(0.0, _attack_cd - delta)
 	_roll_cd = maxf(0.0, _roll_cd - delta)
@@ -1403,6 +1409,9 @@ func _take_off() -> void:
 		var hz := Vector3(velocity.x, 0.0, velocity.z)
 		velocity += hz.normalized() * 0.8     # the leap carries a little further
 	_coyote = 0.0
+	_rig.jump_air()
+	if not mounted:
+		HitFx.dust(get_parent(), global_position + Vector3(0, 0.1, 0), 8 if _rig.jump_kind != "run" else 6, 0.32)
 	jumped.emit()
 
 
@@ -1428,15 +1437,15 @@ func _ledge_ahead(fwd: Vector3, airborne: bool = false) -> Dictionary:
 		if hit.is_empty():
 			continue
 		var n: Vector3 = hit.normal
-		if n.y > 0.45:
-			continue                       # a slope or stairs: walk up it instead
+		if n.y > 0.5:
+			continue                       # a walkable slope or stairs: walk up it instead
 		var into := -Vector3(n.x, 0.0, n.z).normalized()
 		if into.dot(fwd) < 0.55:
 			continue                       # glancing along the wall
 		var over: Vector3 = hit.position + into * 0.1      # just past the face, so thin fences are found too
 		var top := _ray(Vector3(over.x, base.y + CLIMB_MAX + 0.4, over.z), Vector3(over.x, base.y + 0.2, over.z))
-		if top.is_empty() or (top.normal as Vector3).y < 0.75:
-			continue
+		if top.is_empty() or (top.normal as Vector3).y < 0.55:
+			continue                       # the top of a rock or ridge may slope a little
 		var tp: Vector3 = top.position
 		var h := tp.y - base.y
 		if h < STEP_HEIGHT + 0.1 or h > CLIMB_MAX or (airborne and h < 0.4):
@@ -1638,8 +1647,11 @@ func _physics_process(delta: float) -> void:
 	# Analogue stick: a light push walks, a firm push eases into a run, a full push auto-sprints
 	# (no need to tap the run button); the run button still forces a run at any stick strength.
 	var m := clampf(dir.length(), 0.0, 1.0)
+	# a full push jogs; the RUN button sprints (faster, costs stamina, wider view, dust)
 	var run_blend := 1.0 if fast else (smoothstep(0.82, 0.97, m) if auto_sprint else 0.0)
-	var speed := lerpf(WALK_SPEED, RUN_SPEED * run_mult, run_blend) * (1.45 if power.has("speed") else 1.0)
+	var top := RUN_SPEED * run_mult if fast else JOG_SPEED * run_mult
+	var speed := lerpf(WALK_SPEED, top, run_blend) * (1.45 if power.has("speed") else 1.0)
+	sprinting = fast and m > 0.3 and is_on_floor() and not mounted and not crouching
 	if _rig.move == "bow_shot":
 		speed *= 0.3                  # archers plant their feet to draw
 	var push := m if fast else clampf(m / 0.82, 0.0, 1.0)
@@ -1704,6 +1716,20 @@ func _physics_process(delta: float) -> void:
 	if on_floor:
 		_try_step_up(Vector3(velocity.x, 0.0, velocity.z), delta)
 	move_and_slide()
+	# walking into a knee-to-waist-high ledge (a rock, a ridge, a low wall) for a moment climbs onto it,
+	# no jump needed
+	if is_on_floor() and not mounted and not crouching and dir.length() > 0.5 and is_on_wall() \
+			and Vector2(velocity.x, velocity.z).length() < speed * 0.35:
+		_push_t += delta
+		if _push_t > 0.22 and _climb_cool <= 0.0:
+			_push_t = 0.0
+			var lg := _ledge_ahead(dir.normalized())
+			if not lg.is_empty() and float(lg["h"]) <= 1.25:
+				_start_climb(lg)
+				return
+			_climb_cool = 0.4
+	else:
+		_push_t = 0.0
 
 	var floor_now := is_on_floor()
 	if not floor_now:
@@ -1712,6 +1738,8 @@ func _physics_process(delta: float) -> void:
 		if _fall_speed > 4.0:
 			landed.emit(_fall_speed)
 			_rig.land(_fall_speed)
+			if not mounted:
+				HitFx.dust(get_parent(), global_position + Vector3(0, 0.1, 0), int(clampf(_fall_speed * 1.4, 8.0, 22.0)), 0.3 + clampf(_fall_speed / 40.0, 0.0, 0.25))
 			_land_slow = (0.18 + clampf(_fall_speed / 40.0, 0.0, 0.3)) * (0.3 if _rig.jump_kind == "run" else 1.0)
 		_fall_speed = 0.0
 	_was_floor = floor_now
@@ -1723,6 +1751,10 @@ func _physics_process(delta: float) -> void:
 			if _step_dist >= stride:
 				_step_dist = 0.0
 				stepped.emit(hv >= 4.0)
+				if sprinting:
+					_sprint_step += 1
+					if _sprint_step % 2 == 0:       # a little dust kicked up behind every other stride
+						HitFx.dust(get_parent(), global_position - fwd_m * 0.4 + Vector3(0, 0.08, 0), 4, 0.26)
 		else:
 			_step_dist = 0.6
 	if dir.length() > 0.1:
@@ -1749,7 +1781,9 @@ func _physics_process(delta: float) -> void:
 	_cam_squeeze = move_toward(_cam_squeeze, 1.0 if under else 0.0, delta * (8.0 if under else 1.5))
 	var want_len := lerpf(_target_distance, minf(_target_distance, 1.7), aim_blend)
 	_arm.spring_length = lerpf(_arm.spring_length, want_len * (1.0 - 0.7 * _cam_squeeze), 1.0 - exp(-10.0 * delta))
-	var want_fov := base_fov + (RUN_FOV - BASE_FOV) if ((fast or run_blend > 0.5) and dir.length() > 0.1) else base_fov
+	# the view widens a little at a jog and fully in a sprint
+	var kick := 1.0 if sprinting else (0.35 if run_blend > 0.5 and dir.length() > 0.1 else 0.0)
+	var want_fov := base_fov + (RUN_FOV - BASE_FOV) * kick
 	want_fov -= (16.0 + (10.0 if ads else 0.0)) * aim_blend
 	camera.fov = lerpf(camera.fov, want_fov, 1.0 - exp(-6.0 * delta))
 

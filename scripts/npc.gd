@@ -75,6 +75,11 @@ var stall_kind := "general"      # what a hawker sells (HAWK_LINES key)
 var _chat_t := 0.0
 var _scared_t := 0.0             # >0: running away after being hit
 var _stun_t := 0.0
+var brave := false               # stands and fights back when hit (some of the men; guards and police always)
+var angry_t := 0.0               # >0: fighting the player back
+const FIGHT_LINES := ["How dare you!", "You want a fight? Come on!", "Get out of our village!", "I'll teach you manners!"]
+const RALLY_LINES := ["Leave him alone!", "Hey! Stop that!", "Grab him!", "Help! Everyone, help!"]
+const POLICE_LINES := ["Police! Stop right there!", "Halt! In the name of the law!", "Drop it and come quietly!"]
 var _knock := Vector3.ZERO
 const OUCH := ["Ow! Stop that!", "What are you doing?!", "Help! Leave me alone!", "Are you mad?!"]
 
@@ -88,6 +93,7 @@ var hp := 60.0
 var max_hp := 60.0
 var ko := false                  # unconscious
 var ko_t := 0.0
+const KO_GRACE := 3.0          # seconds after falling when further hits are ignored
 var dead_forever := false
 var in_care := false             # handed to the Vaidya: safe
 var death_clip := ""             # this person's own fall (picked at random, once)
@@ -99,14 +105,25 @@ func take_hit(dmg: float, dir: Vector3) -> void:
 	if companion or _home_state == 2 or dead_forever or in_care:
 		return
 	if ko:
-		die_forever("struck while unconscious")
+		# the rest of the combo that knocked them down does not count: only a deliberate blow after they fell
+		if ko_t >= KO_GRACE:
+			die_forever("struck while unconscious")
 		return
+	if role == "police":
+		PoliceForce.officer_hit()
 	hp -= dmg
 	if hp <= 0.0:
 		knock_out(dir)
 		return
 	_stun_t = 0.45
-	_scared_t = 0.0 if role == "guard" else (7.0 if dmg < 15.0 else 10.0)
+	if brave:
+		_scared_t = 0.0
+		if angry_t <= 0.0 and role != "police":
+			say(FIGHT_LINES[_rng.randi() % FIGHT_LINES.size()], 2.0)
+		angry_t = 14.0
+	else:
+		_scared_t = 7.0 if dmg < 15.0 else 10.0
+	_rally()
 	_knock = Vector3(dir.x, 0.0, dir.z).normalized() * (2.5 + dmg * 0.12)
 	rig.mode = "idle"
 	rig.play_hit("head" if dmg < 12.0 else "body", _rng.randf_range(-1.0, 1.0))     # captured reaction first
@@ -123,6 +140,7 @@ func knock_out(dir: Vector3) -> void:
 	hp = 0.0
 	_stun_t = 0.0
 	_scared_t = 0.0
+	angry_t = 0.0
 	rotation.y = atan2(dir.x, dir.z) if dir.length() > 0.1 else rotation.y      # falls away from the blow
 	rig.mode = "idle"
 	rig.set_react("")
@@ -171,6 +189,7 @@ func healed() -> void:
 	in_care = false
 	rescue = null
 	hp = max_hp
+	angry_t = 0.0
 	rig.stop_clip(0.1)
 	rig.set_react("")
 	rig.mode = _base_mode
@@ -181,6 +200,8 @@ func healed() -> void:
 
 
 ## After the player has beaten villagers, the town guards chase and strike him for a couple of minutes.
+## Chase the player and hit them: villagers with fists and kicks, guards with a jab, police with the lathi.
+## Villagers never beat the player down; the police arrest instead of killing.
 func _guard_attack(delta: float) -> void:
 	_atk_cd -= delta
 	var to := player.global_position - global_position
@@ -188,18 +209,48 @@ func _guard_attack(delta: float) -> void:
 	var dist := to.length()
 	if dist > 0.01:
 		rotation.y = lerp_angle(rotation.y, atan2(-to.x, -to.z), 1.0 - exp(-9.0 * delta))
+	var police := role == "police"
+	var reach := 1.9 if police else 1.5
 	var spd := 0.0
-	if dist > 1.6:
-		spd = 4.6
+	if dist > reach:
+		spd = 5.4 if police else (4.6 if role == "guard" else 4.2)
 		global_position += Vector3(-sin(rotation.y), 0.0, -cos(rotation.y)) * spd * delta
 		_ground_follow(delta)
+		if police and _rng.randf() < delta * 0.15:
+			say(POLICE_LINES[_rng.randi() % POLICE_LINES.size()], 2.0)
 	elif _atk_cd <= 0.0 and not player.dead:
-		_atk_cd = 1.5
-		rig.play_move("jab")
-		player.take_damage(8.0, to.normalized())
-		say("Halt, ruffian!", 1.5)
+		var dmg := 9.0 if police else (8.0 if role == "guard" else 5.0)
+		_atk_cd = 1.6 if police else (1.5 if role == "guard" else _rng.randf_range(1.1, 1.7))
+		if police:
+			var pool := RealHuman.melee_pool()
+			rig.play_clip(pool[_rng.randi() % pool.size()], 0.5, 1.15, false, 0.0, 0.08)
+			if player.hp - dmg <= 22.0:
+				PoliceForce.arrest(player)          # beaten down: taken in, not killed
+				return
+		elif role == "guard":
+			rig.play_move("jab")
+		else:
+			rig.play_move(["jab", "cross", "hook", "kick_front", "uppercut"][_rng.randi() % 5])
+			if player.hp - dmg <= 15.0:
+				say("And stay away!", 2.0)          # they only want you gone
+				angry_t = 0.0
+				return
+		player.take_damage(dmg, to.normalized())
+		if role == "guard":
+			say("Halt, ruffian!", 1.5)
 	rig.mode = "locomotion" if spd > 0.1 else "idle"
 	rig.animate(delta, spd, true)
+
+
+## Someone was hit: brave men close by join in.
+func _rally() -> void:
+	for n in get_tree().get_nodes_in_group("npcs"):
+		var o := n as Npc
+		if o == null or o == self or not o.brave or o.ko or o.angry_t > 0.0 or o.companion or o.role == "police":
+			continue
+		if o.global_position.distance_to(global_position) < 11.0 and o.visible:
+			o.angry_t = 12.0
+			o.say(RALLY_LINES[_rng.randi() % RALLY_LINES.size()], 2.0)
 
 
 func _scared_step(delta: float) -> void:
@@ -241,7 +292,8 @@ func setup(preset: Dictionary, mode: String, label: String) -> Npc:
 	rig.mode = mode
 	add_child(rig)
 	death_clip = RealHuman.random_death(_rng)          # this person's own fall, different from person to person
-	max_hp = 110.0 if role == "guard" else 60.0
+	max_hp = 110.0 if role == "guard" or role == "police" else 60.0
+	brave = role in ["guard", "police"] or (voice in ["man", "deep"] and role in ["villager", "worker", "farmer", "trader", "blacksmith", "traveller", "customer"] and _rng.randf() < 0.55)
 	hp = max_hp
 	rig.struck.connect(func() -> void:
 		var snd: String = WORK_SOUND.get(_base_mode, "anvil")
@@ -469,7 +521,17 @@ func _step(delta: float) -> void:
 		if rescue == null or not is_instance_valid(rescue):
 			_ko_step(delta)
 		return                                   # the stretcher team moves and poses them
-	if _stun_t > 0.0 or _scared_t > 0.0:
+	if _stun_t > 0.0:
+		_scared_step(delta)
+		return
+	if role == "police" and player.wanted_t > 0.0 and not player.dead:
+		_guard_attack(delta)
+		return
+	if angry_t > 0.0 and not player.dead:
+		angry_t -= delta * (3.0 if _flat_dist() > 18.0 else 1.0)
+		_guard_attack(delta)
+		return
+	if _scared_t > 0.0:
 		_scared_step(delta)
 		return
 	if role == "guard" and player.hostile_to_guards() and _flat_dist() < 28.0:

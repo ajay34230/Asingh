@@ -38,6 +38,7 @@ const TEMPLE_C := Vector2(-35.0, -10.0)
 ## The Sal forest in the north-west: dense trees around a levelled clearing (the forest-road mission).
 const FOREST_C := Vector2(-150.0, -110.0)
 const FOREST_R := 42.0
+const FOREST_R_OUT := 95.0       # the wider woods around the old grove
 ## The bazaar town (market square, streets, shops, houses) on levelled ground between the gate and the temple.
 const TOWN_C := Vector2(22.0, -42.0)
 const TOWN_R := 50.0
@@ -341,9 +342,11 @@ func _color_at(p: Vector3, n: Vector3) -> Color:
 	c = c.lerp(GRAVEL, 1.0 - smoothstep(6.0, 20.0, rv))
 	# Sal forest: leaf-litter earth and moss under the trees.
 	var fd := Vector2(p.x - FOREST_C.x, p.z - FOREST_C.y).length()
-	if fd < FOREST_R + 12.0:
+	if fd < FOREST_R_OUT + 14.0:
 		var leaf := Color(0.22, 0.2, 0.1).lerp(Color(0.16, 0.28, 0.1), t)
 		c = c.lerp(leaf, 1.0 - smoothstep(FOREST_R - 8.0, FOREST_R + 12.0, fd))
+		# the wider woods: patchy leaf litter and dry grass over the sand
+		c = c.lerp(leaf.lerp(Color(0.4, 0.36, 0.2), 0.45), (1.0 - smoothstep(FOREST_R_OUT - 20.0, FOREST_R_OUT + 14.0, fd)) * 0.55)
 		if fd < 11.0:
 			c = c.lerp(Color(0.36, 0.28, 0.17), 1.0 - smoothstep(6.0, 11.0, fd))   # trampled clearing
 	# Sand Circuit: packed dirt with wheel ruts, red/white kerbs and an infield of grass.

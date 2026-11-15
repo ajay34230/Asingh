@@ -309,6 +309,8 @@ var _bow_att: BoneAttachment3D
 
 
 static func weapon_model(id: String) -> Node3D:
+	if id == "lathi":
+		return _lathi()
 	var path := "res://assets/weapons/%s.glb" % String(WEAPON_GLB.get(id, ""))
 	if not WEAPON_GLB.has(id) or not ResourceLoader.exists(path):
 		return null
@@ -418,6 +420,41 @@ func set_weapon(id: String) -> void:
 		model.rotation.x = deg_to_rad(90.0)            # blade or head points forward out of the fist
 	att.add_child(model)
 	_fit_scale(model)
+
+
+## The police lathi: a long bamboo staff with brass-bound ends, gripped a third of the way up.
+static func _lathi() -> Node3D:
+	var holder := Node3D.new()
+	var cyl := CylinderMesh.new()
+	cyl.top_radius = 0.016
+	cyl.bottom_radius = 0.019
+	cyl.height = 1.35
+	cyl.radial_segments = 8
+	cyl.rings = 1
+	var m := StandardMaterial3D.new()
+	m.albedo_color = Color(0.62, 0.48, 0.26)
+	m.roughness = 0.7
+	cyl.material = m
+	var mi := MeshInstance3D.new()
+	mi.mesh = cyl
+	mi.position = Vector3(0, 0.38, 0)
+	holder.add_child(mi)
+	var band := CylinderMesh.new()
+	band.top_radius = 0.021
+	band.bottom_radius = 0.021
+	band.height = 0.06
+	band.radial_segments = 8
+	var bm := StandardMaterial3D.new()
+	bm.albedo_color = Color(0.8, 0.62, 0.25)
+	bm.metallic = 0.8
+	bm.roughness = 0.35
+	band.material = bm
+	for y in [1.02, -0.26]:
+		var b := MeshInstance3D.new()
+		b.mesh = band
+		b.position = Vector3(0, y, 0)
+		holder.add_child(b)
+	return holder
 
 
 # --- armour pieces (helmets, shoulder pads) ------------------------------------------------------------
@@ -625,7 +662,8 @@ var _mc_fingers := true
 var _mc_check := 0.0
 var _loco_w := 0.0                 # weight of the mocap locomotion layer
 var _loco_u := 0.0                 # stride phase 0..1
-var _loco_b := 0.0                 # 0 walk .. 1 run
+var _loco_b := 0.0                 # 0 slower .. 1 faster clip of _loco_pair
+var _loco_pair: Array = ["walk", "run_fast"]   # the two gait clips blended this frame
 var _loco_idle_t := randf() * 5.0
 var _loco_idle_w := 0.0            # the sword-and-shield idle (blade drawn, in a fight, standing)
 var _clip := ""                    # the action clip playing
@@ -637,6 +675,7 @@ var _clip_hold := false            # stays on the last frame (deaths)
 var _clip_lower := 1.0             # how much it drives the legs and hips
 var _clip_stop := false
 var _clip_keep_travel := false
+var _clip_flat := false            # ignore the clip's own hip height (a jump: the physics does the rising)
 var _prev := {}                    # the clip being faded out when another starts
 var _mc_q: Dictionary = {}         # scratch: bone -> Quaternion
 var _copy0: Array = []             # per skin: its bones' matching bone in skin 0 (empty: work it out itself)
@@ -712,7 +751,7 @@ func play_clip(n: String, lower: float = 1.0, rate: float = 1.0, hold: bool = fa
 	if not mocap_on or not _mc_near or _mc_bone.is_empty() or not MocapLibrary.has_clip(n):
 		return false
 	if _clip != "" and _clip_w > 0.05:
-		_prev = {"n": _clip, "t": _clip_t, "rate": _clip_rate, "w": _clip_w, "lower": _clip_lower, "hold": _clip_hold, "travel": _clip_keep_travel}
+		_prev = {"n": _clip, "t": _clip_t, "rate": _clip_rate, "w": _clip_w, "lower": _clip_lower, "hold": _clip_hold, "travel": _clip_keep_travel, "flat": _clip_flat}
 	_clip = n
 	_clip_t = start
 	_clip_rate = rate
@@ -721,6 +760,7 @@ func play_clip(n: String, lower: float = 1.0, rate: float = 1.0, hold: bool = fa
 	_clip_fade = maxf(fade, 0.01)
 	_clip_stop = false
 	_clip_keep_travel = keep_travel
+	_clip_flat = false
 	_clip_w = 0.0 if _prev.is_empty() else _clip_w
 	return true
 
@@ -772,16 +812,25 @@ func _mocap_update(delta: float) -> void:
 	_loco_w = move_toward(_loco_w, want, delta * 6.0)
 	_loco_idle_w = move_toward(_loco_idle_w, 1.0 if standing else 0.0, delta * 4.0)
 	_loco_idle_t += delta
-	var cw: Dictionary = lib.clips.get(cs[0], {})
-	var cr: Dictionary = lib.clips.get(cs[1], {})
+	# three gaits: walk -> jog (a firm push) -> sprint (the RUN button). Blend the two either side of the speed.
+	var hh := _mc_hip_m()
+	var mid := String(cs[3]) if cs.size() > 3 else ""
+	_loco_pair = [cs[0], cs[1]]
+	if mid != "" and lib.clips.has(mid):
+		var vmid := _clip_speed(lib.clips[mid]) * hh
+		_loco_pair = [cs[0], mid] if _speed_smooth < vmid else [mid, cs[1]]
+	var cw: Dictionary = lib.clips.get(_loco_pair[0], {})
+	var cr: Dictionary = lib.clips.get(_loco_pair[1], {})
 	if not cw.is_empty() and not cr.is_empty():
-		var hh := _mc_hip_m()
-		var vw := float(cw["speed"]) * hh
-		var vr := float(cr["speed"]) * hh
+		var vw := _clip_speed(cw) * hh
+		var vr := _clip_speed(cr) * hh
 		_loco_b = clampf((_speed_smooth - vw) / maxf(vr - vw, 0.1), 0.0, 1.0)
 		var v_nat := lerpf(vw, vr, _loco_b)
 		var freq := lerpf(1.0 / float(cw["len"]), 1.0 / float(cr["len"]), _loco_b) * clampf(_speed_smooth / maxf(v_nat, 0.1), 0.55, 1.6)
 		_loco_u = fposmod(_loco_u + freq * delta, 1.0)
+	# a held jump pose never outlives the jump (a tiny hop, a ledge grab, a ride)
+	if (_clip == "ss_jump" or _clip == JUMP_AIR) and not _clip_stop and ((_air < 0.05 and _clip_t > 0.45) or climb_kind != "" or mode != "locomotion"):
+		stop_clip(0.15)
 	# action clip
 	if _clip != "":
 		var c: Dictionary = lib.clips[_clip]
@@ -808,16 +857,26 @@ func _mocap_update(delta: float) -> void:
 
 ## The clips this character walks, runs and stands with: [walk, run, idle]. The idle is "" when the code's own
 ## standing pose should stay (busy, or nothing fitting).
+## A 4th entry is the middle gait (a jog) between them, when there is one.
 func _loco_set() -> Array:
 	if clip_set == "brute":
 		return ["mutant_walking", "mutant_run", "mutant_breathing_idle"]
 	if weapon in BLADES:
-		return ["ss_walk", "ss_run", "ss_idle" if guard else "bow_unarmed_idle_01"]
+		return ["ss_walk", "run_fast", "ss_idle" if guard else "bow_unarmed_idle_01", "ss_run"]
 	if weapon == "fists" and guard:
-		return ["walk", "run_fast", "mx_boxing"]           # the captured boxing stance in a fight
+		return ["walk", "run_fast", "mx_boxing", JOG]           # the captured boxing stance in a fight
 	if weapon == "bow":
-		return ["bow_walk_forward", "bow_run_forward", "bow_idle_01"]
-	return ["walk", "run_fast", "bow_unarmed_idle_01"]
+		return ["bow_walk_forward", "run_fast", "bow_idle_01", "bow_run_forward"]
+	return ["walk", "run_fast", "bow_unarmed_idle_01", JOG]
+
+
+const JOG := "ual_jog_fwd"
+const JOG_SPEED := 3.0            # hip-heights a second: the jog clip runs in place, so it carries no speed
+
+
+static func _clip_speed(c: Dictionary) -> float:
+	var v := float(c["speed"])
+	return v if v > 0.05 else JOG_SPEED
 
 
 func _mc_hip_m() -> float:
@@ -868,8 +927,8 @@ func _mc_layers() -> Array:
 		var cs := _loco_set()
 		var q := {}
 		var h := Vector3.ZERO
-		var cw: Dictionary = lib.clips.get(cs[0], {})
-		var cr: Dictionary = lib.clips.get(cs[1], {})
+		var cw: Dictionary = lib.clips.get(_loco_pair[0], {})
+		var cr: Dictionary = lib.clips.get(_loco_pair[1], {})
 		if not cw.is_empty():
 			h = _mc_sample(cw, fposmod(_loco_u + float(cw["phase0"]), 1.0) * float(cw["len"]), q, 1.0, h)
 			if _loco_b > 0.001 and not cr.is_empty():
@@ -886,12 +945,14 @@ func _mc_layers() -> Array:
 		var wl := _loco_w * (0.0 if busy_low else 1.0) * (1.0 - land) * (1.0 - crouch)
 		var wu := _loco_w * (0.0 if busy_up else 1.0)
 		out.append([q, h, wl, wu, 0.0, wu if _mc_fingers else 0.0])
-	for layer in [_prev, {"n": _clip, "t": _clip_t, "w": _clip_w, "lower": _clip_lower, "travel": _clip_keep_travel}]:
+	for layer in [_prev, {"n": _clip, "t": _clip_t, "w": _clip_w, "lower": _clip_lower, "travel": _clip_keep_travel, "flat": _clip_flat}]:
 		if (layer as Dictionary).is_empty() or String(layer["n"]) == "" or float(layer["w"]) <= 0.001:
 			continue
 		var c: Dictionary = lib.clips[layer["n"]]
 		var q2 := {}
 		var h2 := _mc_sample(c, float(layer["t"]), q2, 1.0, Vector3.ZERO, bool(layer.get("travel", false)))
+		if bool(layer.get("flat", false)):
+			h2 = Vector3(0.0, float((c["hips"] as PackedFloat32Array)[1]), 0.0)   # keep the standing hip height
 		var w := clampf(float(layer["w"]), 0.0, 1.0)
 		out.append([q2, h2, w * float(layer["lower"]), w, w, w if _mc_fingers else 0.0])
 	return out
@@ -2117,8 +2178,23 @@ var _land_t := 0.0
 var _land_k := 0.0
 
 
+## Take-off: the captured airborne pose (a tucked running leap, or a two-footed jump), the physics does the height.
+func jump_air() -> void:
+	var n := "ss_jump" if jump_kind == "run" else JUMP_AIR
+	var start := 0.12 if jump_kind == "run" else 0.3
+	if play_clip(n, 1.0, 0.9 if jump_kind == "run" else 1.0, true, start, 0.08):
+		_clip_flat = true
+
+
+const JUMP_AIR := "ual_jump"
+const JUMP_LAND := "ual_jump_land"
+
+
 ## Landing recovery: knees absorb the impact, then the body rises again.
 func land(impact: float) -> void:
+	var was_jump := clip_playing("ss_jump") or clip_playing(JUMP_AIR)
+	if was_jump:
+		stop_clip(0.12)
 	_land_k = clampf(impact / 14.0, 0.25, 1.0)
 	if jump_kind == "run" and impact < 11.0:
 		_land_k *= 0.45            # a running landing rolls straight on into the next stride
@@ -2128,6 +2204,11 @@ func land(impact: float) -> void:
 		var c: Dictionary = MocapLibrary.get_lib().clips["jump_down"]
 		if play_clip("jump_down", 1.0, 1.15, false, maxf(0.0, float(c["low_t"]) - 0.22), 0.06):
 			_land_t = 0.0                  # the clip does the knees
+	elif was_jump and jump_kind != "run" and MocapLibrary.has_clip(JUMP_LAND):
+		# an ordinary jump: the captured landing (knees soak it up, arms settle)
+		if play_clip(JUMP_LAND, 0.85, 1.35, false, 0.05, 0.06):
+			_clip_flat = true
+			_land_t *= 0.4
 
 
 ## Crouch, lean into turns and landing recovery are layered over whatever the base animation wrote.

@@ -331,7 +331,8 @@ func raid_now(spot_index: int = -1) -> void:
 func start(m: Dictionary, skip_intro: bool = false) -> void:
 	_m = m
 	running = String(m["id"])
-	wave = 0
+	# a failed try resumes from the wave it reached (its checkpoint), not from the first wave
+	wave = clampi(int(story.get_flag(running + "_cp", 0)), 0, (m["waves"] as Array).size() - 1)
 	village = 100.0
 	_warned = false
 	alive.clear()
@@ -353,6 +354,8 @@ func start(m: Dictionary, skip_intro: bool = false) -> void:
 			it.call("give", "bow")
 		player.set_weapon("bow")
 	_spawn_wave(true)
+	if wave > 0 and hud != null:
+		hud.call("banner", Loc.tf("Checkpoint: wave %d/%d", [wave + 1, (m["waves"] as Array).size()]), "")
 	var at := _ground(m["at"])
 	if skip_intro or cin == null:
 		_announce()
@@ -524,6 +527,7 @@ func _run(delta: float) -> void:
 func _complete() -> void:
 	var id := running
 	running = ""
+	story.set_flag(id + "_cp", 0)
 	if bool(_m.get("repeat", false)):
 		story.add("raids_won", 1)
 	else:
@@ -567,6 +571,7 @@ func _abort(msg: String) -> void:
 			(mon as Node).queue_free()
 	alive.clear()
 	story.set_flag(running + "_started", false)
+	story.set_flag(running + "_cp", wave)             # the next try starts at this wave
 	LogCollector.event("monster mission failed %s wave=%d" % [running, wave])
 	running = ""
 	_wave_wait = -1.0

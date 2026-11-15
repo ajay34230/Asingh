@@ -1260,5 +1260,21 @@
  "Remove": "हटाएँ",
  "Monsters (also playable; their missions ask for them)": "राक्षस (इनसे भी खेल सकते हैं; इनके मिशन इन्हें माँगते हैं)",
  "%d of %d characters on this phone. Tap a card to download or use it.": "इस फ़ोन पर %d / %d पात्र हैं। डाउनलोड या चुनने के लिए कार्ड दबाएँ।",
- "Download all %d characters (%.0f MB)? Use Wi-Fi if you can.": "सभी %d पात्र डाउनलोड करें (%.0f MB)? हो सके तो Wi-Fi इस्तेमाल करें।"
+ "Download all %d characters (%.0f MB)? Use Wi-Fi if you can.": "सभी %d पात्र डाउनलोड करें (%.0f MB)? हो सके तो Wi-Fi इस्तेमाल करें।",
+ "Checkpoint: wave %d/%d": "चेकपॉइंट: लहर %d/%d",
+ "How dare you!": "तेरी इतनी हिम्मत!",
+ "You want a fight? Come on!": "लड़ना है? आ जा!",
+ "Get out of our village!": "हमारे गाँव से निकल जा!",
+ "I'll teach you manners!": "तुझे तमीज़ सिखाता हूँ!",
+ "Leave him alone!": "छोड़ दो उसे!",
+ "Hey! Stop that!": "अरे! रुको!",
+ "Grab him!": "पकड़ो इसे!",
+ "Help! Everyone, help!": "बचाओ! सब आओ!",
+ "Police! Stop right there!": "पुलिस! वहीं रुक जाओ!",
+ "Halt! In the name of the law!": "रुको! क़ानून के नाम पर!",
+ "Drop it and come quietly!": "हथियार गिराओ और चुपचाप चलो!",
+ "And stay away!": "और दूर ही रहना!",
+ "POLICE! The constables are coming. Run, or stop fighting.": "पुलिस! सिपाही आ रहे हैं। भागो, या लड़ना बंद करो।",
+ "ARRESTED! Fined %d coins at the police chowki.": "गिरफ़्तार! पुलिस चौकी पर %d सिक्कों का जुर्माना।",
+ "Hitting people brings the police. Behave in town.": "लोगों को मारोगे तो पुलिस आएगी। शहर में तमीज़ से रहो।"
 }

@@ -124,6 +124,7 @@ func _trees() -> void:
 			bushes.append(t)
 		else:
 			grass.append(t)
+	_outer_forest(rng, body, acacias, palms, deads, bushes, grass)
 	TreeFactory.scatter_trees(_root, "sal", acacias, "SalTree", "foliage_palm", 60.0)
 	TreeFactory.scatter_trees(_root, "neem", palms, "SalNeem", "foliage_palm", 60.0)
 	TreeFactory.scatter_trees(_root, "dead", deads, "SalDead", "foliage_palm", 60.0)
@@ -335,3 +336,67 @@ func _won() -> void:
 	hud.banner("TARA IS SAFE", "seal_found")
 	StoryFX.sun_burst(main, tara.global_position + Vector3(0, 1.0, 0), 0.7)
 	tara.rig.play_action("namaste", 2.5)
+
+
+## The wider woods around the old Sal grove: a ring out to FOREST_R_OUT, thinning towards its ragged edge.
+## Skips anything already standing there (buildings, rocks, walls), the river and the trail.
+func _outer_forest(rng: RandomNumberGenerator, body: StaticBody3D, acacias: Array[Transform3D], palms: Array[Transform3D],
+		deads: Array[Transform3D], bushes: Array[Transform3D], grass: Array[Transform3D]) -> void:
+	var R := TerrainBuilder.FOREST_R
+	var RO := TerrainBuilder.FOREST_R_OUT
+	var low := int(GameSettings.v.get("quality", 0)) >= 2
+	var count := 800 if low else 1300
+	var space := main.get_world_3d().direct_space_state
+	var probe := PhysicsShapeQueryParameters3D.new()
+	var sph := SphereShape3D.new()
+	sph.radius = 2.6
+	probe.shape = sph
+	var placed := 0
+	for i in count:
+		var a := rng.randf() * TAU
+		var edge := RO + sin(a * 5.0) * 7.0 + sin(a * 11.0 + 1.3) * 4.0      # a ragged outline, not a circle
+		var r := lerpf(R - 2.0, edge, sqrt(rng.randf()))
+		# thinner towards the edge
+		if rng.randf() > 1.0 - 0.6 * smoothstep(R, edge, r):
+			continue
+		var x := _c.x + cos(a) * r
+		var z := _c.z + sin(a) * r
+		if _trail_dist(x, z) < 3.0 or absf(x - terrain.river_x(z)) < 16.0 or x < -TerrainBuilder.HALF + 12.0 or z < -TerrainBuilder.HALF + 12.0:
+			continue
+		var y := terrain.sample_height(x, z)
+		probe.transform = Transform3D(Basis(), Vector3(x, y + 2.2, z))
+		var blocked := false
+		for h in space.intersect_shape(probe, 4):
+			var col := h["collider"] as Node
+			if col != null and not String(col.get_parent().name).begins_with("Chunk_"):
+				blocked = true
+				break
+		if blocked:
+			continue
+		var sc := rng.randf_range(1.4, 2.6)
+		var basis := Basis.from_euler(Vector3(0, rng.randf() * TAU, 0)).scaled(Vector3.ONE * sc)
+		var kind := rng.randf()
+		if kind < 0.22:
+			palms.append(Transform3D(basis.scaled(Vector3.ONE * 0.8), Vector3(x, y - 0.1, z)))
+		elif kind < 0.25:
+			deads.append(Transform3D(basis.scaled(Vector3.ONE * 0.6), Vector3(x, y - 0.1, z)))
+		else:
+			acacias.append(Transform3D(basis, Vector3(x, y - 0.1, z)))
+		var cs := CollisionShape3D.new()
+		var cy := CylinderShape3D.new()
+		cy.radius = 0.32 * sc
+		cy.height = 4.0
+		cs.shape = cy
+		cs.position = Vector3(x, y + 2.0, z)
+		body.add_child(cs)
+		placed += 1
+		# undergrowth around the trunk
+		for k in (1 if low else 2):
+			var bx := x + rng.randf_range(-3.0, 3.0)
+			var bz := z + rng.randf_range(-3.0, 3.0)
+			var bt := Transform3D(Basis.from_euler(Vector3(0, rng.randf() * TAU, 0)).scaled(Vector3.ONE * rng.randf_range(0.8, 1.5)), Vector3(bx, terrain.sample_height(bx, bz) - 0.05, bz))
+			if k == 0 and rng.randf() < 0.5:
+				bushes.append(bt)
+			else:
+				grass.append(bt)
+	print("[LostKingdom] wider forest: %d trees" % placed)

@@ -147,7 +147,7 @@ func _process(delta: float) -> void:
 		if vaidya != null:
 			vaidya.rig.stop_clip(0.3)
 			vaidya.say("Rest well. You will be fine.", 2.5)
-	elif not p.rig.clip_playing():
+	elif not p.rig.clip_playing() or _t > TREAT_SECS + 6.0:      # up (or never stuck lying, whatever the rig did)
 		_queue.pop_front()
 		p.healed()
 		_t = 0.0
