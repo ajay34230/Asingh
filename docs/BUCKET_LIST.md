@@ -24,3 +24,8 @@ Suggested order: start with 1 and 2 together, since they cover most of what's on
 - [ ] **5. Water.** Reflections, ripples and shoreline foam for the pond.
 - [ ] **6. Characters and animals.** Smoother shading on the animals (the horse and bull look blocky), and better
   faces and clothes for people.
+- [ ] **7. Health bars.** Enemy, monster and ghost health shown as one small single bar (no text or block
+  characters), green when full, turning yellow and then red as health drops. Keep the 20 m limit.
+- [ ] **8. Distance fog and sandstorms for FPS.** When FPS drops, bring in a dust haze that shortens the view
+  (40 to 60 m; 15 m only in a rare heavy sandstorm), so far things are not drawn. Mission enemies stay drawn
+  past the fog with a red marker. Low-detail models far away for imported 3D models.
