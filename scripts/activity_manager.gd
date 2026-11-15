@@ -4,14 +4,14 @@ extends Node
 ## Five times a second every villager, animal and enemy is sorted:
 ##  - mission characters (all enemies and monsters, and villagers standing at an active objective): active and
 ##    visible within MISSION_RANGE (100 m), whether on screen or not
-##  - everyone else: visible within RANGE (50 m), and active only while on screen within RANGE, or within NEAR in
+##  - everyone else: visible within RANGE (50 m), and active only while on screen within RANGE, or within NEAR (6 m) in
 ##    any direction (so someone right behind the player still reacts)
 ##  - always active and visible: companions, police while the player is wanted, the knocked out and their rescue,
 ##    villagers fighting the player, animals pulling a cart, ridden or whistled, enemies close enough to chase
 ## Paused characters keep their place and pose and carry on when they come back into view.
 ## Only what this manager paused or hid is resumed or shown again, so other systems' own switches are respected.
 
-const NEAR := 12.0
+const NEAR := 6.0               # was 12: the bazaar kept 55 characters active (perf run 2026-11-16)
 const RANGE := 50.0
 const MISSION_RANGE := 100.0
 const TICK := 0.2

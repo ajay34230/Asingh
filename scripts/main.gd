@@ -60,6 +60,7 @@ var forest: ForestBuilder
 var menu: GameMenu
 var clinic: VaidyaClinic
 var activity: ActivityManager     # Vice City-style culling: only nearby, on-screen characters cost CPU
+var occluder_count := 0             # perf step 4
 var police: PoliceForce
 var map_ui: MapUI
 var combat: CombatBuilder
@@ -1178,6 +1179,11 @@ func _build_story() -> void:
 		if broot != null:
 			var br: Dictionary = StaticBatcher.merge(broot)
 			print("[LostKingdom] batched ", bn, ": ", br["merged"], " meshes -> ", br["batches"])
+	for on in ["BazaarTown", "Hamlet", "FrontierPlaces", "Temple", "AncientEntrance", "Railway", "Ruins"]:
+		var oroot := get_node_or_null(on) as Node3D
+		if oroot != null:
+			occluder_count += Occluders.add_for(oroot)
+	print("[LostKingdom] occluders: ", occluder_count)
 	photo_mode = PhotoMode.new()
 	photo_mode.hide_nodes = [touch, hud, combat_hud, menu._btn]
 	photo_mode.player = player
@@ -6243,6 +6249,36 @@ func _run_profile() -> void:
 		await get_tree().process_frame
 	var base := await _profile_ms(240)
 	print("[profile] at %s: %.2f ms per frame (process %.2f, physics %.2f), nodes %d, active bodies %d, pairs %d" % [str(at), base[0], base[1], base[2], int(Performance.get_monitor(Performance.OBJECT_NODE_COUNT)), int(Performance.get_monitor(Performance.PHYSICS_3D_ACTIVE_OBJECTS)), int(Performance.get_monitor(Performance.PHYSICS_3D_COLLISION_PAIRS))])
+	if OS.get_environment("PROFILE_RUN") != "":
+		# run the character through the busy places and time every frame (closer to real play than standing still)
+		var stops := [Vector2(152, 161), Vector2(LiveEvents.C.x, LiveEvents.C.z), Vector2(-45, 7), Vector2(-30, -32), Vector2(0, 0)]
+		if OS.get_environment("PROFILE_STOPS") != "":
+			stops = []
+			for s9 in OS.get_environment("PROFILE_STOPS").split(";"):
+				stops.append(Vector2(float(s9.split(",")[0]), float(s9.split(",")[1])))
+		var all: Array = []
+		for sp in stops:
+			_teleport(sp.x, sp.y)
+			for i in 30:
+				await get_tree().process_frame
+			player.move_input = Vector2(0, 1)
+			var ft: Array = []
+			var tprev := Time.get_ticks_usec()
+			for i in 360:
+				if i % 90 == 0:
+					player.add_look(Vector2(160, 0))       # turn now and then, so the view sweeps the place
+				await get_tree().process_frame
+				var tn := Time.get_ticks_usec()
+				ft.append(float(tn - tprev) / 1000.0)
+				tprev = tn
+			player.move_input = Vector2.ZERO
+			ft.sort()
+			all.append_array(ft)
+			print("[profile] run at %s: avg %.2f ms, p95 %.2f ms, worst %.2f ms, active %d" % [str(sp), ft.reduce(func(a, b): return a + b) / ft.size(), ft[int(ft.size() * 0.95)], ft[-1], activity.active_count if activity != null else -1])
+		all.sort()
+		print("[profile] run overall: avg %.2f ms, p95 %.2f ms, worst %.2f ms" % [all.reduce(func(a, b): return a + b) / all.size(), all[int(all.size() * 0.95)], all[-1]])
+		get_tree().quit()
+		return
 	if OS.get_environment("PROFILE_CENSUS") != "":
 		# what the ~22,000 nodes are: by class, and visual instances by owning top-level builder
 		var by_class := {}
@@ -6432,6 +6468,11 @@ func _selftest_perf(fails: PackedStringArray, notes: PackedStringArray) -> void:
 			fails.append("perf 1.3: shader baker not enabled in both Android export presets")
 		else:
 			ok.append("1.3")
+	# 4 occlusion culling on, with box occluders on the buildings
+	if not bool(ProjectSettings.get_setting("rendering/occlusion_culling/use_occlusion_culling", false)) or occluder_count < 20:
+		fails.append("perf 4: occlusion culling %s, %d occluders" % [ProjectSettings.get_setting("rendering/occlusion_culling/use_occlusion_culling", false), occluder_count])
+	else:
+		ok.append("4 (%d occluders)" % occluder_count)
 	notes.append("perf steps verified: " + ", ".join(ok))
 
 
