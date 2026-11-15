@@ -316,7 +316,7 @@ func _on_drag(idx: int, pos: Vector2, rel: Vector2) -> void:
 func _draw() -> void:
 	var font := ThemeDB.fallback_font
 	if show_fps:
-		draw_string(font, Vector2(16, 28), _fps_text, HORIZONTAL_ALIGNMENT_LEFT, -1, 22, Color(1, 1, 1, 0.85))
+		draw_string(font, Vector2(0, 104), _fps_text, HORIZONTAL_ALIGNMENT_CENTER, size.x, 18, Color(1, 1, 1, 0.8))   # centred under the health bar, no background
 	if hints_on and _hint_time > 0.0:
 		var a := clampf(_hint_time / 3.0, 0.0, 1.0)
 		draw_string(font, Vector2(16, 58), Loc.t("Left: move   Right: look (two fingers: zoom)   USE appears near things"),

@@ -15,7 +15,7 @@ Rule: one small step at a time. After every step, re-check all earlier steps (se
 | 1.2 | Animate characters 20 to 50 m away less often (15 to 30 times a second) | done |
 | 1.3 | Pre-build shaders when exporting (Godot 4.5 shader baker): no first-time stutter | set; needs a GitHub build to confirm the export still works |
 | 1.4 | Cache lists that hot scripts rebuild every frame (arrows, minimap) | checked: nothing worth caching (no script other than the player costs over 0.35 ms after 1.2) |
-| 2 | Physics at 30 steps a second with physics interpolation, so motion still looks smooth | pending |
+| 2 | Physics at 30 steps a second with physics interpolation | tried and reverted: the movement code (step-up, ledge grab, jump timing) is tuned to 60 Hz; at 30 Hz the climb self-test walked through a 1.5 m wall |
 | 3 | Merge repeated objects (fences, crops, stones) into batched meshes | pending |
 | 4 | Occlusion culling in the town and bazaar | pending |
 | 5 | Save the generated world so startup does not rebuild it (37 s on the S10) | pending |

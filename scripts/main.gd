@@ -6242,6 +6242,29 @@ func _run_profile() -> void:
 		await get_tree().process_frame
 	var base := await _profile_ms(240)
 	print("[profile] at %s: %.2f ms per frame (process %.2f, physics %.2f), nodes %d, active bodies %d, pairs %d" % [str(at), base[0], base[1], base[2], int(Performance.get_monitor(Performance.OBJECT_NODE_COUNT)), int(Performance.get_monitor(Performance.PHYSICS_3D_ACTIVE_OBJECTS)), int(Performance.get_monitor(Performance.PHYSICS_3D_COLLISION_PAIRS))])
+	if OS.get_environment("PROFILE_CENSUS") != "":
+		# what the ~22,000 nodes are: by class, and visual instances by owning top-level builder
+		var by_class := {}
+		var by_top := {}
+		var st3: Array = [self]
+		while not st3.is_empty():
+			var nn: Node = st3.pop_back()
+			st3.append_array(nn.get_children())
+			by_class[nn.get_class()] = int(by_class.get(nn.get_class(), 0)) + 1
+			if nn is VisualInstance3D and (nn as VisualInstance3D).visible:
+				var top: Node = nn
+				while top.get_parent() != self and top.get_parent() != null:
+					top = top.get_parent()
+				by_top[top.name] = int(by_top.get(top.name, 0)) + 1
+		for d0 in [by_class, by_top]:
+			var ks: Array = d0.keys()
+			ks.sort_custom(func(a, b) -> bool: return d0[a] > d0[b])
+			var parts := PackedStringArray()
+			for k in ks.slice(0, 14):
+				parts.append("%s %d" % [k, d0[k]])
+			print("[profile] census: " + ", ".join(parts))
+		get_tree().quit()
+		return
 	if activity != null:
 		# the activity manager itself: alternate on/off, median of the paired differences
 		var adiffs: Array = []
