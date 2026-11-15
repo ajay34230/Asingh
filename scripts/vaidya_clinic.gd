@@ -143,7 +143,10 @@ func _process(delta: float) -> void:
 		if p.rig.clip_playing("ual_laytoidle"):
 			RescueTeam._lay_on(p, _bed(0), global_transform.basis.z.normalized())
 	elif p.rig.clip_playing("ual_laytoidle") and p.rig._clip_rate == 0.0:
-		p.rig.play_clip("ual_laytoidle", 1.0, 1.0, false, 0.0, 0.1)        # gets up
+		if not p.rig.play_clip("ual_laytoidle", 1.0, 1.0, false, 0.0, 0.1):    # gets up
+			# far from the camera the rig plays no clips, so the frozen lying pose would never end and this
+			# branch would repeat for ever (the time cap below is never reached): just let them stand up
+			p.rig.stop_clip(0.1)
 		if vaidya != null:
 			vaidya.rig.stop_clip(0.3)
 			vaidya.say("Rest well. You will be fine.", 2.5)

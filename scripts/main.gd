@@ -4301,8 +4301,17 @@ func _selftest_horse(fails: PackedStringArray) -> void:
 		fails.append("horse: mounting did not remember your ride")
 	items.give("bow")
 	items.equip("bow")
-	var tgt := combat.spawn_enemy(horse.global_position + Vector3(-8.0, 0, -4.0), false, 0.0, "horsetarget")
+	# shoot from open, level ground (nothing built or growing within 12 m), as the aim sweep below does: where the
+	# horse happened to graze, a cart, wall, tree or slope could stop the arrow and fail the check at random
+	var flat := _flat_spot()
+	horse.global_position = Vector3(flat.x, terrain.sample_height(flat.x, flat.y), flat.y)
+	for i in 10:
+		await get_tree().physics_frame
+	var tpos: Vector3 = horse.global_position + Vector3(-8.0, 0, -4.0)
+	tpos.y = terrain.sample_height(tpos.x, tpos.z)      # stand the target on the ground, not at the horse's height
+	var tgt := combat.spawn_enemy(tpos, false, 0.0, "horsetarget")
 	tgt.set_physics_process(false)
+	tgt.global_position = tpos
 	var thp: float = tgt.hp
 	player._attack_cd = 0.0
 	var fired := player.fire_arrow()
@@ -4316,11 +4325,13 @@ func _selftest_horse(fails: PackedStringArray) -> void:
 	await get_tree().create_timer(0.6).timeout
 	var note := "fired %s, seated %s, twist %.2f, target hp %.0f -> %.0f, horse at %s" % [fired, seated, twist, thp, tgt.hp, str(horse.global_position.round())]
 	if not fired or not seated or tgt.hp >= thp:
+		for an in find_children("*", "Node3D", true, false):
+			if an is Arrow and (an as Arrow)._life < 3.0:
+				note += ", arrow under %s at %s, stuck %.2f, locked on target %s" % [an.get_parent().name, str(an.global_position.round()), (an as Arrow)._stuck, player._arrow_foe == tgt]
 		fails.append("horse: archery from the saddle failed (" + note + ")")
 	if is_instance_valid(tgt):
 		tgt.queue_free()
 	# aim sweep: targets all round the horse; the bow arm must point at each one and every arrow must land
-	var flat := _flat_spot()
 	var best_bump := 0.0
 	horse.global_position = Vector3(flat.x, terrain.sample_height(flat.x, flat.y), flat.y)
 	note += ", sweep ground bump %.1f m" % best_bump
@@ -6085,7 +6096,10 @@ func _selftest_rescue_heroes(fails: PackedStringArray, notes: PackedStringArray)
 		if not vic.ko:
 			break
 	if vic.ko or vic.in_care:
-		fails.append("the Vaidya did not heal the patient (ko %s, in care %s)" % [vic.ko, vic.in_care])
+		var qn := PackedStringArray()
+		for qp in clinic._queue:
+			qn.append(String(qp.name) if is_instance_valid(qp) else "<freed>")
+		fails.append("the Vaidya did not heal the patient (ko %s, in care %s, queue [%s], patient at %d, t %.1f, clip '%s' playing %s rate %.2f stop %s, mocap near %s)" % [vic.ko, vic.in_care, ", ".join(qn), clinic._queue.find(vic), clinic._t, vic.rig._clip, vic.rig.clip_playing(), vic.rig._clip_rate, vic.rig._clip_stop, vic.rig._mc_near])
 	# struck while unconscious: dies, and the failure screen offers the last mission
 	var vic2: Npc = null
 	for n in npcs:
