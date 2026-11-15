@@ -1,5 +1,7 @@
 # The Lost Kingdom
 
+> Working on the code? Read [docs/HANDOFF.md](docs/HANDOFF.md) first (map, commands, current state, open tasks).
+
 Cinematic 3D archaeological adventure for Android, built with **Godot 4.4.1** (GDScript, Mobile renderer).
 
 ## Status: Phase 1 - 3D environment prototype only
