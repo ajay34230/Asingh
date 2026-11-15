@@ -55,7 +55,8 @@ var look_sens_y := 1.0          # vertical look multiplier (settings)
 var auto_sprint := true         # a full stick push breaks into a jog
 var sprinting := false          # running flat out with the RUN button this frame
 var _sprint_step := 0
-var _push_t := 0.0             # how long the player has walked into a wall (auto-mantle)
+var _push_t := 0.0
+var slow_t := 0.0              # >0: slowed (venom, webs, a zombie's grip)             # how long the player has walked into a wall (auto-mantle)
 var haptics := true             # phone vibrates when hurt
 var _vib_logged := false
 var look_sens := 1.0             # multiplier on LOOK_SENSITIVITY (settings)
@@ -1651,6 +1652,9 @@ func _physics_process(delta: float) -> void:
 	var run_blend := 1.0 if fast else (smoothstep(0.82, 0.97, m) if auto_sprint else 0.0)
 	var top := RUN_SPEED * run_mult if fast else JOG_SPEED * run_mult
 	var speed := lerpf(WALK_SPEED, top, run_blend) * (1.45 if power.has("speed") else 1.0)
+	if slow_t > 0.0:
+		slow_t -= delta
+		speed *= 0.5
 	sprinting = fast and m > 0.3 and is_on_floor() and not mounted and not crouching
 	if _rig.move == "bow_shot":
 		speed *= 0.3                  # archers plant their feet to draw

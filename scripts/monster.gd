@@ -47,6 +47,16 @@ var _hit_t := 0.0
 var _bob := 0.0
 var _mats: Array[Material] = []
 var _ghost_mats: Array = []          # [ShaderMaterial, mesh scale] for spectral bodies (GhostLook)
+var display := ""                   # name shown over the health bar
+# each kind fights its own way (see _special): blink, dive, lunge, leap, spit, vomit, howl, rise again
+var _sp_cd := 4.0
+var _sp_state := ""
+var _sp_t := 0.0
+var _sp_dir := Vector3.ZERO
+var _risen := false                 # skeletons and zombies get up once
+var _rising := false
+var _layer := 1
+var _circle := 1.0
 static var _cache := {}
 
 
@@ -60,8 +70,10 @@ func setup_monster(k: String, at: Vector3, label: String) -> Monster:
 	add_to_group("monsters")
 	_rng.seed = hash(label) + int(at.x * 7.0)
 	home = at
-	hp = float(d["hp"])
+	# tougher than they were: no monster drops to a single arrow (see take_hit's cap), bosses last a fight
+	hp = float(d["hp"]) * (2.2 if bool(d.get("boss", false)) else 3.2)
 	max_hp = hp
+	display = String(d.get("name", k.capitalize().replace("_", " ")))
 	damage = float(d["dmg"])
 	speed = float(d["speed"])
 	hover = float(d["fly"])
@@ -200,8 +212,8 @@ func _play(n: String, blend: float = 0.15, spd: float = 1.0) -> void:
 func _refresh_bar() -> void:
 	if _hp_bar == null:
 		return
-	var n := clampi(int(ceil(10.0 * hp / max_hp)), 0, 10)
-	_hp_bar.text = ("BOSS " if is_boss else "") + "▮".repeat(n) + "▯".repeat(10 - n)
+	var n := clampi(int(ceil(20.0 * hp / max_hp)), 0, 20)
+	_hp_bar.text = "%s%s  %d/%d\n%s%s" % ["BOSS " if is_boss else "", Loc.t(display), maxi(0, int(ceil(hp))), int(max_hp), "▮".repeat(n), "▯".repeat(20 - n)]
 
 
 func say(_text: String) -> void:
@@ -228,7 +240,7 @@ func take_hit(hk: String, amount: float, from_dir: Vector3) -> void:
 	if spectral:
 		match hk:
 			"arrow":
-				m = 2.0
+				m = 1.6
 			"spirit":
 				m = 6.0                         # spirit arrows: triple an ordinary arrow
 			"punch", "kick", "round":
@@ -243,6 +255,7 @@ func take_hit(hk: String, amount: float, from_dir: Vector3) -> void:
 	if boss != null:
 		amount *= boss.damage_mult(hk, last_hit_at)
 	last_hit_at = null
+	amount = minf(amount, max_hp * (0.2 if is_boss else 0.4))     # no one-shot kills: every monster takes several hits
 	hp -= amount
 	FloatText.spawn(get_parent(), global_position + Vector3(0, _hp_bar.position.y - 0.2, 0), str(int(round(amount))), Color(0.6, 0.95, 1.0) if spectral else Color(1.0, 0.8, 0.3), 1.0 if amount < 20.0 else 1.4)
 	HitFx.burst(get_parent(), global_position + Vector3(0, chest_h, 0), true, Color(0.6, 0.85, 1.0) if spectral else Color(0.7, 0.2, 0.2))
@@ -283,6 +296,9 @@ func _set_ghost(param: String, v: float) -> void:
 
 
 func _die(_hk: String, _dir: Vector3) -> void:
+	if not _risen and (mkind == "skeleton" or (mkind in ["zombie", "zombie_arm"] and _rng.randf() < 0.5)):
+		_rise_again()
+		return
 	dead = true
 	if boss != null:
 		boss.on_death()
@@ -324,6 +340,13 @@ func _physics_process(delta: float) -> void:
 		if not flier and not is_on_floor():
 			velocity.y -= GRAVITY * delta
 			move_and_slide()
+		return
+	if _rising:
+		velocity.x = 0.0
+		velocity.z = 0.0
+		if not is_on_floor():
+			velocity.y -= GRAVITY * delta
+		move_and_slide()
 		return
 	_cd -= delta
 	_hit_t -= delta
@@ -368,6 +391,13 @@ func _physics_process(delta: float) -> void:
 			velocity.y -= GRAVITY * delta
 		move_and_slide()
 		return
+	if _special(delta, dist, fwd):
+		if flier:
+			velocity.y = clampf((player.global_position.y + hover - global_position.y) * 3.0, -6.0, 6.0)
+		elif not is_on_floor():
+			velocity.y -= GRAVITY * delta
+		move_and_slide()
+		return
 	rotation.y = lerp_angle(rotation.y, atan2(-fwd.x, -fwd.z), 1.0 - exp(-8.0 * delta))
 	# attack: wind up, strike at the middle of the clip if the player is still within reach
 	if _atk_t >= 0.0:
@@ -392,8 +422,13 @@ func _physics_process(delta: float) -> void:
 		Sfx.at("whoosh_kick", global_position + Vector3(0, 1.4, 0), -6.0, 0.8)
 	elif dist < aggro:
 		var sp := speed * (1.0 if dist > reach * 0.8 else 0.0)
-		velocity.x = move_toward(velocity.x, fwd.x * sp, 14.0 * delta)
-		velocity.z = move_toward(velocity.z, fwd.z * sp, 14.0 * delta)
+		var mv := fwd
+		if mkind == "wolf" and dist < 9.0 and dist > reach + 0.5:
+			mv = (fwd * 0.35 + fwd.cross(Vector3.UP) * _circle).normalized()     # circles, looking for an opening
+		elif mkind == "cobra" and dist < 4.0 and _sp_cd > 1.0:
+			mv = -fwd                                                             # keeps its distance between spits
+		velocity.x = move_toward(velocity.x, mv.x * sp, 14.0 * delta)
+		velocity.z = move_toward(velocity.z, mv.z * sp, 14.0 * delta)
 		if sp > 0.1:
 			_play("Fast_Flying" if flier else ("Run" if speed > 2.8 else "Walk"))
 		else:
@@ -416,3 +451,179 @@ func _idle_move(delta: float) -> void:
 	if flier:
 		velocity.y = 0.3 * cos(_bob * 2.0)
 	move_and_slide()
+
+
+
+## Each kind's own move, on its own timer. Returns true while the move is running (it drives the body).
+func _special(delta: float, dist: float, fwd: Vector3) -> bool:
+	_sp_cd -= delta
+	if _sp_state != "":
+		_sp_t += delta
+		return _special_step(delta, dist, fwd)
+	if _sp_cd > 0.0 or _atk_t >= 0.0 or _hit_t > 0.0 or dist > aggro or boss != null:
+		return false
+	match mkind:
+		"ghost":
+			if dist < 14.0 and dist > 3.0:
+				_begin("blink", 7.0)
+		"ghost_skull":
+			if dist > 5.0 and dist < 16.0:
+				_begin("dive", 6.0)
+				_sp_dir = fwd
+				Sfx.at("scream", global_position + Vector3(0, 1.5, 0), -6.0, 1.6)
+		"zombie_arm", "skeleton":
+			if dist > 3.0 and dist < 7.0:
+				_begin("lunge", 5.5 if mkind == "zombie_arm" else 8.0)
+				_sp_dir = fwd
+		"spider":
+			if dist > 4.0 and dist < 10.0:
+				_begin("leap", 6.0)
+				_sp_dir = fwd
+				velocity = fwd * minf(dist * 1.6, 12.0) + Vector3(0, 7.5, 0)
+			elif dist >= 10.0 and dist < 18.0:
+				_spit(Color(0.92, 0.92, 0.9), 0.6, 2.5)             # a web: slows you down
+				_sp_cd = 5.0
+		"cobra":
+			if dist > 3.5 and dist < 11.0:
+				_spit(Color(0.4, 1.0, 0.2), 0.55, 1.5)              # venom
+				_sp_cd = 3.5
+		"zombie_fat":
+			if dist < 6.0:
+				_begin("vomit", 9.0)
+		"wolf":
+			if dist > 3.5 and dist < 8.0:
+				_begin("lunge", 4.0)
+				_sp_dir = fwd
+				_circle = -_circle
+				if _rng.randf() < 0.3:
+					Sfx.at("scream", global_position + Vector3(0, 0.8, 0), -8.0, 1.8)    # a yelp to the pack
+		"zombie":
+			if dist < reach + 0.4 and player.slow_t <= 0.0:
+				_begin("grab", 7.0)                                   # holds on: you are slowed while it bites
+	return _sp_state != ""
+
+
+func _begin(st: String, cd: float) -> void:
+	_sp_state = st
+	_sp_t = 0.0
+	_sp_cd = cd + _rng.randf_range(-1.0, 1.5)
+
+
+func _special_step(delta: float, dist: float, fwd: Vector3) -> bool:
+	match _sp_state:
+		"blink":
+			# fades out, slips round behind the player, fades back in and strikes
+			if _sp_t < 0.35:
+				_set_ghost("dissolve", _sp_t / 0.35)
+			elif _sp_t < 0.4:
+				var back := player.global_position + player.global_transform.basis.z * 2.6
+				global_position = Vector3(back.x, global_position.y, back.z)
+				rotation.y = atan2(-(player.global_position - back).x, -(player.global_position - back).z)
+			elif _sp_t < 0.75:
+				_set_ghost("dissolve", 1.0 - (_sp_t - 0.4) / 0.35)
+			else:
+				_set_ghost("dissolve", 0.0)
+				_end_special()
+				_cd = 0.0                                              # and swings straight away
+			velocity = Vector3.ZERO
+		"dive":
+			# a screaming swoop straight at the player
+			velocity = _sp_dir * speed * 3.2
+			_play("Fast_Flying" if flier else "Run")
+			if dist < 1.4:
+				player.take_damage(damage * 1.3, _sp_dir)
+				_end_special()
+			elif _sp_t > 1.4:
+				_end_special()
+		"lunge":
+			if _sp_t < 0.3:
+				velocity = Vector3.ZERO                               # crouch
+				_play("Idle")
+			else:
+				velocity.x = _sp_dir.x * speed * 3.0
+				velocity.z = _sp_dir.z * speed * 3.0
+				_play("Run")
+				if dist < reach + 0.3:
+					player.take_damage(damage * 1.2, _sp_dir)
+					_end_special()
+				elif _sp_t > 0.85:
+					_end_special()
+		"leap":
+			_play("Run")
+			if is_on_floor() and _sp_t > 0.2:
+				if dist < reach + 0.8:
+					player.take_damage(damage * 1.25, _sp_dir)
+				HitFx.dust(get_parent(), global_position, 10, 0.4)
+				_end_special()
+			elif _sp_t > 1.6:
+				_end_special()
+		"vomit":
+			# a sickly green spray: stand in it and it burns and slows
+			velocity.x = move_toward(velocity.x, 0.0, 20.0 * delta)
+			velocity.z = move_toward(velocity.z, 0.0, 20.0 * delta)
+			_play("Punch")
+			if fmod(_sp_t, 0.25) < delta:
+				HitFx.dust(get_parent(), global_position + fwd * 2.0 + Vector3(0, 1.2, 0), 8, 0.5, Color(0.5, 0.75, 0.2, 0.7))
+				if dist < 4.0:
+					player.take_damage(damage * 0.25, fwd)
+					player.slow_t = maxf(player.slow_t, 1.0)
+			if _sp_t > 1.6:
+				_end_special()
+		"grab":
+			# holds on and bites: the player is slowed; hitting it breaks the grip
+			velocity = Vector3.ZERO
+			_play("Punch")
+			player.slow_t = maxf(player.slow_t, 0.3)
+			if fmod(_sp_t, 0.7) < delta and dist < reach + 0.6:
+				player.take_damage(damage * 0.45, fwd)
+			if _sp_t > 2.4 or dist > reach + 1.2 or _hit_t > 0.0:
+				_end_special()
+		_:
+			_end_special()
+	return true
+
+
+func _end_special() -> void:
+	_sp_state = ""
+	_cur = ""
+
+
+## Venom, webs: a slow glob that slows the player on a hit.
+func _spit(col: Color, size: float, slow_s: float) -> void:
+	_play("Punch", 0.08)
+	var orb := BossOrb.new()
+	get_parent().add_child(orb)
+	var from := global_position + Vector3(0, chest_h + 0.2, 0) - global_transform.basis.z * 0.6
+	orb.launch(from, player.global_position + Vector3(0, 1.0, 0), damage * 0.6, player, col, size, slow_s, 9.0)
+	Sfx.at("whoosh_kick", from, -6.0, 1.5)
+
+
+## Skeletons pull themselves back together, zombies sometimes get up again: once, with half health.
+func _rise_again() -> void:
+	_risen = true
+	_rising = true
+	_sp_state = ""
+	_atk_t = -1.0
+	hp = 0.0
+	_refresh_bar()
+	_hp_bar.visible = false
+	_layer = collision_layer
+	collision_layer = 0
+	_cur = ""
+	_play("Death", 0.05)
+	Sfx.at("hit_thud", global_position + Vector3(0, 0.6, 0), -4.0, 0.6)
+	var tw := create_tween()
+	tw.tween_interval(3.0)
+	tw.tween_callback(func() -> void:
+		if not is_instance_valid(self) or dead:
+			return
+		hp = max_hp * 0.5
+		_rising = false
+		_hp_bar.visible = true
+		collision_layer = _layer
+		_refresh_bar()
+		_cur = ""
+		_hit_t = 0.6
+		_play("Idle", 0.3)
+		Sfx.at("scream", global_position + Vector3(0, 1.4, 0), -6.0, 0.7)
+		FloatText.spawn(get_parent(), global_position + Vector3(0, _hp_bar.position.y, 0), Loc.t("It rises again!"), Color(0.8, 1.0, 0.6), 1.2))

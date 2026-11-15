@@ -30,7 +30,7 @@ var NEXT := {
 	"thigh_l": "shin_l", "shin_l": "foot_l", "foot_l": "toe_l",
 	"thigh_r": "shin_r", "shin_r": "foot_r", "foot_r": "toe_r",
 }
-const LOOPS := ["walk", "run", "strafe", "idle", "crouching", "block_idle", "mx_boxing", "mx_blocking", "mx_punching_bag"]
+const LOOPS := ["walk", "run", "strafe", "idle", "crouching", "block_idle", "mx_boxing", "mx_blocking", "mx_punching_bag", "zb_crawl", "zb_stumbling", "zb_agonizing"]
 
 
 func _full_map() -> Dictionary:

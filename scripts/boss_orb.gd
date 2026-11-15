@@ -9,25 +9,31 @@ var dmg := 10.0
 var target: Node3D
 var _life := 0.0
 var _mi: MeshInstance3D
+var tint := Color(1.0, 0.55, 0.15)
+var slow := 0.0                  # >0: seconds the player is slowed on a hit (venom, web)
+var speed := SPEED
 
 
-func launch(from: Vector3, to: Vector3, damage: float, tgt: Node3D) -> void:
+func launch(from: Vector3, to: Vector3, damage: float, tgt: Node3D, col: Color = Color(1.0, 0.55, 0.15), size: float = 1.0, slow_s: float = 0.0, spd: float = SPEED) -> void:
 	global_position = from
 	dmg = damage
 	target = tgt
-	vel = (to - from).normalized() * SPEED
+	tint = col
+	slow = slow_s
+	speed = spd
+	vel = (to - from).normalized() * speed
 	_mi = MeshInstance3D.new()
 	var sm := SphereMesh.new()
-	sm.radius = 0.32
-	sm.height = 0.64
+	sm.radius = 0.32 * size
+	sm.height = 0.64 * size
 	sm.radial_segments = 12
 	sm.rings = 6
 	_mi.mesh = sm
 	var mat := StandardMaterial3D.new()
 	mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-	mat.albedo_color = Color(1.0, 0.55, 0.15)
+	mat.albedo_color = tint
 	mat.emission_enabled = true
-	mat.emission = Color(1.0, 0.4, 0.05)
+	mat.emission = tint.darkened(0.15)
 	mat.emission_energy_multiplier = 4.0
 	_mi.material_override = mat
 	_mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
@@ -41,13 +47,15 @@ func _physics_process(delta: float) -> void:
 		queue_free()
 		return
 	if is_instance_valid(target):
-		var want := (target.global_position + Vector3(0, 1.0, 0) - global_position).normalized() * SPEED
+		var want := (target.global_position + Vector3(0, 1.0, 0) - global_position).normalized() * speed
 		vel = vel.lerp(want, clampf(0.6 * delta, 0.0, 1.0))      # gentle homing: a sidestep still beats it
 	var prev := global_position
 	var next := prev + vel * delta
 	if is_instance_valid(target) and target.global_position.distance_to(next - Vector3(0, 1.0, 0)) < 0.9:
 		if target.has_method("take_damage"):
 			target.call("take_damage", dmg, vel.normalized())
+		if slow > 0.0 and "slow_t" in target:
+			target.set("slow_t", maxf(float(target.get("slow_t")), slow))
 		_burst()
 		return
 	var q := PhysicsRayQueryParameters3D.create(prev, next)
@@ -60,6 +68,6 @@ func _physics_process(delta: float) -> void:
 
 
 func _burst() -> void:
-	HitFx.burst(get_parent(), global_position, true, Color(1.0, 0.5, 0.1))
+	HitFx.burst(get_parent(), global_position, true, tint)
 	Sfx.at("hit_thud", global_position, -2.0, 0.6)
 	queue_free()

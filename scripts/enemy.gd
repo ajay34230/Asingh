@@ -80,7 +80,110 @@ func apply_role(r: String) -> void:
 			speed *= 1.5
 			aggro = maxf(aggro, 20.0)
 			_hp_bar.modulate = Color(0.4, 1.0, 0.5)
+		"zombie":                                   # shambles, grabs and bites, crawls on after it falls
+			rig.clip_set = "zombie"
+			hp *= 2.4
+			max_hp = hp
+			speed *= 0.5
+			damage *= 1.1
+			attack_cd *= 1.3
+			aggro = maxf(aggro, 22.0)
+			voice_type = "deep"
+			_hp_bar.modulate = Color(0.6, 0.85, 0.45)
+		"zombie_runner":                            # sprints in, flails, stumbles
+			rig.clip_set = "zombie_runner"
+			hp *= 1.6
+			max_hp = hp
+			speed *= 1.45
+			attack_cd *= 0.7
+			aggro = maxf(aggro, 28.0)
+			_hp_bar.modulate = Color(0.8, 0.95, 0.4)
+		"caster":                                   # keeps its distance and throws spells; blinks away if crowded
+			rig.clip_set = "caster"
+			hp *= 1.5
+			max_hp = hp
+			aggro = maxf(aggro, 24.0)
+			_hp_bar.modulate = Color(0.75, 0.5, 1.0)
+		"warrok":                                   # the huge brute: swipes, headbutts, slams the ground, charges
+			rig.clip_set = "brute"
+			hp *= 2.6
+			max_hp = hp
+			damage *= 1.7
+			speed *= 0.85
+			attack_cd *= 1.1
+			_hp_bar.modulate = Color(1.0, 0.45, 0.2)
 	_refresh_bar()
+
+
+const ZB_ATTACKS := ["zb_attack", "zb_punching", "zb_kicking", "zb_headbutt", "zb_kicking_2"]
+const ZBR_ATTACKS := ["zb_punch_quick", "zb_attack", "zb_headbutt"]
+const SPELLS := ["sp_1h_attack_01", "sp_1h_attack_02", "sp_1h_attack_03", "sp_2h_attack_01", "sp_2h_attack_02", "sp_2h_attack_03", "sp_2h_attack_04", "sp_2h_attack_05"]
+const AREA_SPELLS := ["sp_2h_area_01", "sp_2h_area_02"]
+var _spell_cd := 2.0
+var _crawling := false              # a zombie cut down crawls on for a while
+var _lunge_t := -1.0
+
+
+## A creature's own attack clip; the blow lands at the clip's strike moment.
+func _clip_attack(names: Array, dmg_mult: float = 1.0) -> void:
+	var nm: String = names[_rng.randi() % names.size()]
+	var lib := MocapLibrary.get_lib()
+	if lib == null or not lib.clips.has(nm):
+		rig.start_attack()
+		return
+	var hit := float(lib.clips[nm].get("hit", 0.5))
+	var rate := clampf(hit / 0.5, 1.0, 2.2)
+	var start := maxf(0.0, hit - 0.5 * rate)
+	if rig.play_clip(nm, 0.9, rate, false, start, 0.1):
+		get_tree().create_timer(maxf(0.15, (hit - start) / rate)).timeout.connect(func() -> void:
+			if is_instance_valid(self) and not dead and _stun <= 0.0:
+				var d0 := damage
+				damage *= dmg_mult
+				_on_swing()
+				damage = d0)
+	else:
+		rig.start_attack()
+
+
+## Casters: a bolt of light at range, a burst all round when the player gets too close.
+func _cast(dist: float) -> void:
+	if dist < 4.5 and _rng.randf() < 0.6:
+		var nm: String = AREA_SPELLS[_rng.randi() % AREA_SPELLS.size()]
+		rig.play_clip(nm, 0.9, 1.3, false, 0.0, 0.1)
+		get_tree().create_timer(0.9).timeout.connect(func() -> void:
+			if not is_instance_valid(self) or dead or player == null:
+				return
+			HitFx.dust(get_parent(), global_position + Vector3(0, 0.3, 0), 22, 0.9, Color(0.75, 0.45, 1.0, 0.7))
+			HitFx.burst(get_parent(), global_position + Vector3(0, 1.0, 0), true, Color(0.8, 0.5, 1.0))
+			Sfx.at("hit_thud", global_position, -2.0, 0.5)
+			if player.global_position.distance_to(global_position) < 5.0:
+				player.take_damage(damage * 1.2, player.global_position - global_position))
+		return
+	var nm2: String = SPELLS[_rng.randi() % SPELLS.size()]
+	var lib := MocapLibrary.get_lib()
+	var hit := 0.6
+	if lib != null and lib.clips.has(nm2):
+		hit = float(lib.clips[nm2].get("hit", 0.6))
+	rig.play_clip(nm2, 0.9, 1.25, false, 0.0, 0.1)
+	get_tree().create_timer(maxf(0.25, hit / 1.25)).timeout.connect(func() -> void:
+		if not is_instance_valid(self) or dead or player == null:
+			return
+		var orb := BossOrb.new()
+		get_parent().add_child(orb)
+		var from := global_position + Vector3(0, 1.4, 0) - global_transform.basis.z * 0.7
+		orb.launch(from, player.global_position + Vector3(0, 1.0, 0), damage * 0.9, player, Color(0.7, 0.45, 1.0), 0.8, 0.0, 12.0)
+		Sfx.at("whoosh_kick", from, -4.0, 0.7))
+
+
+## A caster crowded in close slips away.
+func _blink_away() -> void:
+	var away := global_position - player.global_position
+	away.y = 0.0
+	away = away.normalized() if away.length() > 0.1 else Vector3.RIGHT
+	HitFx.dust(get_parent(), global_position + Vector3(0, 0.8, 0), 14, 0.6, Color(0.7, 0.5, 1.0, 0.7))
+	global_position += away * 8.0
+	HitFx.dust(get_parent(), global_position + Vector3(0, 0.8, 0), 14, 0.6, Color(0.7, 0.5, 1.0, 0.7))
+	Sfx.at("whoosh_kick", global_position, -4.0, 1.6)
 
 
 ## X11: archers loose a visible arrow that lands where you were; keep moving or block.
@@ -198,11 +301,17 @@ func setup(preset: Dictionary, at: Vector3, label: String) -> Enemy:
 
 
 func _refresh_bar() -> void:
-	var n := clampi(int(ceil(10.0 * hp / max_hp)), 0, 10)
-	_hp_bar.text = ("BOSS " if is_boss else "") + "▮".repeat(n) + "▯".repeat(10 - n)
+	var n := clampi(int(ceil(20.0 * hp / max_hp)), 0, 20)
+	var nm := String(get_meta("display", ""))
+	_hp_bar.text = ("%s%s  %d/%d\n" % ["BOSS " if is_boss else "", Loc.t(nm), maxi(0, int(ceil(hp))), int(max_hp)] if nm != "" or is_boss else "") \
+			+ "▮".repeat(n) + "▯".repeat(20 - n)
 
 
 func say(text: String) -> void:
+	if role in ["zombie", "zombie_runner", "warrok"]:
+		# the undead and the brute do not talk: a groan or a roar instead
+		Sfx.at("grunt_%d" % (_rng.randi() % 2), global_position + Vector3(0, 1.6, 0), -2.0, 0.55 if role == "warrok" else 0.7)
+		return
 	_bubble.text = text
 	_bubble.visible = true
 	_bubble_t = clampf(1.8 + text.length() * 0.06, 2.5, 6.0)
@@ -248,8 +357,22 @@ func take_hit(kind: String, amount: float, from_dir: Vector3) -> void:
 	dir = dir.normalized() if dir.length() > 0.01 else Vector3.ZERO
 	_winding = -1.0
 	_refresh_bar()
+	if hp <= 0.0 and role == "zombie" and not _crawling and _rng.randf() < 0.6:
+		# cut down, it keeps coming on its belly
+		_crawling = true
+		hp = max_hp * 0.25
+		_refresh_bar()
+		rig.play_clip("zb_crawl", 1.0, 1.0, true, 0.0, 0.2, false)
+		Sfx.at("grunt_1", global_position + Vector3(0, 0.6, 0), -2.0, 0.5)
+		return
 	if hp <= 0.0:
 		_die(kind, dir)
+		return
+	if role in ["zombie", "zombie_runner", "caster", "warrok"]:
+		# the undead and monsters never beg; zombies flinch with their own reaction
+		if role.begins_with("zombie") and not _crawling and amount > 6.0:
+			rig.play_clip("zb_hit" if _rng.randf() < 0.5 else "zb_hit_2", 0.8, 1.5, false, 0.0, 0.06)
+			_stun = 0.3
 		return
 	if (confesses or (not is_boss and _rng.randf() < 0.35)) and hp < max_hp * (0.4 if confesses else 0.25):
 		_surrender()
@@ -371,6 +494,8 @@ func _surrender() -> void:
 
 func _die(kind: String, dir: Vector3) -> void:
 	dead = true
+	_crawling = false
+	rig.stop_clip(0.1)
 	var ach := get_tree().get_first_node_in_group("achievements")
 	if ach != null:
 		ach.note_kill(role, false)
@@ -566,10 +691,50 @@ func _physics_process(delta: float) -> void:
 			if _shot_cd <= 0.0 and dist < 16.0:
 				_shot_cd = 2.4
 				shoot()
-		elif enraged and _stomp_cd <= 0.0 and dist < 5.5:
+		elif role == "caster":
+			# holds a middle distance, casting; too close and it bursts or blinks away
+			if dist < 3.0 and _spell_cd > 1.2 and _rng.randf() < 0.02:
+				_blink_away()
+			elif dist < 6.0:
+				want = -to_p.normalized() * speed * 0.8
+			elif dist > 13.0:
+				want = to_p.normalized() * speed
+			_spell_cd -= delta
+			if _spell_cd <= 0.0 and dist < 20.0:
+				_spell_cd = _rng.randf_range(2.0, 3.0) * (0.75 if enraged else 1.0)
+				_cast(dist)
+		elif _crawling:
+			want = to_p.normalized() * 0.7 if dist > 1.2 else Vector3.ZERO
+			if dist <= 1.4 and _cd <= 0.0:
+				_cd = 1.6
+				_on_swing()                              # claws at your ankles
+		elif (role == "warrok" and _stomp_cd <= 0.0 and dist < 5.0) or (enraged and _stomp_cd <= 0.0 and dist < 5.5):
 			_stomp()
+		elif role == "zombie_runner" and dist > 3.0 and dist < 6.5 and _cd <= -0.5 and _lunge_t < 0.0:
+			_lunge_t = 0.0                               # throws itself at you
+			_cd = attack_cd
+		elif _lunge_t >= 0.0:
+			_lunge_t += delta
+			want = to_p.normalized() * speed * 2.2
+			if dist < 1.6 or _lunge_t > 0.8:
+				_lunge_t = -1.0
+				if dist < 1.8:
+					_clip_attack(ZBR_ATTACKS, 1.2)
 		elif dist > 1.9:
 			want = to_p.normalized() * speed
+		elif _cd <= 0.0 and role in ["zombie", "zombie_runner", "warrok"]:
+			_cd = attack_cd * _rng.randf_range(0.85, 1.25)
+			_winding = 0.0
+			match role:
+				"zombie":
+					_clip_attack(ZB_ATTACKS)
+					if _rng.randf() < 0.35:
+						player.slow_t = maxf(player.slow_t, 1.2)     # it grabbed you
+				"zombie_runner":
+					_clip_attack(ZBR_ATTACKS)
+				_:
+					_clip_attack(["mutant_swiping", "zb_headbutt", "mutant_swiping"], 1.0)
+			Sfx.at("grunt_%d" % (_rng.randi() % 2), global_position + Vector3(0, 1.6, 0), -4.0, 0.6)
 		elif _cd <= 0.0:
 			_cd = attack_cd
 			_winding = 0.0

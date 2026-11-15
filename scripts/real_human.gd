@@ -650,7 +650,10 @@ const MC_NEXT := {
 }
 enum { MC_LOWER, MC_UPPER, MC_HEAD, MC_FINGER }
 var mocap_on := true               # false: always the code-made animation
-var clip_set := ""                 # "brute": the heavy creature moves (walk, run, breathing stance, swipe)
+var clip_set := ""                 # "brute": the heavy creature moves (walk, run, breathing stance, swipe); "zombie",
+										# "zombie_runner", "caster": the undead and spell-casters
+var _zb_var := randi()             # which zombie idle this one has
+const ZB_IDLES := ["zb_idle", "zb_idle_1", "zb_idle_2", "zb_idle_3", "zb_idle_4", "zb_agonizing"]
 var _mc_idle_near := true          # close enough for the standing idle clip (it plays on many people at once)
 var _started := false              # has animated at least once (weapon changes before that are setup)
 static var mocap_all := true       # diagnostics: switch captured animation off everywhere
@@ -802,7 +805,7 @@ func _mocap_update(delta: float) -> void:
 	var cs := _loco_set()
 	var free := _mc_near and mode == "locomotion" and (react == "" or react == "block") and climb_kind == "" and photo_pose.is_empty() and jump_prep <= 0.0
 	var standing := _speed_smooth < 0.6 and _air < 0.1 and String(cs[2]) != "" and lib.clips.has(cs[2]) \
-			and move == "" and action == "" and attack_t < 0.0 and react == "" and (not guard or weapon in BLADES or weapon == "fists" or clip_set == "brute") \
+			and move == "" and action == "" and attack_t < 0.0 and react == "" and (not guard or weapon in BLADES or weapon == "fists" or clip_set != "") \
 			and (_mc_idle_near or guard or clip_set != "")
 	var want := 0.0
 	if free:
@@ -861,6 +864,12 @@ func _mocap_update(delta: float) -> void:
 func _loco_set() -> Array:
 	if clip_set == "brute":
 		return ["mutant_walking", "mutant_run", "mutant_breathing_idle"]
+	if clip_set == "zombie":
+		return ["zb_walk", "zb_run", ZB_IDLES[_zb_var % ZB_IDLES.size()], "zb_stumbling"]
+	if clip_set == "zombie_runner":
+		return ["zb_walk_2", "zb_run", "zb_scratch_idle"]
+	if clip_set == "caster":
+		return ["walk", "run_fast", "sp_idle"]
 	if weapon in BLADES:
 		return ["ss_walk", "run_fast", "ss_idle" if guard else "bow_unarmed_idle_01", "ss_run"]
 	if weapon == "fists" and guard:
@@ -937,7 +946,7 @@ func _mc_layers() -> Array:
 			var ci: Dictionary = lib.clips[cs[2]]
 			h = _mc_sample(ci, fposmod(_loco_idle_t, float(ci["len"])), q, _loco_idle_w, h)
 		# the arms and body stay the code's while it does something with them (punches, the bow, a gesture...)
-		var brute := clip_set == "brute"
+		var brute := clip_set != ""          # creatures (brute, zombies, casters) move with their own clips
 		var boxing := guard and weapon == "fists" and _loco_idle_w > 0.5
 		var busy_up := move != "" or attack_t >= 0.0 or action != "" or (guard and not blade and not brute and not boxing) or react == "block"
 		var busy_low := (move != "" and move != "bow_shot") or (guard and not blade and not brute and not boxing and _speed_smooth < 2.5) or react == "block"
@@ -1113,7 +1122,7 @@ func animate(delta: float, speed: float, grounded: bool) -> void:
 			attack_hit.emit()
 		if attack_t > 0.75:
 			attack_t = -1.0
-	if guard and move == "" and react == "" and _speed_smooth < 2.5 and _air < 0.1 and climb_kind == "" and not ((weapon in BLADES or clip_set == "brute") and _loco_w > 0.5) and not (weapon == "fists" and _loco_idle_w > 0.5):
+	if guard and move == "" and react == "" and _speed_smooth < 2.5 and _air < 0.1 and climb_kind == "" and not ((weapon in BLADES or clip_set != "") and _loco_w > 0.5) and not (weapon == "fists" and _loco_idle_w > 0.5):
 		_guard_pose()
 	if climb_kind != "":
 		_climb_pose()
@@ -1813,7 +1822,7 @@ func _react_pose() -> void:
 
 
 # Every captured fall that ends lying down: the hero, enemies and knocked-out villagers fall with these.
-const DEATHS := ["ss_death", "ss_death_2", "dying", "mutant_dying", "ual_death01", "mx_dying_1", "mx_dying_2",
+const DEATHS := ["mx_falling_back_death", "ss_death", "ss_death_2", "dying", "mutant_dying", "ual_death01", "mx_dying_1", "mx_dying_2",
 	"mx_standing_death_right_02", "mx_death_crouching_headshot_front", "mx_death_from_the_back", "mx_standing_react_death_right"]
 
 
