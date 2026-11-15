@@ -39,6 +39,7 @@ var _down := 0.0                     # seconds left lying after a knockdown
 var _flying := false
 var _bubble: Label3D
 var _bubble_t := 0.0
+var _far_t := 0.0             # far-away timer for the lag fix in _physics_process
 var _flee_dir := Vector3.ZERO
 var _plead_t := 0.0
 var _death_style := -1
@@ -273,9 +274,13 @@ func setup(preset: Dictionary, at: Vector3, label: String) -> Enemy:
 	_hp_bar.billboard = BaseMaterial3D.BILLBOARD_ENABLED
 	_hp_bar.no_depth_test = true
 	_hp_bar.fixed_size = true
-	_hp_bar.pixel_size = 0.0009
+	_hp_bar.pixel_size = 0.0006          # a third smaller than before (2026-11-15)
 	_hp_bar.font_size = 40
 	_hp_bar.outline_size = 10
+	# only within 20 m of the camera: no clutter, and nothing is drawn for far-away enemies (the engine culls it)
+	_hp_bar.visibility_range_end = 20.0
+	_hp_bar.visibility_range_end_margin = 2.0
+	_hp_bar.visibility_range_fade_mode = GeometryInstance3D.VISIBILITY_RANGE_FADE_SELF
 	_hp_bar.modulate = Color(1.0, 0.35, 0.3)
 	_hp_bar.position.y = 2.25 * float(preset.get("scale", 1.0))
 	add_child(_hp_bar)
@@ -604,6 +609,17 @@ func _physics_process(delta: float) -> void:
 		_bubble_t -= delta
 		if _bubble_t <= 0.0:
 			_bubble.visible = false
+	# lag fix (as villagers do): beyond 90 m, and outside its own chase range, an enemy standing on the ground is not
+	# simulated, only re-posed twice a second. Idle enemies only wander near home, so nothing is missed. Each enemy
+	# cost about 0.7 ms a frame even far away (CPU profile 2026-11-15), more than 25 villagers.
+	if player != null and not held and not _flying and is_on_floor():
+		var d2 := global_position.distance_squared_to(player.global_position)
+		if d2 > 8100.0 and d2 > aggro * aggro:
+			_far_t -= delta
+			if _far_t <= 0.0:
+				_far_t = 0.5 + randf() * 0.2
+				rig.animate(0.5, 0.0, true)
+			return
 	if held:
 		rig.animate(delta, 0.0, false)
 		return

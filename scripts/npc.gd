@@ -628,3 +628,12 @@ func _step(delta: float) -> void:
 	if dist >= NOTICE and _cd["idle"] <= 0.0 and rig.action == "" and not RealHuman.WORK_MODES.has(_base_mode):
 		_cd["idle"] = _rng.randf_range(7.0, 16.0)
 		rig.play_action(IDLE_ACTIONS[_rng.randi() % IDLE_ACTIONS.size()], _rng.randf_range(2.0, 3.2))
+
+
+## Freed for good (not just moved in the tree): leave the main villager list, which many systems loop over
+## (the minimap read a freed villager here and logged script errors).
+func _exit_tree() -> void:
+	if is_queued_for_deletion():
+		var m := get_tree().current_scene if get_tree() != null else null
+		if m != null and m.get("npcs") is Array:
+			(m.get("npcs") as Array).erase(self)

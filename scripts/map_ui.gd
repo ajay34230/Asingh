@@ -291,6 +291,8 @@ func _draw_mini() -> void:
 	var scale := MINI / (MINI_RADIUS_M * 2.0)
 	var centre := Vector2(MINI, MINI) * 0.5
 	for n in main.npcs:
+		if not is_instance_valid(n):
+			continue                     # a villager who died for good is freed but stays in the list
 		var d := Vector2(n.global_position.x - p.x, n.global_position.z - p.z) * scale
 		if absf(d.x) < MINI * 0.5 - 4.0 and absf(d.y) < MINI * 0.5 - 4.0:
 			_mini.draw_circle(centre + d, 4.0, Color(0.35, 0.85, 1.0))

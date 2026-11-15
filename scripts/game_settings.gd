@@ -70,10 +70,20 @@ static var v: Dictionary = {}
 static var main: Node3D = null
 
 
+## Shadow setting each graphics preset brings with it (High, Medium, Low). Low keeps cheap one-split shadows.
+const PRESET_SHADOWS := [2, 1, 1]
+## Bumped when graphics defaults change; older settings files get the new preset shadows once.
+const GFX_REV := 2
+
+
 static func defaults() -> Dictionary:
 	var d := {}
 	for s in SPEC:
 		d[s[1]] = s[4]
+	if OS.has_feature("mobile"):
+		# High ran at 7 fps on a Galaxy S10 (2026-11-15); start phones on Low and let players raise it
+		d["quality"] = 2
+		d["shadows"] = PRESET_SHADOWS[2]
 	return d
 
 
@@ -110,6 +120,10 @@ static func load_file() -> void:
 	# older saves stored "volume" for the master level
 	if cfg.has_section_key("s", "volume") and not cfg.has_section_key("s", "vol_master"):
 		v["vol_master"] = float(cfg.get_value("s", "volume", 1.0))
+	# older files kept High shadows on every preset (even Low, which still lagged on phones): fix once
+	if int(cfg.get_value("s", "gfx_rev", 0)) < GFX_REV:
+		v["shadows"] = mini(int(v["shadows"]), PRESET_SHADOWS[clampi(int(v["quality"]), 0, 2)])
+		save_file()
 
 
 static func save_file() -> void:
@@ -117,6 +131,7 @@ static func save_file() -> void:
 	for k in v.keys():
 		if not String(k).begins_with("dbg_"):      # debug switches always start on
 			cfg.set_value("s", k, v[k])
+	cfg.set_value("s", "gfx_rev", GFX_REV)
 	cfg.save(PATH)
 
 
@@ -124,6 +139,9 @@ static func set_value(key: String, val: Variant) -> void:
 	if v.is_empty():
 		v = defaults()
 	v[key] = val
+	if key == "quality":
+		# a preset brings its shadows with it (the Shadows option can still be changed afterwards)
+		v["shadows"] = PRESET_SHADOWS[clampi(int(val), 0, 2)]
 	apply(key)
 	save_file()
 

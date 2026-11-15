@@ -80,7 +80,8 @@ func _process(delta: float) -> void:
 		if f != null:
 			f.store_string(summary())
 		_worst = 0.0
-	# adaptive quality: 8 s below 22 fps lowers the preset one step (at most once per 40 s)
+	# adaptive quality: 5 s below 22 fps lowers graphics one step (at most once per 20 s). Past the Low preset it
+	# turns shadows off, then drops the 3D resolution to 50% (on a Galaxy S10, Low with shadows ran at 19 fps).
 	if player == null or player.locked or not _enabled:
 		_low = 0.0
 		return
@@ -88,14 +89,26 @@ func _process(delta: float) -> void:
 		_low += delta
 	else:
 		_low = maxf(0.0, _low - delta * 2.0)
-	var q := int(GameSettings.v.get("quality", 0))
-	if _low > 8.0 and _cool <= 0.0 and q < 2:
+	if _low > 5.0 and _cool <= 0.0:
+		var q := int(GameSettings.v.get("quality", 0))
+		var step := ""
+		if q < 2:
+			GameSettings.set_value("quality", q + 1)
+			step = "quality lowered to %d" % (q + 1)
+		elif int(GameSettings.v.get("shadows", 0)) > 0:
+			GameSettings.set_value("shadows", 0)
+			step = "shadows off"
+		else:
+			var rs := float(GameSettings.v.get("render_scale", 0.0))
+			if rs == 0.0 or rs > 0.5:
+				GameSettings.set_value("render_scale", 0.5)
+				step = "resolution 50%"
 		_low = 0.0
-		_cool = 40.0
-		GameSettings.set_value("quality", q + 1)
-		LogCollector.event("low fps, quality lowered to %d (%s)" % [q + 1, summary()])
-		if hud != null:
-			hud.banner(Loc.t("Frame rate was low: graphics lowered a step."), "")
+		_cool = 20.0
+		if step != "":
+			LogCollector.event("low fps, %s (%s)" % [step, summary()])
+			if hud != null:
+				hud.banner(Loc.t("Frame rate was low: graphics lowered a step."), "")
 
 
 ## Debug page: show or hide one part of the world, so a glitch can be pinned on it.

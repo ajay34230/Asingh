@@ -59,6 +59,7 @@ var links: StoryLinks
 var forest: ForestBuilder
 var menu: GameMenu
 var clinic: VaidyaClinic
+var activity: ActivityManager     # Vice City-style culling: only nearby, on-screen characters cost CPU
 var police: PoliceForce
 var map_ui: MapUI
 var combat: CombatBuilder
@@ -127,6 +128,11 @@ func _ready() -> void:
 	_build_interactables()
 	_build_ui()
 	_build_story()
+	activity = ActivityManager.new()
+	activity.name = "ActivityManager"
+	activity.main = self
+	activity.player = player
+	add_child(activity)
 	print("[LostKingdom] world built in %d ms" % (Time.get_ticks_msec() - t0))
 
 	var args := OS.get_cmdline_user_args()
@@ -135,6 +141,9 @@ func _ready() -> void:
 		return
 	if "--selftest" in args:
 		_run_selftest.call_deferred()
+		return
+	if "--profile" in args:
+		_run_profile.call_deferred()
 		return
 	for a in args:
 		if a.begins_with("--capture-farm="):
@@ -2088,6 +2097,7 @@ func _run_selftest() -> void:
 	await _selftest_hunt(fails, notes)
 	await _selftest_fight(fails, notes)
 	await _selftest_rescue_heroes(fails, notes)
+	await _selftest_activity(fails, notes)
 
 	for s in notes:
 		print("[selftest] ", s)
@@ -6212,3 +6222,162 @@ func _count_downloaded() -> int:
 		if HeroStore.is_downloaded(id):
 			n += 1
 	return n
+
+
+## CPU profile (dev tool): `--fixed-fps 60 -- --profile`. Stands the player at PROFILE_AT (default the farm, where
+## the S10 drops to 7 fps), times frames, then switches each kind of per-frame script off in turn to see its share.
+func _run_profile() -> void:
+	Engine.max_fps = 0
+	var at := Vector2(152.0, 161.0)
+	if OS.get_environment("PROFILE_AT") != "":
+		var pv := OS.get_environment("PROFILE_AT").split(",")
+		at = Vector2(float(pv[0]), float(pv[1]))
+	for c in get_children():
+		if c is TitleScreen:
+			c.queue_free()
+	_teleport(at.x, at.y)
+	for i in 180:
+		await get_tree().process_frame
+	var base := await _profile_ms(240)
+	print("[profile] at %s: %.2f ms per frame (process %.2f, physics %.2f), nodes %d, active bodies %d, pairs %d" % [str(at), base[0], base[1], base[2], int(Performance.get_monitor(Performance.OBJECT_NODE_COUNT)), int(Performance.get_monitor(Performance.PHYSICS_3D_ACTIVE_OBJECTS)), int(Performance.get_monitor(Performance.PHYSICS_3D_COLLISION_PAIRS))])
+	if activity != null:
+		# the activity manager itself: alternate on/off, median of the paired differences
+		var adiffs: Array = []
+		for rep in 5:
+			activity.enabled = true
+			activity.tick()
+			var a_on := await _profile_ms(90)
+			activity.enabled = false
+			activity.release_all()
+			var a_off := await _profile_ms(90)
+			adiffs.append(a_off[0] - a_on[0])
+		adiffs.sort()
+		activity.enabled = true
+		activity.tick()
+		print("[profile] activity manager saves %.2f ms per frame (range %.2f..%.2f): active %d, paused %d, hidden %d" % [adiffs[2], adiffs[0], adiffs[4], activity.active_count, activity.paused_count, activity.hidden_count])
+	if OS.get_environment("PROFILE_DRIFT") != "":
+		# what grows while the player just stands there: one line per 5 s of game time
+		var prev := {}
+		for s in int(OS.get_environment("PROFILE_DRIFT")):
+			var m := await _profile_ms(300)
+			var counts := {}
+			var stack2: Array = [get_tree().root]
+			while not stack2.is_empty():
+				var n2: Node = stack2.pop_back()
+				stack2.append_array(n2.get_children())
+				var sc = n2.get_script()
+				var k2: String = (sc as Script).resource_path.get_file() if sc != null else n2.get_class()
+				counts[k2] = int(counts.get(k2, 0)) + 1
+			var grew := PackedStringArray()
+			for k3 in counts:
+				var d: int = int(counts[k3]) - int(prev.get(k3, counts[k3]))
+				if d != 0:
+					grew.append("%s %+d" % [k3, d])
+			prev = counts
+			print("[profile] t=%3ds %6.2f ms, nodes %d, orphans %d, objects %d, enemies %d, npcs %d | %s" % [(s + 1) * 5, m[0], int(Performance.get_monitor(Performance.OBJECT_NODE_COUNT)), int(Performance.get_monitor(Performance.OBJECT_ORPHAN_NODE_COUNT)), int(Performance.get_monitor(Performance.OBJECT_COUNT)), get_tree().get_nodes_in_group("enemies").size(), get_tree().get_nodes_in_group("npcs").size(), ", ".join(grew.slice(0, 8))])
+		get_tree().quit()
+		return
+	# group every node that runs a per-frame callback by its script
+	var groups := {}
+	var stack: Array = [get_tree().root]
+	while not stack.is_empty():
+		var n: Node = stack.pop_back()
+		stack.append_array(n.get_children())
+		if n == self or not (n.is_processing() or n.is_physics_processing()):
+			continue
+		var s = n.get_script()
+		var key: String = (s as Script).resource_path.get_file() if s != null else n.get_class()
+		if not groups.has(key):
+			groups[key] = []
+		groups[key].append(n)
+	var keys := groups.keys()
+	keys.sort_custom(func(a, b) -> bool: return groups[a].size() > groups[b].size())
+	var rows: Array = []
+	# frame time swings 8..80 ms in bursts, so each group is switched on/off in alternating pairs and the median
+	# of the paired differences is reported
+	for k in keys:
+		var nodes: Array = groups[k]
+		var states := []
+		for n in nodes:
+			states.append([n.is_processing(), n.is_physics_processing()])
+		var diffs: Array = []
+		for rep in 5:
+			var on := await _profile_ms(60)
+			for n in nodes:
+				if is_instance_valid(n):
+					n.set_process(false)
+					n.set_physics_process(false)
+			await get_tree().process_frame
+			var off := await _profile_ms(60)
+			for j in nodes.size():
+				if is_instance_valid(nodes[j]):
+					nodes[j].set_process(states[j][0])
+					nodes[j].set_physics_process(states[j][1])
+			await get_tree().process_frame
+			diffs.append(on[0] - off[0])
+		diffs.sort()
+		rows.append([diffs[2], k, nodes.size(), diffs[0], diffs[4]])
+	rows.sort_custom(func(a, b) -> bool: return a[0] > b[0])
+	for r in rows:
+		print("[profile] %6.2f ms (range %6.2f..%6.2f) saved with %-26s off (%d nodes)" % [r[0], r[3], r[4], r[1], r[2]])
+	# the main script itself
+	set_process(false)
+	set_physics_process(false)
+	var offm := await _profile_ms(90)
+	print("[profile] %7.2f ms saved with main.gd off" % (base[0] - offm[0]))
+	get_tree().quit()
+
+
+func _profile_ms(frames: int) -> Array:
+	var t0 := Time.get_ticks_usec()
+	var pr := 0.0
+	var ph := 0.0
+	for i in frames:
+		await get_tree().process_frame
+		pr += Performance.get_monitor(Performance.TIME_PROCESS)
+		ph += Performance.get_monitor(Performance.TIME_PHYSICS_PROCESS)
+	return [float(Time.get_ticks_usec() - t0) / 1000.0 / frames, pr * 1000.0 / frames, ph * 1000.0 / frames]
+
+
+## The activity manager (Vice City-style culling): far villagers are paused and hidden, near ones stay active,
+## the on-screen test works, and switching it off restores everything it paused.
+func _selftest_activity(fails: PackedStringArray, notes: PackedStringArray) -> void:
+	if activity == null:
+		fails.append("activity manager missing")
+		return
+	var cam := get_viewport().get_camera_3d()
+	if cam != null:
+		var planes := cam.get_frustum()
+		var ahead := cam.global_position - cam.global_transform.basis.z * 10.0
+		var behind := cam.global_position + cam.global_transform.basis.z * 10.0
+		if not ActivityManager.on_screen(planes, ahead, 0.5) or ActivityManager.on_screen(planes, behind, 0.5):
+			fails.append("activity: on-screen test wrong (ahead %s, behind %s)" % [ActivityManager.on_screen(planes, ahead, 0.5), ActivityManager.on_screen(planes, behind, 0.5)])
+	var near_n: Npc = null
+	var far_n: Npc = null
+	for n in npcs:
+		if n.companion or n.ko or n.dead_forever or n.in_care or n.angry_t > 0.0 or n.role == "police" or not n.visible:
+			continue
+		var d := n.global_position.distance_to(player.global_position)
+		if far_n == null and d > ActivityManager.MISSION_RANGE + 20.0:
+			far_n = n
+	if far_n == null:
+		fails.append("activity: no villager far enough away to test")
+		return
+	for n in npcs:
+		if n != far_n and not n.companion and not n.ko and not n.dead_forever and n.role != "police" and n.visible:
+			near_n = n
+			break
+	_teleport(near_n.global_position.x + 3.0, near_n.global_position.z)
+	for i in 3:
+		await get_tree().physics_frame
+	activity.enabled = true
+	activity.tick()
+	var far_paused := far_n.has_meta("_ac_paused") and not far_n.is_processing() and not far_n.visible
+	var near_active := not near_n.has_meta("_ac_paused") and near_n.visible
+	var counts := "active %d, paused %d, hidden %d" % [activity.active_count, activity.paused_count, activity.hidden_count]
+	activity.enabled = false
+	activity.release_all()
+	var restored := far_n.visible and not far_n.has_meta("_ac_paused")
+	notes.append("activity: " + counts)
+	if not far_paused or not near_active or not restored:
+		fails.append("activity: far villager paused+hidden %s, near villager active %s, restored %s (%s)" % [far_paused, near_active, restored, counts])

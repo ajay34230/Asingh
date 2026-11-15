@@ -101,9 +101,13 @@ func setup_monster(k: String, at: Vector3, label: String) -> Monster:
 	_hp_bar.billboard = BaseMaterial3D.BILLBOARD_ENABLED
 	_hp_bar.no_depth_test = true
 	_hp_bar.fixed_size = true
-	_hp_bar.pixel_size = 0.0009
+	_hp_bar.pixel_size = 0.0006          # a third smaller than before (2026-11-15)
 	_hp_bar.font_size = 40
 	_hp_bar.outline_size = 10
+	# only within 20 m of the camera: no clutter, and nothing is drawn for far-away enemies (the engine culls it)
+	_hp_bar.visibility_range_end = 20.0
+	_hp_bar.visibility_range_end_margin = 2.0
+	_hp_bar.visibility_range_fade_mode = GeometryInstance3D.VISIBILITY_RANGE_FADE_SELF
 	_hp_bar.modulate = Color(0.6, 0.9, 1.0) if spectral else Color(1.0, 0.35, 0.3)
 	_hp_bar.position.y = float(d["height"]) + 0.4
 	add_child(_hp_bar)
