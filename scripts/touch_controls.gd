@@ -86,25 +86,25 @@ func _corner(ox: float, oy: float) -> Vector2:
 
 
 func _run_button_centre() -> Vector2:
-	return _corner(110.0, 95.0)
+	return _lay("run", _corner(110.0, 95.0))
 
 
 func _use_button_centre() -> Vector2:
-	return _corner(110.0, 225.0)
+	return _lay("use", _corner(110.0, 225.0))
 
 
 func _attack_button_centre() -> Vector2:
-	return _corner(245.0, 285.0)
+	return _lay("attack", _corner(245.0, 285.0))
 
 
 func _scope_button_centre() -> Vector2:
-	return _corner(515.0, 360.0)            # left of the main buttons, clear of the minimap
+	return _lay("scope", _corner(515.0, 360.0))            # left of the main buttons, clear of the minimap
 
 
 ## The left FIRE button sits above the joystick area, on the other side from the main buttons.
 func _lfire_button_centre() -> Vector2:
 	var x := 545.0 * btn_scale              # just right of the quest panel, where PUBG puts its left fire button
-	return Vector2(_vp.x - x if left_handed else x, _vp.y - 250.0 * btn_scale)
+	return _lay("lfire", Vector2(_vp.x - x if left_handed else x, _vp.y - 250.0 * btn_scale))
 
 
 func _bow_mode() -> bool:
@@ -112,23 +112,23 @@ func _bow_mode() -> bool:
 
 
 func _jump_button_centre() -> Vector2:
-	return _corner(245.0, 150.0)
+	return _lay("jump", _corner(245.0, 150.0))
 
 
 func _block_button_centre() -> Vector2:
-	return _corner(380.0, 230.0)
+	return _lay("block", _corner(380.0, 230.0))
 
 
 func _roll_button_centre() -> Vector2:
-	return _corner(380.0, 365.0)
+	return _lay("roll", _corner(380.0, 365.0))
 
 
 func _weapon_button_centre() -> Vector2:
-	return _corner(515.0, 110.0)
+	return _lay("weapon", _corner(515.0, 110.0))
 
 
 func _horse_button_centre() -> Vector2:
-	return _corner(515.0, 235.0)
+	return _lay("horse", _corner(515.0, 235.0))
 
 
 func _horse_visible() -> bool:
@@ -136,7 +136,7 @@ func _horse_visible() -> bool:
 
 
 func _moves_button_centre() -> Vector2:
-	return _corner(650.0, 110.0)
+	return _lay("moves", _corner(650.0, 110.0))
 
 
 func _moves_menu() -> MovesMenu:
@@ -144,7 +144,7 @@ func _moves_menu() -> MovesMenu:
 
 
 func _crouch_button_centre() -> Vector2:
-	return _corner(380.0, 95.0)
+	return _lay("crouch", _corner(380.0, 95.0))
 
 
 func _on_move_side(pos: Vector2) -> bool:
@@ -166,6 +166,9 @@ func _process(delta: float) -> void:
 
 
 func _input(event: InputEvent) -> void:
+	if edit_mode:
+		_edit_input(event)
+		return
 	if player == null or not visible:
 		return
 	if event is InputEventScreenTouch:
@@ -314,6 +317,9 @@ func _on_drag(idx: int, pos: Vector2, rel: Vector2) -> void:
 
 
 func _draw() -> void:
+	if edit_mode:
+		_draw_edit()
+		return
 	var font := ThemeDB.fallback_font
 	if show_fps:
 		draw_string(font, Vector2(0, 104), _fps_text, HORIZONTAL_ALIGNMENT_CENTER, size.x, 18, Color(1, 1, 1, 0.8))   # centred under the health bar, no background
@@ -418,3 +424,117 @@ func _draw_button(font: Font, c: Vector2, r: float, label: String, active: bool)
 	label = Loc.t(label)
 	var size := font.get_string_size(label, HORIZONTAL_ALIGNMENT_LEFT, -1, 22)
 	draw_string(font, c + Vector2(-size.x * 0.5, 8.0), label, HORIZONTAL_ALIGNMENT_LEFT, -1, 22, Color(1, 1, 1, 0.95))
+
+
+# --- button layout (BGMI-style): move or hide any button, saved in user://hud_layout.cfg -------------------
+
+const LAYOUT_PATH := "user://hud_layout.cfg"
+## id -> label shown in the editor and the button's radius there
+const LAYOUT_IDS := {"run": ["RUN", 50.0], "use": ["USE", 50.0], "attack": ["HIT", 60.0], "jump": ["JUMP", 55.0],
+	"block": ["BLOCK", 50.0], "roll": ["ROLL", 50.0], "crouch": ["DUCK", 50.0], "weapon": ["WEAPON", 45.0],
+	"moves": ["MOVES", 45.0], "horse": ["HORSE", 45.0], "scope": ["SCOPE", 45.0], "lfire": ["FIRE (left)", 50.0]}
+var layout := {}                 # id -> {"p": Vector2 (fraction of the screen), "h": hidden}
+var edit_mode := false
+var _edit_sel := ""
+var _edit_id := -1
+var _layout_loaded := false
+
+
+func _lay(id: String, def: Vector2) -> Vector2:
+	if not _layout_loaded:
+		load_layout()
+	var l: Dictionary = layout.get(id, {})
+	if bool(l.get("h", false)) and not edit_mode:
+		return Vector2(-10000, -10000)          # hidden: off screen, so it is neither drawn nor pressed
+	if l.has("p"):
+		return (l["p"] as Vector2) * _vp
+	return def
+
+
+func load_layout() -> void:
+	_layout_loaded = true
+	var c := ConfigFile.new()
+	if c.load(LAYOUT_PATH) == OK:
+		layout = c.get_value("hud", "layout", {})
+
+
+func save_layout() -> void:
+	var c := ConfigFile.new()
+	c.set_value("hud", "layout", layout)
+	c.save(LAYOUT_PATH)
+
+
+func start_edit() -> void:
+	_reset_touches()
+	edit_mode = true
+	_edit_sel = ""
+	queue_redraw()
+
+
+func _centre_of(id: String) -> Vector2:
+	return call("_%s_button_centre" % id)
+
+
+func _edit_bar() -> Array:
+	var w := 200.0
+	var x0 := _vp.x * 0.5 - w * 1.5 - 20.0
+	return [["hide", Rect2(x0, 12, w, 56)], ["reset", Rect2(x0 + w + 20.0, 12, w, 56)], ["done", Rect2(x0 + (w + 20.0) * 2.0, 12, w, 56)]]
+
+
+func _edit_input(event: InputEvent) -> void:
+	if event is InputEventScreenTouch:
+		var pos: Vector2 = event.position
+		if event.pressed:
+			for b in _edit_bar():
+				if (b[1] as Rect2).has_point(pos):
+					match b[0]:
+						"hide":
+							if _edit_sel != "":
+								var l: Dictionary = layout.get(_edit_sel, {})
+								l["h"] = not bool(l.get("h", false))
+								layout[_edit_sel] = l
+						"reset":
+							layout = {}
+						"done":
+							save_layout()
+							edit_mode = false
+							_edit_sel = ""
+					queue_redraw()
+					return
+			var best := ""
+			var bd := 90.0 * btn_scale
+			for id in LAYOUT_IDS:
+				var d := pos.distance_to(_centre_of(id))
+				if d < bd:
+					bd = d
+					best = id
+			_edit_sel = best
+			_edit_id = event.index if best != "" else -1
+		elif event.index == _edit_id:
+			_edit_id = -1
+		queue_redraw()
+	elif event is InputEventScreenDrag and event.index == _edit_id and _edit_sel != "":
+		var l2: Dictionary = layout.get(_edit_sel, {})
+		var p: Vector2 = (event.position as Vector2).clamp(Vector2(40, 90), _vp - Vector2(40, 40))
+		l2["p"] = p / _vp
+		layout[_edit_sel] = l2
+		queue_redraw()
+
+
+func _draw_edit() -> void:
+	var font := ThemeDB.fallback_font
+	draw_rect(Rect2(Vector2.ZERO, _vp), Color(0, 0, 0, 0.45))
+	draw_string(font, Vector2(0, 100), Loc.t("Drag a button to move it. Tap one, then HIDE/SHOW."), HORIZONTAL_ALIGNMENT_CENTER, _vp.x, 22, Color(1, 1, 1, 0.9))
+	for id in LAYOUT_IDS:
+		var hid := bool((layout.get(id, {}) as Dictionary).get("h", false))
+		var lbl: String = LAYOUT_IDS[id][0] + (" (hidden)" if hid else "")
+		var c := _centre_of(id)
+		_draw_button(font, c, float(LAYOUT_IDS[id][1]) * btn_scale, lbl, id == _edit_sel)
+		if hid:
+			draw_line(c - Vector2(30, 30), c + Vector2(30, 30), Color(1, 0.3, 0.3, 0.9), 4.0)
+	for b in _edit_bar():
+		var r: Rect2 = b[1]
+		draw_rect(r, Color(0.15, 0.12, 0.08, 0.92))
+		draw_rect(r, Color(1, 0.85, 0.4), false, 2.0)
+		var t := {"hide": "HIDE / SHOW", "reset": "RESET", "done": "DONE"}[b[0]] as String
+		draw_string(font, Vector2(r.position.x, r.position.y + 38), Loc.t(t), HORIZONTAL_ALIGNMENT_CENTER, r.size.x, 24, Color.WHITE)

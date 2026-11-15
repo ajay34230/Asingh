@@ -419,6 +419,12 @@ func _build_settings() -> Control:
 			note.text = "Changes menus, quests, dialogue and spoken voices."
 			note.autowrap_mode = TextServer.AUTOWRAP_WORD
 			vb.add_child(note)
+		if tab == "Controls":
+			vb.add_child(_button("Customise buttons (move / hide)", func() -> void:
+				toggle()
+				var tc = (main as Node).get("touch")
+				if tc != null:
+					tc.call("start_edit")))
 		if tab == "Audio":
 			vb.add_child(_button("Test voices", func() -> void:
 				Sfx.speak("man", "Welcome, traveller. The Queen's road is waiting for you.", null, 0.0, true, "Test")

@@ -70,6 +70,7 @@ var frontier: FrontierBuilder
 func _ready() -> void:
 	var t0 := Time.get_ticks_msec()
 	GameSettings.load_file()          # early, so the world is built for the chosen graphics preset
+	get_tree().node_added.connect(_touch_scroll_fix)
 	terrain = TerrainBuilder.new(1337)
 	frontier = FrontierBuilder.new()
 	frontier.generate()
@@ -6446,3 +6447,21 @@ func _selftest_hero_kept(fails: PackedStringArray) -> void:
 	GameSettings.save_file()
 	if kept != "remy":
 		fails.append("chosen character lost on settings reload (got '%s')" % kept)
+
+
+## Every list in a ScrollContainer scrolls with a finger swipe: buttons and labels inside pass the drag on to
+## the scroller instead of swallowing it (sliders and text fields keep their own drag).
+func _touch_scroll_fix(n: Node) -> void:
+	if n is ScrollContainer:
+		(n as ScrollContainer).scroll_deadzone = 12
+		return
+	if not (n is Control) or n is Range or n is LineEdit or n is TextEdit:
+		return
+	var c := n as Control
+	if c.mouse_filter != Control.MOUSE_FILTER_STOP:
+		return
+	var p := n.get_parent()
+	while p != null and not (p is ScrollContainer):
+		p = p.get_parent()
+	if p != null:
+		c.mouse_filter = Control.MOUSE_FILTER_PASS
