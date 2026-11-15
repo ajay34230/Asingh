@@ -262,6 +262,7 @@ func setup(preset: Dictionary, at: Vector3, label: String) -> Enemy:
 	_rng.seed = hash(label) + int(at.x * 7.0)
 	home = at
 	rig = RealHuman.new().setup(preset, label)
+	rig.engine_anim = true          # perf step 6: idle and patrolling enemies play baked clips; fighting uses the script path
 	add_child(rig)
 	var cs := CollisionShape3D.new()
 	var cap := CapsuleShape3D.new()
