@@ -2108,6 +2108,8 @@ func _run_selftest() -> void:
 	_selftest_perf(fails, notes)
 	_selftest_hero_kept(fails)
 	await _selftest_undead(fails, notes)
+	await _selftest_cart_drive(fails, notes)
+	_selftest_arin_reachable(fails)
 
 	for s in notes:
 		print("[selftest] ", s)
@@ -6605,3 +6607,57 @@ func _selftest_undead(fails: PackedStringArray, notes: PackedStringArray) -> voi
 	if moved < 2:
 		fails.append("undead enemies did not move toward the player (%d of 3)" % moved)
 	notes.append("undead: %d zombie clips, %d spell clips, %d of 3 test enemies moved" % [zb, sp, moved])
+
+
+## Standing cart ride: take the reins, the cart rolls forward and turns with the stick, the rider stays on it
+## in the reins pose, and JUMP puts them back on the ground beside it.
+func _selftest_cart_drive(fails: PackedStringArray, notes: PackedStringArray) -> void:
+	var w: Wagon = null
+	for c in find_children("Wagon_*", "Node3D", true, false):
+		if c is Wagon and not (c as Wagon).open_route:
+			w = c
+			break
+	if w == null:
+		fails.append("cart drive: no cart in the world")
+		return
+	_teleport(w.global_position.x + 3.0, w.global_position.z)
+	await get_tree().physics_frame
+	w.start_drive(player)
+	var p0 := w.global_position
+	var h0 := w._heading
+	player.move_input = Vector2(0.4, 1.0)
+	for i in 120:
+		await get_tree().physics_frame
+	player.move_input = Vector2.ZERO
+	var moved := w.global_position.distance_to(p0)
+	var on := player.global_position.distance_to(w.seat.global_position) < 0.3 and player._rig.react == "reins"
+	var turned := absf(angle_difference(h0, w._heading)) > 0.2
+	player.jump_requested = true
+	for i in 3:
+		await get_tree().physics_frame
+	var off := player.carried_by == null and player.drive_wagon == null
+	notes.append("cart drive: moved %.1f m, turned %s, rider on %s, got off %s" % [moved, turned, on, off])
+	if moved < 3.0 or not on or not turned or not off:
+		fails.append("cart drive failed (moved %.1f m, turned %s, rider on %s, got off %s)" % [moved, turned, on, off])
+
+
+## The raid's last step is "Speak to Arin": Arin must stand in the open, not inside the gate's stonework
+## (a player reported the marker inside a round structure they could not reach).
+func _selftest_arin_reachable(fails: PackedStringArray) -> void:
+	var arin := story.refs.get("Arin") as Node3D
+	if arin == null:
+		return
+	var q := PhysicsShapeQueryParameters3D.new()
+	var cap := CapsuleShape3D.new()
+	cap.radius = 0.45
+	cap.height = 1.6
+	q.shape = cap
+	q.transform = Transform3D(Basis(), arin.global_position + Vector3(0, 1.0, 0))
+	var hits := get_world_3d().direct_space_state.intersect_shape(q, 8)
+	var walls := PackedStringArray()
+	for h in hits:
+		var c: Object = h["collider"]
+		if c is StaticBody3D:
+			walls.append(str((c as Node).get_path()))
+	if not walls.is_empty():
+		fails.append("Arin stands inside: %s" % ", ".join(walls))

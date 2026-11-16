@@ -29,3 +29,8 @@ Suggested order: start with 1 and 2 together, since they cover most of what's on
 - [x] **8. Distance fog and sandstorms for FPS.** When FPS drops, bring in a dust haze that shortens the view
   (40 to 60 m; 15 m only in a rare heavy sandstorm), so far things are not drawn. Mission enemies stay drawn
   past the fog with a red marker. Low-detail models far away for imported 3D models.
+- [ ] **9. Better fighting (player feedback 2026-11-17).** Fight animations and styles look very bad, and enemies
+  are dumb. Plan in phases: (a) use the captured Mixamo/UAL combat clips for every strike, block, dodge and hit
+  reaction instead of code poses; (b) enemy AI: circle and spacing, take turns attacking (no dog-piling or idle
+  waiting), block and dodge, flank, retreat when hurt, use cover for archers; (c) combos, counters on a parry,
+  finishers, and weight (hit-stop, knockback, camera).

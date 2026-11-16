@@ -185,9 +185,9 @@ func _define_quests() -> void:
 		"show": func() -> bool: return get_flag("arin_done"),
 		"objs": [
 			{"text": func() -> String: return "Defeat the Dust Reavers (%d/7)" % int(get_flag("reavers_down", 0)),
-			 "done": func() -> bool: return int(get_flag("reavers_down", 0)) >= 7, "target": func() -> Vector3: return _pos("Arin")},
+			 "done": func() -> bool: return int(get_flag("reavers_down", 0)) >= 7, "target": func() -> Vector3: return _nearest_foe(["raid"])},
 			{"text": func() -> String: return "Defeat Captain Karan",
-			 "done": func() -> bool: return get_flag("captain_down"), "target": func() -> Vector3: return _pos("Arin")},
+			 "done": func() -> bool: return get_flag("captain_down"), "target": func() -> Vector3: return _nearest_foe(["boss", "raid"])},
 			{"text": func() -> String: return "Speak to Arin",
 			 "done": func() -> bool: return get_flag("raid_done"), "target": func() -> Vector3: return _pos("Arin")},
 		],
@@ -661,3 +661,22 @@ func _bz_lal() -> Dictionary:
 	return {"start": "a", "nodes": {
 		"a": {"who": w, "text": "Raju sent you? Then listen. The clerk hid a box behind the Musafir Inn, under the grain sacks, and Reaver men watch it day and night. Whatever is inside, someone will kill to keep it quiet.",
 			"set": {"bz_lal": true}, "sfx": "pickup", "choices": [{"t": "I will see about that box.", "go": ""}]}}}
+
+
+## Objective marker for a fight: the nearest living enemy with one of these spawn tags (raid, boss...), so the
+## marker leads to the fight instead of to the quest giver. Falls back to Arin when none is up yet.
+func _nearest_foe(tags: Array) -> Vector3:
+	var from := _pos("player")
+	var best := Vector3.ZERO
+	var bd := INF
+	var tree := Engine.get_main_loop() as SceneTree
+	if tree != null:
+		for e in tree.get_nodes_in_group("enemies"):
+			var en := e as Enemy
+			if en == null or en.dead or not tags.has(String(en.get_meta("tag", ""))):
+				continue
+			var d := en.global_position.distance_to(from)
+			if d < bd:
+				bd = d
+				best = en.global_position
+	return best if bd < INF else _pos("Arin")

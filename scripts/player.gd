@@ -85,6 +85,7 @@ var _v_was := false
 var _combat_t := 99.0            # seconds since last hit taken / dealt
 var _invuln := 0.0
 var carried_by: Node3D = null    # riding a cart: position follows this node
+var drive_wagon: Node = null      # driving a cart: the cart steers from move_input; JUMP gets off
 var hammer_mult := 1.0              # 1.4 once Dhruv re-forges the hammer with the Queen's light
 var attack_override := Callable()   # set by the cart race: the HIT button swings the cart blades
 var has_knife := false            # hunter's knife from the Reaver camp: lets you hunt wild game
@@ -1585,6 +1586,10 @@ func _physics_process(delta: float) -> void:
 		slam_dive = false
 		ground_slam()
 	if carried_by != null and is_instance_valid(carried_by):
+		if jump_requested and drive_wagon != null:
+			jump_requested = false
+			drive_wagon.call("stop_drive")
+			return
 		global_position = carried_by.global_position
 		velocity = Vector3.ZERO
 		_model.rotation.y = lerp_angle(_model.rotation.y, carried_by.global_rotation.y, 1.0 - exp(-6.0 * delta))

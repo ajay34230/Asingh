@@ -1827,6 +1827,21 @@ func _react_pose() -> void:
 			_pose["spine"] = Vector3(-0.06 - 0.1 * kd + 0.025 * gd, -0.1 * ride_turn, 0.16 * ride_turn)
 			_pose["hips"] = Vector3(0.0, 0.0, -0.05 * ride_turn)
 			_pose["head"] = Vector3(0.03, 0.1 * ride_turn, -0.08 * ride_turn)
+		"reins":
+			# Standing on the cart bed holding the reins: feet apart, knees soft, both hands forward at the ropes,
+			# swaying with the cart and leaning into turns (ride_turn).
+			var kr := ride_k
+			var sw := sin(t * (3.0 + 4.0 * kr))
+			_hips_dy = -0.07 + sw * 0.02 * kr
+			for tg in ["L", "R"]:
+				var sr := 1.0 if tg == "L" else -1.0
+				_pz("hip_" + tg, Vector3(0.12, 0, 0.12 * sr))
+				_pz("kn_" + tg, Vector3(-0.25 - 0.1 * kr, 0, 0))
+				_pz("sh_" + tg, Vector3(-0.95, 0, 0.18))
+				_pz("el_" + tg, Vector3(0.75 + 0.1 * sw * kr, 0, 0))
+			_pose["spine"] = Vector3(0.06 + 0.02 * sw * kr, -0.1 * ride_turn, 0.14 * ride_turn)
+			_pose["hips"] = Vector3(0.0, 0.0, -0.05 * ride_turn)
+			_pose["head"] = Vector3(0.02, 0.15 * ride_turn, 0.0)
 		"block":
 			# guard up: forearms in front of the face, knees soft, weight sunk
 			_hips_dy = -0.16

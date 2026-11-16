@@ -42,14 +42,14 @@ func setup(ter: TerrainBuilder, ply: Node3D, kind: String, points: Array[Vector2
 	add_child(_cart)
 	var cart := (load("res://assets/props/cart.glb") as PackedScene).instantiate() as Node3D
 	_cart.add_child(cart)
-	cart.scale = Vector3.ONE * 1.6
-	cart.rotation.y = PI * 0.5      # the cart's long axis along our forward (-Z) after yaw; adjusted by look
+	cart.scale = Vector3.ONE * 2.4                 # was 1.6: about 1.5 m long next to a 1.75 m bull; now about 2.2 m
+	cart.rotation.y = PI            # the model is long along Z with its shafts at +Z (glTF front): turn them to the animals (-Z). PI/2 left it sideways
 	var body := StaticBody3D.new()
 	var cs := CollisionShape3D.new()
 	var box := BoxShape3D.new()
-	box.size = Vector3(1.9, 1.0, 3.2)
+	box.size = Vector3(1.2, 1.0, 2.3)
 	cs.shape = box
-	cs.position = Vector3(0, 0.8, 1.2)
+	cs.position = Vector3(0, 0.8, -0.3)
 	body.add_child(cs)
 	_cart.add_child(body)
 	# two draught animals ahead of the cart (forward = -Z)
@@ -71,8 +71,17 @@ func setup(ter: TerrainBuilder, ply: Node3D, kind: String, points: Array[Vector2
 	beam.position = Vector3(0, 1.25, -2.4)
 	add_child(beam)
 	seat = Node3D.new()
-	seat.position = Vector3(0, 1.25, 1.1)
+	seat.position = Vector3(0, 1.1, 0.2)     # standing on the cart bed behind the shafts
 	_cart.add_child(seat)
+	# anyone can take the reins: stand on the cart and steer it with the stick
+	var take := Interactable.new()
+	take.prompt = "Drive the cart"
+	take.reach = 3.2
+	take.position = Vector3(1.0, 1.0, 0.2)
+	take.on_interact = func(by: Node3D, _me: Interactable) -> void:
+		if by is Player and not _driving and rider == null:
+			start_drive(by as Player)
+	_cart.add_child(take)
 	_place(0.0)
 	return self
 
@@ -148,6 +157,9 @@ func _start_sound() -> void:
 func _process(delta: float) -> void:
 	if _snd == null and is_inside_tree():
 		_start_sound()
+	if _driving:
+		_drive(delta)
+		return
 	if player == null:
 		return
 	var near := global_position.distance_squared_to(player.global_position) < ACTIVE_RANGE * ACTIVE_RANGE
@@ -180,3 +192,72 @@ func _process(delta: float) -> void:
 	_place(_s)
 	if open_route and _s >= _len:
 		_finish_run()
+
+
+# --- driving: the player stands on the cart holding the reins and steers it with the stick -------------------
+
+const DRIVE_SPEED := 4.2           # m/s at full stick
+var _driving := false
+var _drive_v := 0.0
+
+
+func start_drive(p: Player) -> void:
+	rider = p
+	_driving = true
+	running = false
+	p.carried_by = seat
+	p.drive_wagon = self
+	p._rig.set_react("reins")
+	if driver != null and is_instance_valid(driver):
+		driver.visible = false
+	p.say(Loc.t("Stick to drive. JUMP to get off."))
+
+
+func stop_drive() -> void:
+	if rider == null:
+		return
+	_driving = false
+	_drive_v = 0.0
+	for a in _animals:
+		a.play_walk(false)
+	var p := rider
+	p.carried_by = null
+	p.drive_wagon = null
+	p._rig.set_react("")
+	p._rig.ride_k = 0.0
+	p._rig.ride_turn = 0.0
+	var side := global_transform.basis.x.normalized()
+	var out := seat.global_position + side * 2.2
+	out.y = terrain.sample_height(out.x, out.z) + 0.4
+	p.global_position = out
+	p.velocity = Vector3.ZERO
+	rider = null
+	if driver != null and is_instance_valid(driver):
+		driver.visible = true
+
+
+func _drive(delta: float) -> void:
+	if rider == null or not is_instance_valid(rider):
+		_driving = false
+		return
+	var inp: Vector2 = rider.move_input
+	if inp.length() < 0.05:
+		inp = rider._keyboard_input()
+	_drive_v = move_toward(_drive_v, clampf(inp.y, -0.35, 1.0) * DRIVE_SPEED, 2.5 * delta)
+	var turn_k := clampf(absf(_drive_v) / 2.0, 0.25, 1.0) * signf(_drive_v if absf(_drive_v) > 0.05 else 1.0)
+	_heading -= inp.x * 1.1 * delta * turn_k
+	rotation.y = _heading
+	var fwd := Vector3(-sin(_heading), 0.0, -cos(_heading))
+	var np := position + fwd * _drive_v * delta
+	np.y = terrain.sample_height(np.x, np.z)
+	position = np
+	var ahead := position + fwd * 3.0
+	var behind := position - fwd * 3.0
+	rotation.x = clampf(atan2(terrain.sample_height(ahead.x, ahead.z) - terrain.sample_height(behind.x, behind.z), 6.0), -0.25, 0.25)
+	var moving := absf(_drive_v) > 0.2
+	for a in _animals:
+		a.play_walk(moving)
+		if a._anim != null:
+			a._anim.speed_scale = clampf(absf(_drive_v) / 1.3, 0.6, 2.2) if moving else 1.0
+	rider._rig.ride_k = clampf(absf(_drive_v) / DRIVE_SPEED, 0.0, 1.0)
+	rider._rig.ride_turn = clampf(inp.x, -1.0, 1.0)
