@@ -20,6 +20,7 @@ var overcast_target := 0.0
 var mist := 0.0                  # 0 clear air .. 1 thick fog
 var mist_target := 0.0
 var dust := 0.0                  # 0 clear .. 1 a full dust storm (andhi)
+var haze := 0.0                  # 0..1 dust haze raised by Diag when FPS stays low (hides the far view)
 var dust_target := 0.0
 var _dust_p: GPUParticles3D
 ## Indian seasons by the phone's month. Each sets how often it rains or blows dust, morning mist, the colour of
@@ -581,7 +582,7 @@ func _update_weather(delta: float) -> void:
 	var was_d := dust
 	dust = move_toward(dust, dust_target, delta / 10.0)
 	if _dust_p != null:
-		_dust_p.emitting = dust > 0.04
+		_dust_p.emitting = maxf(dust, haze) > 0.04
 		_dust_p.amount_ratio = clampf(dust, 0.05, 1.0) * [1.0, 0.6, 0.35][quality]
 		if _follow != null:
 			_dust_p.global_position = _follow.global_position + Vector3(-14.0, 1.5, 0.0)
@@ -675,7 +676,8 @@ func apply_time() -> void:
 	var gloom := maxf(rain, overcast * 0.8)
 	var sw2: Dictionary = SEASONS.get(season, SEASONS["sharad"])
 	sun.light_color *= sw2["sun"]
-	if gloom > 0.0 or mist > 0.0 or _flash > 0.0 or dust > 0.0:
+	var dd := maxf(dust, haze)      # weather dust or the low-FPS haze, whichever is thicker
+	if gloom > 0.0 or mist > 0.0 or _flash > 0.0 or dd > 0.0:
 		sun.light_energy *= 1.0 - 0.6 * gloom
 		sky_mat.sky_top_color = sky_mat.sky_top_color.lerp(Color(0.32, 0.35, 0.4) * (1.0 - night * 0.8), gloom * 0.8)
 		sky_mat.sky_horizon_color = sky_mat.sky_horizon_color.lerp(Color(0.45, 0.47, 0.5) * (1.0 - night * 0.8), maxf(gloom, mist) * 0.8)
@@ -683,17 +685,17 @@ func apply_time() -> void:
 		environment.fog_light_color = environment.fog_light_color.lerp(Color(0.72, 0.74, 0.76) * (1.0 - night * 0.8), mist)
 		environment.ambient_light_energy *= 1.0 - 0.25 * gloom
 		environment.adjustment_saturation = lerpf(1.1, 0.8, maxf(gloom, mist * 0.7))
-		if dust > 0.0:
-			# andhi: an orange-brown wall of dust, the sun a dim disc, the far hills gone
+		if dd > 0.0:
+			# andhi: an orange-brown wall of dd, the sun a dim disc, the far hills gone
 			var dc := Color(0.78, 0.55, 0.32) * (1.0 - night * 0.8)
-			sun.light_energy *= 1.0 - 0.55 * dust
-			sun.light_color = sun.light_color.lerp(Color(1.0, 0.7, 0.42), dust * 0.7)
-			sky_mat.sky_top_color = sky_mat.sky_top_color.lerp(dc * 0.85, dust * 0.85)
-			sky_mat.sky_horizon_color = sky_mat.sky_horizon_color.lerp(dc, dust * 0.9)
-			environment.fog_density += dust * 0.024
-			environment.fog_light_color = environment.fog_light_color.lerp(dc, dust)
-			environment.ambient_light_color = environment.ambient_light_color.lerp(Color(0.8, 0.62, 0.42), dust * 0.6)
-			environment.adjustment_saturation = lerpf(environment.adjustment_saturation, 0.85, dust * 0.5)
+			sun.light_energy *= 1.0 - 0.55 * dd
+			sun.light_color = sun.light_color.lerp(Color(1.0, 0.7, 0.42), dd * 0.7)
+			sky_mat.sky_top_color = sky_mat.sky_top_color.lerp(dc * 0.85, dd * 0.85)
+			sky_mat.sky_horizon_color = sky_mat.sky_horizon_color.lerp(dc, dd * 0.9)
+			environment.fog_density += dd * 0.024
+			environment.fog_light_color = environment.fog_light_color.lerp(dc, dd)
+			environment.ambient_light_color = environment.ambient_light_color.lerp(Color(0.8, 0.62, 0.42), dd * 0.6)
+			environment.adjustment_saturation = lerpf(environment.adjustment_saturation, 0.85, dd * 0.5)
 		if _flash > 0.0:
 			environment.ambient_light_energy += 2.5 * _flash
 			sky_mat.sky_top_color = sky_mat.sky_top_color.lerp(Color(0.9, 0.92, 1.0), _flash * 0.6)

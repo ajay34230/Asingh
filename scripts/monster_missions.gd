@@ -59,6 +59,10 @@ const MISSIONS := [
 	 "at": FrontierBuilder.DHOOP_C + Vector2(40.0, 40.0), "goal": Vector2.ZERO, "night": true, "place": "the edge of Dhoopgarh",
 	 "waves": [[["demon", 1]], [["dl:demon", 1], ["skeleton", 3]]],
 	 "gift": "potion", "coins": 400, "line": "Headman Ratan: The Demon King is no more!"},
+	{"id": "m_warrok", "title": "The Warrok Rises", "short": "The dead walk from the graveyard, and something huge walks with them.",
+	 "at": Vector2(-122.0, 56.0), "goal": Vector2(-90.0, 12.0), "night": true, "place": "the village graveyard", "protect": "the village",
+	 "waves": [[["undead", 4]], [["undead", 3], ["undead_runner", 3]], [["undead_runner", 2], ["warrok", 1]]],
+	 "gift": "potion", "coins": 450, "line": "Headman Ratan: The Warrok is dead. The graveyard can sleep again."},
 ]
 const START_RADIUS := 26.0
 # downloadable bosses ("dl:<id>" in a wave): a man-shaped enemy with every captured animation
@@ -67,6 +71,8 @@ const DL_BOSSES := {
 	"nightshade": {"role": "ambusher", "hp": 360.0, "dmg": 1.5},
 	"demon": {"role": "brute", "hp": 560.0, "dmg": 1.8},
 }
+## undead wave tokens: zombie-role men (built-in bodies, grey-green), and the Warrok brute boss
+const UNDEAD := ["undead", "undead_runner", "warrok"]
 var _asked := ""                  # the mission whose download was declined (asked again after you leave)
 var _asking := false
 const VILLAGE_DRAIN := 0.8        # village heart lost per second for each monster haunting the centre (was 2.2, uncapped)
@@ -407,6 +413,10 @@ func _spawn_wave(rise: bool) -> void:
 			var a := TAU * float(n) / 7.0 + float(wave) * 0.7
 			var r := 6.0 + float(n % 3) * 2.5
 			var p := Vector2(at.x + cos(a) * r, at.y + sin(a) * r)
+			if String(grp[0]) in UNDEAD:
+				_spawn_undead(String(grp[0]), p, n)
+				n += 1
+				continue
 			if String(grp[0]).begins_with("dl:"):
 				_spawn_dl_boss(String(grp[0]).trim_prefix("dl:"), p, n)
 				n += 1
@@ -587,3 +597,29 @@ func _restore_time() -> void:
 		atmo.set("time_of_day", 0.25)        # the night ends: dawn after the fight
 		atmo.call("apply_time")
 	_saved_tod = -1.0
+
+
+## Undead waves: men with the zombie / zombie_runner roles on built-in bodies, and the Warrok (the warrok role on
+## a large brute body; the downloadable Warrok model can replace it once its FBX is converted).
+func _spawn_undead(kind: String, p: Vector2, n: int) -> void:
+	var boss := kind == "warrok"
+	var body: String = "brute" if boss else String(CombatBuilder.BODIES[n % CombatBuilder.BODIES.size()])
+	var pr := {"body": body, "role": "enemy", "voice": "deep", "robe": false, "scale": 1.55 if boss else 1.0,
+		"tool": "", "tint": Color(0.42, 0.5, 0.38) if not boss else Color(0.3, 0.32, 0.28)}
+	var en := Enemy.new().setup(pr, _ground(p), "%s_%s_%d" % [running, kind, n])
+	en.player = player
+	main.add_child(en)
+	en.apply_role({"undead": "zombie", "undead_runner": "zombie_runner", "warrok": "warrok"}[kind])
+	if boss:
+		en.is_boss = true
+		en.hp = 700.0
+		en.max_hp = en.hp
+		en.damage *= 2.0
+	en.aggro = maxf(en.aggro, 30.0)
+	if Vector2(_m["goal"]) != Vector2.ZERO:
+		en.set_meta("goal", _ground(_m["goal"]))
+	en._refresh_bar()
+	if combat != null:
+		en._spawn_pickup = func(pp: Vector3, kk: String) -> void: combat.spawn_pickup(pp, kk)
+	en.died.connect(_on_kill)
+	alive.append(en)

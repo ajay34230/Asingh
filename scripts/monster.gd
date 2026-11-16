@@ -97,7 +97,7 @@ func setup_monster(k: String, at: Vector3, label: String) -> Monster:
 	cs.shape = cap
 	cs.position.y = cap.height * 0.5 + (0.2 if flier else 0.0)
 	add_child(cs)
-	_hp_bar = Label3D.new()
+	_hp_bar = HealthBar3D.new()
 	_hp_bar.billboard = BaseMaterial3D.BILLBOARD_ENABLED
 	_hp_bar.no_depth_test = true
 	_hp_bar.fixed_size = true
@@ -218,6 +218,7 @@ func _refresh_bar() -> void:
 		return
 	var n := clampi(int(ceil(20.0 * hp / max_hp)), 0, 20)
 	_hp_bar.text = "%s%s  %d/%d\n%s%s" % ["BOSS " if is_boss else "", Loc.t(display), maxi(0, int(ceil(hp))), int(max_hp), "▮".repeat(n), "▯".repeat(20 - n)]
+	(_hp_bar as HealthBar3D).set_health(hp / maxf(max_hp, 1.0))
 
 
 func say(_text: String) -> void:

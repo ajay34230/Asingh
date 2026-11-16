@@ -70,6 +70,12 @@ Credit: monsters and weapons by Quaternius, graveyard by Kenney (CC0; credit not
 |---|---|---|
 | `assets/anims/mocap.res` (91 clips, including 20 fighting, blocking and death clips named `mx_`; earlier: Walking, Fast Run, Jumping Down, Dying, the Sword and Shield pack, the Lite Longbow pack and the Creature NPC (mutant) pack) | Adobe Mixamo (https://www.mixamo.com), downloaded by Ajay on the X Bot character and converted to this game's skeleton by `tools/bake_mixamo.gd`. The original FBX files are not in the repo. | Mixamo terms (Adobe): royalty-free for use in games and other projects, but not CC0, and not to be redistributed as stand-alone animation files. Ajay chose to keep the converted library in this public repo (2026-11-14); it is the one exception to the CC0-or-own-work rule. |
 
+
+## Zombie and spell animation packs (Mixamo, 2026-11-15)
+
+| Asset | Source | Licence |
+|---|---|---|
+| Clips in `assets/anims/mocap.res` named `zb_` (zombie walk, run, crawl, stumble, agonising, bite, scream, deaths) and `sp_` (spell casting, blink, throw) | Adobe Mixamo zombie and magic packs downloaded by Ajay as FBX (originals kept out of git in `mixamo_src/zombie/`, `mixamo_src/zombie_zip/`, `mixamo_src/spell_zip/`), baked to this game's skeleton by `tools/bake_mixamo.gd` (looping clips listed in its LOOPS). Used by the zombie, zombie_runner, caster and warrok enemy roles and the Warrok mission. | Mixamo terms (Adobe): royalty-free for use in games, not CC0, not to be redistributed as stand-alone animation files. Kept in this public repo by Ajay's choice, the same exception as the other Mixamo clips. |
 ## New monsters (2026-11-15)
 
 | Asset | Source | Licence |

@@ -85,6 +85,14 @@ func _process(delta: float) -> void:
 	if player == null or player.locked or not _enabled:
 		_low = 0.0
 		return
+	# the haze lifts after 20 s of smooth play
+	if haze_on and Engine.get_frames_per_second() > 45:
+		_good += delta
+		if _good > 20.0:
+			_good = 0.0
+			set_haze(false)
+	else:
+		_good = 0.0
 	if Engine.get_frames_per_second() < 22:
 		_low += delta
 	else:
@@ -103,6 +111,8 @@ func _process(delta: float) -> void:
 			if rs == 0.0 or rs > 0.5:
 				GameSettings.set_value("render_scale", 0.5)
 				step = "resolution 50%"
+			elif set_haze(true):
+				step = "dust haze, view 70 m"
 		_low = 0.0
 		_cool = 20.0
 		if step != "":
@@ -155,3 +165,25 @@ static func debug_toggle(main_node: Node, key: String, on: bool) -> void:
 			var f: Node = main_node.get_node_or_null("Farm")
 			if f != null:
 				(f as Node3D).visible = on
+
+
+## Last adaptive step: a dust haze (the weather's own dust storm look) and a 70 m camera far plane, so nothing
+## beyond is drawn. Mission enemies past the haze get a red marker on screen (TouchControls). Returns true if
+## it changed anything.
+const HAZE_VIEW := 70.0
+var haze_on := false
+var _good := 0.0
+
+
+func set_haze(on: bool) -> bool:
+	if on == haze_on:
+		return false
+	var m := get_tree().current_scene
+	var atmo = m.get("atmosphere") if m != null else null
+	if atmo != null:
+		atmo.set("haze", 1.0 if on else 0.0)
+	if player != null and player.camera != null:
+		player.camera.far = HAZE_VIEW if on else 3500.0
+	haze_on = on
+	LogCollector.event("dust haze %s" % ("on" if on else "off"))
+	return true

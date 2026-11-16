@@ -323,6 +323,7 @@ func _draw() -> void:
 	var font := ThemeDB.fallback_font
 	if show_fps:
 		draw_string(font, Vector2(0, 104), _fps_text, HORIZONTAL_ALIGNMENT_CENTER, size.x, 18, Color(1, 1, 1, 0.8))   # centred under the health bar, no background
+	_draw_haze_markers()
 	if hints_on and _hint_time > 0.0:
 		var a := clampf(_hint_time / 3.0, 0.0, 1.0)
 		draw_string(font, Vector2(16, 58), Loc.t("Left: move   Right: look (two fingers: zoom)   USE appears near things"),
@@ -538,3 +539,27 @@ func _draw_edit() -> void:
 		draw_rect(r, Color(1, 0.85, 0.4), false, 2.0)
 		var t := {"hide": "HIDE / SHOW", "reset": "RESET", "done": "DONE"}[b[0]] as String
 		draw_string(font, Vector2(r.position.x, r.position.y + 38), Loc.t(t), HORIZONTAL_ALIGNMENT_CENTER, r.size.x, 24, Color.WHITE)
+
+
+## While the low-FPS dust haze hides the far view, mission enemies (all enemies) within 100 m that are past it
+## get a red marker, so missions stay fair.
+func _draw_haze_markers() -> void:
+	var m := get_tree().current_scene
+	var dg = m.get("diag") if m != null else null
+	if dg == null or not bool(dg.get("haze_on")) or player == null:
+		return
+	var cam := get_viewport().get_camera_3d()
+	if cam == null:
+		return
+	for e in get_tree().get_nodes_in_group("enemies"):
+		var en := e as Enemy
+		if en == null or en.dead:
+			continue
+		var d := en.global_position.distance_to(player.global_position)
+		if d < Diag.HAZE_VIEW - 10.0 or d > 100.0:
+			continue
+		var wp := en.global_position + Vector3(0, 2.2, 0)
+		if cam.is_position_behind(wp):
+			continue
+		var sp := cam.unproject_position(wp)
+		draw_colored_polygon(PackedVector2Array([sp + Vector2(-10, -16), sp + Vector2(10, -16), sp]), Color(1, 0.15, 0.1, 0.9))

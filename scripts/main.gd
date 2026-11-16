@@ -2107,6 +2107,7 @@ func _run_selftest() -> void:
 	await _selftest_activity(fails, notes)
 	_selftest_perf(fails, notes)
 	_selftest_hero_kept(fails)
+	await _selftest_undead(fails, notes)
 
 	for s in notes:
 		print("[selftest] ", s)
@@ -6547,3 +6548,60 @@ func _engine_pose_error() -> float:
 		r._ap.seek(pos, true)
 		return worst
 	return 0.0
+
+
+## Monster upgrades: the zombie and spell clips are present and sane, every clip the creature sets use exists,
+## the Warrok mission is listed, and undead / runner / Warrok enemies spawn, move and show the single health bar.
+func _selftest_undead(fails: PackedStringArray, notes: PackedStringArray) -> void:
+	var lib := MocapLibrary.get_lib()
+	var zb := 0
+	var sp := 0
+	for cn in lib.clips:
+		var c: Dictionary = lib.clips[cn]
+		if String(cn).begins_with("zb_") or String(cn).begins_with("sp_"):
+			if int(c["n"]) < 2 or float(c["len"]) <= 0.05:
+				fails.append("clip %s is empty (%d frames, %.2f s)" % [cn, int(c["n"]), float(c["len"])])
+			if String(cn).begins_with("zb_"):
+				zb += 1
+			else:
+				sp += 1
+	var probe := RealHuman.new()
+	for cs in ["zombie", "zombie_runner", "caster", "brute"]:
+		probe.clip_set = cs
+		for k in probe._loco_set():
+			if String(k) != "" and not lib.clips.has(String(k)):
+				fails.append("clip set %s uses missing clip %s" % [cs, k])
+	probe.free()
+	var has_m := false
+	for m in MonsterMissions.MISSIONS:
+		has_m = has_m or m["id"] == "m_warrok"
+	if not has_m:
+		fails.append("Warrok mission missing")
+	var spawned: Array = []
+	var i := 0
+	for kind in ["zombie", "zombie_runner", "warrok"]:
+		var en := Enemy.new().setup({"body": "brute" if kind == "warrok" else "thief", "role": "enemy", "voice": "deep", "robe": false, "scale": 1.0, "tool": ""},
+			player.global_position + Vector3(8.0 + i * 3.0, 0, 6.0), "undead_test_%d" % i)
+		en.player = player
+		add_child(en)
+		en.apply_role(kind)
+		en._refresh_bar()
+		spawned.append(en)
+		i += 1
+	var p0: Array = []
+	for en in spawned:
+		p0.append((en as Enemy).global_position)
+	for f in 60:
+		await get_tree().physics_frame
+	var moved := 0
+	for j in spawned.size():
+		var en: Enemy = spawned[j]
+		if is_instance_valid(en) and en.global_position.distance_to(p0[j]) > 0.3:
+			moved += 1
+		if is_instance_valid(en) and not (en._hp_bar is HealthBar3D):
+			fails.append("enemy health bar is not the single bar")
+		if is_instance_valid(en):
+			en.queue_free()
+	if moved < 2:
+		fails.append("undead enemies did not move toward the player (%d of 3)" % moved)
+	notes.append("undead: %d zombie clips, %d spell clips, %d of 3 test enemies moved" % [zb, sp, moved])

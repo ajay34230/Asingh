@@ -271,7 +271,7 @@ func setup(preset: Dictionary, at: Vector3, label: String) -> Enemy:
 	cs.shape = cap
 	cs.position.y = cap.height * 0.5
 	add_child(cs)
-	_hp_bar = Label3D.new()
+	_hp_bar = HealthBar3D.new()
 	_hp_bar.billboard = BaseMaterial3D.BILLBOARD_ENABLED
 	_hp_bar.no_depth_test = true
 	_hp_bar.fixed_size = true
@@ -311,6 +311,7 @@ func _refresh_bar() -> void:
 	var nm := String(get_meta("display", ""))
 	_hp_bar.text = ("%s%s  %d/%d\n" % ["BOSS " if is_boss else "", Loc.t(nm), maxi(0, int(ceil(hp))), int(max_hp)] if nm != "" or is_boss else "") \
 			+ "▮".repeat(n) + "▯".repeat(20 - n)
+	(_hp_bar as HealthBar3D).set_health(hp / maxf(max_hp, 1.0))
 
 
 func say(text: String) -> void:
