@@ -1391,10 +1391,15 @@ func _move_clip(n: String, lead: float) -> void:
 	if n == "roll":
 		play_clip(cname, 1.0, clampf(float(c["len"]) / 0.6, 1.0, 2.6), false, 0.0, 0.05)
 		return
+	# play the clip from its start at close to its own speed (wind-up included) and move the damage moment to
+	# the clip's real point of impact. It used to start part-way and run up to 2.2x fast to fit the code timing,
+	# which skipped the wind-up and looked robotic (player feedback 2026-11-17).
 	var hit_at := float(MOVES[n][1]) + lead
 	var ch := float(c["hit"])
-	var rate := clampf(ch / maxf(hit_at, 0.05), 0.7, 2.2)
-	play_clip(cname, 1.0 - smoothstep(0.5, 2.0, _speed_smooth), rate, false, maxf(0.0, ch - hit_at * rate), 0.06)
+	var rate := clampf(ch / maxf(hit_at, 0.05), 1.0, 1.4)
+	_move_hit_at = ch / rate - lead
+	_move_dur = maxf(_move_dur, float(c["len"]) / rate * 0.8 - lead)
+	play_clip(cname, 1.0 - smoothstep(0.5, 2.0, _speed_smooth), rate, false, 0.0, 0.08)
 
 
 ## Boxing stance: fists up by the chin, lead hand forward, knees soft, a little bounce on the toes.

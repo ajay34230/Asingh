@@ -1009,6 +1009,7 @@ func _on_move_hit(mv: String) -> void:
 	var fwd := Vector3(-sin(_model.rotation.y), 0.0, -cos(_model.rotation.y))
 	var reach := (1.9 if MOVE_KIND[mv] != "punch" else 1.6) + gear_reach      # contact distance (was 2.3 / 2.9: hit from too far)
 	var dmg: float = MOVE_DMG[mv] * _hit_mult * gear_dmg * melee_mult * wpn_up() * (2.0 if power.has("power") else 1.0)
+	dmg *= _take_counter()
 	var hit := false
 	for e in get_tree().get_nodes_in_group("enemies"):
 		var en := e as Enemy
@@ -1104,6 +1105,7 @@ func _update_held() -> void:
 func _on_attack_hit() -> void:
 	var fwd := Vector3(-sin(_model.rotation.y), 0.0, -cos(_model.rotation.y))
 	var dmg := 22.0 * hammer_mult * gear_dmg * heavy_mult * wpn_up() * (2.0 if power.has("power") else 1.0)
+	dmg *= _take_counter()
 	var hit := false
 	for e in get_tree().get_nodes_in_group("enemies"):
 		var to: Vector3 = (e as Node3D).global_position - global_position
@@ -1139,6 +1141,7 @@ func take_damage(amount: float, from: Vector3) -> void:
 	if blocking and _block_t < 0.25:
 		# S2: a block raised just before the hit is a parry: no damage, the attacker is staggered
 		parries += 1
+		_counter_t = 1.2                 # counter window: the next strike does double damage
 		stamina = minf(MAX_STAMINA, stamina + 12.0)
 		var near_e := _nearest_enemy(4.0)
 		if near_e != null:
@@ -1221,6 +1224,7 @@ func hostile_to_guards() -> bool:
 
 
 func _tick_combat(delta: float) -> void:
+	_counter_t = maxf(0.0, _counter_t - delta)
 	if wanted_t > 0.0 and wanted_t - delta <= 0.0:
 		assaults = 0                  # the town forgets once the wanted time is over
 	wanted_t = maxf(0.0, wanted_t - delta)
@@ -1812,3 +1816,16 @@ func _face_enemy(max_d: float) -> void:
 	if e != null:
 		var to := e.global_position - global_position
 		_model.rotation.y = atan2(-to.x, -to.z)
+
+
+## Counter after a parry (fighting overhaul phase c): returns the damage multiplier for this strike.
+var _counter_t := 0.0
+
+
+func _take_counter() -> float:
+	if _counter_t <= 0.0:
+		return 1.0
+	_counter_t = 0.0
+	FloatText.spawn(get_parent(), global_position + Vector3(0, 2.4, 0), Loc.t("COUNTER"), Color(0.6, 0.9, 1.0), 1.3, 1.2)
+	StoryFX.hitstop(0.08)
+	return 2.0

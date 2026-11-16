@@ -353,7 +353,21 @@ func take_hit(kind: String, amount: float, from_dir: Vector3) -> void:
 		if fwd_s.dot(-from_dir.normalized()) > 0.3:      # blocked on the shield; kicks of the round or slam kind break guard
 			amount *= 0.25
 			Sfx.at("hit_thud", global_position + Vector3(0, 1.2, 0), -6.0, 1.6)
+	elif _try_block(kind, from_dir):
+		amount *= 0.3
+		if hp - amount > 0.0:
+			hp -= amount
+			_refresh_bar()
+			FloatText.spawn(get_parent(), global_position + Vector3(0, 2.2, 0), Loc.t("BLOCK"), Color(0.7, 0.85, 1.0), 0.9)
+			Sfx.at("hit_thud", global_position + Vector3(0, 1.2, 0), -6.0, 1.5)
+			rig.set_react("block")
+			_block_t = 0.5
+			return
 	hp -= amount
+	if _is_fighter() and not _retreated and not is_boss and hp > 0.0 and hp < max_hp * 0.25:
+		_retreated = true
+		_retreat_t = 1.8
+		_tokens.erase(self)
 	_flash = 0.25
 	FloatText.spawn(get_parent(), global_position + Vector3(0, 2.2, 0), str(int(round(amount))), Color(1.0, 0.9, 0.3) if amount < 18.0 else Color(1.0, 0.45, 0.15), 1.0 if amount < 18.0 else 1.4)
 	if is_boss and not enraged and hp > 0.0 and hp < max_hp * 0.5:
@@ -696,6 +710,10 @@ func _physics_process(delta: float) -> void:
 		_patrol_t = 1.0
 	if chasing:
 		rotation.y = lerp_angle(rotation.y, atan2(-to_p.x, -to_p.z), minf(1.0, 8.0 * delta))
+		if _block_t > 0.0:
+			_block_t -= delta
+			if _block_t <= 0.0 and rig.react == "block":
+				rig.set_react("")
 		if _winding >= 0.0:
 			_winding += delta
 			if _winding > 0.45:
@@ -738,6 +756,14 @@ func _physics_process(delta: float) -> void:
 				_lunge_t = -1.0
 				if dist < 1.8:
 					_clip_attack(ZBR_ATTACKS, 1.2)
+		elif _is_fighter() and _retreat_t > 0.0:
+			_retreat_t -= delta                          # hurt: backs off to recover, then comes again
+			want = -to_p.normalized() * speed * 0.8
+		elif _is_fighter() and dist < 6.0 and not _has_token(dist):
+			# waiting its turn: circles the hero at about 3.2 m instead of piling in or standing still
+			var side := to_p.normalized().cross(Vector3.UP) * _circle_dir
+			var radial := to_p.normalized() * clampf(dist - 3.2, -1.0, 1.0)
+			want = (side * 0.6 + radial).normalized() * speed * 0.55
 		elif dist > 1.9:
 			want = to_p.normalized() * speed
 		elif _cd <= 0.0 and role in ["zombie", "zombie_runner", "warrok"]:
@@ -758,10 +784,10 @@ func _physics_process(delta: float) -> void:
 			_winding = 0.0
 			FloatText.spawn(get_parent(), global_position + Vector3(0, 2.4, 0), "!", Color(1.0, 0.15, 0.1), 1.6, 0.5, 0.45)
 			var r := _rng.randf()
-			if r < 0.3:
-				rig.play_move("cross")
-			elif r < 0.5:
-				rig.play_move("kick_front")
+			if r < 0.6:
+				rig.play_move(["jab", "cross", "hook", "kick_front", "kick_side"][_rng.randi() % 5])
+				if _rng.randf() < 0.3:
+					_cd = 0.5                            # a quick second strike: a two-hit combo
 			else:
 				rig.start_attack()
 			Sfx.at("swing" if r >= 0.5 else "whoosh_punch", global_position + Vector3(0, 1.2, 0), -6.0, _rng.randf_range(0.9, 1.1))
@@ -780,3 +806,40 @@ func _physics_process(delta: float) -> void:
 	velocity.z = lerpf(velocity.z, want.z, 1.0 - exp(-10.0 * delta))
 	move_and_slide()
 	rig.animate(delta, Vector2(velocity.x, velocity.z).length(), is_on_floor())
+
+
+# --- fighting AI (overhaul phase b) ----------------------------------------------------------------------
+## At most MAX_ATTACKERS human fighters press the hero at once; the rest circle and wait their turn.
+static var _tokens: Array = []
+const MAX_ATTACKERS := 2
+var _circle_dir := 1.0 if randf() < 0.5 else -1.0
+var _retreat_t := 0.0
+var _retreated := false
+var _block_t := 0.0
+
+
+func _is_fighter() -> bool:
+	return not (role in ["archer", "caster", "zombie", "zombie_runner", "warrok"]) and not _crawling and not held
+
+
+func _has_token(dist: float) -> bool:
+	_tokens = _tokens.filter(func(e) -> bool: return is_instance_valid(e) and not (e as Enemy).dead)
+	if self in _tokens:
+		if dist > 7.0:
+			_tokens.erase(self)
+			return false
+		return true
+	if _tokens.size() < MAX_ATTACKERS:
+		_tokens.append(self)
+		return true
+	return false
+
+
+## A fighter facing the hero and not mid-swing sometimes blocks a punch, kick or slam (brutes rarely).
+func _try_block(kind: String, from_dir: Vector3) -> bool:
+	if not _is_fighter() or not (kind in ["punch", "kick", "slam"]) or _winding >= 0.0 or _stun > 0.0 or _block_t > 0.0:
+		return false
+	var fwd := Vector3(-sin(rotation.y), 0.0, -cos(rotation.y))
+	if fwd.dot(-from_dir.normalized()) < 0.4:
+		return false
+	return _rng.randf() < (0.12 if role == "brute" else 0.22)

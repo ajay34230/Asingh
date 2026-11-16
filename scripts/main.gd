@@ -2110,6 +2110,7 @@ func _run_selftest() -> void:
 	await _selftest_undead(fails, notes)
 	await _selftest_cart_drive(fails, notes)
 	_selftest_arin_reachable(fails)
+	await _selftest_fight_ai(fails, notes)
 
 	for s in notes:
 		print("[selftest] ", s)
@@ -6661,3 +6662,49 @@ func _selftest_arin_reachable(fails: PackedStringArray) -> void:
 			walls.append(str((c as Node).get_path()))
 	if not walls.is_empty():
 		fails.append("Arin stands inside: %s" % ", ".join(walls))
+
+
+## Fighting overhaul: of four human fighters around the hero, at most two press in at a time and the others
+## circle at a distance; strikes from the front are sometimes blocked.
+func _selftest_fight_ai(fails: PackedStringArray, notes: PackedStringArray) -> void:
+	var flat := _flat_spot()
+	_teleport(flat.x, flat.y)
+	await get_tree().physics_frame
+	Enemy._tokens.clear()
+	var foes: Array = []
+	for i in 4:
+		var a := TAU * i / 4.0
+		var e := combat.spawn_enemy(player.global_position + Vector3(cos(a) * 5.0, 0, sin(a) * 5.0), false, 30.0, "aitest")
+		e.apply_role("grunt")
+		e.damage = 0.0
+		foes.append(e)
+	var max_close := 0
+	var circled := false
+	for f in 240:
+		await get_tree().physics_frame
+		var close := 0
+		for e in foes:
+			var d := (e as Enemy).global_position.distance_to(player.global_position)
+			if d < 2.3:
+				close += 1
+			elif d < 4.8 and not Enemy._tokens.has(e):
+				circled = true
+		max_close = maxi(max_close, close)
+	var blocks := 0
+	var e0: Enemy = foes[0]
+	for i in 40:
+		var hp0 := e0.hp
+		e0._block_t = 0.0
+		e0._winding = -1.0
+		e0._stun = 0.0
+		e0.take_hit("punch", 1.0, (e0.global_position - player.global_position).normalized())
+		e0.hp = maxf(e0.hp, hp0 - 1.0)
+		if e0._block_t > 0.0:
+			blocks += 1
+	for e in foes:
+		if is_instance_valid(e):
+			e.queue_free()
+	Enemy._tokens.clear()
+	notes.append("fight AI: at most %d close at once, waiting fighters circled %s, %d of 40 front punches blocked" % [max_close, circled, blocks])
+	if max_close > 2 or not circled or blocks == 0 or blocks > 20:
+		fails.append("fight AI: %d close at once, circled %s, %d/40 blocked" % [max_close, circled, blocks])
