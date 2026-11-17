@@ -50,13 +50,22 @@ func _init() -> void:
 	await process_frame
 	var map := _full_map()
 	var lib := MocapLibrary.new()
+	# BAKE_ADD=<subfolder>: keep the existing library (its clips came from files not all on this PC) and only add
+	# the files in mixamo_src/<subfolder>/, named <prefix><snake_case>. e.g. BAKE_ADD=parkour -> pk_climbing_to_top
+	var add_dir := OS.get_environment("BAKE_ADD")
+	var src := SRC
+	var prefix := ""
+	if add_dir != "":
+		lib = (load(OUT) as MocapLibrary).duplicate(true)
+		src = SRC + add_dir + "/"
+		prefix = {"parkour": "pk_"}.get(add_dir, add_dir.left(2) + "_")
 	var files: PackedStringArray = []
-	for f in DirAccess.get_files_at(SRC):
+	for f in DirAccess.get_files_at(src):
 		if (f.ends_with(".fbx") and f != "X_Bot.fbx") or (f.begins_with("UAL") and f.ends_with(".glb")):
 			files.append(f)
 	files.sort()
 	for f in files:
-		var ps := load(SRC + f) as PackedScene
+		var ps := load(src + f) as PackedScene
 		if ps == null:
 			print("[bake] cannot load ", f)
 			continue
@@ -96,7 +105,8 @@ func _init() -> void:
 					if ap.get_animation(a).length > best:
 						best = ap.get_animation(a).length
 						an0 = a
-			takes.append([an0, f.get_basename()])
+			var cn := f.get_basename() if prefix == "" else prefix + f.get_basename().to_lower().replace(" ", "_").replace("(", "").replace(")", "")
+			takes.append([an0, cn])
 		# this skeleton's rest directions against the X Bot's (the library's reference), so its clips line up
 		var src_align := {}
 		for take in takes:

@@ -34,3 +34,7 @@ Suggested order: start with 1 and 2 together, since they cover most of what's on
   reaction instead of code poses; (b) enemy AI: circle and spacing, take turns attacking (no dog-piling or idle
   waiting), block and dodge, flank, retreat when hurt, use cover for archers; (c) combos, counters on a parry,
   finishers, and weight (hit-stop, knockback, camera).
+- [ ] **10. Parkour moves unlocked by skills.** All captured parkour clips (mixamo_src/parkour -> pk_*) are baked
+  and wired (vault, mantle, ledge climb, hold-JUMP free-run with gap jumps and wall runs). Later: gate them behind
+  skill levels and build move combinations (wall run -> jump from wall, drop kick from a ledge, corkscrew evade,
+  rope and ladder climbs once ropes/ladders exist in the world).

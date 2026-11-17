@@ -76,6 +76,12 @@ Credit: monsters and weapons by Quaternius, graveyard by Kenney (CC0; credit not
 | Asset | Source | Licence |
 |---|---|---|
 | Clips in `assets/anims/mocap.res` named `zb_` (zombie walk, run, crawl, stumble, agonising, bite, scream, deaths) and `sp_` (spell casting, blink, throw) | Adobe Mixamo zombie and magic packs downloaded by Ajay as FBX (originals kept out of git in `mixamo_src/zombie/`, `mixamo_src/zombie_zip/`, `mixamo_src/spell_zip/`), baked to this game's skeleton by `tools/bake_mixamo.gd` (looping clips listed in its LOOPS). Used by the zombie, zombie_runner, caster and warrok enemy roles and the Warrok mission. | Mixamo terms (Adobe): royalty-free for use in games, not CC0, not to be redistributed as stand-alone animation files. Kept in this public repo by Ajay's choice, the same exception as the other Mixamo clips. |
+
+## Parkour animation pack (Mixamo, 2026-11-17)
+
+| Asset | Source | Licence |
+|---|---|---|
+| 26 clips in `assets/anims/mocap.res` named `pk_` (climbing, climbing down, ladder, rope, braced hang to crouch, freehang climb, jump to hang, jump over, vault over box, wall run, diagonal wall run, jumps, jump from wall, swing to land, big jump, drop kick, corkscrew evade) | Adobe Mixamo, downloaded by Ajay on the X Bot as FBX (originals kept out of git in `mixamo_src/parkour/`), added to the library with `BAKE_ADD=parkour` in `tools/bake_mixamo.gd`. Used by vaults, mantles, ledge climbs and hold-JUMP free-running. | Mixamo terms (Adobe): royalty-free for use in games, not CC0, not to be redistributed as stand-alone animation files. Kept in this public repo by Ajay's choice, the same exception as the other Mixamo clips. |
 ## New monsters (2026-11-15)
 
 | Asset | Source | Licence |

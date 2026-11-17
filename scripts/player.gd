@@ -48,6 +48,7 @@ const PRESET := {"body": "striker_mail", "robe": true, "scale": 0.99, "tool": "h
 var move_input := Vector2.ZERO
 var sprint := false
 var jump_requested := false
+var jump_held := false             # JUMP held down: free-run (auto vault, climb, gap jumps, wall runs)
 var spawn_position := Vector3.ZERO
 var camera: Camera3D
 var focus: Interactable = null
@@ -1500,6 +1501,7 @@ func _start_climb(l: Dictionary) -> void:
 	_rig.climb_kind = _climb_kind
 	_rig.climb_u = 0.0
 	_rig.jump_prep = 0.0
+	_parkour_clip(_climb_kind)
 	_jump_prep = 0.0
 	spend(6.0)
 	Sfx.ui_at("whoosh_kick", -10.0)
@@ -1731,6 +1733,8 @@ func _physics_process(delta: float) -> void:
 	if on_floor:
 		_try_step_up(Vector3(velocity.x, 0.0, velocity.z), delta)
 	move_and_slide()
+	if _freerun(dir):
+		return
 	# walking into a knee-to-waist-high ledge (a rock, a ridge, a low wall) for a moment climbs onto it,
 	# no jump needed
 	if is_on_floor() and not mounted and not crouching and dir.length() > 0.5 and is_on_wall() \
@@ -1829,3 +1833,58 @@ func _take_counter() -> float:
 	FloatText.spawn(get_parent(), global_position + Vector3(0, 2.4, 0), Loc.t("COUNTER"), Color(0.6, 0.9, 1.0), 1.3, 1.2)
 	StoryFX.hitstop(0.08)
 	return 2.0
+
+
+# --- parkour (Mixamo parkour pack, mixamo_src/parkour -> pk_ clips) ---------------------------------------
+## Captured clip per climb kind: [clip, start time in the clip, seconds of clip to cover the move].
+const PARKOUR_CLIPS := {"vault": ["pk_vault_over_box", 0.1, 1.3], "mantle": ["pk_jumping_up", 0.0, 0.83],
+	"climb": ["pk_braced_hang_to_crouch", 0.0, 1.13]}
+const FREERUN_SPEED := 2.5          # m/s: free-run only kicks in while actually running
+var _wallrun_cool := 0.0
+
+
+## Plays the captured parkour clip for a climb, stretched to the climb's own duration so feet and hands land
+## where the code moves the body; the clip's travel is taken out (the climb path does the moving).
+func _parkour_clip(kind: String) -> void:
+	if not PARKOUR_CLIPS.has(kind):
+		return
+	var pc: Array = PARKOUR_CLIPS[kind]
+	if not MocapLibrary.has_clip(String(pc[0])):
+		return
+	var span := float(pc[2])
+	if kind == "vault":
+		_climb_dur = maxf(_climb_dur, 0.85)               # a touch slower than before: room for the captured vault
+	_rig.play_clip(String(pc[0]), 1.0, clampf(span / maxf(_climb_dur, 0.2), 0.7, 2.4), false, float(pc[1]), 0.1)
+
+
+## Hold JUMP while running: obstacles are taken automatically, gaps at edges are jumped, and a wall too high
+## to climb is run up so the ledge grab can catch the top. Returns true if it started a move this frame.
+func _freerun(dir: Vector3) -> bool:
+	_wallrun_cool = maxf(0.0, _wallrun_cool - get_physics_process_delta_time())
+	if not jump_held or mounted or crouching or dir.length() < 0.5:
+		return false
+	var hv := Vector2(velocity.x, velocity.z).length()
+	var fwd := dir.normalized()
+	if is_on_floor() and _climb_cool <= 0.0 and hv > FREERUN_SPEED:
+		var ledge := _ledge_ahead(fwd)
+		if not ledge.is_empty():
+			_start_climb(ledge)
+			return true
+		# gap or drop ahead (roof edge, ledge): take a running jump instead of stepping off
+		var ahead := global_position + fwd * 1.3 + Vector3(0, 0.6, 0)
+		var q := PhysicsRayQueryParameters3D.create(ahead, ahead + Vector3(0, -2.4, 0))
+		q.exclude = ray_excludes()
+		if get_world_3d().direct_space_state.intersect_ray(q).is_empty():
+			_take_off()
+			velocity += Vector3(fwd.x, 0.0, fwd.z) * 2.2 + Vector3(0, 1.2, 0)
+			if MocapLibrary.has_clip("pk_jump"):
+				_rig.play_clip("pk_jump", 1.0, 1.0, false, 0.0, 0.08)
+			return true
+	# wall too high to climb from the ground: run up it, then the airborne ledge grab catches the top
+	if is_on_wall() and _wallrun_cool <= 0.0 and hv > FREERUN_SPEED * 0.6 and _ledge_ahead(fwd).is_empty():
+		_wallrun_cool = 1.2
+		velocity.y = 6.2
+		if MocapLibrary.has_clip("pk_wall_run"):
+			_rig.play_clip("pk_wall_run", 1.0, 1.2, false, 0.0, 0.08)
+		return false
+	return false

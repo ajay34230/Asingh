@@ -156,6 +156,8 @@ func _on_look_side(pos: Vector2) -> bool:
 
 
 func _process(delta: float) -> void:
+	if player != null:
+		player.jump_held = _jump_id != -1 or Input.is_physical_key_pressed(KEY_SPACE)   # held JUMP = free-run
 	_hint_time = maxf(0.0, _hint_time - delta)
 	_toast_time = maxf(0.0, _toast_time - delta)
 	_fps_timer -= delta

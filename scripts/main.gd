@@ -2111,6 +2111,7 @@ func _run_selftest() -> void:
 	await _selftest_cart_drive(fails, notes)
 	_selftest_arin_reachable(fails)
 	await _selftest_fight_ai(fails, notes)
+	await _selftest_freerun(fails, notes)
 
 	for s in notes:
 		print("[selftest] ", s)
@@ -6708,3 +6709,45 @@ func _selftest_fight_ai(fails: PackedStringArray, notes: PackedStringArray) -> v
 	notes.append("fight AI: at most %d close at once, waiting fighters circled %s, %d of 40 front punches blocked" % [max_close, circled, blocks])
 	if max_close > 2 or not circled or blocks == 0 or blocks > 20:
 		fails.append("fight AI: %d close at once, circled %s, %d/40 blocked" % [max_close, circled, blocks])
+
+
+## Parkour: all 26 pk_ clips are baked, and holding JUMP while running at a 1 m wall takes it on its own
+## (vault or climb, with a captured parkour clip), no tap needed.
+func _selftest_freerun(fails: PackedStringArray, notes: PackedStringArray) -> void:
+	var pk := 0
+	for cn in MocapLibrary.get_lib().clips:
+		if String(cn).begins_with("pk_"):
+			pk += 1
+	if pk < 26:
+		fails.append("parkour: only %d pk_ clips baked" % pk)
+	var flat := _flat_spot()
+	_teleport(flat.x, flat.y)
+	await get_tree().physics_frame
+	var y0 := terrain.sample_height(flat.x, flat.y)
+	var wall := StaticBody3D.new()
+	var cs := CollisionShape3D.new()
+	var bx := BoxShape3D.new()
+	bx.size = Vector3(4.0, 1.0, 0.3)
+	cs.shape = bx
+	wall.add_child(cs)
+	add_child(wall)
+	wall.global_position = Vector3(flat.x, y0 + 0.5, flat.y - 5.0)
+	player.set_look(0.0, 0.0)
+	await get_tree().physics_frame
+	var c0: int = player.climbs
+	var saw_clip := false
+	player.jump_held = true
+	player.sprint = true
+	player.move_input = Vector2(0, 1)
+	for i in 150:
+		await get_tree().physics_frame
+		if String(player._rig._clip).begins_with("pk_"):
+			saw_clip = true
+	player.jump_held = false
+	player.sprint = false
+	player.move_input = Vector2.ZERO
+	var took: int = player.climbs - c0
+	wall.queue_free()
+	notes.append("parkour: %d pk clips, free-run took the wall %d time(s), parkour clip played %s" % [pk, took, saw_clip])
+	if took < 1 or not saw_clip:
+		fails.append("parkour: holding JUMP did not take a 1 m wall (took %d, clip %s)" % [took, saw_clip])
