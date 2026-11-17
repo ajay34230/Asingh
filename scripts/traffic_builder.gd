@@ -66,6 +66,8 @@ func _spawn() -> void:
 	for c in CARTS:
 		var w := Wagon.new().setup(terrain, player, c[0], _out_and_back(c[2]), float(c[1]))
 		w.yields_to_player = true
+		if wagons.size() % 2 == 0:
+			w.make_covered()                 # every other cart has a canopy: its driver sits
 		main.add_child(w)
 		var driver := _driver(w, "driver_%s" % c[0])
 		w.driver = driver

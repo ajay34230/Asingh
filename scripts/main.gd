@@ -61,6 +61,7 @@ var menu: GameMenu
 var clinic: VaidyaClinic
 var activity: ActivityManager     # Vice City-style culling: only nearby, on-screen characters cost CPU
 var occluder_count := 0             # perf step 4
+var kesar: KesarKot
 var police: PoliceForce
 var map_ui: MapUI
 var combat: CombatBuilder
@@ -135,9 +136,49 @@ func _ready() -> void:
 	activity.main = self
 	activity.player = player
 	add_child(activity)
+	kesar = KesarKot.new()            # the Shadow Quarter: walled hill town, parkour course, six missions
+	kesar.terrain = terrain
+	kesar.player = player
+	kesar.story = story
+	kesar.main = self
+	kesar.combat = combat
+	kesar.hud = hud
+	kesar.dlg = dlg
+	add_child(kesar)
+	kesar.build()
+	occluder_count += Occluders.add_for(kesar)
 	print("[LostKingdom] world built in %d ms" % (Time.get_ticks_msec() - t0))
 
 	var args := OS.get_cmdline_user_args()
+	if OS.get_environment("FIND_SPOT") != "":
+		# dev: the flattest empty 80 x 80 m area (for a new district): print the best few
+		var best: Array = []
+		for gx in range(-180, 181, 20):
+			for gz in range(-180, 661, 20):
+				var h0 := terrain.sample_height(gx, gz)
+				var bump := 0.0
+				for k in 16:
+					var aa := TAU * k / 16.0
+					for rr in [15.0, 30.0, 40.0]:
+						bump = maxf(bump, absf(terrain.sample_height(gx + cos(aa) * rr, gz + sin(aa) * rr) - h0))
+				var q := PhysicsShapeQueryParameters3D.new()
+				var bx := BoxShape3D.new()
+				bx.size = Vector3(70, 30, 70)
+				q.shape = bx
+				q.transform = Transform3D(Basis(), Vector3(gx, h0 + 17.0, gz))
+				var hits := get_world_3d().direct_space_state.intersect_shape(q, 4)
+				if hits.is_empty():
+					var gq := PhysicsRayQueryParameters3D.create(Vector3(gx, 300, gz), Vector3(gx, -100, gz))
+					var gh := get_world_3d().direct_space_state.intersect_ray(gq)
+					if not gh.is_empty() and absf((gh["position"] as Vector3).y - h0) < 1.0:
+						best.append([bump, gx, gz, h0])
+		best.sort_custom(func(a, b) -> bool: return a[0] < b[0])
+		for b in best.slice(0, 8):
+			var rq := PhysicsRayQueryParameters3D.create(Vector3(b[1], 300, b[2]), Vector3(b[1], -100, b[2]))
+			var rh := get_world_3d().direct_space_state.intersect_ray(rq)
+			print("[spot] (%d, %d) bump %.1f m, height %.1f, ground hit %s" % [b[1], b[2], b[0], b[3], str(rh.get("position", "NONE"))])
+		get_tree().quit()
+		return
 	if "--audit" in args:
 		_run_audit.call_deferred()
 		return
@@ -1237,6 +1278,14 @@ func _ray(from: Vector3, to: Vector3) -> Dictionary:
 func _run_selftest() -> void:
 	var fails := PackedStringArray()
 	var notes := PackedStringArray()
+	if OS.get_environment("SELFTEST_ONLY") == "kesar":          # dev: just the town test, quick to iterate
+		await _selftest_kesar(fails, notes)
+		for s0 in notes:
+			print("[selftest] ", s0)
+		for f0 in fails:
+			printerr("[selftest] FAIL: ", f0)
+		get_tree().quit(0 if fails.is_empty() else 1)
+		return
 
 	# 1. Height grid is finite and spans a plausible range.
 	var lo := INF
@@ -2112,6 +2161,7 @@ func _run_selftest() -> void:
 	_selftest_arin_reachable(fails)
 	await _selftest_fight_ai(fails, notes)
 	await _selftest_freerun(fails, notes)
+	await _selftest_kesar(fails, notes)
 
 	for s in notes:
 		print("[selftest] ", s)
@@ -6632,7 +6682,7 @@ func _selftest_cart_drive(fails: PackedStringArray, notes: PackedStringArray) ->
 		await get_tree().physics_frame
 	player.move_input = Vector2.ZERO
 	var moved := w.global_position.distance_to(p0)
-	var on := player.global_position.distance_to(w.seat.global_position) < 0.3 and player._rig.react == "reins"
+	var on := player.global_position.distance_to(w.seat.global_position) < 0.3 and player._rig.react == ("drive" if w.covered else "reins")
 	var turned := absf(angle_difference(h0, w._heading)) > 0.2
 	player.jump_requested = true
 	for i in 3:
@@ -6749,5 +6799,142 @@ func _selftest_freerun(fails: PackedStringArray, notes: PackedStringArray) -> vo
 	var took: int = player.climbs - c0
 	wall.queue_free()
 	notes.append("parkour: %d pk clips, free-run took the wall %d time(s), parkour clip played %s" % [pk, took, saw_clip])
+	# every HIT combo move has its captured clip; every kind of jump has a choice of clips
+	for mv in Player.COMBO:
+		var ok := false
+		for cn in RealHuman.MOVE_CLIPS.get(mv, []):
+			ok = ok or MocapLibrary.has_clip(String(cn))
+		if not ok:
+			fails.append("HIT combo move %s has no clip" % mv)
+	for jk in RealHuman.JUMP_POOLS:
+		var n_ok := 0
+		for c in RealHuman.JUMP_POOLS[jk]:
+			if MocapLibrary.has_clip(String(c[0])):
+				n_ok += 1
+		if n_ok < 2:
+			fails.append("jump kind %s has only %d clips" % [jk, n_ok])
+	# DUCK while sprinting: a slide
+	_teleport(flat.x, flat.y)
+	await get_tree().physics_frame
+	player.velocity = Vector3(0, 0, -7.0)
+	await get_tree().physics_frame
+	player.velocity = Vector3(0, 0, -7.0)
+	player.set_crouch(true)
+	for i in 70:
+		await get_tree().physics_frame
+	player.set_crouch(false)
+	if int(player.pk_moves.get("slide", 0)) < 1:
+		fails.append("DUCK while sprinting did not slide")
 	if took < 1 or not saw_clip:
 		fails.append("parkour: holding JUMP did not take a 1 m wall (took %d, clip %s)" % [took, saw_clip])
+
+
+## Kesar Kot: the town is built from the downloaded models, has every parkour prop and the six missions, and each
+## prop move works: ladder, rope, window leap into hay, swing bar, climbing down a roof edge, drop kick.
+func _selftest_kesar(fails: PackedStringArray, notes: PackedStringArray) -> void:
+	if kesar == null:
+		fails.append("Kesar Kot missing")
+		return
+	var models: int = kesar.placed
+	var kinds := {}
+	for n in get_tree().get_nodes_in_group("pk_props"):
+		kinds[String(n.get_meta("kind"))] = true
+	var qn := 0
+	for q in story.quests:
+		if String(q["id"]).begins_with("kk"):
+			qn += 1
+	for k in ["ladder", "rope", "bar", "window", "hay"]:
+		if not kinds.has(k):
+			fails.append("Kesar Kot: no %s prop" % k)
+	if models < 30 or kesar.course.size() < 8 or qn != 8 or kesar.sentry_spots.size() < 10:
+		fails.append("Kesar Kot: %d models, %d checkpoints, %d missions" % [models, kesar.course.size(), qn])
+	var used := {}
+	var props := {}
+	for n in get_tree().get_nodes_in_group("pk_props"):
+		props[String(n.get_meta("kind"))] = n
+	# ladder: walk into it and climb to the roof
+	var lad: Node3D = props["ladder"]
+	var out: Vector3 = lad.get_meta("dir")
+	player.global_position = lad.global_position + out * 0.6 + Vector3(0, 0.1, 0)
+	player.velocity = Vector3.ZERO
+	player.move_input = Vector2(0, 1)
+	var y0 := player.global_position.y
+	for i in 240:
+		await get_tree().physics_frame
+	player.move_input = Vector2.ZERO
+	used["ladder"] = player.global_position.y - y0 > 3.0
+	notes.append("ladder debug: rose %.1f m, state %s, moves %s, ladder at %s top %.1f" % [player.global_position.y - y0, player._pk_state, str(player.pk_moves), str(lad.global_position.round()), float(lad.get_meta("top"))])
+	# rope: jump onto it and climb
+	var rp: Node3D = props["rope"]
+	player.global_position = rp.global_position + Vector3(0.3, 0.1, 0)
+	player.velocity = Vector3.ZERO
+	await get_tree().physics_frame
+	player.jump_requested = true
+	player.move_input = Vector2(0, 1)
+	y0 = player.global_position.y
+	for i in 120:
+		await get_tree().physics_frame
+	player.move_input = Vector2.ZERO
+	used["rope"] = player.global_position.y - y0 > 1.5
+	player._pk_state = ""
+	# window: leap out into the haystack below
+	var win: Node3D = props["window"]
+	player.global_position = win.global_position + Vector3(0, 0.05, -0.8)
+	player.velocity = Vector3.ZERO
+	await get_tree().physics_frame
+	player.jump_requested = true
+	for i in 200:
+		await get_tree().physics_frame
+	used["window"] = int(player.pk_moves.get("window_leap", 0)) > 0 and int(player.pk_moves.get("hay", 0)) > 0
+	# swing bar: arrive in the air under it
+	var bar: Node3D = props["bar"]
+	player.global_position = bar.global_position + Vector3(1.0, -1.7, 0)
+	player.velocity = Vector3(-4, 0.5, 0)
+	for i in 90:
+		await get_tree().physics_frame
+	used["swing"] = int(player.pk_moves.get("swing", 0)) > 0
+	player._pk_state = ""
+	# climb down: duck and walk off the ladder house roof edge
+	var ex: Vector3 = lad.get_meta("exit")
+	player.global_position = ex + Vector3(0, 0.1, 0)
+	player.velocity = Vector3.ZERO
+	player.set_look(0.0, 0.0)
+	player.set_crouch(true)
+	player.move_input = Vector2(0, 1)
+	for i in 180:
+		await get_tree().physics_frame
+	player.move_input = Vector2.ZERO
+	player.set_crouch(false)
+	used["climb_down"] = int(player.pk_moves.get("climb_down", 0)) > 0
+	player._pk_state = ""
+	# drop kick: fall onto an enemy and attack
+	var flat := _flat_spot()
+	_teleport(flat.x, flat.y)
+	var e := combat.spawn_enemy(player.global_position + Vector3(0.0, 0.0, -1.5), false, 0.0, "dktest")
+	e.set_physics_process(false)
+	var hp0 := e.hp
+	player.global_position += Vector3(0, 4.0, 0)
+	player.velocity = Vector3(0, -2.0, 0)
+	await get_tree().physics_frame
+	player.attack()
+	for i in 90:
+		await get_tree().physics_frame
+	used["drop_kick"] = int(player.pk_moves.get("drop_kick", 0)) > 0 and e.hp < hp0
+	if is_instance_valid(e):
+		e.queue_free()
+	# silent takedown: an unaware enemy facing away, struck from behind
+	var flat2 := _flat_spot()
+	_teleport(flat2.x, flat2.y)
+	var s2 := combat.spawn_enemy(player.global_position + Vector3(0, 0, -1.2), false, 0.5, "tdtest")
+	s2.set_physics_process(false)
+	s2.rotation.y = 0.0
+	await get_tree().physics_frame
+	player._attack_cd = 0.0
+	player.attack()
+	used["takedown"] = s2.dead or s2.hp <= 0.0
+	if is_instance_valid(s2):
+		s2.queue_free()
+	notes.append("Kesar Kot: %d models, props %s, %d missions, moves %s" % [models, str(kinds.keys()), qn, str(used)])
+	for k in used:
+		if not used[k]:
+			fails.append("Kesar Kot: %s did not work" % k)

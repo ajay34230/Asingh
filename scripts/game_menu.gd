@@ -639,6 +639,17 @@ func _build_logs() -> Control:
 	vb.add_child(_button("Save report as a file", func() -> void:
 		var p := LogCollector.save_report()
 		status.text = ("Saved: " + p) if p != "" else "Could not save the file. Use Copy instead."))
+	vb.add_child(_button("Report a bug (screenshot + logs)", func() -> void:
+		toggle()                                      # close the menu so the screenshot shows the game
+		await get_tree().process_frame
+		await get_tree().process_frame
+		await RenderingServer.frame_post_draw
+		var img := get_viewport().get_texture().get_image()
+		var dg = (main as Node).get("diag")
+		var where := LogCollector.save_bug(img, "Where: " + (String(dg.call("summary")) if dg != null else ""))
+		var hud = (main as Node).get("hud")
+		if hud != null:
+			hud.call("banner", Loc.t("Bug report saved: ") + where if where != "" else Loc.t("Could not save the bug report."), "")))
 	vb.add_child(_button("Note a problem now", func() -> void:
 		LogCollector.event("PLAYER NOTE: problem reported here. " + (main as Node).get("diag").call("summary"))
 		status.text = "Noted with your position and the time. It will be in the next report."))

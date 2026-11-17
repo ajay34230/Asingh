@@ -162,6 +162,14 @@ func _ready() -> void:
 func set_crouch(on: bool) -> void:
 	if mounted or dead:
 		return
+	# DUCK while sprinting on the ground: a slide (captured slide start, slide and slide exit)
+	if on and is_on_floor() and _pk_state == "" and Vector2(velocity.x, velocity.z).length() > 5.0:
+		_pk_state = "slide"
+		_pk_t = 0.0
+		_pk_dir = Vector3(velocity.x, 0.0, velocity.z).normalized()
+		_pk_clip("ual_slide_start", 1.3)
+		_pk_count("slide")
+		return
 	crouching = on
 	_rig.crouch_target = 1.0 if on else 0.0
 
@@ -208,11 +216,11 @@ func set_first_person(on: bool) -> void:
 ## Fighting: tap HIT for a combo: jab, cross, front kick, hook, roundhouse, then a grab-and-throw
 ## (or a hammer smash when nobody is close enough to grab). Auto-aims at the nearest enemy.
 ## Punches from the guard, settle back into the guard, then a kick, settle again (see _combo_gap).
-const COMBO := ["jab", "cross", "hook", "uppercut", "kick_front", "kick_round"]
+const COMBO := ["jab", "cross", "hook", "uppercut", "elbow_combo", "kick_front", "kick_round", "kick_side", "combo_a", "macaco", "combo_b"]
 const GUARD_HOLD := 0.16   # seconds spent back in the boxing stance between a punch string and a kick
-const MOVE_CD := {"jab": 0.34, "cross": 0.38, "hook": 0.42, "kick_front": 0.5, "kick_side": 0.55, "kick_round": 0.65, "uppercut": 0.45}
-const MOVE_DMG := {"jab": 9.0, "cross": 12.0, "hook": 14.0, "uppercut": 16.0, "kick_front": 17.0, "kick_side": 19.0, "kick_round": 24.0}
-const MOVE_KIND := {"jab": "punch", "cross": "punch", "hook": "punch", "uppercut": "punch", "kick_front": "kick", "kick_side": "kick", "kick_round": "round"}
+const MOVE_CD := {"jab": 0.34, "cross": 0.38, "hook": 0.42, "kick_front": 0.5, "kick_side": 0.55, "kick_round": 0.65, "uppercut": 0.45, "elbow_combo": 0.95, "combo_a": 1.05, "combo_b": 1.05, "macaco": 1.0}
+const MOVE_DMG := {"jab": 9.0, "cross": 12.0, "hook": 14.0, "uppercut": 16.0, "kick_front": 17.0, "kick_side": 19.0, "kick_round": 24.0, "elbow_combo": 22.0, "combo_a": 26.0, "combo_b": 26.0, "macaco": 28.0}
+const MOVE_KIND := {"jab": "punch", "cross": "punch", "hook": "punch", "uppercut": "punch", "kick_front": "kick", "kick_side": "kick", "kick_round": "round", "elbow_combo": "punch", "combo_a": "kick", "combo_b": "kick", "macaco": "round"}
 var _combo := 0
 var _combo_t := 9.0
 var _held: Enemy = null
@@ -694,6 +702,10 @@ func attack() -> void:
 	if mounted:
 		_mounted_swing()
 		return
+	if not locked and not dead and _try_takedown():
+		return
+	if not locked and not dead and _try_drop_kick():
+		return
 	if locked or dead or _throwing:
 		return
 	if weapon != "fists" and weapon != "bow" and is_on_floor():
@@ -827,6 +839,8 @@ func attack_requested_any() -> bool:
 
 
 func set_weapon(id: String) -> void:
+	if _rig != null and not _rig.weapon in RealHuman.BLADES and id in RealHuman.BLADES and not mounted:
+		_rig.play_clip("sheath_sword_1", 0.0, 1.2, false, 0.0, 0.1)          # draws the blade
 	if _rig != null and _rig.weapon in RealHuman.BLADES and not id in RealHuman.BLADES and not mounted:
 		_rig.play_clip("sheath_sword_2", 0.0, 1.2, false, 0.0, 0.1)          # puts the blade away
 	weapon = id
@@ -920,6 +934,12 @@ func set_block(on: bool) -> void:
 	if on == blocking:
 		return
 	blocking = on
+	if on and _rig != null and not mounted:
+		var bc: String = "ss_crouch_block" if crouching else ((["ual_sword_block", "ss_block_2"][randi() % 2]) if weapon in RealHuman.BLADES else "")
+		if bc != "":
+			_rig.play_clip(bc, 0.0 if not crouching else 1.0, 1.0, true, 0.0, 0.1)
+	elif not on and _rig != null and (_rig.clip_playing("ss_crouch_block") or _rig.clip_playing("ual_sword_block") or _rig.clip_playing("ss_block_2")):
+		_rig.stop_clip(0.15)
 	if on:
 		_block_t = 0.0
 	_rig.set_react("block" if on else "")
@@ -964,6 +984,9 @@ func roll() -> void:
 	_lunge_t = 0.4
 	Sfx.ui_at("whoosh_punch", -6.0)
 	_rig.play_move("roll")
+	if sprint and MocapLibrary.has_clip("pk_corkscrew_evade"):
+		_rig.play_clip("pk_corkscrew_evade", 1.0, 1.7, false, 0.35, 0.06)     # sprinting: a corkscrew evade
+		_pk_count("corkscrew")
 	# somersault around the body centre (not the feet) so no part dips below the ground
 	var pivot := Vector3(0.0, 0.6, 0.0)
 	var tw := create_tween()
@@ -1308,6 +1331,10 @@ func interact() -> void:
 			if Vector2(to.x, to.z).length() > 0.2:
 				_model.rotation.y = atan2(-to.x, -to.z)     # turn to face what you are working on
 			play_task(task, TASK_TIME.get(task, 1.0))
+		else:
+			var pr := String(focus.prompt).to_lower()
+			var ic := "ual_chest_open" if (pr.contains("open") or pr.contains("search") or pr.contains("chest")) else "ual_interact"
+			_rig.play_clip(ic, 0.0 if pr.contains("talk") else 1.0, 1.2, false, 0.0, 0.1)
 		focus.interact(self)
 		# The prompt may have changed ("Open door" -> "Close door").
 		focus_changed.emit(focus)
@@ -1588,6 +1615,8 @@ func _physics_process(delta: float) -> void:
 	if _climb_t >= 0.0:
 		_tick_climb(delta)
 		return
+	if _tick_props(delta):
+		return
 	if slam_dive and is_on_floor():
 		slam_dive = false
 		ground_slam()
@@ -1756,7 +1785,8 @@ func _physics_process(delta: float) -> void:
 	elif not _was_floor:
 		if _fall_speed > 4.0:
 			landed.emit(_fall_speed)
-			_rig.land(_fall_speed)
+			if not _hay_soft():
+				_rig.land(_fall_speed)
 			if not mounted:
 				HitFx.dust(get_parent(), global_position + Vector3(0, 0.1, 0), int(clampf(_fall_speed * 1.4, 8.0, 22.0)), 0.3 + clampf(_fall_speed / 40.0, 0.0, 0.25))
 			_land_slow = (0.18 + clampf(_fall_speed / 40.0, 0.0, 0.3)) * (0.3 if _rig.jump_kind == "run" else 1.0)
@@ -1837,8 +1867,8 @@ func _take_counter() -> float:
 
 # --- parkour (Mixamo parkour pack, mixamo_src/parkour -> pk_ clips) ---------------------------------------
 ## Captured clip per climb kind: [clip, start time in the clip, seconds of clip to cover the move].
-const PARKOUR_CLIPS := {"vault": ["pk_vault_over_box", 0.1, 1.3], "mantle": ["pk_jumping_up", 0.0, 0.83],
-	"climb": ["pk_braced_hang_to_crouch", 0.0, 1.13]}
+const PARKOUR_CLIPS := {"vault": [["pk_vault_over_box", 0.1, 1.3], ["pk_jump_over", 0.4, 1.2]], "mantle": [["pk_jumping_up", 0.0, 0.83]],
+	"climb": [["pk_braced_hang_to_crouch", 0.0, 1.13], ["pk_climbing_to_top", 2.2, 1.6], ["pk_freehang_climb", 2.3, 1.4]]}
 const FREERUN_SPEED := 2.5          # m/s: free-run only kicks in while actually running
 var _wallrun_cool := 0.0
 
@@ -1848,9 +1878,13 @@ var _wallrun_cool := 0.0
 func _parkour_clip(kind: String) -> void:
 	if not PARKOUR_CLIPS.has(kind):
 		return
-	var pc: Array = PARKOUR_CLIPS[kind]
-	if not MocapLibrary.has_clip(String(pc[0])):
+	var opts: Array = []
+	for o in PARKOUR_CLIPS[kind]:
+		if MocapLibrary.has_clip(String(o[0])):
+			opts.append(o)
+	if opts.is_empty():
 		return
+	var pc: Array = opts[randi() % opts.size()]      # variety: a different captured vault or climb each time
 	var span := float(pc[2])
 	if kind == "vault":
 		_climb_dur = maxf(_climb_dur, 0.85)               # a touch slower than before: room for the captured vault
@@ -1882,9 +1916,254 @@ func _freerun(dir: Vector3) -> bool:
 			return true
 	# wall too high to climb from the ground: run up it, then the airborne ledge grab catches the top
 	if is_on_wall() and _wallrun_cool <= 0.0 and hv > FREERUN_SPEED * 0.6 and _ledge_ahead(fwd).is_empty():
+		var wn := get_wall_normal()
+		var face_k := fwd.dot(-wn)
+		if face_k > 0.2 and face_k < 0.8:
+			# meeting the wall at an angle: run along it (diagonal wall run)
+			var tan := (fwd - wn * fwd.dot(wn)).normalized()
+			_wallrun_cool = 1.0
+			velocity = tan * 6.5 + Vector3(0, 2.0, 0)
+			if MocapLibrary.has_clip("pk_diagonal_wall_run"):
+				_rig.play_clip("pk_diagonal_wall_run", 1.0, 1.2, false, 0.0, 0.08)
+			_pk_count("diagonal_wall_run")
+			return false
+		_pk_count("wall_run")
 		_wallrun_cool = 1.2
 		velocity.y = 6.2
 		if MocapLibrary.has_clip("pk_wall_run"):
 			_rig.play_clip("pk_wall_run", 1.0, 1.2, false, 0.0, 0.08)
 		return false
+	return false
+
+
+# --- parkour props (Kesar Kot): ladders, ropes, swing bars, windows, haystacks, climbing down, drop kick ----
+# Props are Node3Ds in the group "pk_props" with meta: kind (ladder/rope/bar/window/hay), top (y), dir (out),
+# exit (where a rope or ladder leaves you), radius (hay).
+var pk_moves := {}                   # move -> times used (self-test, achievements)
+var _pk_state := ""
+var _pk_t := 0.0
+var _pk_node: Node3D
+var _pk_from := Vector3.ZERO
+var _pk_to := Vector3.ZERO
+var _pk_dir := Vector3.ZERO
+var _dk_on := false                  # drop kick in the air: damage on landing
+var _pk_v := Vector3.ZERO           # window leap velocity
+
+
+func _pk_count(k: String) -> void:
+	pk_moves[k] = int(pk_moves.get(k, 0)) + 1
+
+
+func _pk_clip(c: String, rate: float = 1.0, start: float = 0.0) -> void:
+	if MocapLibrary.has_clip(c):
+		_rig.play_clip(c, 1.0, rate, false, start, 0.1)
+
+
+func _tick_props(delta: float) -> bool:
+	if mounted or dead or carried_by != null:
+		return false
+	# swimming in the pond: deep water floats you and the swim clips take over
+	var wb = get_tree().current_scene.get("water") if get_tree().current_scene != null else null
+	if wb != null and Vector2(global_position.x - TerrainBuilder.POND_C.x, global_position.z - TerrainBuilder.POND_C.y).length() < 30.0:
+		var wl := float(wb.get("water_level"))
+		_rig.swimming = global_position.y < wl - 0.9
+		if _rig.swimming and velocity.y < 1.5:
+			velocity.y = 1.5 if global_position.y < wl - 1.3 else 0.0
+	elif _rig.swimming:
+		_rig.swimming = false
+	if _pk_state != "":
+		return _pk_step(delta)
+	if _dk_on and is_on_floor():
+		_dk_on = false
+		for e in get_tree().get_nodes_in_group("enemies"):
+			var en := e as Enemy
+			if en != null and not en.dead and en.global_position.distance_to(global_position) < 2.6:
+				en.take_hit("kick", 55.0 * melee_mult, (en.global_position - global_position).normalized())
+				en.stagger(1.5)
+		StoryFX.shake(self, 0.18, 0.3)
+	var fwd := Vector3(-sin(_model.rotation.y), 0.0, -cos(_model.rotation.y))
+	# wall jump: tap JUMP right after running up a wall
+	if not is_on_floor() and is_on_wall() and _wallrun_cool > 0.4 and jump_requested:
+		jump_requested = false
+		velocity = get_wall_normal() * 5.0 + Vector3(0, 5.5, 0)
+		_model.rotation.y = atan2(-velocity.x, -velocity.z)
+		_pk_clip("pk_jump_from_wall")
+		_pk_count("wall_jump")
+	for n in get_tree().get_nodes_in_group("pk_props"):
+		var p := n as Node3D
+		if p == null:
+			continue
+		var d := Vector2(p.global_position.x - global_position.x, p.global_position.z - global_position.z).length()
+		if d > 2.0:
+			continue
+		match String(p.get_meta("kind", "")):
+			"ladder":
+				if d < 0.9 and global_position.y < float(p.get_meta("top")) - 0.6 and (move_input.y > 0.5 or jump_requested):
+					return _pk_begin("ladder", p)
+			"rope":
+				if d < 1.0 and jump_requested:
+					return _pk_begin("rope", p)
+			"bar":
+				if d < 1.6 and not is_on_floor() and absf(global_position.y + 1.7 - p.global_position.y) < 1.1:
+					return _pk_begin("swing", p)
+			"window":
+				if d < 1.3 and jump_requested and absf(global_position.y - p.global_position.y) < 1.6:
+					return _pk_begin("leap", p)
+	# climb down: DUCK and walk toward an edge with a drop of 2 to 7 m below
+	if crouching and is_on_floor() and move_input.length() > 0.5:
+		var edge := global_position + fwd * 0.9
+		var q := PhysicsRayQueryParameters3D.create(edge + Vector3(0, 0.5, 0), edge + Vector3(0, -1.6, 0))
+		q.exclude = ray_excludes()
+		if get_world_3d().direct_space_state.intersect_ray(q).is_empty():
+			var q2 := PhysicsRayQueryParameters3D.create(edge + Vector3(0, -1.6, 0), edge + Vector3(0, -7.5, 0))
+			q2.exclude = ray_excludes()
+			var g := get_world_3d().direct_space_state.intersect_ray(q2)
+			if not g.is_empty():
+				_pk_state = "down"
+				_pk_t = 0.0
+				_pk_from = global_position
+				_pk_to = Vector3(edge.x, (g["position"] as Vector3).y + 0.05, edge.z)
+				_pk_dir = fwd
+				_model.rotation.y = atan2(fwd.x, fwd.z)          # face the wall on the way down
+				_pk_clip("pk_climbing_down_wall", 1.2)
+				_pk_count("climb_down")
+				return true
+	return false
+
+
+func _pk_begin(state: String, p: Node3D) -> bool:
+	jump_requested = false
+	velocity = Vector3.ZERO
+	_pk_node = p
+	_pk_t = 0.0
+	var out: Vector3 = p.get_meta("dir", Vector3(0, 0, 1))
+	match state:
+		"ladder":
+			global_position = Vector3(p.global_position.x + out.x * 0.45, global_position.y, p.global_position.z + out.z * 0.45)
+			_model.rotation.y = atan2(out.x, out.z)
+			_pk_clip("pk_climbing_ladder")
+		"rope":
+			global_position = Vector3(p.global_position.x, global_position.y + 0.4, p.global_position.z)
+			_pk_clip("pk_climbing_a_rope")
+		"swing":
+			var hv := Vector3(velocity.x, 0.0, velocity.z)
+			_pk_dir = (hv if hv.length() > 0.5 else Vector3(-sin(_model.rotation.y), 0.0, -cos(_model.rotation.y))).normalized()
+			_pk_from = global_position
+			_pk_to = global_position + _pk_dir * 5.0
+			_pk_clip("pk_swing_to_land", 1.6)
+		"leap":
+			# out of the window: a long dive forward and down
+			_model.rotation.y = atan2(-out.x, -out.z)
+			_pk_v = out * 5.5 + Vector3(0, 3.5, 0)
+			global_position.y += 0.1
+			_pk_clip("pk_jump_away", 1.3, 0.5)
+			_pk_count("window_leap")
+	_pk_state = state
+	_pk_count(state)
+	return true
+
+
+func _pk_step(delta: float) -> bool:
+	_pk_t += delta
+	velocity = Vector3.ZERO
+	match _pk_state:
+		"ladder", "rope":
+			var top := float(_pk_node.get_meta("top"))
+			var climb := 1.6 if _pk_state == "ladder" else 1.3
+			var dirv := 1.0 if move_input.y > -0.3 else -1.0
+			global_position.y += climb * dirv * delta
+			if not _rig.clip_playing():
+				_pk_clip(("pk_climbing_ladder" if dirv > 0.0 else "pk_climbing_down") if _pk_state == "ladder" else "pk_climbing_a_rope")
+			if jump_requested or (dirv < 0.0 and is_on_floor()):
+				jump_requested = false
+				_pk_state = ""                                    # let go
+				return false
+			if global_position.y >= top - 0.9:
+				var ex: Vector3 = _pk_node.get_meta("exit", _pk_node.global_position)
+				global_position = ex + Vector3(0, 0.05, 0)
+				_pk_state = ""
+				_pk_clip("pk_braced_hang_to_crouch", 1.4)
+		"swing":
+			var u := clampf(_pk_t / 0.9, 0.0, 1.0)
+			global_position = _pk_from.lerp(_pk_to, u) + Vector3(0, sin(u * PI) * 1.2 - u * 0.4, 0)
+			if u >= 1.0:
+				velocity = _pk_dir * 4.0 + Vector3(0, 1.5, 0)
+				_pk_state = ""
+		"leap":
+			# a window leap flies its own arc (the walking code would stop it on the sill)
+			_pk_v.y -= 15.0 * delta
+			velocity = _pk_v
+			move_and_slide()
+			if _pk_t > 0.25 and is_on_floor():
+				_pk_state = ""
+				if not _hay_soft():
+					_rig.land(absf(_pk_v.y))
+		"slide":
+			if _pk_t > 0.18 and not _rig.clip_playing("ual_slide"):
+				_pk_clip("ual_slide")
+			velocity = _pk_dir * lerpf(7.5, 2.0, clampf(_pk_t / 0.85, 0.0, 1.0))
+			velocity.y = -4.0
+			move_and_slide()
+			if _pk_t > 0.85 or is_on_wall():
+				_pk_clip("ual_slide_exit", 1.3)
+				_pk_state = ""
+		"down":
+			var u2 := clampf(_pk_t / 1.3, 0.0, 1.0)
+			global_position = _pk_from.lerp(_pk_to, smoothstep(0.0, 1.0, u2))
+			if u2 >= 1.0:
+				_pk_state = ""
+	_rig.animate(delta, 0.0, _pk_state == "")
+	return _pk_state != ""
+
+
+## Haystack landing: no stumble, a puff of hay (leap of faith).
+func _hay_soft() -> bool:
+	for n in get_tree().get_nodes_in_group("pk_props"):
+		var p := n as Node3D
+		if p != null and String(p.get_meta("kind", "")) == "hay" \
+				and Vector2(p.global_position.x - global_position.x, p.global_position.z - global_position.z).length() < float(p.get_meta("radius", 1.5)):
+			HitFx.burst(get_parent(), global_position + Vector3(0, 0.6, 0), true, Color(0.9, 0.8, 0.4))
+			_pk_count("hay")
+			return true
+	return false
+
+
+## Attack while dropping onto an enemy below: a drop kick that lands for heavy damage.
+func _try_drop_kick() -> bool:
+	if is_on_floor() or velocity.y > -0.5:
+		return false
+	for e in get_tree().get_nodes_in_group("enemies"):
+		var en := e as Enemy
+		if en == null or en.dead:
+			continue
+		var to := en.global_position - global_position
+		if to.y < -0.8 and Vector2(to.x, to.z).length() < 3.5:
+			_dk_on = true
+			velocity.x = to.x * 1.5
+			velocity.z = to.z * 1.5
+			_model.rotation.y = atan2(-to.x, -to.z)
+			_pk_clip("pk_drop_kick", 1.3, 0.6)
+			_pk_count("drop_kick")
+			return true
+	return false
+
+
+## Silent takedown: a strike from behind, or from above, on an enemy that has not noticed you kills it at once.
+func _try_takedown() -> bool:
+	for e in get_tree().get_nodes_in_group("enemies"):
+		var en := e as Enemy
+		if en == null or en.dead or en.is_boss or en is Monster or en._was_chasing:
+			continue
+		var to_me := global_position - en.global_position
+		if Vector2(to_me.x, to_me.z).length() > 2.0 or absf(to_me.y) > 3.0:
+			continue
+		var efwd := Vector3(-sin(en.rotation.y), 0.0, -cos(en.rotation.y))
+		var flat := Vector3(to_me.x, 0.0, to_me.z).normalized()
+		if efwd.dot(flat) < -0.2 or to_me.y > 1.0:
+			_model.rotation.y = atan2(flat.x, flat.z)
+			_rig.play_move("hook")
+			en.take_hit("slam", en.hp + 50.0, -flat)
+			FloatText.spawn(get_parent(), en.global_position + Vector3(0, 2.2, 0), Loc.t("TAKEDOWN"), Color(0.9, 0.9, 1.0), 1.2, 1.2)
+			_pk_count("takedown")
+			return true
 	return false

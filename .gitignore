@@ -32,3 +32,4 @@ scratch/
 
 # raw downloaded models (licences checked before anything is converted into assets/)
 models_src/
+*.zip

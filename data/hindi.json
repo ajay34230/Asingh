@@ -1284,5 +1284,12 @@
  "Stick to drive. JUMP to get off.": "चलाने के लिए स्टिक। उतरने के लिए JUMP।",
  "BLOCK": "बचाव",
  "COUNTER": "पलटवार",
- "Credits": "श्रेय"
+ "Credits": "श्रेय",
+ "TAKEDOWN": "खामोश वार",
+ "Kesar Kot": "केसर कोट",
+ "Courier run: GO!": "कूरियर दौड़: शुरू!",
+ "You escaped Kesar Kot!": "तुम केसर कोट से निकल गए!",
+ "Report a bug (screenshot + logs)": "बग की रिपोर्ट (स्क्रीनशॉट + लॉग)",
+ "Bug report saved: ": "बग रिपोर्ट सेव हुई: ",
+ "Could not save the bug report.": "बग रिपोर्ट सेव नहीं हो सकी।"
 }

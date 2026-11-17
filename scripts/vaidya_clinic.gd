@@ -138,6 +138,12 @@ func _process(delta: float) -> void:
 	var p: Npc = _queue[0]
 	if _t < TREAT_SECS:
 		# the Vaidya kneels at the charpai and treats them
+		if vaidya != null:
+			# kneel at the side of the charpai, facing the patient (not at the home spot looking away)
+			var side := global_transform * Vector3(0.95, 0.0, 0.0)
+			vaidya.global_position = Vector3(side.x, global_position.y, side.z)
+			var to := _bed(0) - vaidya.global_position
+			vaidya.rotation.y = atan2(-to.x, -to.z)
 		if vaidya != null and not vaidya.rig.clip_playing("ual_fixing_kneeling"):
 			vaidya.rig.play_clip("ual_fixing_kneeling", 1.0, 1.0, false, 0.0, 0.2)
 		if p.rig.clip_playing("ual_laytoidle"):
@@ -149,6 +155,8 @@ func _process(delta: float) -> void:
 			p.rig.stop_clip(0.1)
 		if vaidya != null:
 			vaidya.rig.stop_clip(0.3)
+			vaidya.global_position = global_transform * Vector3(1.6, 0.0, 0.9)
+			vaidya.rotation.y = vaidya.home_yaw
 			vaidya.say("Rest well. You will be fine.", 2.5)
 	elif not p.rig.clip_playing() or _t > TREAT_SECS + 6.0:      # up (or never stuck lying, whatever the rig did)
 		_queue.pop_front()

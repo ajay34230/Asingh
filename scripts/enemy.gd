@@ -83,6 +83,7 @@ func apply_role(r: String) -> void:
 			_hp_bar.modulate = Color(0.4, 1.0, 0.5)
 		"zombie":                                   # shambles, grabs and bites, crawls on after it falls
 			rig.clip_set = "zombie"
+			_rise_clip()
 			hp *= 2.4
 			max_hp = hp
 			speed *= 0.5
@@ -93,6 +94,7 @@ func apply_role(r: String) -> void:
 			_hp_bar.modulate = Color(0.6, 0.85, 0.45)
 		"zombie_runner":                            # sprints in, flails, stumbles
 			rig.clip_set = "zombie_runner"
+			_rise_clip()
 			hp *= 1.6
 			max_hp = hp
 			speed *= 1.45
@@ -118,7 +120,7 @@ func apply_role(r: String) -> void:
 
 const ZB_ATTACKS := ["zb_attack", "zb_punching", "zb_kicking", "zb_headbutt", "zb_kicking_2"]
 const ZBR_ATTACKS := ["zb_punch_quick", "zb_attack", "zb_headbutt"]
-const SPELLS := ["sp_1h_attack_01", "sp_1h_attack_02", "sp_1h_attack_03", "sp_2h_attack_01", "sp_2h_attack_02", "sp_2h_attack_03", "sp_2h_attack_04", "sp_2h_attack_05"]
+const SPELLS := ["sp_1h_attack_01", "sp_1h_attack_02", "sp_1h_attack_03", "sp_2h_attack_01", "sp_2h_attack_02", "sp_2h_attack_03", "sp_2h_attack_04", "sp_2h_attack_05", "sp_1h_cast", "sp_2h_cast", "ss_casting", "ss_casting_2", "ual_spell_simple_enter"]
 const AREA_SPELLS := ["sp_2h_area_01", "sp_2h_area_02"]
 var _spell_cd := 2.0
 var _crawling := false              # a zombie cut down crawls on for a while
@@ -699,7 +701,7 @@ func _physics_process(delta: float) -> void:
 	var want := Vector3.ZERO
 	var chasing := player != null and not player.dead and dist < aggro and global_position.distance_to(home) < leash + aggro
 	if chasing and not _was_chasing and role == "brute" and dist > 4.0 and _rng.randf() < 0.75:
-		if rig.play_clip("mutant_flexing_muscles", 1.0, 1.6, false, 0.5, 0.15):
+		if rig.play_clip(["mutant_flexing_muscles", "mutant_jumping"][_rng.randi() % 2], 1.0, 1.6, false, 0.5, 0.15):
 			_taunt_t = 1.9                          # beats his chest before he comes
 			Sfx.at("grunt_%d" % (_rng.randi() % 2), global_position + Vector3(0, 1.8, 0), -1.0, 0.7)
 	_was_chasing = chasing
@@ -710,6 +712,8 @@ func _physics_process(delta: float) -> void:
 		_patrol_t = 1.0
 	if chasing:
 		rotation.y = lerp_angle(rotation.y, atan2(-to_p.x, -to_p.z), minf(1.0, 8.0 * delta))
+		rig.strafe = 0
+		_turn_clip(to_p)
 		if _block_t > 0.0:
 			_block_t -= delta
 			if _block_t <= 0.0 and rig.react == "block":
@@ -761,6 +765,7 @@ func _physics_process(delta: float) -> void:
 			want = -to_p.normalized() * speed * 0.8
 		elif _is_fighter() and dist < 6.0 and not _has_token(dist):
 			# waiting its turn: circles the hero at about 3.2 m instead of piling in or standing still
+			rig.strafe = 1 if _circle_dir > 0.0 else -1
 			var side := to_p.normalized().cross(Vector3.UP) * _circle_dir
 			var radial := to_p.normalized() * clampf(dist - 3.2, -1.0, 1.0)
 			want = (side * 0.6 + radial).normalized() * speed * 0.55
@@ -843,3 +848,33 @@ func _try_block(kind: String, from_dir: Vector3) -> bool:
 	if fwd.dot(-from_dir.normalized()) < 0.4:
 		return false
 	return _rng.randf() < (0.12 if role == "brute" else 0.22)
+
+
+## Zombies climb out of the ground when they appear (stand-up clips).
+func _rise_clip() -> void:
+	var opts: Array = []
+	for c in ["zb_stand_up", "zb_stand_up_2", "zb_stand_up_short"]:
+		if MocapLibrary.has_clip(c):
+			opts.append(c)
+	if not opts.is_empty():
+		rig.play_clip(String(opts[_rng.randi() % opts.size()]), 1.0, 1.1, false, 0.0, 0.05)
+
+
+var _turn_cd := 0.0
+
+
+## Turning to a hero who is behind: zombies scream round (transition / turn clips), brutes swing round (45-degree turns).
+func _turn_clip(to_p: Vector3) -> void:
+	_turn_cd -= get_physics_process_delta_time()
+	if _turn_cd > 0.0 or rig.clip_playing() or to_p.length() < 0.1:
+		return
+	var fwd := Vector3(-sin(rotation.y), 0.0, -cos(rotation.y))
+	var side := fwd.cross(Vector3.UP).dot(to_p.normalized())
+	var behind := fwd.dot(to_p.normalized()) < -0.3
+	var c := ""
+	if role in ["zombie", "zombie_runner"]:
+		c = ("zb_turn" if behind else "") if _was_chasing else ["zb_transition", "zb_transition_2"][_rng.randi() % 2]
+	elif role in ["brute", "warrok"] and behind:
+		c = "mutant_left_turn_45" if side > 0.0 else ["mutant_right_turn_45", "mutant_right_turn_45_2"][_rng.randi() % 2]
+	if c != "" and rig.play_clip(c, 1.0, 1.2, false, 0.0, 0.1):
+		_turn_cd = 3.0

@@ -862,21 +862,40 @@ func _mocap_update(delta: float) -> void:
 ## standing pose should stay (busy, or nothing fitting).
 ## A 4th entry is the middle gait (a jog) between them, when there is one.
 func _loco_set() -> Array:
+	var v := absi(int(_seed * 100.0))                # each character keeps its own variant
+	var cs: Array
+	if swimming:
+		return ["ual_swim_fwd", "ual_swim_fwd", "ual_swim_idle"]
+	if crouch > 0.5:
+		return ["ual_crouch_fwd", "ual_crouch_fwd", ["ual_crouch_idle", "ss_crouch_idle", "ss_crouching", "ss_crouching_2", "ss_crouching_3"][v % 5]]
+	if strafe != 0 and (weapon in BLADES or guard):
+		var sc: String = ["ss_strafe", "ss_strafe_2", "ss_strafe_3", "ss_strafe_4"][(v + (0 if strafe > 0 else 1)) % 4]
+		return [sc, sc, "ss_block_idle" if weapon in BLADES else "mx_boxing"]
 	if clip_set == "brute":
-		return ["mutant_walking", "mutant_run", "mutant_breathing_idle"]
-	if clip_set == "zombie":
-		return ["zb_walk", "zb_run", ZB_IDLES[_zb_var % ZB_IDLES.size()], "zb_stumbling"]
-	if clip_set == "zombie_runner":
-		return ["zb_walk_2", "zb_run", "zb_scratch_idle"]
-	if clip_set == "caster":
-		return ["walk", "run_fast", "sp_idle"]
-	if weapon in BLADES:
-		return ["ss_walk", "run_fast", "ss_idle" if guard else "bow_unarmed_idle_01", "ss_run"]
-	if weapon == "fists" and guard:
-		return ["walk", "run_fast", "mx_boxing", JOG]           # the captured boxing stance in a fight
-	if weapon == "bow":
-		return ["bow_walk_forward", "run_fast", "bow_idle_01", "bow_run_forward"]
-	return ["walk", "run_fast", "bow_unarmed_idle_01", JOG]
+		cs = ["mutant_walking", "mutant_run", ["mutant_breathing_idle", "mutant_idle"][v % 2]]
+	elif clip_set == "zombie":
+		cs = [["zb_walk", "ual_zombie_walk_fwd"][v % 2], "zb_run", [ZB_IDLES[_zb_var % ZB_IDLES.size()], "ual_zombie_idle", "ual_zombie_scratch"][v % 3], "zb_stumbling"]
+	elif clip_set == "zombie_runner":
+		cs = ["zb_walk_2", "zb_run", "zb_scratch_idle"]
+	elif clip_set == "caster":
+		cs = ["walk", "run_fast", ["sp_idle", "ual_spell_simple_idle"][v % 2]]
+	elif weapon in BLADES:
+		cs = [["ss_walk", "ss_walk_2"][v % 2], "run_fast", ["ss_idle", "ss_idle_2", "ss_idle_3", "ss_idle_4"][v % 4] if guard else "bow_unarmed_idle_01", ["ss_run", "ss_run_2"][v % 2]]
+	elif weapon == "fists" and guard:
+		cs = ["walk", "run_fast", "mx_boxing", JOG]
+	elif weapon == "bow":
+		cs = ["bow_walk_forward", "run_fast", "bow_idle_01", "bow_run_forward"]
+	else:
+		cs = [walk_override if walk_override != "" else "walk", "ual_sprint" if _speed_smooth > 6.5 else "run_fast", "bow_unarmed_idle_01", JOG]
+	if idle_override != "" and not guard:
+		cs[2] = idle_override
+	return cs
+
+
+var swimming := false                # in deep water: swim clips
+var strafe := 0                      # -1 / 1 while circling sideways (fighters waiting their turn)
+var idle_override := ""              # a villager's own standing clip (lantern, torch, talking, rail work...)
+var walk_override := ""              # a villager's own walk (formal, carrying)
 
 
 const JOG := "ual_jog_fwd"
@@ -1293,7 +1312,7 @@ func _archery() -> void:
 	var drawing := move == "bow_shot" and move_t > 0.3 and move_t < _move_hit_at
 	var nock := rest
 	if drawing:
-		nock = _bone_pos("wr_R")
+		nock = grip_pos("R")                   # the string sits in the fingers, not the wrist
 		# the limbs bend as the string comes back
 		var pull := clampf((nock - rest).length() / 0.6, 0.0, 1.0)
 		top -= up * 0.05 * pull
@@ -1304,7 +1323,7 @@ func _archery() -> void:
 	var show := move == "bow_shot" and move_t > 0.14 and move_t < _move_hit_at
 	_nocked.visible = show
 	if show:
-		var hand := _bone_pos("wr_R")
+		var hand := grip_pos("R")
 		var dir := (grip - hand).normalized() if move_t > 0.3 else (global_transform.basis.y.normalized() + global_transform.basis.z.normalized() * 0.4).normalized()
 		if dir.length() < 0.5:
 			dir = -global_transform.basis.z
@@ -1335,6 +1354,7 @@ const MOVES := {
 	"jab": [0.38, 0.12], "cross": [0.42, 0.15], "hook": [0.46, 0.17], "uppercut": [0.5, 0.2],
 	"kick_front": [0.72, 0.3], "kick_round": [0.75, 0.32], "kick_side": [0.72, 0.3], "bow_shot": [1.0, 0.64],
 	"roll": [0.45, 0.44], "grab": [0.4, 0.3], "lift": [0.5, 0.5], "throw": [0.45, 0.12],
+	"elbow_combo": [1.1, 0.55], "combo_a": [1.2, 0.6], "combo_b": [1.2, 0.6], "macaco": [1.1, 0.6],
 }
 var move := ""
 var move_t := 0.0
@@ -1374,7 +1394,9 @@ func play_move(n: String) -> float:
 const MOVE_CLIPS := {"jab": ["ual_punch_jab"], "cross": ["ual_punch_cross"], "hook": ["ual_melee_hook"],
 	"uppercut": ["ual_punch_cross", "ual_melee_hook"],
 	"kick_front": ["ss_kick", "mx_standing_melee_attack_kick_ver_2"], "kick_round": ["mx_inside_crescent_kick", "mx_pontera"],
-	"kick_side": ["mx_chapa_2", "mx_standing_melee_attack_kick_ver_2"], "roll": ["ual_roll"]}
+	"kick_side": ["mx_chapa_2", "mx_standing_melee_attack_kick_ver_2"], "roll": ["ual_roll"],
+	"elbow_combo": ["mx_punch_to_elbow_combo"], "combo_a": ["mx_standing_melee_combo_attack_ver_1"],
+	"combo_b": ["mx_standing_melee_combo_attack_ver_2"], "macaco": ["mx_macaco_side"]}
 
 
 func _move_clip(n: String, lead: float) -> void:
@@ -1496,8 +1518,8 @@ func _kf_moves() -> Dictionary:
 			[0.16, {"sh_R": Vector3(-2.5, 0.45, 0.35), "el_R": Vector3(2.0, 0, 0), "sh_L": Vector3(-0.55, 0.0, 0.12), "el_L": Vector3(0.35, 0, 0), "spine": Vector3(-0.02, 0.25, 0), "hips": Vector3(0, -0.2, 0), "head": Vector3(0.0, -0.2, 0)}],
 			[0.3, {"sh_R": Vector3(-1.25, 0.2, 0.05), "el_R": Vector3(1.55, 0, 0), "sh_L": Vector3(-1.05, 0.0, 0.05), "el_L": Vector3(0.45, 0, 0), "spine": Vector3(-0.02, 0.42, 0), "hips": Vector3(0, -0.4, 0), "head": Vector3(0.05, 0.0, 0)}],
 			[0.42, {"sh_L": Vector3(-1.55, 0.0, 0.05), "el_L": Vector3(0.08, 0, 0), "sh_R": Vector3(-1.45, 0.4, 0), "el_R": Vector3(1.35, 0, 0), "spine": Vector3(-0.03, 0.72, 0), "hips": Vector3(0, -0.7, 0), "head": Vector3(0.05, 0.02, 0), "dy": -0.04}],
-			[0.58, {"sh_L": Vector3(-1.57, 0.0, 0.05), "el_L": Vector3(0.04, 0, 0), "sh_R": Vector3(-1.38, 0.85, 0), "el_R": Vector3(2.55, 0, 0), "spine": Vector3(-0.04, 0.6, 0), "hips": Vector3(0, -0.8, 0), "head": Vector3(0.05, 0.05, 0), "dy": -0.05}],
-			[0.64, {"sh_L": Vector3(-1.57, 0.0, 0.05), "el_L": Vector3(0.04, 0, 0), "sh_R": Vector3(-1.38, 0.88, 0), "el_R": Vector3(2.6, 0, 0), "spine": Vector3(-0.04, 0.6, 0), "hips": Vector3(0, -0.8, 0), "head": Vector3(0.05, 0.05, 0), "dy": -0.05}],
+			[0.58, {"sh_L": Vector3(-1.57, 0.0, 0.05), "el_L": Vector3(0.04, 0, 0), "sh_R": Vector3(-1.38, 0.85, 0), "el_R": Vector3(2.25, 0, 0), "spine": Vector3(-0.04, 0.6, 0), "hips": Vector3(0, -0.8, 0), "head": Vector3(0.05, 0.05, 0), "dy": -0.05}],
+			[0.64, {"sh_L": Vector3(-1.57, 0.0, 0.05), "el_L": Vector3(0.04, 0, 0), "sh_R": Vector3(-1.38, 0.88, 0), "el_R": Vector3(2.3, 0, 0), "spine": Vector3(-0.04, 0.6, 0), "hips": Vector3(0, -0.8, 0), "head": Vector3(0.05, 0.05, 0), "dy": -0.05}],
 			[0.7, {"sh_L": Vector3(-1.5, 0.0, 0.08), "el_L": Vector3(0.06, 0, 0), "sh_R": Vector3(-1.05, 1.05, 0.5), "el_R": Vector3(1.05, 0, 0), "spine": Vector3(-0.02, 0.6, 0), "hips": Vector3(0, -0.8, 0), "head": Vector3(0.05, 0.05, 0), "dy": -0.05}],
 			[0.84, {"sh_L": Vector3(-1.4, 0.0, 0.1), "el_L": Vector3(0.1, 0, 0), "sh_R": Vector3(-1.0, 1.05, 0.55), "el_R": Vector3(1.0, 0, 0), "spine": Vector3(-0.02, 0.76, 0), "hips": Vector3(0, -0.75, 0), "head": Vector3(0.05, 0.05, 0), "dy": -0.04}],
 			[1.0, {}]],
@@ -1899,7 +1921,7 @@ static func melee_pool() -> Array:
 		if lib != null:
 			for n in lib.clips:
 				var s := String(n)
-				if s.begins_with("ss_attack") or s.begins_with("ss_slash") or s in ["ual_sword_attack", "ual_sword_regular_a", "ual_sword_regular_b", "ual_sword_regular_c", "ual_sword_dash"]:
+				if s.begins_with("ss_attack") or s.begins_with("ss_slash") or s in ["ual_sword_attack", "ual_sword_regular_a", "ual_sword_regular_b", "ual_sword_regular_c", "ual_sword_dash", "ual_sword_regular_combo", "ual_sword_heavy_combo", "ual_shield_dash", "ual_shield_oneshot"]:
 					_melee.append(s)
 	return _melee
 var _slash_i := 0
@@ -2239,10 +2261,25 @@ var _land_k := 0.0
 
 ## Take-off: the captured airborne pose (a tucked running leap, or a two-footed jump), the physics does the height.
 func jump_air() -> void:
-	var n := "ss_jump" if jump_kind == "run" else JUMP_AIR
-	var start := 0.12 if jump_kind == "run" else 0.3
-	if play_clip(n, 1.0, 0.9 if jump_kind == "run" else 1.0, true, start, 0.08):
+	# every captured jump in its place: a pool per kind of jump, one picked at random (only clips in this build)
+	var pool: Array = JUMP_POOLS.get(jump_kind, [JUMP_AIR])
+	var have: Array = []
+	for c in pool:
+		if MocapLibrary.has_clip(String(c[0])):
+			have.append(c)
+	if have.is_empty():
+		return
+	var pick: Array = have[randi() % have.size()]
+	if play_clip(String(pick[0]), 1.0, float(pick[2]), true, float(pick[1]), 0.08):
 		_clip_flat = true
+
+
+## jump kind -> [clip, start time, rate]: running leaps, walking hops, standing jumps
+const JUMP_POOLS := {
+	"run": [["ss_jump", 0.12, 0.9], ["ss_jump_2", 0.12, 0.9], ["pk_jumping_1", 0.35, 1.1], ["pk_jumping", 0.2, 1.0], ["pk_big_jump", 0.9, 1.1]],
+	"walk": [["ual_jump", 0.3, 1.0], ["mx_jumping", 0.3, 1.0], ["pk_jumping", 0.2, 1.0]],
+	"stand": [["ual_jump", 0.3, 1.0], ["ual_ninjajump_start", 0.0, 1.0], ["mx_jumping", 0.3, 1.0], ["pk_jumping_up", 0.0, 1.0]],
+}
 
 
 const JUMP_AIR := "ual_jump"
@@ -2251,7 +2288,10 @@ const JUMP_LAND := "ual_jump_land"
 
 ## Landing recovery: knees absorb the impact, then the body rises again.
 func land(impact: float) -> void:
-	var was_jump := clip_playing("ss_jump") or clip_playing(JUMP_AIR)
+	var was_jump := false
+	for pool in JUMP_POOLS.values():
+		for c in pool:
+			was_jump = was_jump or clip_playing(String(c[0]))
 	if was_jump:
 		stop_clip(0.12)
 	_land_k = clampf(impact / 14.0, 0.25, 1.0)
@@ -2259,6 +2299,8 @@ func land(impact: float) -> void:
 		_land_k *= 0.45            # a running landing rolls straight on into the next stride
 	_land_t = 0.42
 	# a long drop: the captured landing (from just before touch-down, through the deep crouch, to standing)
+	if impact >= 7.0 and impact < 10.0 and react == "" and MocapLibrary.has_clip("ual_ninjajump_land"):
+		play_clip("ual_ninjajump_land", 1.0, 1.2, false, 0.0, 0.06)      # a crouched, hands-down landing from a medium drop
 	if impact >= 10.0 and react == "" and MocapLibrary.has_clip("jump_down"):
 		var c: Dictionary = MocapLibrary.get_lib().clips["jump_down"]
 		if play_clip("jump_down", 1.0, 1.15, false, maxf(0.0, float(c["low_t"]) - 0.22), 0.06):

@@ -207,7 +207,9 @@ func start_drive(p: Player) -> void:
 	running = false
 	p.carried_by = seat
 	p.drive_wagon = self
-	p._rig.set_react("reins")
+	p._rig.set_react("drive" if covered else "reins")       # sit under a canopy, stand on an open cart
+	if covered:
+		p._rig.play_clip("ual_driving", 0.0, 1.0, true, 0.0, 0.2)          # hands on the reins, seated
 	if driver != null and is_instance_valid(driver):
 		driver.visible = false
 	p.say(Loc.t("Stick to drive. JUMP to get off."))
@@ -224,6 +226,9 @@ func stop_drive() -> void:
 	p.carried_by = null
 	p.drive_wagon = null
 	p._rig.set_react("")
+	if p._rig.clip_playing("ual_driving"):
+		p._rig.stop_clip(0.2)
+	_clear_reins()
 	p._rig.ride_k = 0.0
 	p._rig.ride_turn = 0.0
 	var side := global_transform.basis.x.normalized()
@@ -243,21 +248,121 @@ func _drive(delta: float) -> void:
 	var inp: Vector2 = rider.move_input
 	if inp.length() < 0.05:
 		inp = rider._keyboard_input()
-	_drive_v = move_toward(_drive_v, clampf(inp.y, -0.35, 1.0) * DRIVE_SPEED, 2.5 * delta)
-	var turn_k := clampf(absf(_drive_v) / 2.0, 0.25, 1.0) * signf(_drive_v if absf(_drive_v) > 0.05 else 1.0)
-	_heading -= inp.x * 1.1 * delta * turn_k
-	rotation.y = _heading
+	# GTA-style: push the stick where you want to go (relative to the camera); the cart turns toward it
+	var cb := rider.camera.global_transform.basis
+	var cf := Vector3(-cb.z.x, 0.0, -cb.z.z).normalized()
+	var cr := Vector3(cb.x.x, 0.0, cb.x.z).normalized()
+	var want := cr * inp.x + cf * inp.y
+	var push := clampf(want.length(), 0.0, 1.0)
 	var fwd := Vector3(-sin(_heading), 0.0, -cos(_heading))
+	var target_v := 0.0
+	if push > 0.1:
+		var want_h := atan2(-want.x, -want.z)
+		var diff := angle_difference(_heading, want_h)
+		# the bulls turn the cart only while it rolls; a hard turn slows them down
+		var turn_rate := 1.0 * clampf(absf(_drive_v) / 1.5, 0.35, 1.0)
+		_heading += clampf(diff, -turn_rate * delta, turn_rate * delta)
+		target_v = DRIVE_SPEED * push * clampf(1.0 - absf(diff) / PI, 0.25, 1.0)
+	# weight: slow to start, slower to stop
+	_drive_v = move_toward(_drive_v, target_v, (1.6 if target_v > _drive_v else 2.4) * delta)
+	fwd = Vector3(-sin(_heading), 0.0, -cos(_heading))
+	# walls, houses, rocks: the cart stops instead of driving through them
+	if _drive_v > 0.05:
+		var front := global_position + Vector3(0, 1.0, 0) + fwd * 2.8
+		var q := PhysicsRayQueryParameters3D.create(front, front + fwd * (0.6 + _drive_v * delta * 3.0))
+		q.exclude = [rider.get_rid()]
+		var hit := get_world_3d().direct_space_state.intersect_ray(q)
+		if not hit.is_empty() and not (hit["collider"] is Animal):
+			_drive_v = 0.0
+	rotation.y = _heading
 	var np := position + fwd * _drive_v * delta
 	np.y = terrain.sample_height(np.x, np.z)
 	position = np
 	var ahead := position + fwd * 3.0
 	var behind := position - fwd * 3.0
 	rotation.x = clampf(atan2(terrain.sample_height(ahead.x, ahead.z) - terrain.sample_height(behind.x, behind.z), 6.0), -0.25, 0.25)
-	var moving := absf(_drive_v) > 0.2
+	rotation.z = sin(Time.get_ticks_msec() * 0.004) * 0.012 * clampf(_drive_v, 0.0, 1.0)     # a little sway on the ruts
+	var moving := absf(_drive_v) > 0.15
 	for a in _animals:
 		a.play_walk(moving)
 		if a._anim != null:
-			a._anim.speed_scale = clampf(absf(_drive_v) / 1.3, 0.6, 2.2) if moving else 1.0
+			a._anim.speed_scale = clampf(absf(_drive_v) / 1.25, 0.5, 2.6) if moving else 1.0      # legs keep pace, no sliding
 	rider._rig.ride_k = clampf(absf(_drive_v) / DRIVE_SPEED, 0.0, 1.0)
 	rider._rig.ride_turn = clampf(inp.x, -1.0, 1.0)
+	_update_reins()
+
+
+# --- covered carts (sit and drive) and reins in the hands ------------------------------------------------
+var covered := false               # a cloth canopy: the driver sits; open carts: the driver stands
+var _reins: Array = []
+
+
+## Adds the canopy (four poles and an arched cloth) and lowers the seat for a sitting driver.
+func make_covered() -> void:
+	covered = true
+	var cloth := StandardMaterial3D.new()
+	cloth.albedo_color = Color(0.78, 0.66, 0.46)
+	cloth.cull_mode = BaseMaterial3D.CULL_DISABLED
+	var wood := StandardMaterial3D.new()
+	wood.albedo_color = Color(0.33, 0.22, 0.12)
+	for x in [-0.55, 0.55]:
+		for z in [-0.9, 0.9]:
+			var pole := MeshInstance3D.new()
+			var pm := CylinderMesh.new()
+			pm.top_radius = 0.035
+			pm.bottom_radius = 0.035
+			pm.height = 1.3
+			pole.mesh = pm
+			pole.material_override = wood
+			pole.position = Vector3(x, 1.75, z - 0.3)
+			_cart.add_child(pole)
+	var roof := MeshInstance3D.new()
+	var rm := CylinderMesh.new()
+	rm.top_radius = 0.62
+	rm.bottom_radius = 0.62
+	rm.height = 1.9
+	rm.radial_segments = 12
+	roof.mesh = rm
+	roof.material_override = cloth
+	roof.rotation.x = PI * 0.5
+	roof.position = Vector3(0, 2.35, -0.3)
+	roof.scale = Vector3(1.0, 1.0, 0.55)
+	_cart.add_child(roof)
+	seat.position = Vector3(0, 1.2, -0.75)       # on the front board, under the canopy
+
+
+func _update_reins() -> void:
+	if rider == null or _animals.is_empty():
+		return
+	if _reins.is_empty():
+		var rope := StandardMaterial3D.new()
+		rope.albedo_color = Color(0.45, 0.33, 0.2)
+		for i in 2:
+			var mi := MeshInstance3D.new()
+			var cm := CylinderMesh.new()
+			cm.top_radius = 0.012
+			cm.bottom_radius = 0.012
+			cm.height = 1.0
+			cm.radial_segments = 4
+			mi.mesh = cm
+			mi.material_override = rope
+			get_parent().add_child(mi)
+			_reins.append(mi)
+	for i in 2:
+		var hand: Vector3 = rider._rig._bone_pos("wr_L" if i == 0 else "wr_R")
+		var a: Animal = _animals[mini(i, _animals.size() - 1)]
+		var head := a.global_position + Vector3(0, 1.35, 0) - Vector3(-sin(_heading), 0.0, -cos(_heading)) * -1.0
+		var mid := (hand + head) * 0.5 - Vector3(0, 0.12, 0)        # a little slack
+		var mi: MeshInstance3D = _reins[i]
+		var d := head - hand
+		mi.global_position = mid
+		mi.look_at(head, Vector3.UP if absf(d.normalized().y) < 0.95 else Vector3.FORWARD)
+		mi.rotate_object_local(Vector3.RIGHT, PI * 0.5)
+		mi.scale = Vector3(1.0, d.length(), 1.0)
+
+
+func _clear_reins() -> void:
+	for r in _reins:
+		if is_instance_valid(r):
+			r.queue_free()
+	_reins.clear()

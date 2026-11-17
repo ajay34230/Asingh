@@ -153,3 +153,25 @@ static func clear_all() -> void:
 
 static func summary_line() -> String:
 	return "%d crash report(s) stored. Godot log files: %d." % [crash_files().size(), log_files().size()]
+
+
+## Bug report: a folder in Downloads (or the app folder) with the full report and a screenshot of the game,
+## ready to send. Returns the folder path, or "" if nothing could be written.
+static func save_bug(shot: Image, note: String) -> String:
+	var stamp := Time.get_datetime_string_from_system(false, false).replace(":", "-")
+	for d in [OS.get_system_dir(OS.SYSTEM_DIR_DOWNLOADS), OS.get_user_data_dir()]:
+		if String(d) == "":
+			continue
+		var dir := String(d).path_join("LostKingdom_bug_" + stamp)
+		if DirAccess.make_dir_recursive_absolute(dir) != OK:
+			continue
+		var f := FileAccess.open(dir.path_join("report.txt"), FileAccess.WRITE)
+		if f == null:
+			continue
+		f.store_string("BUG REPORT " + stamp + "\n" + note + "\n\n" + build_report())
+		f.close()
+		if shot != null:
+			shot.save_png(dir.path_join("screenshot.png"))
+		event("bug report saved: " + dir)
+		return dir
+	return ""

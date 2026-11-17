@@ -290,6 +290,22 @@ func setup(preset: Dictionary, mode: String, label: String) -> Npc:
 	_cd["idle"] = _rng.randf_range(3.0, 12.0)
 	rig = RealHuman.new().setup(preset, label)
 	rig.engine_anim = true          # perf step 6: walking and standing play baked clips in the engine
+	# each kind of villager stands and walks in its own captured way
+	if role in ["elder", "chief"]:
+		rig.walk_override = "ual_walk_formal"
+	match role:
+		"trader", "chief":
+			rig.idle_override = "ual_idle_talking"
+		"worker":
+			rig.idle_override = ["ual_idle_rail", "ual_idle_rail_call"][absi(hash(label)) % 2]
+		"farmer":
+			rig.idle_override = ["ual_farm_harvest", "ual_farm_plantseed", "ual_farm_watering"][absi(hash(label)) % 3]
+		"guard", "police":
+			rig.idle_override = "ual_idle_torch"
+	if role == "villager" and absi(hash(label)) % 4 == 0:
+		rig.walk_override = "ual_walk_carry"
+	if label == "Ravi":
+		rig.idle_override = "ual_idle_lantern"
 	rig.mode = mode
 	add_child(rig)
 	death_clip = RealHuman.random_death(_rng)          # this person's own fall, different from person to person

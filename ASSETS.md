@@ -117,3 +117,19 @@ the title, a licence link and a note of changes; all of that is in `scripts/cred
 | `ruined-stone-bridge-broken-arch.zip` | Ruined Stone Bridge, Broken Arch, s8819296 | CC BY 4.0 |
 | `alien_space_nebula_2_skybox.glb` | Alien Space Nebula 2 (Skybox), Jungle Jim (https://sketchfab.com/jungle_jim) | CC BY 4.0 |
 | `frank.glb` | Frank, misterdevious (https://sketchfab.com/misterdevious) | CC BY-NC-SA 4.0: non-commercial and share-alike. Not used, and kept out of the credits, until Ajay decides (risky for a Play Store release). |
+
+## Models converted for Kesar Kot (2026-11-17; `tools/convert_sketchfab.gd` -> `assets/sketchfab/`)
+
+All CC BY 4.0 from Sketchfab (credit, title, licence link and changes are in `scripts/credits.gd`). Changes: triangles
+reduced with Godot's mesh simplifier, textures shrunk to 512 px and de-duplicated, scaled and placed in Kesar Kot.
+Belarusian village (Nikita Vitik), Church (local.yany), Collapsed Gothic Chapel Ruin (Pigcraft), Desert Mud Concrete
+House Lowpoly and Tree low poly lowpoly (00amza), low poly desert village (cubemelongames), Grass pack and Oak trees pack
+(LOLIPOP), Haunted House (Raphael Baget), Medieval Tavern 'West' (-X-ScornGames), Volgar Village (novusod), six houses
+and plants by iGauravRajput, two residential building sets (Metazeon), zombie monster slasher necromorph
+(wojciechmiedziocha), Pine Forest at Sunset (Jagobo), Realistic Beech Fern Plant (3d-artist-shop), tree broken mossy
+branch (ScanForgeFAB), FREE - SkyBox Fantasy Village (paul_paul_paul), plus the earlier Atahan3D, s8819296 and Jungle Jim
+models.
+
+Not used (kept only in `models_src/`): Ftm (luyssport, CC BY-NC-SA: non-commercial), Village RE4 (windofglass, a rip of
+Capcom's Resident Evil 4: not licensable), Mud Grassland (abhayexe) and Snow Village (Nelib) under the Sketchfab Standard
+licence (no redistribution; this repo is public), Frank (misterdevious, CC BY-NC-SA).

@@ -108,7 +108,8 @@ func make_clouds(follow: Node3D) -> void:
 	_cloud_mat.shader = sh
 	_cloud_mat.set_shader_parameter("noise_tex", tex)
 	_clouds = MeshInstance3D.new()
-	_clouds.name = "Clouds"
+	_clouds.name = "CloudsRemoved"           # clouds removed at the player's request (2026-11-18)
+	_clouds.visible = false
 	var pm := PlaneMesh.new()
 	pm.size = Vector2(5000, 5000)
 	_clouds.mesh = pm
@@ -146,7 +147,7 @@ func _make_sky_extras() -> void:
 	sm.point_size = 2.5
 	sm.albedo_color = Color(1, 1, 0.95, 0.0)
 	sm.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
-	sm.no_depth_test = true
+	sm.no_depth_test = false                 # stars stay behind walls and roofs
 	sm.disable_fog = true
 	_stars = MeshInstance3D.new()
 	_stars.name = "Stars"
