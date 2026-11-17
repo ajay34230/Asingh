@@ -99,6 +99,7 @@ func _ready() -> void:
 			pm.call("enter")))
 	nav.add_child(_button("Settings", func() -> void: _show_page("Settings")))
 	nav.add_child(_button("How to play", func() -> void: _show_page("Help")))
+	nav.add_child(_button("Credits", func() -> void: _show_page("Credits")))
 	nav.add_child(_button("Crash & logs", func() -> void: _show_page("Logs")))
 	nav.add_child(_button("Save slots", func() -> void: _show_page("Slots")))
 	nav.add_child(_button("Save game", func() -> void:
@@ -132,6 +133,7 @@ func _ready() -> void:
 	_pages["Slots"] = _build_slots()
 	_pages["Settings"] = _build_settings()
 	_pages["Help"] = _build_help()
+	_pages["Credits"] = _build_credits()
 	_pages["Confirm"] = _build_confirm()
 	_pages["Logs"] = _build_logs()
 	_pages["Hero"] = _build_hero()
@@ -870,3 +872,14 @@ func _new_game() -> void:
 		DirAccess.remove_absolute(ProjectSettings.globalize_path(CHECKPOINT_PATH + suffix))
 	get_tree().paused = false
 	get_tree().reload_current_scene()
+
+
+func _build_credits() -> Control:
+	var pg := _scroll_page("Credits")
+	var vb: VBoxContainer = pg[1]
+	var t := Label.new()
+	t.autowrap_mode = TextServer.AUTOWRAP_WORD
+	t.text = Credits.TEXT
+	t.set_meta("no_translate", true)
+	vb.add_child(t)
+	return pg[0]

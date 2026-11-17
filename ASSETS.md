@@ -101,3 +101,19 @@ Credit: monsters and weapons by Quaternius, graveyard by Kenney (CC0; credit not
 | Asset | Source | Licence |
 |---|---|---|
 | 14 characters: Remy, Rohan (Ch22), Akai, Medea, Bhola (Peasant Man), Champa (Peasant Girl), Rishi (Ch39), Pehlwan (Ch43), Billu the Cat (Ch14), Kaidi (Prisoner), Chudail (Girl Scout), Vampire, Nightshade, Demon King (Demon). The models are **not in the APK**: they live on the `dlc` branch (`heroes/<id>.glb`) and the game downloads each one when it is first chosen or when a mission needs it. The 256 px portraits in `assets/heroes/` are bundled. | Adobe Mixamo characters downloaded by Ajay as FBX (originals kept out of git in `mixamo_src/heroes/`), converted to GLB by `tools/convert_heroes.gd` (animations stripped, textures shrunk). Portraits rendered by `tools/render_portraits.gd`. | Mixamo terms (Adobe): royalty-free for use in games, not CC0. Ajay chose to host the converted models in this public repo, the same exception as the Mixamo animations above. |
+
+## Downloaded models waiting to be added (2026-11-17, raw files in `models_src/`, gitignored)
+
+Authors and licences read from each file's glTF `asset.extras` or from the Sketchfab API. CC BY needs the credit,
+the title, a licence link and a note of changes; all of that is in `scripts/credits.gd` (Menu > Credits).
+
+| File | Title, author | Licence |
+|---|---|---|
+| `morwenna__the_pale_widow.glb` | MORWENNA // The Pale Widow, Atahan3D (https://sketchfab.com/Atahan3D) | CC BY 4.0 |
+| `sister_vesper__the_veiled_oath.glb` | SISTER VESPER // The Veiled Oath, Atahan3D | CC BY 4.0 |
+| `fenwillow-the-meadowlight-wanderer.zip` | FENWILLOW // The Meadowlight Wanderer, Atahan3D (AI-assisted model) | CC BY 4.0 |
+| `thalvoris-the-hollowcore-revenant.zip` | THALVORIS // The Hollowcore Revenant, Atahan3D (made with Meshy) | CC BY 4.0 |
+| `overgrown-courtyard-patio-ruin.zip` | Overgrown Courtyard Patio Ruin, s8819296 (https://sketchfab.com/s8819296) (made with Tripo) | CC BY 4.0 |
+| `ruined-stone-bridge-broken-arch.zip` | Ruined Stone Bridge, Broken Arch, s8819296 | CC BY 4.0 |
+| `alien_space_nebula_2_skybox.glb` | Alien Space Nebula 2 (Skybox), Jungle Jim (https://sketchfab.com/jungle_jim) | CC BY 4.0 |
+| `frank.glb` | Frank, misterdevious (https://sketchfab.com/misterdevious) | CC BY-NC-SA 4.0: non-commercial and share-alike. Not used, and kept out of the credits, until Ajay decides (risky for a Play Store release). |
